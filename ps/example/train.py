@@ -35,9 +35,6 @@ if __name__ == "__main__":
 
     server_desc_str = text_format.MessageToString(server_desc)
 
-    with open("server_desc", "w") as fin:
-        fin.write(server_desc_str)
-
     async_exe = fluid.AsyncExecutor()
     instance = async_exe.config_distributed_nodes()
 
