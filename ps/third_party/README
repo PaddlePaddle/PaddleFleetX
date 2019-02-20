@@ -1,0 +1,10 @@
+注意!!
+只有本模块可以和svn上的protobuf进行编译依赖打平, 使用前请注意。
+
+模块:protobufs
+来源:https://github.com/google/protobuf/tree/v3.0.0-beta-2
+MD5:fcbabef01a84064ae293225befb131e9
+引入人员:set[xingyongxu@baidu.com]
+编译方式:sh build.sh
+编译注意:无
+更多参考信息:无
