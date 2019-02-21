@@ -1,6 +1,8 @@
 #include "common.h"
 #include "encode.h"
 
+#include <assert.h>
+
 namespace paddle {
 namespace communication {
 namespace dgc{
@@ -38,23 +40,25 @@ static void getNumBlocksAndThreads(int n, int &blocks, int &threads) {
     blocks = max(1, n / (threads * 2));
   }
   blocks = min(MAX_BLOCKS, blocks);
+
+  assert(blocks * threads < n);
 }
 
 template <typename T>
 __global__ void KeGetThreadCountByThreshold(const T* idata, int* odata, int count, T* threshold) 
 {
-  extern int __shared__ sdata[];
-  sdata[threadIdx.x] = 0;
-  __syncthreads();
-  T kth = *threshold;
+  const int id = threadIdx.x + blockDim.x * blockIdx.x;
+  if (id >= count) return;
 
-  for (int i = threadIdx.x + blockDim.x * blockIdx.x; i < count; i += gridDim.x * blockDim.x) {
+  int cnt = 0;
+  T kth = *threshold;
+  for (int i = id; i < count; i += gridDim.x * blockDim.x) {
     if (FABS(idata[i]) >= kth) {
-      sdata[threadIdx.x] ++;
+      cnt++;
     }
   }
-  __syncthreads();
-  odata[threadIdx.x + blockDim.x * blockIdx.x] = sdata[threadIdx.x];
+
+  odata[id] = cnt;
 }
 
 __global__ void KePrefixSum(int *data, int width, int *partial_sums=NULL) {
