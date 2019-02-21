@@ -31,7 +31,7 @@ bool dynloadNcclLib(void);
 bool sparseAllGReduce(const void* encode, void* gatherbuff, const int nnz,
                      float* dense, const int count, ncclComm_t comm, cudaStream_t stream);
 
-bool k_select(void* encode, int k, float* input, int count, void* buff, cudaStream_t stream, float* moment = nullptr);
+bool k_select(void* encode, int k, float* input, int count, void* buff, cudaStream_t stream, float* moment = NULL);
 
 int get_buffer_size(int count); 
 
