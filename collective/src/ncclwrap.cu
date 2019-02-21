@@ -10,6 +10,7 @@ namespace dgc{
 static enum { ncclUninitialized, ncclInitializing, ncclInitialized, ncclError } ncclState = ncclUninitialized;
 
 /*Function Pointers*/
+static const char*  (*ncclGetErrorStringFuncPoint)(ncclResult_t result);
 static ncclResult_t (*ncclCommCountFuncPoint)(const ncclComm_t comm, int* count);
 static ncclResult_t (*ncclAllGatherFuncPoint)(const void* sendbuff, void* recvbuff, size_t sendcount,
     ncclDataType_t datatype, ncclComm_t comm, cudaStream_t stream);
@@ -50,6 +51,7 @@ bool warpNcclSymbols(void) {
     *cast = tmp;                                               \
   } while (0)
 
+  LOAD_SYM(ncclhandle, "ncclGetErrorString", ncclGetErrorStringFuncPoint);
   LOAD_SYM(ncclhandle, "ncclCommCount", ncclCommCountFuncPoint);
   LOAD_SYM(ncclhandle, "ncclAllGather", ncclAllGatherFuncPoint);
 
@@ -69,7 +71,7 @@ teardown:
   ncclResult_t r = cmd;                             \
   if (r!= ncclSuccess) {                            \
     LOGERR("Failed, NCCL error '%s'",               \
-           ncclGetErrorString(r));                  \
+           ncclGetErrorStringFuncPoint(r));         \
     exit(EXIT_FAILURE);                             \
   }                                                 \
 } while(0)
