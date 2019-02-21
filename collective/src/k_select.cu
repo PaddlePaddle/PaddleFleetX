@@ -22,7 +22,7 @@ static void args_check(void* encode, void* buff, T* input, int k, int count) {
 }
 
 int get_buffer_size(int count) {
-  return (16 + (MAX_BLOCKS + 1) * MAX_THREADS)* sizeof(float);
+  return (16 + (MAX_BLOCKS + 1) * MAX_THREADS) * sizeof(float);
 }
 
 int get_encode_size(int count, int k) {
