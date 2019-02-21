@@ -122,8 +122,8 @@ __device__ __forceinline__ T BlockReduce(Pair<T>* sh_topk, int* maxid,
                                             Pair<T> topk[],
                                             int* beam, int* k,
                                             const int tid, const int warp,
-                                            T** topVal = nullptr, 
-                                            int** topIds = nullptr) {
+                                            T** topVal = NULL, 
+                                            int** topIds = NULL) {
   T ret = -INFINITY;
   while (true) {
     __syncthreads();
@@ -145,7 +145,7 @@ __device__ __forceinline__ T BlockReduce(Pair<T>* sh_topk, int* maxid,
     }
     __syncthreads();
 
-    if (tid == 0 && topVal != nullptr && topIds != nullptr) {
+    if (tid == 0 && topVal != NULL && topIds != NULL) {
       **topVal = sh_topk[maxid[0]].v;
       **topIds = sh_topk[maxid[0]].id;
       (*topVal)++;
