@@ -83,7 +83,7 @@ void DeleteCuda(void* ptr) {
 bool check_data(int ranks, float * data, int count, float * data_out, 
                     void * encode, void * encode2, 
                     void * buffer, float * moment, int k, 
-                    float* kth,  float* rkth = nullptr) {
+                    float* kth,  float* rkth = NULL) {
     namespace pdgc = paddle::communication::dgc;
 
     bool ret = true;
@@ -106,7 +106,7 @@ bool check_data(int ranks, float * data, int count, float * data_out,
     CUDA_CHECK(cudaMemcpy(h_moment, moment, bytes, cudaMemcpyDeviceToHost));
 
     *kth = (static_cast<float*>(h_buffer))[0];
-    if (rkth != nullptr) {
+    if (rkth != NULL) {
         std::partial_sort(h_data, h_data + k, h_data + count, compare);
         *rkth = h_data[k-1];
     }

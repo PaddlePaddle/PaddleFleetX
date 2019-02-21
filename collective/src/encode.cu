@@ -185,7 +185,7 @@ void mask(void* encode, int count, int k, float* input, cudaStream_t stream, flo
   int* index = static_cast<int*>(encode);
   KeMask<float><<<GET_BLOCKS(k), CUDA_NUM_THREADS, 0, stream>>>(
                                index, k, input, count);
-  if (moment != nullptr) {
+  if (moment != NULL) {
     KeMask<float><<<GET_BLOCKS(k), CUDA_NUM_THREADS, 0, stream>>>(
                                index, k, moment, count);
   }
