@@ -53,6 +53,7 @@ void sparseReduce(void* gatherbuff, const int nnz, T* dense, const int count,
   }
 }
 
+__attribute__ ((visibility("default")))
 bool sparseAllGReduce(const void* encode, void* gatherbuff, const int nnz, float* dense,
                       const int count, ncclComm_t comm, cudaStream_t stream) {
   argsCheck(encode, gatherbuff, nnz, dense, count);
@@ -60,10 +61,22 @@ bool sparseAllGReduce(const void* encode, void* gatherbuff, const int nnz, float
   warpNcclAllGather(encode, gatherbuff, nnz * (sizeof(int) + sizeof(float)), ncclChar, comm, stream);
   int nranks = 0;
   warpNcclCommCount(comm, &nranks);
+
+  int saved_dev = -1;
+  CUDA_CHECK(cudaGetDevice(&saved_dev));
+
+  int device = -1;
+  warpNcclCommCuDevice(comm, &device);
+  assert(device != -1);
+  CUDA_CHECK(cudaSetDevice(device));
+  
   sparseReduce(gatherbuff, nnz, dense, count, nranks, stream);
+
+  if (saved_dev != -1) CUDA_CHECK(cudaSetDevice(saved_dev));
   return true;
 }
 
+__attribute__ ((visibility("default")))
 bool dynloadNcclLib(void) {
   if (warpNcclSymbols() != true) {
     LOGERR("Failed dynamic load libnccl.so");
