@@ -36,10 +36,10 @@
   }                                                 \
 } while(0)
 
-#define TIME_BENCH(item, iter, func)                                       \
+#define TIME_BENCH(item, iter, func, ret)                                  \
     {                                                                      \
         auto start = std::chrono::high_resolution_clock::now();            \
-        for (int i = 0; i < iter; i++) {func;}                             \
+        for (int i = 0; i < iter; i++) {ret = func;}                       \
         CUDA_CHECK(cudaDeviceSynchronize());                               \
         auto end = std::chrono::high_resolution_clock::now();              \
         item = std::chrono::nanoseconds(end - start).count() / 1000./iter; \
@@ -120,9 +120,13 @@ bool check_data(int ranks, float * data, int count, float * data_out,
             break;
         }
         if (index1[i] == -1) {
+            continue;
+        }
+        if (h_moment[index1[i]] != 0) {
+            printf("i=%d, index=%d, h_moment=%f\n", i, index1[i], h_moment[index1[i]]);
+            ret = false;
             break;
         }
-//        if (h_moment[index1[i]] != 0 || h_data_o[index1[i]] != 0) {
         if (fabs(value1[i] * ranks - h_data_o[index1[i]]) > 0.000001 * ranks) {
             printf("i=%d, index=%d, encode=%f, output=%f, multi_ans=%f\n", i, index1[i], value1[i], h_data_o[index1[i]], value1[i]*ranks);
             ret = false;
@@ -139,14 +143,19 @@ bool check_data(int ranks, float * data, int count, float * data_out,
     return ret;
 }
 
-void cal_com_test(float* data, int count, void* encode, void* buffer, int k,
+bool cal_com_test(float* data, int count, void* encode, void* buffer, int k,
                   cudaStream_t stream, float* moment,
                   void* gather_buff, ncclComm_t comm) {
     namespace pdgc = paddle::communication::dgc;
-    pdgc::k_select(encode, k, data, count, buffer, stream, moment);
+    if(pdgc::k_select(encode, k, data, count, buffer, stream, moment)) {
 //    k_select_bucket(data, count, encode , buffer, k, stream, moment);
-    pdgc::sparseAllGReduce((const void*)encode, gather_buff, k,
+        pdgc::sparseAllGReduce((const void*)encode, gather_buff, k,
                                 data, count, comm, stream);
+      return true;
+    } else {
+      return false;
+    }
+    return false;
 }
 
 
@@ -193,7 +202,7 @@ int runTest(int argc, char *argv[], int rank, int ranks, ncclComm_t comm) {
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream));
 
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 5; i++) {
       ncclAllGather((const void*)encode, gather_buff, kbytes, ncclChar, comm, stream);
     }
     CUDA_CHECK(cudaDeviceSynchronize());
@@ -201,16 +210,21 @@ int runTest(int argc, char *argv[], int rank, int ranks, ncclComm_t comm) {
     float time = 0;
     float kth = -1;
     float rkth = -1;
+    bool is_sparse = false;
     TIME_BENCH(time, iteration,
         cal_com_test(data1, count, encode, buffer, k, stream, moment,
-                     gather_buff, comm));
+                     gather_buff, comm), is_sparse);
     TIME_BENCH(time, 1, 
         cal_com_test(data2, count, encode2, buffer, k, stream, moment,
-                     gather_buff1, comm));
+                     gather_buff1, comm), is_sparse);
     std::string ret;
-    ret = check_data(ranks, data, count, data1, encode, encode2, buffer, moment,
+    if (is_sparse) {
+        ret = check_data(ranks, data, count, data1, encode, encode2, buffer, moment,
                                      k, &kth, &rkth) ? "OK" : "Err";
-    if (rank % 8 == 0) {
+    } else {
+        ret = "NOP_SPARSE";
+    }
+    if (rank == 0) {
         if (print_header) {
             std::string suffix = " us";
             std::cout << std::right;
