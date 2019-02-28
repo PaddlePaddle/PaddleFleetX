@@ -12,6 +12,7 @@ static enum { ncclUninitialized, ncclInitializing, ncclInitialized, ncclError } 
 /*Function Pointers*/
 static const char*  (*ncclGetErrorStringFuncPoint)(ncclResult_t result);
 static ncclResult_t (*ncclCommCountFuncPoint)(const ncclComm_t comm, int* count);
+static ncclResult_t (*ncclCommCuDeviceFuncPoint)(const ncclComm_t comm, int* device);
 static ncclResult_t (*ncclAllGatherFuncPoint)(const void* sendbuff, void* recvbuff, size_t sendcount,
     ncclDataType_t datatype, ncclComm_t comm, cudaStream_t stream);
 
@@ -53,6 +54,7 @@ bool warpNcclSymbols(void) {
 
   LOAD_SYM(ncclhandle, "ncclGetErrorString", ncclGetErrorStringFuncPoint);
   LOAD_SYM(ncclhandle, "ncclCommCount", ncclCommCountFuncPoint);
+  LOAD_SYM(ncclhandle, "ncclCommCuDevice", ncclCommCuDeviceFuncPoint);
   LOAD_SYM(ncclhandle, "ncclAllGather", ncclAllGatherFuncPoint);
 
   ncclState = ncclInitialized;
@@ -83,6 +85,16 @@ bool warpNcclCommCount(const ncclComm_t comm, int* count) {
     return false;
   }
   NCCL_CHECK(ncclCommCountFuncPoint(comm, count));
+  return true;
+}
+
+bool warpNcclCommCuDevice(const ncclComm_t comm, int* device) {
+  if (ncclCommCuDeviceFuncPoint == NULL) {
+    LOGERR("lib nccl not initialized.");
+    exit(EXIT_FAILURE);
+    return false;
+  }
+  NCCL_CHECK(ncclCommCuDeviceFuncPoint(comm, device));
   return true;
 }
 

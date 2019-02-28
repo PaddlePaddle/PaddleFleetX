@@ -1,13 +1,13 @@
 CC      = g++
-CFLAGS  = -std=c++11 -fPIC -O3 -DNDEBUG
+CFLAGS  = -std=c++11 -fPIC -O3 -DNDEBUG -fvisibility=hidden
 
 CUDA_HOME ?= /usr/local/cuda
 NVCC = $(CUDA_HOME)/bin/nvcc
 
 INCLUDEFLAGS = -isystem $(CUDA_HOME)/include
-LDFLAGS = -rdynamic $(CUDA_HOME)/lib64/libcudart.so  $(CUDA_HOME)/lib64/libnvrtc.so -lpthread -Wl,-rpath,$(CUDA_HOME)/lib64 -ldl
+LDFLAGS = -rdynamic $(CUDA_HOME)/lib64/libcudart.so -lpthread -Wl,-rpath,$(CUDA_HOME)/lib64 -ldl
 
-ifneq ($(NCCL_INCLUDE), "")
+ifneq ($(NCCL_INCLUDE), )
 INCLUDEFLAGS += -I$(NCCL_INCLUDE)
 endif
 
@@ -33,14 +33,14 @@ else
   NVCC_GENCODE ?= $(CUDA8_GENCODE) $(CUDA8_PTX)
 endif
 
-NVCUFLAGS := -ccbin $(CC) $(NVCC_GENCODE) $(INCLUDEFLAGS) -std=c++11 --compiler-options '-fPIC'
+NVCUFLAGS := -ccbin $(CC) $(NVCC_GENCODE) $(INCLUDEFLAGS) -std=c++11 --compiler-options '-fPIC -fvisibility=hidden'
 
 ifeq ($(DEBUG), 1)
 NVCUFLAGS += -DDEBUG_PRINT
 CC  += -DDEBUG_PRINT
 endif
 
-#BUILD_PREFIX ?= ../build
+BUILD_PREFIX ?= ../build
 BIN_DIR := $(BUILD_PREFIX)/bin
 OBJ_DIR := $(BUILD_PREFIX)/obj
 INC_DIR := $(BUILD_PREFIX)/include
@@ -63,24 +63,29 @@ CU_OBJS := $(CU_SRCS:%.cu=$(OBJ_DIR)/%.cu.o)
 .PHONY : staticlib lib clean
 
 $(OBJ_DIR)/%.cc.o : %.cc
-	@printf "debug: $@ <-- $<"
+	@printf "debug: $@ <-- $<\n"
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) $(INCLUDEFLAGS) -o $@ -c $<
 
 $(OBJ_DIR)/%.cu.o : %.cu
-	@printf "debug: $@ <-- $<"
+	@printf "debug: $@ <-- $<\n"
 	mkdir -p $(OBJ_DIR)
-	$(NVCC) -o $@ $(NVCUFLAGS) -c $<
+	$(NVCC) $(NVCUFLAGS) -dc $< -o $@
 
-$(LIB_DIR)/libdgc.so : $(OBJS) $(CU_OBJS)
+$(OBJ_DIR)/cu.dlink.o : $(CU_OBJS)
+	@printf "Dlinking %-35s\n" $@
+	mkdir -p $(OBJ_DIR)
+	$(NVCC) $(NVCUFLAGS) -dlink $^ -o $@
+
+$(LIB_DIR)/libdgc.so : $(OBJS) $(CU_OBJS) $(OBJ_DIR)/cu.dlink.o
 	@printf "Linking   %-35s\n" $@
 	mkdir -p $(LIB_DIR)
-	$(CC) $(CFLAGS) -shared -Wl,--no-as-needed -Wl,-soname,libdgc.so -o $@ $(LDFLAGS) $(OBJS) $(CU_OBJS)
+	$(CC) $(CFLAGS) -shared -Wl,--no-as-needed -Wl,-soname,libdgc.so -o $@ $(LDFLAGS) $^
 
-$(LIB_DIR)/%.a : $(OBJS) $(CU_OBJS)
+$(LIB_DIR)/%.a : $(OBJS) $(CU_OBJS) $(OBJ_DIR)/cu.dlink.o
 	@printf "Archiving %-35s\n" $@
 	mkdir -p $(LIB_DIR)
-	ar cr $@ $(OBJS) $(CU_OBJS)
+	ar cr $@ $^
 
 $(INC_DIR)/%.h : %.h
 	@printf "Grabbing %-35s > %s\n" $< $@
