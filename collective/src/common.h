@@ -45,7 +45,7 @@ __forceinline__ __device__ T CudaShuffleSync(unsigned mask, T val, int src_line,
 }
 
 template <typename T>
-__forceinline__ __device__ T CudaShuffleUpSync(unsigned mask, T val, int delta, 
+__forceinline__ __device__ T CudaShuffleUpSync(unsigned mask, T val, unsigned delta, 
                                                int width = 32) {
 #if CUDART_VERSION < 9000
   return __shfl_up(val, delta, width);
@@ -54,8 +54,44 @@ __forceinline__ __device__ T CudaShuffleUpSync(unsigned mask, T val, int delta,
 #endif
 }
 
+class CudaDeviceGuard {
+  private:
+    int _prev_id{-1};
+
+  public:
+    explicit inline CudaDeviceGuard(int dev_id) {
+      int prev_id = -1;
+      CUDA_CHECK(cudaGetDevice(&prev_id));
+      if (prev_id != dev_id) {
+        _prev_id = prev_id;
+        CUDA_CHECK(cudaSetDevice(dev_id));
+      }
+    }
+
+    inline ~CudaDeviceGuard() {
+      if (_prev_id != -1) {
+        CUDA_CHECK(cudaSetDevice(_prev_id));
+      }
+    }
+};
+
+static inline void devptr_check(const void* pointer, int devid, const char* ptrname) {
+  cudaPointerAttributes attr;
+  CUDA_CHECK(cudaPointerGetAttributes(&attr, pointer));
+  if (attr.devicePointer == NULL) {
+    LOGERR("%s is not a valid pointer", ptrname);
+  } 
+  if (attr.memoryType == cudaMemoryTypeDevice && attr.device != devid) {
+    LOGERR("%s allocated on device %d mismatchs with current device %d",
+            ptrname, attr.device, devid);
+  }
+}
+
 #define MAX_THREADS 256
 #define MAX_BLOCKS  128
+
+#define DIVUP(x, y) \
+    (((x)+(y)-1)/(y))
 
 }  // namespace dgc
 }  // namespace communication

@@ -31,3 +31,4 @@
 
 void RandomizeFloat(void* dest, const int count, const int seed);
 void FeedInputFloat(float * dest, const int count, const float * src, const int size);
+void CheckDelta(float* dst, float* dst_test, size_t count, double* dmax, int rank, cudaStream_t stream);
