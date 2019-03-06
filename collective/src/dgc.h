@@ -3,6 +3,7 @@
 
 #include <cuda_runtime.h>
 #include "nccl.h"
+#include <vector>
 
 namespace paddle {
 namespace communication {
@@ -38,6 +39,17 @@ int get_buffer_size(int count);
 int get_encode_size(int count, int k);
 
 bool is_recommend_use_dgc(int nranks, int count, int k);
+
+/// selectRows+CSC
+
+class GpuAllocator {
+public:
+  virtual void* allocator(size_t bytes_size) = 0;
+};
+
+int allReduceSelectedRows(const int max_rows_height, const std::vector<int>& src_rows,
+    const int row_width, const float* src_tensor, std::vector<int>* dst_rows,
+    float** dst_tensor, GpuAllocator* allocator, ncclComm_t comm, cudaStream_t stream);
 
 }  // namespace dgc
 }  // namespace communication

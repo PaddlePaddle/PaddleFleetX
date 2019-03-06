@@ -61,6 +61,22 @@ __global__ void KeGetThreadCountByThreshold(const T* idata, int* odata, int coun
   odata[id] = cnt;
 }
 
+template <typename T>
+__global__ void KeGetRowsCount(const T* idata, int* odata, int count) 
+{
+  const int id = threadIdx.x + blockDim.x * blockIdx.x;
+  if (id >= count) return;
+
+  int cnt = 0;
+  for (int i = id; i < count; i += gridDim.x * blockDim.x) {
+    if (idata[i] > 0) {
+      cnt++;
+    }
+  }
+
+  odata[id] = cnt;
+}
+
 __global__ void KePrefixSum(int *data, int width, int *partial_sums=NULL) {
   extern __shared__ int shm[];
   int id = ((blockIdx.x * blockDim.x) + threadIdx.x);
@@ -103,7 +119,7 @@ __global__ void KePrefixSum(int *data, int width, int *partial_sums=NULL) {
   }
 }
 
-__global__ void KeGlobalPrefixSum(int *data, int *partial_sums, int len, int k) {
+__global__ void KeGlobalPrefixSum(int *data, int *partial_sums, int len) {
   __shared__ int buf;
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id >= len) return;
@@ -152,6 +168,21 @@ __global__ void KeEncode(const T *data, int count, int *scan, T* value, int* ind
 }
 
 template <typename T>
+__global__ void KeGetIndex(const T *data, int count, int *scan, int* index) {
+  int id = blockDim.x*blockIdx.x + threadIdx.x;
+  int offset = (id == 0) ? 0 : scan[id-1];
+  if (id == 1) scan[0] = scan[gridDim.x*blockDim.x - 1];
+
+  for (int i = id; i < count; i += gridDim.x*blockDim.x) {
+    T val = data[i];
+    if (val > 0) {
+      index[offset] = i;
+      offset++;
+    }
+  }
+}
+
+template <typename T>
 __global__ void KeMask(int* index, int k, T* data, int count) {
   int id = blockDim.x*blockIdx.x+threadIdx.x;
   for (int i = id; i < k; i += gridDim.x*blockDim.x) {
@@ -161,6 +192,28 @@ __global__ void KeMask(int* index, int k, T* data, int count) {
     }
     data[idx] = 0;
   }
+}
+
+void dense2idx(int* index, int* c_nnz, int8_t* input, int* thr_cnt, int count, cudaStream_t stream) {
+  int blocks, threads;
+  getNumBlocksAndThreads(count, blocks, threads);
+  int smemSize = sizeof(float) * threads;
+  int p_threads = min(blocks, threads);
+  int p_blocks = iDivUp(blocks, p_threads);
+
+  KeGetRowsCount<int8_t><<<blocks, threads, smemSize, stream>>>(input, thr_cnt, count);
+
+  int* part = thr_cnt + threads * blocks;
+  KePrefixSum<<<blocks, threads, smemSize, stream>>>(thr_cnt, 32, part);
+  KePrefixSum<<<p_blocks, p_threads, smemSize, stream>>>(part, 32);
+  KeGlobalPrefixSum<<<blocks-1, threads, 0, stream>>>(thr_cnt + threads, part, count);
+
+  CUDA_CHECK(cudaMemcpyAsync(c_nnz, thr_cnt + blocks*threads -1,
+                             sizeof(int), cudaMemcpyDeviceToHost, stream));
+
+  CUDA_CHECK(cudaMemsetAsync(static_cast<void*>(index), -1, count*sizeof(int), stream));
+
+  KeGetIndex<int8_t><<<blocks, threads, 0, stream>>>(input, count, thr_cnt, index);
 }
 
 void dense2coo(void* encode, float * input, float* threshold, int* thr_cnt, int count, int k, cudaStream_t stream) {
@@ -174,7 +227,7 @@ void dense2coo(void* encode, float * input, float* threshold, int* thr_cnt, int 
   int* part = thr_cnt + threads * blocks;
   KePrefixSum<<<blocks, threads, smemSize, stream>>>(thr_cnt, 32, part);
   KePrefixSum<<<p_blocks, p_threads, smemSize, stream>>>(part, 32);
-  KeGlobalPrefixSum<<<blocks-1, threads, 0, stream>>>(thr_cnt + threads, part, count, k);
+  KeGlobalPrefixSum<<<blocks-1, threads, 0, stream>>>(thr_cnt + threads, part, count);
   int* index = static_cast<int*>(encode);
   float* value = static_cast<float*>(encode) + k;
   KeEncodeInit<float><<<blocks, threads, 0, stream>>>(value, index, k);

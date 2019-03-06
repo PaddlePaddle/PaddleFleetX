@@ -57,10 +57,11 @@ endif
 #PREFIX := ../build
 BIN_DIR := $(PREFIX)/bin
 OBJ_DIR := $(PREFIX)/obj
-TARGETS := $(BIN_DIR)/dgc_test
+#TARGETS := $(BIN_DIR)/dgc_test
 DIRS = $(shell find . -maxdepth 3 -type d)
 SRCS := $(foreach dir, $(DIRS), $(wildcard $(dir)/*.cc))
 OBJS := $(SRCS:%.cc=$(OBJ_DIR)/%.cc.o)
+TARGETS := $(SRCS:%.cc=$(BIN_DIR)/%)
 
 CU_SRCS := $(foreach dir, $(DIRS), $(wildcard $(dir)/*.cu))
 CU_OBJS := $(CU_SRCS:%.cu=$(OBJ_DIR)/%.cu.o)
@@ -69,8 +70,13 @@ all : test
 
 test : $(TARGETS)
 
-$(TARGETS): $(OBJS) $(CU_OBJS) 
-	@printf "Linking: $@ <-- $^ $(OBJS) $(CU_OBJS)"
+#$(TARGETS): $(OBJS) $(CU_OBJS) 
+#	@printf "Linking: $@ <-- $^ $(OBJS) $(CU_OBJS)"
+#	mkdir -p $(BIN_DIR)
+#	$(CC) $(CFLAGS) -o $@ $^  $(LDFLAGS)
+
+$(BIN_DIR)/% : $(OBJ_DIR)/%.cc.o $(CU_OBJS) 
+	@printf "Linking: $@ <-- $^"
 	mkdir -p $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^  $(LDFLAGS)
 

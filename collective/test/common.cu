@@ -33,3 +33,32 @@ void FeedInputFloat(float * dest, const int count, const float * src, const int 
             dest, count, g_src, size);
     CUDA_CHECK(cudaFree(g_src));
 }
+
+template<typename T, int BSIZE>
+__global__ void deltaKe(const T* A, const T* B, size_t count, double* dmax, int rank) {
+  __shared__ double temp[BSIZE];
+  int tid = threadIdx.x;
+  double locmax = 0.0;
+  for(int i=tid; i<count; i+=blockDim.x) {
+
+    double delta = fabs((double)(A[i] - B[i]));
+    if( delta > locmax ) {
+      locmax = delta;
+      if (delta > 0.001 && rank == 0) printf("Error at %d/%d : %f != %f, del=%lf\n", i, (int)count, (float)A[i], (float)B[i], delta);
+    }
+  }
+
+  temp[tid] = locmax;
+  for(int stride = BSIZE/2; stride > 1; stride>>=1) {
+    __syncthreads();
+    if( tid < stride )
+      temp[tid] = temp[tid] > temp[tid+stride] ? temp[tid] : temp[tid+stride];
+  }
+  __syncthreads();
+  if( threadIdx.x == 0)
+    *dmax = temp[0] > temp[1] ? temp[0] : temp[1];
+}
+
+void CheckDelta(float* dst, float* dst_test, size_t count, double* dmax, int rank, cudaStream_t stream) {
+  deltaKe<float, 512><<<1, 512, 0, stream>>>(dst, dst_test, count, dmax, rank);
+}
