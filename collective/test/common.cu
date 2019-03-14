@@ -59,6 +59,15 @@ __global__ void deltaKe(const T* A, const T* B, size_t count, double* dmax, int 
     *dmax = temp[0] > temp[1] ? temp[0] : temp[1];
 }
 
+__global__ void setDelta(double* dmax, double value) {
+  *dmax = value;
+}
+
+void SetDelta(double* dmax, double value) {
+  setDelta<<<1, 1>>>(dmax, value);
+}
+
 void CheckDelta(float* dst, float* dst_test, size_t count, double* dmax, int rank, cudaStream_t stream) {
   deltaKe<float, 512><<<1, 512, 0, stream>>>(dst, dst_test, count, dmax, rank);
 }
+

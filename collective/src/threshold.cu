@@ -123,9 +123,7 @@ __device__ __forceinline__ T BlockReduce(Pair<T>* sh_topk, int* maxid,
                                          int* beam, int* k,
                                          const int tid, const int warp,
                                          int** topIds = NULL,
-                                         bool** important = NULL
-                                         /*T** topVal = NULL, 
-                                         int** topIds = NULL*/) {
+                                         bool* important = NULL) {
   T ret = -INFINITY;
   while (true) {
     __syncthreads();
@@ -147,11 +145,10 @@ __device__ __forceinline__ T BlockReduce(Pair<T>* sh_topk, int* maxid,
     }
     __syncthreads();
 
-    if (tid == 0 && topIds != NULL) {
-      //**topVal = sh_topk[maxid[0]].v;
+    if (tid == 0 && topIds != NULL && important != NULL) {
       **topIds = sh_topk[maxid[0]].id;
-      //(*topVal)++;
       (*topIds)++;
+      important[sh_topk[maxid[0]].id] = true;
     }
     if (tid == maxid[0]) (*beam)++;
     if (--(*k) == 0) { 
@@ -201,7 +198,7 @@ __global__ void KeGetTopKImportantIdx(const T* src, int lds, int dim, int k, int
                                            &is_empty, &max, dim, threadIdx.x);
     sh_topk[threadIdx.x] = topk[0];
     T temp = BlockReduce<T, MaxLength, BlockSize>(sh_topk, maxid, topk, &beam,
-                                         &k, threadIdx.x, warp, &index, &important);
+                                         &k, threadIdx.x, warp, &index, important);
   }
 }
 
@@ -255,11 +252,11 @@ __global__ void KeGetTotalTopk(volatile T* data, int n) {
   }
 }
 
-void get_important_index(int* index, const int k, bool* important, const float* norms, const int chunks, cudaStream_t stream) {
-  const int MaxLength = 60;
+void get_ipt_idx(int* index, const int k, bool* important, const float* norms, const int chunks, cudaStream_t stream) {
+  const int MaxLength = 5;
   const int BlockSize = 512;
   int blocks = 1;
-  KeGetTopKImportantIdx<float, MaxLength, BLOCKSIZE><<<blocks, BlockSize, 0, stream>>>(
+  KeGetTopKImportantIdx<float, MaxLength, BlockSize><<<blocks, BlockSize, 0, stream>>>(
                                  norms, chunks, chunks, k, index, important);
 }
 
