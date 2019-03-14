@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <map>
 #include <unistd.h>
+#include <assert.h>
 
 #include "nccl.h"
 #include "mpi.h"
@@ -15,62 +16,9 @@
 #include "common.h"
 #include "data.h"
 
-#define LOGERR(format, args...) (fprintf(stderr, "[%s:%d:%s] " format "\n",\
-                                         __FILE__, __LINE__, __FUNCTION__, ##args))
-
-#define MPICHECK(cmd) do {                          \
-  int e = cmd;                                      \
-  if( e != MPI_SUCCESS ) {                          \
-    printf("Failed: MPI error %s:%d '%d'\n",        \
-        __FILE__,__LINE__, e);                      \
-    exit(EXIT_FAILURE);                             \
-  }                                                 \
-} while(0)
-
-#define NCCLCHECK(cmd) do {                         \
-  ncclResult_t r = cmd;                             \
-  if (r!= ncclSuccess) {                            \
-    printf("Failed, NCCL error %s:%d '%s'\n",       \
-        __FILE__,__LINE__,ncclGetErrorString(r));   \
-    exit(EXIT_FAILURE);                             \
-  }                                                 \
-} while(0)
-
-#define TIME_BENCH(item, iter, func, ret)                                  \
-    {                                                                      \
-        auto start = std::chrono::high_resolution_clock::now();            \
-        for (int i = 0; i < iter; i++) {ret = func;}                       \
-        CUDA_CHECK(cudaDeviceSynchronize());                               \
-        auto end = std::chrono::high_resolution_clock::now();              \
-        item = std::chrono::nanoseconds(end - start).count() / 1000./iter; \
-    }
-
 extern float data[CHUNKSIZE];
 
-static void getHostName(char *hostname, int maxlen) {
-    gethostname(hostname, maxlen);
-    for (int i = 0; i < maxlen; i++) {
-        if (hostname[i] == '.') {
-            hostname[i] = '\0';
-            return;
-        }
-    }
-}
-
-static uint64_t getHostHash(const char *string) {
-    // Based on DJB2, result = result * 33 + char
-    uint64_t result = 5381;
-    for (int c = 0; string[c] != '\0'; c++) {
-        result = ((result << 5) + result) + string[c];
-    }
-    return result;
-}
-
-bool compare(float a, float b) {
-    return fabs(a)>fabs(b);
-}
-
-class CudaAlloc : public paddle::communication::dgc::GpuAllocator {
+class CudaPreAlloc {
 private:
   void* _ptr{NULL};
   void* _now_ptr{NULL};
@@ -78,7 +26,7 @@ private:
   size_t _allocated_size{0};
 
 public:
-  CudaAlloc(size_t bytes_size) {
+  CudaPreAlloc(size_t bytes_size) {
     void* dev_ptr = NULL;
     CUDA_CHECK(cudaMalloc(&dev_ptr, bytes_size));
     if (dev_ptr != NULL) {
@@ -101,73 +49,251 @@ public:
     return dev_ptr;
   }
 
-  ~CudaAlloc() {
-    CUDA_CHECK(cudaFree(_ptr));
+  void reset() {
+    if (_ptr != NULL) {
+      _now_ptr = _ptr;
+      _allocated_size = 0; 
+    }
+  }
+
+  ~CudaPreAlloc() {
+    if (_ptr != NULL) CUDA_CHECK(cudaFree(_ptr));
   }
 };
     
-void* AllocateCuda(int bytes) {
-    void* ret;
-    CUDA_CHECK(cudaMalloc(&ret, bytes));
-    return ret;
+void printHeader(bool is_print) {
+    if (!is_print) return;
+    std::string suffix = " us";
+    std::cout << std::right;
+    std::cout << std::setw(13) << "elements";
+    std::cout << std::setw(13) << "dtype";
+    std::cout << std::setw(13) << ("time" + suffix);
+    std::cout << std::setw(13) << "check";
+    std::cout << std::setw(13) << "delta";
+    std::cout << std::endl;
 }
 
-void DeleteCuda(void* ptr) {
-    CUDA_CHECK(cudaFree(ptr));
+void printOut(int count, float time, std::string& ret, double delta) {
+    std::cout << std::setw(13) << count;
+    std::cout << std::setw(13) << "float";
+    std::cout << std::setw(13) << time;
+    std::cout << std::setw(13) << ret;
+    std::cout << std::setw(13) << delta;
+    std::cout << std::endl;
 }
 
-bool check_data(double* delta, const std::vector<int>& dst_rows, float* dst, float* src,
-                const int row_width, const std::map<int, int>& posmap,
-                int rank, ncclComm_t comm, cudaStream_t stream) {
+typedef struct {
+    int count;                     //0
+    int64_t row_width;             //1
+    int64_t* src_rows;             //2
+    int64_t src_rows_count;        //3
+    int64_t* merged_rows;          //4
+    int64_t* merged_rows_count;    //5
+    unsigned char* bitmap;         //6
+    int64_t* posmap;               //7
+    int* buff;                     //8
+    float* src_tensor;             //9
+    float* merged_tensor;          //10
+} testArgs;
+
+void feedSrcRows(std::vector<int64_t>& src_rows, int rank) {
+    for (int i = 100; i < 3000; ++i) src_rows.push_back(i);
+    if (rank % 3 == 0) { 
+      for (int i = 3000; i < 3100; ++i) src_rows.push_back(i);
+    }
+    for (int i = 3300; i < 100000; i += 377) {
+      if (rank == 0) {
+        src_rows.push_back(i-2);
+      } else if (rank % 2 == 0) {
+        src_rows.push_back(i);
+      } else {
+        src_rows.push_back(i-5);
+      }
+    }
+}
+
+testArgs initTestArgs(int rank) {
     namespace pdgc = paddle::communication::dgc;
-    bool ret = true;
-    *delta = -1;
+    /// 0 1
+    int count = 100000;
+    const int64_t row_width = 1024;
 
-    const int nnz = dst_rows.size();
-    if(nnz <= 0) return false;
-    std::vector<int> dst_rows_test(nnz);
+    std::vector<int64_t> c_src_rows = {20, 23, 44, 37, 56, 87, 0, 7, 11, 15};
+    // Todo. random init srcRows with count
+    feedSrcRows(c_src_rows, rank); 
+
+    /// 2 3
+    int64_t* src_rows = static_cast<int64_t*>(AllocateCuda(sizeof(int64_t)*count)); //count
+    int64_t src_rows_count = c_src_rows.size();
+    CUDA_CHECK(cudaMemcpy(src_rows, c_src_rows.data(),
+               sizeof(int64_t)*src_rows_count, cudaMemcpyHostToDevice));
+
+    /// 4 5
+    int64_t* merged_rows = static_cast<int64_t*>(AllocateCuda(sizeof(int64_t)*count)); //count
+    int64_t* merged_rows_count = static_cast<int64_t*>(AllocateCuda(sizeof(int64_t))); //1
+
+    /// 6 7 8
+    unsigned char* bitmap = static_cast<unsigned char*>(
+                              AllocateCuda(sizeof(unsigned char)*count)); //count
+    int64_t* posmap = static_cast<int64_t*>(AllocateCuda(sizeof(int64_t)*count)); //count
+    int* buff = static_cast<int*>(AllocateCuda(pdgc::get_buffer_size(count))); //buffsize
+
+    // 9
+    float* src_tensor = static_cast<float*>(
+                          AllocateCuda(sizeof(float)*src_rows_count*row_width)); // nnz*row_width
+    float* merged_tensor = NULL;    
+
+    // randomize input data
+    FeedInputFloat(src_tensor, src_rows_count * row_width, g_chunk, CHUNKSIZE);
+
+    testArgs args = {
+        .count             = count            ,
+        .row_width         = row_width        ,
+        .src_rows          = src_rows         ,
+        .src_rows_count    = src_rows_count   ,
+        .merged_rows       = merged_rows      ,
+        .merged_rows_count = merged_rows_count,
+        .bitmap            = bitmap           ,
+        .posmap            = posmap           ,
+        .buff              = buff             ,
+        .src_tensor        = src_tensor       ,
+        .merged_tensor     = merged_tensor    ,
+    };
+    return args;
+}
+
+void freeTestArgs(testArgs args) {
+    DeleteCuda(args.src_rows);
+    DeleteCuda(args.merged_rows);
+    DeleteCuda(args.merged_rows_count);
+    DeleteCuda(args.bitmap);
+    DeleteCuda(args.posmap);
+    DeleteCuda(args.buff);
+    DeleteCuda(args.src_tensor);
+}
+
+bool check_merged_rows(const int count, std::vector<int64_t>& src_rows,
+                       std::vector<int64_t>& dst_rows, int64_t nnz) {
+    // test dst_rows is equal in all cards
+    std::vector<int64_t> dst_rows_test(nnz);
     MPICHECK(MPI_Allreduce(dst_rows.data(), dst_rows_test.data(), nnz,
-             MPI_INT, MPI_MAX, MPI_COMM_WORLD));
-    if (dst_rows != dst_rows_test) ret = false;
-//    for (int i = 0; i < nnz; ++i) {
-//        printf("%d ", dst_rows_test[i]);
-//    }
-//    printf("\n");
+             MPI_INT64_T, MPI_MAX, MPI_COMM_WORLD));
+    if (dst_rows != dst_rows_test) {
+      LOGERR("merged_rows is not equal in all cards");
+      return false;
+    }
 
+    // test dst_rows is right
+    unsigned char* bitmap = static_cast<unsigned char*>(malloc(sizeof(unsigned char)*count));
+    memset(bitmap, 0, sizeof(unsigned char)*count);
+    for (int i = 0; i < src_rows.size(); ++i) {
+      bitmap[src_rows[i]] = 1; 
+    }
+    MPICHECK(MPI_Allreduce(MPI_IN_PLACE, bitmap, count,
+             MPI_UNSIGNED_CHAR, MPI_MAX, MPI_COMM_WORLD));
+    for (int i = 0; i < dst_rows.size(); ++i) {
+      if (bitmap[dst_rows[i]] == 0) {
+        LOGERR("bitmap in dst_rows[%d]=%lld should be true", i, dst_rows[i]);
+        return false;
+      }
+      bitmap[dst_rows[i]] = 0;
+    }
+    for (int i = 0; i < count; ++i) {
+      if(bitmap[i] != 0) {
+        LOGERR("bitmap in [%d] should be false", i);
+        return false;
+      }
+    }
+    return true;
+}
+
+bool check_dst_tensor(double* delta, testArgs* args, std::vector<int64_t>&src_rows,
+                      std::vector<int64_t>& dst_rows, int64_t nnz,
+                      int rank, ncclComm_t comm, cudaStream_t stream) {
+    int64_t row_width = args->row_width;
     float* dst_test = (float*)AllocateCuda(nnz * row_width * sizeof(float));
     double* dmax = (double*)AllocateCuda(sizeof(double));
+
+    std::map<int64_t, int64_t> posmap;
+    for (int i = 0; i < src_rows.size(); ++i) {
+        posmap[src_rows[i]] = i; 
+    }
+
     for (int i = 0; i < nnz; ++i) {
-        std::map<int, int>::const_iterator it = posmap.find(dst_rows[i]);
+        std::map<int64_t, int64_t>::const_iterator it = posmap.find(dst_rows[i]);
         if (it != posmap.end()) {
-//           printf("it.firse=%d it.seconde=%d\n", it->first, it->second);
-           CUDA_CHECK(cudaMemcpyAsync(dst_test + i*row_width, src + it->second*row_width,
+           CUDA_CHECK(cudaMemcpyAsync(dst_test + i*row_width, args->src_tensor + it->second*row_width,
                            sizeof(float)*row_width, cudaMemcpyDeviceToDevice, stream)); 
         } else {
            CUDA_CHECK(cudaMemsetAsync(dst_test + i*row_width, 0, sizeof(float)*row_width, stream));
         }
     }
-//    printf("nnz=%d, row_width=%d\n", nnz, row_width);
     NCCLCHECK(ncclAllReduce(dst_test, dst_test, nnz*row_width, ncclFloat, ncclSum, comm, stream));
 
-    if (rank == 0) CheckDelta(dst, dst_test, nnz*row_width, dmax, rank, stream);
+    CheckDelta(args->merged_tensor, dst_test, nnz*row_width, dmax, rank, stream);
     CUDA_CHECK(cudaDeviceSynchronize());
 
-    if (rank == 0) {
-        CUDA_CHECK(cudaMemcpy(delta, dmax, sizeof(double), cudaMemcpyDeviceToHost));
-        if (*delta > 0.001 || *delta < 0) ret = false;
-    }
+    *delta = -1;
+    CUDA_CHECK(cudaMemcpy(delta, dmax, sizeof(double), cudaMemcpyDeviceToHost));
 
     DeleteCuda(dst_test);
     DeleteCuda(dmax);
-    return ret;
+
+    if (*delta > 0.001 || *delta < 0) return false;
+    return true;
 }
 
-int  select_rows_test(const int count, const std::vector<int>& src_rows,
-    const int row_width, const float* src, std::vector<int>* dst_rows,
-    float** dst, paddle::communication::dgc::GpuAllocator* allocator, ncclComm_t comm, cudaStream_t stream) {
+bool check_data(double* delta, testArgs* args, int rank, ncclComm_t comm, cudaStream_t stream) {
+    int64_t nnz = -1;
+    CUDA_CHECK(cudaMemcpy(&nnz, args->merged_rows_count,
+                          sizeof(int64_t), cudaMemcpyDeviceToHost));
+    if(nnz <= 0) {
+      LOGERR("merged_rows_count wrong");
+      return false;
+    }
+
+    std::vector<int64_t> src_rows(args->src_rows_count);
+    std::vector<int64_t> dst_rows(nnz);
+    CUDA_CHECK(cudaMemcpy(src_rows.data(), args->src_rows,
+                          sizeof(int64_t)*args->src_rows_count, cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(dst_rows.data(), args->merged_rows,
+                          sizeof(int64_t)*nnz, cudaMemcpyDeviceToHost));
+
+    if(!check_merged_rows(args->count, src_rows, dst_rows, nnz)) return false;
+    return check_dst_tensor(delta, args, src_rows, dst_rows, nnz, rank, comm, stream);
+}
+
+// select_rows time test
+int timeTest(testArgs* args, CudaPreAlloc* pa, ncclComm_t comm, cudaStream_t stream) {
     namespace pdgc = paddle::communication::dgc;
-    return pdgc::allReduceSelectedRows(count, src_rows, row_width, src, dst_rows,
-                                       dst, allocator, comm, stream);
+
+    const int      count             = args->count            ;
+    const int64_t  row_width         = args->row_width        ;
+    const int64_t* src_rows          = args->src_rows         ;
+    const int64_t  src_rows_count    = args->src_rows_count   ;
+    int64_t*       merged_rows       = args->merged_rows      ;
+    int64_t*       merged_rows_count = args->merged_rows_count;
+    unsigned char* bitmap            = args->bitmap           ;
+    int64_t*       posmap            = args->posmap           ;
+    int*           buff              = args->buff             ;
+    const float*   src_tensor        = args->src_tensor       ;
+    float*         merged_tensor     = args->merged_tensor    ;
+
+    pdgc::allReduceMeta(count, row_width, src_rows, src_rows_count, merged_rows, merged_rows_count,
+                        bitmap, posmap, buff, comm, stream);
+
+    int64_t c_merged_rows_count = -1;
+    CUDA_CHECK(cudaMemcpy(&c_merged_rows_count, merged_rows_count,
+                          sizeof(int64_t), cudaMemcpyDeviceToHost));
+    assert(c_merged_rows_count != -1);
+    if (merged_tensor == NULL) {
+        merged_tensor = static_cast<float*>(pa->allocator(c_merged_rows_count *
+                                                    row_width * sizeof(float)));
+        args->merged_tensor = merged_tensor;
+    }
+    pdgc::allReduceTensor(count, row_width, merged_rows, c_merged_rows_count, src_tensor, posmap,
+                          merged_tensor, comm, stream);
+    return true;
 }
 
 int runTest(int argc, char *argv[], int rank, int ranks, ncclComm_t comm) {
@@ -175,88 +301,35 @@ int runTest(int argc, char *argv[], int rank, int ranks, ncclComm_t comm) {
     // need init before sparseAllGReduce
     pdgc::dynloadNcclLib();
 
-    int count = 10000;
-    const int row_width = 1024;
-    //std::vector<int> src_rows = {0, 7, 11, 15, 20, 23, 44, 37, 56, 87};
-    //std::vector<int> src_rows = {20, 23, 44, 37, 56, 87, 0, 7, 11, 15};
-    std::vector<int> src_rows;
-    std::vector<int> dst_rows;
-    for(int i = 0; i < 300; ++i) {
-        src_rows.push_back(i);
-    }
-    for (int i = 600; i < 10000; i += 377) {
-      if (rank == 0) {
-         src_rows.push_back(i-2);
-      } else if (rank % 2 == 0) {
-         src_rows.push_back(i);
-      } else {
-         src_rows.push_back(i - 5);
-      }
-    }
-
-    std::map<int, int> posmap;
-    for (int i = 0; i < src_rows.size(); ++i) {
-        posmap[src_rows[i]] = i;
-    }
-
-    int nnz = src_rows.size();
-    int bytes;
-    bytes = nnz * row_width * sizeof(float);  
-
-    const int iteration = 1;
-    bool print_header = false;
-
-    CudaAlloc aa(1024*1024*1024);  // 1GB
-    pdgc::GpuAllocator* cualloc = &aa;
-    // allocate src
-    float* src = static_cast<float*>(AllocateCuda(bytes));
-    float* dst;
-    // randomize input data
-    FeedInputFloat(src, nnz * row_width, g_chunk, CHUNKSIZE);
+    CudaPreAlloc pa(1024*1024*1024);  // 1GB
 
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream));
 
-    float* tmp = static_cast<float*>(AllocateCuda(1024*1024*sizeof(float)));
-    for (int i = 0; i < 5; i++) {
-      NCCLCHECK(ncclAllReduce(tmp, tmp, 1024*1024, ncclFloat, ncclSum, comm, stream));
-    }
-    CUDA_CHECK(cudaDeviceSynchronize());
-    int is_ok = 0;
+    testArgs args = initTestArgs(rank);
+
     float time = 0;
+    const int warmup = 3;
+    const int iteration = 5;
+    int is_ok = 0;
+    TIME_BENCH(time, warmup,
+              timeTest(&args, &pa, comm, stream), is_ok);
     TIME_BENCH(time, iteration,
-        select_rows_test(count, src_rows, row_width, src,
-                         &dst_rows, &dst, cualloc, comm, stream), is_ok);
+              timeTest(&args, &pa, comm, stream), is_ok);
     std::string ret;
     double delta;
     if (is_ok) {
-        ret = check_data(&delta, dst_rows, dst, src, row_width, posmap, rank, comm, stream) ? "AC" : "WA";
-        //ret = "AC";
+        ret = check_data(&delta, &args, rank, comm, stream) ? "AC" : "WA";
     } else {
         ret = "WA";
     }
     if (rank == 0) {
-        if (print_header) {
-            std::string suffix = " us";
-            std::cout << std::right;
-            std::cout << std::setw(13) << "elements";
-            std::cout << std::setw(13) << "dtype";
-            std::cout << std::setw(13) << ("time" + suffix);
-            std::cout << std::setw(13) << "check";
-            std::cout << std::setw(13) << "delta";
-            std::cout << std::endl;
-        }
-        std::cout << std::setw(13) << count;
-        std::cout << std::setw(13) << "float";
-        std::cout << std::setw(13) << time;
-        std::cout << std::setw(13) << ret;
-        std::cout << std::setw(13) << delta;
-        std::cout << std::endl;
+        bool is_print_header = true;
+        printHeader(is_print_header);
+        printOut(args.count, time, ret, delta);
     }
-
     CUDA_CHECK(cudaStreamDestroy(stream));
-    DeleteCuda(src);
-    DeleteCuda(tmp);
+    freeTestArgs(args);
 }
 
 int main(int argc, char *argv[]) {

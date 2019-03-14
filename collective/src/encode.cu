@@ -168,10 +168,10 @@ __global__ void KeEncode(const T *data, int count, int *scan, T* value, int* ind
 }
 
 template <typename T>
-__global__ void KeGetIndex(const T *data, int count, int *scan, int* index) {
+__global__ void KeGetIndex(const T *data, int count, int *scan, int64_t* index, int64_t* nnz) {
   int id = blockDim.x*blockIdx.x + threadIdx.x;
   int offset = (id == 0) ? 0 : scan[id-1];
-  if (id == 1) scan[0] = scan[gridDim.x*blockDim.x - 1];
+  if (id == 0) *nnz = scan[gridDim.x*blockDim.x - 1];
 
   for (int i = id; i < count; i += gridDim.x*blockDim.x) {
     T val = data[i];
@@ -194,26 +194,23 @@ __global__ void KeMask(int* index, int k, T* data, int count) {
   }
 }
 
-void dense2idx(int* index, int* c_nnz, int8_t* input, int* thr_cnt, int count, cudaStream_t stream) {
+void dense2idx(int64_t* index, int64_t* nnz, unsigned char* input,
+               int* thr_cnt, int count, cudaStream_t stream) {
   int blocks, threads;
   getNumBlocksAndThreads(count, blocks, threads);
   int smemSize = sizeof(float) * threads;
   int p_threads = min(blocks, threads);
   int p_blocks = iDivUp(blocks, p_threads);
 
-  KeGetRowsCount<int8_t><<<blocks, threads, smemSize, stream>>>(input, thr_cnt, count);
+  KeGetRowsCount<unsigned char><<<blocks, threads, smemSize, stream>>>(input, thr_cnt, count);
 
   int* part = thr_cnt + threads * blocks;
   KePrefixSum<<<blocks, threads, smemSize, stream>>>(thr_cnt, 32, part);
   KePrefixSum<<<p_blocks, p_threads, smemSize, stream>>>(part, 32);
   KeGlobalPrefixSum<<<blocks-1, threads, 0, stream>>>(thr_cnt + threads, part, count);
 
-  CUDA_CHECK(cudaMemcpyAsync(c_nnz, thr_cnt + blocks*threads -1,
-                             sizeof(int), cudaMemcpyDeviceToHost, stream));
-
-  CUDA_CHECK(cudaMemsetAsync(static_cast<void*>(index), -1, count*sizeof(int), stream));
-
-  KeGetIndex<int8_t><<<blocks, threads, 0, stream>>>(input, count, thr_cnt, index);
+  CUDA_CHECK(cudaMemsetAsync(static_cast<void*>(index), -1, count*sizeof(int64_t), stream));
+  KeGetIndex<unsigned char><<<blocks, threads, 0, stream>>>(input, count, thr_cnt, index, nnz);
 }
 
 void dense2coo(void* encode, float * input, float* threshold, int* thr_cnt, int count, int k, cudaStream_t stream) {
