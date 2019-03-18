@@ -13,6 +13,8 @@ static enum { ncclUninitialized, ncclInitializing, ncclInitialized, ncclError } 
 static const char*  (*ncclGetErrorStringFuncPoint)(ncclResult_t result);
 static ncclResult_t (*ncclCommCountFuncPoint)(const ncclComm_t comm, int* count);
 static ncclResult_t (*ncclCommCuDeviceFuncPoint)(const ncclComm_t comm, int* device);
+static ncclResult_t (*ncclAllReduceFuncPoint)(const void* sendbuff, void* recvbuff, size_t count,
+    ncclDataType_t datatype, ncclRedOp_t op, ncclComm_t comm, cudaStream_t stream);
 static ncclResult_t (*ncclAllGatherFuncPoint)(const void* sendbuff, void* recvbuff, size_t sendcount,
     ncclDataType_t datatype, ncclComm_t comm, cudaStream_t stream);
 
@@ -55,13 +57,17 @@ bool warpNcclSymbols(void) {
   LOAD_SYM(ncclhandle, "ncclGetErrorString", ncclGetErrorStringFuncPoint);
   LOAD_SYM(ncclhandle, "ncclCommCount", ncclCommCountFuncPoint);
   LOAD_SYM(ncclhandle, "ncclCommCuDevice", ncclCommCuDeviceFuncPoint);
+  LOAD_SYM(ncclhandle, "ncclAllReduce", ncclAllReduceFuncPoint);
   LOAD_SYM(ncclhandle, "ncclAllGather", ncclAllGatherFuncPoint);
 
   ncclState = ncclInitialized;
   return true;
 
 teardown:
+  ncclGetErrorStringFuncPoint = NULL;
   ncclCommCountFuncPoint = NULL;
+  ncclCommCuDeviceFuncPoint = NULL;
+  ncclAllReduceFuncPoint = NULL;
   ncclAllGatherFuncPoint = NULL;
 
   if (ncclhandle != NULL) dlclose(ncclhandle);
@@ -77,34 +83,37 @@ teardown:
     exit(EXIT_FAILURE);                             \
   }                                                 \
 } while(0)
+
+#define FP_CHECK(fp) do {                           \
+  if (fp == NULL) {                                 \
+    LOGERR("lib nccl not initialized.");            \
+    exit(EXIT_FAILURE);                             \
+    return false;                                   \
+  }                                                 \
+} while(0)                                          \
  
 bool warpNcclCommCount(const ncclComm_t comm, int* count) {
-  if (ncclCommCountFuncPoint == NULL) {
-    LOGERR("lib nccl not initialized.");
-    exit(EXIT_FAILURE);
-    return false;
-  }
+  FP_CHECK(ncclCommCountFuncPoint);
   NCCL_CHECK(ncclCommCountFuncPoint(comm, count));
   return true;
 }
 
 bool warpNcclCommCuDevice(const ncclComm_t comm, int* device) {
-  if (ncclCommCuDeviceFuncPoint == NULL) {
-    LOGERR("lib nccl not initialized.");
-    exit(EXIT_FAILURE);
-    return false;
-  }
+  FP_CHECK(ncclCommCuDeviceFuncPoint );
   NCCL_CHECK(ncclCommCuDeviceFuncPoint(comm, device));
+  return true;
+}
+
+bool warpNcclAllReduce(const void* sendbuff, void* recvbuff, size_t count,
+    ncclDataType_t datatype, ncclRedOp_t op, ncclComm_t comm, cudaStream_t stream) {
+  FP_CHECK(ncclAllReduceFuncPoint);
+  NCCL_CHECK(ncclAllReduceFuncPoint(sendbuff, recvbuff, count, datatype, op, comm, stream));
   return true;
 }
 
 bool warpNcclAllGather(const void* sendbuff, void* recvbuff, size_t sendcount,
     ncclDataType_t datatype, ncclComm_t comm, cudaStream_t stream) {
-  if (ncclAllGatherFuncPoint == NULL) {
-    LOGERR("lib nccl not initialized.");
-    exit(EXIT_FAILURE);
-    return false;
-  }
+  FP_CHECK(ncclAllGatherFuncPoint);
   NCCL_CHECK(ncclAllGatherFuncPoint(sendbuff, recvbuff, sendcount, datatype, comm, stream));
   return true;
 }

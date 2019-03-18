@@ -7,11 +7,8 @@ NVCC = $(CUDA_HOME)/bin/nvcc
 DGC_INCLUDE_DIR = $(PREFIX)/include
 DGC_LIBRARY = $(PREFIX)/lib/libdgc.a
 
-INCLUDEFLAGS = -isystem $(CUDA_HOME)/include
-LDFLAGS = -rdynamic $(CUDA_HOME)/lib64/libcudart.so $(CUDA_HOME)/lib64/libcurand.so $(CUDA_HOME)/lib64/libnvrtc.so -lpthread -Wl,-rpath,$(CUDA_HOME)/lib64 -ldl
-
-INCLUDEFLAGS += -I$(DGC_INCLUDE_DIR)
-LDFLAGS += $(DGC_LIBRARY)
+INCLUDEFLAGS = -I$(DGC_INCLUDE_DIR)
+LDFLAGS = $(DGC_LIBRARY)
 
 ifneq ($(NCCL_HOME), "")
 INCLUDEFLAGS += -I$(NCCL_HOME)/include/
@@ -24,6 +21,9 @@ INCLUDEFLAGS += -I$(MPI_HOME)/include/
 LDFLAGS += -L$(MPI_HOME)/lib
 endif
 LDFLAGS += -lmpi_cxx -lopen-rte -lopen-pal -lmpi
+
+INCLUDEFLAGS += -isystem $(CUDA_HOME)/include
+LDFLAGS += -rdynamic $(CUDA_HOME)/lib64/libcudart.so $(CUDA_HOME)/lib64/libcurand.so $(CUDA_HOME)/lib64/libnvrtc.so -lpthread -Wl,-rpath,$(CUDA_HOME)/lib64 -ldl
 
 CUDA_VERSION = $(strip $(shell $(NVCC) --version | grep release | sed 's/.*release //' | sed 's/\,.*//'))
 CUDA_MAJOR = $(shell echo $(CUDA_VERSION) | cut -d "." -f 1)
@@ -57,10 +57,10 @@ endif
 #PREFIX := ../build
 BIN_DIR := $(PREFIX)/bin
 OBJ_DIR := $(PREFIX)/obj
-TARGETS := $(BIN_DIR)/dgc_test
 DIRS = $(shell find . -maxdepth 3 -type d)
 SRCS := $(foreach dir, $(DIRS), $(wildcard $(dir)/*.cc))
 OBJS := $(SRCS:%.cc=$(OBJ_DIR)/%.cc.o)
+TARGETS := $(SRCS:%.cc=$(BIN_DIR)/%)
 
 CU_SRCS := $(foreach dir, $(DIRS), $(wildcard $(dir)/*.cu))
 CU_OBJS := $(CU_SRCS:%.cu=$(OBJ_DIR)/%.cu.o)
@@ -69,10 +69,10 @@ all : test
 
 test : $(TARGETS)
 
-$(TARGETS): $(OBJS) $(CU_OBJS) 
-	@printf "Linking: $@ <-- $^ $(OBJS) $(CU_OBJS)"
+$(BIN_DIR)/% : $(OBJ_DIR)/%.cc.o $(CU_OBJS) 
+	@printf "Linking: $@ <-- $^"
 	mkdir -p $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^  $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 $(OBJ_DIR)/%.cc.o : %.cc
 	@printf "Compiling: $@ <-- $<"
