@@ -35,6 +35,15 @@ __attribute__ ((visibility("default")))
 bool k_select(void* encode, int k, float* input, int count, void* buff, cudaStream_t stream, float* moment) {
   args_check(encode, buff, input, k, count);
 
+  /// ptr check
+  {
+    int saved_dev = -1;
+    CUDA_CHECK(cudaGetDevice(&saved_dev));
+    devptr_check((const void*)encode, saved_dev, "encode");
+    devptr_check((const void*)input, saved_dev, "input");
+    devptr_check((const void*)buff, saved_dev, "buff");
+  }
+
   if (count < MIN_COUNT) {
     return false;
   }

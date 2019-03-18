@@ -14,8 +14,6 @@ namespace dgc{
 
 #define BLOCK_SIZE 256
 #define MAX_BLOCK 32
-#define DIVUP(x, y) \
-    (((x)+(y)-1)/(y))
 
 template<typename T>
 static void argsCheck(const void* encode, void* gatherbuff, const int nnz, T* dense, const int count) {
@@ -58,21 +56,17 @@ bool sparseAllGReduce(const void* encode, void* gatherbuff, const int nnz, float
                       const int count, ncclComm_t comm, cudaStream_t stream) {
   argsCheck(encode, gatherbuff, nnz, dense, count);
 
-  warpNcclAllGather(encode, gatherbuff, nnz * (sizeof(int) + sizeof(float)), ncclChar, comm, stream);
-  int nranks = 0;
-  warpNcclCommCount(comm, &nranks);
-
-  int saved_dev = -1;
-  CUDA_CHECK(cudaGetDevice(&saved_dev));
-
   int device = -1;
   warpNcclCommCuDevice(comm, &device);
   assert(device != -1);
-  CUDA_CHECK(cudaSetDevice(device));
-  
+  CudaDeviceGuard guard(device);
+
+  warpNcclAllGather(encode, gatherbuff, nnz * (sizeof(int) + sizeof(float)), ncclChar, comm, stream);
+
+  int nranks = 0;
+  warpNcclCommCount(comm, &nranks);
   sparseReduce(gatherbuff, nnz, dense, count, nranks, stream);
 
-  if (saved_dev != -1) CUDA_CHECK(cudaSetDevice(saved_dev));
   return true;
 }
 
