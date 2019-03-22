@@ -1,4 +1,5 @@
 #ifndef __SPARSE_COMM_H__
+#define __SPARSE_COMM_H__
 
 #include <cuda_runtime.h>
 #include <vector>
