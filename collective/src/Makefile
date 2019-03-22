@@ -46,7 +46,7 @@ OBJ_DIR := $(BUILD_PREFIX)/obj
 INC_DIR := $(BUILD_PREFIX)/include
 LIB_DIR := $(BUILD_PREFIX)/lib
 
-INCEXPORT = dgc.h
+INCEXPORT = sparse_comm.h
 INCTARGET = $(patsubst %, $(INC_DIR)/%, $(INCEXPORT))
 LIBNAME = libdgc.so
 LIBTARGET = $(patsubst %, $(LIB_DIR)/%, $(LIBNAME))

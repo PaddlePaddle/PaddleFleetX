@@ -1,35 +1,14 @@
-#ifndef DGC_H
-#define DGC_H
+#ifndef __SPARSE_COMM_H__
 
 #include <cuda_runtime.h>
 #include <vector>
 #include <stdint.h>
 #include "nccl.h"
 
-namespace paddle {
-namespace communication {
-namespace dgc {
+#ifdef __cplusplus
+extern "C"{
+#endif
 
-/**
- * dynloadNcclLib
- * Dynamic load nccl lib, need init before sparseAllGReduce.
- */
-bool dynloadNcclLib(void);
-
-/**
- * sparseAllGReduce
- *
- * Gather encode of sparse array from all devices by ncclAllGather, then decode and reduce with dense array.
- *
- * @param encode - starting address of encode, data layout should be SOA {idx[@nnz], val[@nnz]}.
- * @param gatherbuff - starting address of gatherbuff, should have a size at least nranks*encode_size.
- * @param nnz - the count of non-zero elements in sparse array.
- * @param dense - starting address of dense array.
- * @param count - the count of dense array.
- * @param comm - nccl communicator
- * @param stream - cuda stream
- * @return
- */
 bool sparseAllGReduce(const void* encode, void* gatherbuff, const int nnz,
                      float* dense, const int count, ncclComm_t comm, cudaStream_t stream);
 
@@ -53,7 +32,6 @@ int allReduceTensor(const int max_rows_height, const int64_t row_width, const in
                     float* merged_tensor, ncclComm_t comm, cudaStream_t stream);
  
 /// csc 
-
 bool cscAllReduce(float* gradient, const size_t count,
                   float* ipt_chunks, const size_t chunk_width,
                   const int* ipt_idx, const int k,
@@ -63,9 +41,9 @@ bool calImportant(int* ipt_idx, const int k, bool* ipt_bitmap,
                   float* norms, const size_t chunk_count,
                   const float* input, const size_t count,
                   ncclComm_t comm, cudaStream_t stream);
-
-}  // namespace dgc
-}  // namespace communication
-}  // namespace paddle
+#ifdef __cplusplus
+};
+#endif
 
 #endif
+
