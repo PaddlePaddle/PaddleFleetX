@@ -12,11 +12,11 @@ extern "C"{
 bool sparseAllGReduce(const void* encode, void* gatherbuff, const int nnz,
                      float* dense, const int count, ncclComm_t comm, cudaStream_t stream);
 
-bool k_select(void* encode, int k, float* input, int count, void* buff, cudaStream_t stream, float* moment = NULL);
+bool dgc_k_select(void* encode, int k, float* input, int count, void* buff, cudaStream_t stream, float* moment = NULL);
 
-int get_buffer_size(int count); 
+int get_dgc_buffer_size(int count); 
 
-int get_encode_size(int count, int k);
+int get_dgc_encode_size(int count, int k);
 
 bool is_recommend_use_dgc(int nranks, int count, int k);
 

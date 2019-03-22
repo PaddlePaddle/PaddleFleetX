@@ -10,15 +10,15 @@ bool sparseAllGReduce(const void* encode, void* gatherbuff, const int nnz,
     return paddle::communication::dgc::sparseAllGReduce(encode, gatherbuff, nnz, dense, count, comm, stream);
 }
 
-bool k_select(void* encode, int k, float* input, int count, void* buff, cudaStream_t stream, float* moment ){
+bool dgc_k_select(void* encode, int k, float* input, int count, void* buff, cudaStream_t stream, float* moment ){
     return paddle::communication::dgc::k_select(encode, k, input, count, buff, stream, moment);
 }
 
-int get_buffer_size(int count){
+int get_dgc_buffer_size(int count){
     return paddle::communication::dgc::get_buffer_size(count);
 }
 
-int get_encode_size(int count, int k){
+int get_dgc_encode_size(int count, int k){
     return paddle::communication::dgc::get_encode_size(count,k);
 }
 
