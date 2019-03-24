@@ -2,8 +2,9 @@
 #define DGC_H
 
 #include <cuda_runtime.h>
-#include "nccl.h"
 #include <vector>
+#include <stdint.h>
+#include "nccl.h"
 
 namespace paddle {
 namespace communication {
