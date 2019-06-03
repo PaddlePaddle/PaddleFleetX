@@ -1,5 +1,0 @@
-library: boost
-md5sum: 25f9a8ac28beeb5ab84aa98510305299  boost_1_57_0.tar.gz
-download: http://sourceforge.net/projects/boost/files/boost/1.57.0/boost_1_57_0.tar.gz/download
-compile: sh build.sh
-contact: linjieqiong@baidu.com
