@@ -1,7 +1,0 @@
-#!/bin/env sh
-
-set -ex
-export PADDLE_ROOT=/home/dongdaxiang/lego_trainer_lib/
-$PADDLE_ROOT/third_party/install/protobuf/bin/protoc --proto_path=./proto proto/ps.proto --cpp_out=proto
-mv proto/*.h include
-mv proto/*.cc src/
