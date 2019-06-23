@@ -24,6 +24,7 @@ This version of benchmark mainly uses the Hogwild! to parallelize training tasks
 
 # Distributed Training Benchmark
 Since click through rate estimation is usually used on recommendation tasks and advertisement tasks. Big data is available on these tasks, we given distributed training benchmark based on internal used cluster so that users can reference on their own clusters.
+
 |    batch=100    | 5worker5pserver11threads | 10worker10pserver11threads | 20worker20pserver11threads |
 |:---------------:|:------------------------:|:--------------------------:|:--------------------------:|
 |    sec/epoch    |            54            |             103            |             198            |
@@ -35,6 +36,7 @@ Since click through rate estimation is usually used on recommendation tasks and 
 |    sec/epoch    |            42            |             81             |             159            |
 | ins/threads/sec |           5023           |            5080            |            5220            |
 |     test auc    |         0.774516         |          0.788851          |          0.794097          |
+
 ## script for running the task
 ```
 
@@ -42,12 +44,13 @@ Since click through rate estimation is usually used on recommendation tasks and 
 You need to deploy the distributed training job on your cluster, the result is from a mpi cluster.
 
 # Environment
+
 ## Local Machine
-AMD EPYC 7551P 32-Core Processor
-cpu MHz : 2000.000
-cache size : 512 KB
-cpu cores : 32
-paddle fluid version : release 1.5
-total memory : 26366342
-compile command : cmake -DCMAKE_INSTALL_PREFIX=./output/ -DCMAKE_BUILD_TYPE=Release -DWITH_PYTHON=ON -DWITH_MKL=OFF -DWITH_GPU=OFF -DWITH_FLUID_ONLY=ON -DPYTHON_INCLUDE_DIR=$PYTHONROOT/include/python2.7/ -DPYTHON_LIBRARY=$PYTHONROOT/lib/libpython2.7.so -DPYTHON_EXECUTABLE=$PYTHONROOT/bin/python2.7 ..
+- AMD EPYC 7551P 32-Core Processor
+- cpu MHz : 2000.000
+- cache size : 512 KB
+- cpu cores : 32
+- paddle fluid version : release 1.5
+- total memory : 26366342
+- compile command : cmake -DCMAKE_INSTALL_PREFIX=./output/ -DCMAKE_BUILD_TYPE=Release -DWITH_PYTHON=ON -DWITH_MKL=OFF -DWITH_GPU=OFF -DWITH_FLUID_ONLY=ON -DPYTHON_INCLUDE_DIR=$PYTHONROOT/include/python2.7/ -DPYTHON_LIBRARY=$PYTHONROOT/lib/libpython2.7.so -DPYTHON_EXECUTABLE=$PYTHONROOT/bin/python2.7 ..
 
