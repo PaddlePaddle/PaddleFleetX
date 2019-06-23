@@ -35,19 +35,30 @@ def train():
     dataset.set_pipe_command(pipe_command)
     whole_filelist = ["raw_data/part-%d" % x for x in range(len(os.listdir("raw_data")))]
     dataset.set_filelist(whole_filelist)
-    dataset.set_batch_size(args.batch_size)
-    dataset.set_thread(args.thread_num)
+    batches = [32, 64, 128, 256, 512, 1024]
+    threads = [11, 22]
 
-    start_time = time.time()
-    for i in range(args.num_passes):
-        exe.train_from_dataset(program=fluid.default_main_program(),
-                               dataset=dataset,
-                               debug=True)
-        model_dir = args.model_output_dir + '/epoch' + str(i + 1) + ".model"
-        fluid.io.save_inference_model(model_dir, [dense_input.name] + [x.name for x in sparse_input_ids] + [label.name], [loss, auc_var], exe)
-        sys.stderr.write("epoch%d finished" % (i + 1))
-    end_time = time.time()
-    print("total training time: %f" % (end_time - start_time))
+    time_summary = {}
+    for bs in batches:
+        for thr in threads:
+            start_time = time.time()
+            dataset.set_batch_size(bs)
+            dataset.set_thread(thr)
+            exe.train_from_dataset(program=fluid.default_main_program(),
+                                   dataset=dataset,
+                                   debug=True)
+            end_time = time.time()
+            time_summary[(bs, thr)] = end_time - start_time
 
+    total_inst = 44000000.0
+    for key in time_summary:
+        time_summary[key] = total_inst / time_summary[key]
+
+    print("batch v.s threads\tthread=%d\tthread=%d" % (threads[0], threads[1]))
+    for bs in batches:
+        out_str = "batch=%d" % bs
+        for thr in threads:
+            out_str += "\t%7.4f/s" % time_summary[(bs, thr)]
+        print(out_str)
 if __name__ == '__main__':
     train()
