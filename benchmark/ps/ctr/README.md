@@ -19,12 +19,17 @@ sh get_data.sh
 sh run_performance_benchmark.sh
 ```
 
+# Evaluation on Test Set
 This version of benchmark mainly uses the Hogwild! to parallelize training tasks between threads. The throught of the benchmark can be different given a batch size and thread number. Given high throughputs, we also care about the convergence properties of current model. Evaluations of auc on test set given models trained with different batch size and 40 threads are given below.
 
 | thread=40 | batch=32 | batch=64 | batch=128 | batch=256 | batch=512 | batch=1024 |
 |:---------:|:--------:|:--------:|:---------:|:---------:|:---------:|:----------:|
 |  test auc |  0.7859  |  0.7942  |   0.7950  |   0.7943  |   0.7925  |    0.788   |
 
+# Commands for running evaluation on single model
+```
+python infer_dataset.py --model_path 40_1024_models/epoch20.model/ --data_path test_data
+```
 
 # Distributed Training Benchmark
 Since click through rate estimation is usually used on recommendation tasks and advertisement tasks. Big data is available on these tasks, we given distributed training benchmark based on internal used cluster so that users can reference on their own clusters.
