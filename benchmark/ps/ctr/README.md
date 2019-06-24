@@ -20,6 +20,7 @@ sh run_performance_benchmark.sh
 ```
 
 This version of benchmark mainly uses the Hogwild! to parallelize training tasks between threads. The throught of the benchmark can be different given a batch size and thread number. Given high throughputs, we also care about the convergence properties of current model. Evaluations of auc on test set given models trained with different batch size and 40 threads are given below.
+
 | thread=40 | batch=32 | batch=64 | batch=128 | batch=256 | batch=512 | batch=1024 |
 |:---------:|:--------:|:--------:|:---------:|:---------:|:---------:|:----------:|
 |  test auc |  0.7859  |  0.7942  |   0.7950  |   0.7943  |   0.7925  |    0.788   |
