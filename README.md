@@ -5,12 +5,33 @@
 # Design of Fleet
 
 ## Role Maker
+A **Role Maker** specifies distributed node role in a distributed training job. For example, in parameter server training scenario, a **Role Maker** appoints current node as a worker or a server, and total node number of current distributed job will be available in **Role Maker**. Currently supported **Role Makers** are as follows:
+- MPISymetricRoleMaker
+- UserDefinedRoleMaker
+- PaddleCloudRoleMaker
 
-## Fleet API
+## Fleet Mode
+A **Fleet** API is available in https://github.com/PaddlePaddle/Paddle, a user can easily import different modes of Fleet APIk. Current available **Fleet Mode** are as follows:
+- PSLib Mode
+- Distribute Transpiler Mode
+- Collective Mode
 
 ## Quick Start
 
-# 
+### PSLib Mode
+```
+import incubate fleet
+```
+
+### Distribute Transpiler Mode
+```
+import distribute_transpiler as fleet
+```
+
+### Collective Mode
+```
+import collective as fleet
+```
 
 # Performance Evaluation
 
