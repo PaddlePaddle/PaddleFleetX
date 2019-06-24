@@ -37,32 +37,12 @@ dense_feature_dim = 13
 
 args = parse_args()
 
-if args.cloud_train:
-    # the port of all pservers, needed by both trainer and pserver
-    port = os.getenv("PADDLE_PORT", "6174")
-    # comma separated ips of all pservers, needed by trainer and
-    pserver_ips = os.getenv("PADDLE_PSERVERS", "")
-    eplist = []
-    for ip in pserver_ips.split(","):
-        eplist.append(':'.join([ip, port]))
-    args.endpoints = ",".join(eplist)
-    args.trainers = int(os.getenv("PADDLE_TRAINERS_NUM", "1"))
-    args.current_endpoint = os.getenv("POD_IP", "localhost") + ":" + port
-    args.role = os.getenv("TRAINING_ROLE", "TRAINER")
-    args.trainer_id = int(os.getenv("PADDLE_TRAINER_ID", "0"))
-
-# init role maker
-endpoints = args.endpoints.split(",")
-if args.role.upper() == "PSERVER":
-    current_id = endpoints.index(args.current_endpoint)
-else:
-    current_id = args.trainer_id
 role = role_maker.UserDefinedRoleMaker(
-    current_id=current_id,
+    current_id=int(os.getenv("CURRENT_ID")),
     role=role_maker.Role.WORKER
-    if args.role.upper() == "TRAINER" else role_maker.Role.SERVER,
-    worker_num=args.trainers,
-    server_endpoints=endpoints)
+    if os.getenv("TRAINING_ROLE") == "TRAINER" else role_maker.Role.SERVER,
+    worker_num=int(os.getenv("TRAINER_NUM")),
+    server_endpoints=os.getenv("ENDPOINTS").split(","))
 
 exe = fluid.Executor(fluid.CPUPlace())
 fleet.init(role)
@@ -106,10 +86,12 @@ elif fleet.is_worker():
     dataset.set_use_var(input_vars)
     pipe_command = "python criteo_reader.py %d" % args.sparse_feature_dim
     dataset.set_pipe_command(pipe_command)
-    dataset.set_batch_size(1000)
-    thread_num = 11
+    dataset.set_batch_size(100)
+    thread_num = 5
     dataset.set_thread(thread_num)
     filelist = ["raw_data/part-%d" % x for x in range(len(os.listdir("raw_data")))]
+    print("worker index: %d" % fleet.worker_index())
+    print("worker num: %d" % fleet.worker_num())
     dataset.set_filelist(filelist[fleet.worker_index()::fleet.worker_num()])
     save_dirname = "ctr_model"
     epochs = 20

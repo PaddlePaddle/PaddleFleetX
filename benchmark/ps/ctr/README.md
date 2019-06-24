@@ -1,6 +1,6 @@
 # Benchmark for CTR
 An open sourced dataset in click through rate estimation task is used in this benchmark repo.
-The task is to do a binary classification problem in which area under curve(auc) is used as evaluation metric. The code here mainly aims to provide reference scripts for users to test benchmark of ##Multi-Thread on Single Machine## and #Distributed Training#. Model description and training arguments are from https://github.com/PaddlePaddle/models/tree/develop/PaddleRec/ctr.
+The task is to do a binary classification problem in which area under curve(auc) is used as evaluation metric. The code here mainly aims to provide reference scripts for users to test benchmark of **Multi-Thread on Single Machine** and **Distributed Training**. Model description and training arguments are from https://github.com/PaddlePaddle/models/tree/develop/PaddleRec/ctr.
 
 # Local Training Benchmark
 For click through estimation task, a practical approach is feature engineering. However, in this task, features are pre-defined in public dataset. We define a deep learning model to make use of existing sparse and dense features. In local training, multi-thread training is generally used. A benchmark of training throughput against differnet batch size and different training threads is provided below.
@@ -48,7 +48,7 @@ Since click through rate estimation is usually used on recommendation tasks and 
 
 ## script for running the task with 2worker2pserver on local machine
 ```
-sh cluster_training.sh
+python launch.py --worker_num 5 --server_num 5 dist_ctr.py
 ```
 You need to deploy the distributed training job on your cluster, the result is from a mpi cluster.
 
