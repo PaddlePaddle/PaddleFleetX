@@ -20,18 +20,47 @@ A **Fleet** API is available in https://github.com/PaddlePaddle/Paddle, a user c
 
 ### PSLib Mode
 ```
-import incubate fleet
+from paddle.fluid.incubate.fleet.parameter_server.pslib import fleet
+
 ```
 
 ### Distribute Transpiler Mode
 ```
-import distribute_transpiler as fleet
+from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
+# 该模型运行在单个CPU上
+place = fluid.CPUPlace()
+
+role = PaddleCloudRoleMaker()
+fleet.init(role)
+# 调用train_program 获取预测值，损失值，
+prediction, [avg_loss, acc] = train_program()
+
+# 输入的原始图像数据，大小为28*28*1
+img = fluid.layers.data(name='img', shape=[1, 28, 28], dtype='float32')
+# 标签层，名称为label,对应输入图片的类别标签
+label = fluid.layers.data(name='label', shape=[1], dtype='int64')
+# 告知网络传入的数据分为两部分，第一部分是img值，第二部分是label值
+feeder = fluid.DataFeeder(feed_list=[img, label], place=place)
+
+# 选择Adam优化器
+optimizer = fluid.optimizer.Adagrad(learning_rate=0.001)
+optimizer = fleet.distribute_optimizer(optimizer)
+optimizer.minimize(avg_loss)
+
+if fleet.is_server():
+  # start server
+else:
+  # do training
+  
 ```
 
 ### Collective Mode
 ```
-import collective as fleet
+from paddle.fluid.incubate.fleet.collective import fleet
+
 ```
+run training
+
 
 # Performance Evaluation
 
