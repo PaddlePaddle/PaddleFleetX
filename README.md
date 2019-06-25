@@ -14,6 +14,23 @@ import incubator as incubate
 
 Simple local training can be defined as follows:
 ```
+import paddle.fluid as fluid
+from nets import mlp
+from utils import gen_data
+
+input_x = fluid.layers.data(name="x", shape=[32], dtype='float32')
+input_y = fluid.layers.data(name="y", shape=[1], dtype='int64')
+
+cost = mlp(input_x, input_y)
+optimizer = fluid.optimizer.SGD(learning_rate=0.01)
+optimizer.minimize(cost)
+place = fluid.CPUPlace()
+
+exe = fluid.Executor(place)
+exe.run(fluid.default_startup_program())
+step = 1001
+for i in range(step):
+    exe.run(feed=gen_data())
 ```
 
 If you want to use high performance chip to do distributed training, such as distributed GPU training: 
