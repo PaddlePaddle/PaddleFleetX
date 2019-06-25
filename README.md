@@ -4,8 +4,24 @@
 **Fleet** is High-Level API for distributed training in PaddlePaddle. The name of **Fleet** means that a large crowd of ships working together to finish a large scale job. The design of **Fleet** makes a trade-off between easy-to-use and algorithmic extensibility. First, a user can shift from single machine paddle fluid code to distributed code within ten lines of code. Second, different algorithms can be easily defined through distributed strategy through **Fleet** API.
 
 ## Quick Start
+
+We show quick-start examples for user to use **Parameter Server** training and **Collective** training with **Fleet API**. Sample codes can be found in examples/quick-start folder.
+
+Suppose we define a simple neural nets.
 ```
 import incubator as incubate
+```
+
+Simple local training can be defined as follows:
+```
+```
+
+If you want to use high performance chip to do distributed training, such as distributed GPU training: 
+```
+```
+
+If you want to do distributed training with parameter server architecture:
+```
 ```
 
 ## Design of Fleet
