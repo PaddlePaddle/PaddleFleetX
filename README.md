@@ -33,7 +33,8 @@ for i in range(step):
     exe.run(feed=gen_data())
 ```
 
-If you want to use high performance chip to do distributed training, such as distributed GPU training: 
+If you want to use high performance chip to do distributed training, such as distributed GPU training, **Fleet API** will help you by adding less than 10 lines of code, examples are as follows:
+
 ```python
 import paddle.fluid as fluid
 from utils import gen_data
