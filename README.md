@@ -64,6 +64,18 @@ from paddle.fluid.incubate.fleet.collective import fleet
 run training
 
 
-# Performance Evaluation
+# Benchmark
 
+- Click Through Estimation
 
+- Word2Vec
+
+- Semantic Matching
+
+- Resnet50 on Imagenet
+
+- VGG16 on Imagenet
+
+- Bert on English Wikipedia
+
+- Transformer on En-De
