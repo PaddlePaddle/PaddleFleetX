@@ -24,7 +24,7 @@ input_y = fluid.layers.data(name="y", shape=[1], dtype='int64')
 cost = mlp(input_x, input_y)
 optimizer = fluid.optimizer.SGD(learning_rate=0.01)
 optimizer.minimize(cost)
-place = fluid.CPUPlace()
+place = fluid.CUDAPlace(0)
 
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
@@ -35,10 +35,35 @@ for i in range(step):
 
 If you want to use high performance chip to do distributed training, such as distributed GPU training: 
 ```python
+import paddle.fluid as fluid
+from utils import gen_data
+from nets import mlp
+from paddle.fluid.incubate.fleet.collective import fleet
+from paddle.fluid.incubate.fleet.base import role_maker
+
+input_x = fluid.layers.data(name="x", shape=[32], dtype='float32')
+input_y = fluid.layers.data(name="y", shape=[1], dtype='int64')
+
+cost = mlp(input_x, input_y)
+optimizer = fluid.optimizer.SGD(learning_rate=0.01)
+
+role = role_maker.PaddleCloudRoleMaker()
+fleet.init(role)
+optimizer = fleet.distributed_optimizer(optimizer)
+optimizer.minimize(cost)
+
+place = fluid.CUDAPlace(0)
+
+exe = fluid.Executor(place)
+exe.run(fluid.default_startup_program())
+step = 1001
+for i in range(step):
+    exe.run(feed=gen_data())
 ```
 
-If you want to do distributed training with parameter server architecture:
-```python
+Command for distributed training with multiple process on multiple GPU card is as follows:
+```
+python -m paddle.distributed.launch trainer.py
 ```
 
 ## Design of Fleet
