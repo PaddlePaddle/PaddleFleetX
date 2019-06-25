@@ -1,4 +1,8 @@
-import argparse
+import subprocess
+import os
+import sys
+from argparse import ArgumentParser, REMAINDER
+import argparse as argparse
 
 def parse_args():
         parser = argparse.ArgumentParser(description="PaddlePaddle CTR example")
@@ -13,10 +17,15 @@ def parse_args():
             default='./data/raw/valid.txt',
             help="The path of testing dataset")
         parser.add_argument(
-            '--batch_size',
-            type=int,
-            default=1000,
-            help="The size of mini-batch (default:1000)")
+                '--batch_size',
+                type=int,
+                default=1000,
+                help="The size of mini-batch (default:1000)")
+        parser.add_argument(
+                '--thread_num',
+                type=int,
+                default=10,
+                help="Thread number of current training")
         parser.add_argument(
             '--embedding_size',
             type=int,
