@@ -13,7 +13,7 @@ import incubator as incubate
 ```
 
 Simple local training can be defined as follows:
-```
+```python
 import paddle.fluid as fluid
 from nets import mlp
 from utils import gen_data
@@ -34,11 +34,11 @@ for i in range(step):
 ```
 
 If you want to use high performance chip to do distributed training, such as distributed GPU training: 
-```
+```python
 ```
 
 If you want to do distributed training with parameter server architecture:
-```
+```python
 ```
 
 ## Design of Fleet
