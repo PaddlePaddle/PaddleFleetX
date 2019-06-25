@@ -79,32 +79,37 @@ python -m paddle.distributed.launch collective_trainer.py
 
 ### Role Maker
 A **Role Maker** specifies distributed node role in a distributed training job. For example, in parameter server training scenario, a **Role Maker** appoints current node as a worker or a server, and total node number of current distributed job will be available in **Role Maker**. Currently supported **Role Makers** are as follows:
+
 - **MPISymetricRoleMaker**
+
   MPISymetricRoleMaker is designed for worker and server assignment
   under MPI. Typically, a worker and a server node will be appointed
   on each physical node. This role maker can be only used under MPI.
 
-- UserDefinedRoleMaker
+- **UserDefinedRoleMaker**
+
   UserDefinedRoleMaker is designed for worker and server assignment
   under manual. Typically, a worker and a server node will be appointed
   on each physical node, It can be assign by user.
   
-- UserDefinedCollectiveRoleMaker
+- **UserDefinedCollectiveRoleMaker**
+
   UserDefinedCollectiveRoleMaker is designed for worker assignment
   under manual for collective mode.
   
-- PaddleCloudRoleMaker
+- **PaddleCloudRoleMaker**
+
   PaddleCloudRoleMaker is an example case for distributed training job in cloud environment that some environment variables   are predefined. 
   
-- UserDefinedRoleMaker
+- **UserDefinedRoleMaker**
+
   UserDefinedRoleMaker is designed for Parameter Server Training that a user can assign server and worker informance such as server number, trainer number, server endpoints.
 
 ### Fleet Mode
 A **Fleet** API is available in https://github.com/PaddlePaddle/Paddle, a user can easily import different modes of Fleet APIk. Current available **Fleet Mode** are as follows:
-- PSLib Mode
-- Distribute Transpiler Mode
-- Collective Mode
-
+- PSLib Mode: A customized parameter server architecture.
+- Distribute Transpiler Mode: Use distributed transpiler to build parameter server training configurations.
+- Collective Mode: Use distributed transpiler to build collective training configurations.
 
 #### Distribute Transpiler Mode
 ```
@@ -115,7 +120,24 @@ from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import f
 ```
 from paddle.fluid.incubate.fleet.collective import fleet
 ```
-run training
+
+## Examples
+
+### Transpiler Mode
+- [Click Through Estimation](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/ctr)
+
+- Word2Vec
+
+- Semantic Matching
+
+- Resnet50 on Imagenet
+
+- VGG16 on Imagenet
+
+- Bert on English Wikipedia
+
+- Transformer on En-De
+
 
 ## Benchmark
 
