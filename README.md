@@ -112,13 +112,52 @@ A **Fleet** API is available in https://github.com/PaddlePaddle/Paddle, a user c
 - Collective Mode: Use distributed transpiler to build collective training configurations.
 
 #### Distribute Transpiler Mode
+
+```python
+import paddle.fluid.incubate.fleet.base.role_maker as role_maker
+from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
+# your program
+role = role_maker.PaddleCloudRoleMaker()
+fleet.init(role)
+
+optimizer = fluid.optimizer.SGD(learning_rate=0.0001)
+optimizer = fleet.distributed_optimizer(optimizer, strategy)
+optimizer.minimize(avg_cost)
+
+if fleet.is_server():
+    fleet.init_server()
+    fleet.run_server()
+elif fleet.is_worker():
+    fleet.init_worker()
+    # run program on worker
+    fleet.stop_worker()
 ```
-from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import flee
+
+Execution command
+
+```bash
+python -m paddle.distributed.launch --worker_num 2 --server_num 2 ps_train.py
 ```
 
 #### Collective Mode
-```
+
+```python
 from paddle.fluid.incubate.fleet.collective import fleet
+# your program
+role = role_maker.PaddleCloudRoleMaker()
+fleet.init(role)
+
+optimizer = fluid.optimizer.SGD(learning_rate=0.0001)
+optimizer = fleet.distributed_optimizer(optimizer, strategy)
+optimizer.minimize(avg_cost)
+
+# run your program
+```
+
+Execution command
+
+```base
+python -m paddle.distributed.launch collective_train.py
 ```
 
 ## Examples
