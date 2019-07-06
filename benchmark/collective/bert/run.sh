@@ -1,4 +1,3 @@
-
 #!/bin/bash
 
 unset http_proxy
@@ -6,22 +5,21 @@ unset https_proxy
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
 SAVE_STEPS=10000
-BATCH_SIZE=2048
+BATCH_SIZE=16
 LR_RATE=1e-4
 WEIGHT_DECAY=0.01
-IN_TOKENS=true
+IN_TOKENS=false
 MAX_LEN=128
 MAX_PREDS_PER_SEQ=20
-#TRAIN_DATA_DIR=data/tf_record_small
-TRAIN_DATA_DIR=data/train
+TRAIN_DATA_DIR=small_book_corpus
 VALIDATION_DATA_DIR=data/validation
-CONFIG_PATH=/home/users/dongdaxiang/github_develop/bert/uncased_L-24_H-1024_A-16/bert_config.json
-VOCAB_PATH=/home/users/dongdaxiang/github_develop/bert/uncased_L-24_H-1024_A-16/vocab.txt
+CONFIG_PATH=./scripts/uncased_L-24_H-1024_A-16/bert_config.json
+VOCAB_PATH=./scripts/uncased_L-24_H-1024_A-16/vocab.txt
 export FLAGS_eager_delete_tensor_gb=0
 is_distributed=true
 
-python -m paddle.distributed.launch --gpus 8 \
-       train_with_executor.py --is_distributed ${is_distributed}\
+python -m paddle.distributed.launch --selected_gpus "0,1,2,3,4,5,6,7" --log_dir mylog \
+       train_with_executor_fleet.py --is_distributed ${is_distributed}\
        --use_cuda true\
        --weight_sharing true\
        --batch_size ${BATCH_SIZE} \
