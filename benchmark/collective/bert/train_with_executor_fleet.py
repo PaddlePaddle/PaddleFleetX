@@ -21,21 +21,15 @@ import os
 import numpy as np
 import paddle
 import paddle.fluid as fluid
-
-from reader.pretraining import DataReader
 from model.bert import BertModel, BertConfig
 from train_args import parser
 import paddle.fluid.profiler as profiler
 from timer import BenchmarkTimer
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
+from reader.pre_sampled_pretraining import DataReader
 
 args = parser.parse_args()
-
-if args.use_tfrecord:
-    from reader.tfrecord import DataReader
-else:
-    from reader.pretraining import DataReader
 
 def create_model(pyreader_name, bert_config):
     pyreader = fluid.layers.py_reader(
@@ -128,12 +122,11 @@ def train(args):
 
     if args.warmup_steps > 0:
         scheduled_lr = linear_warmup_decay(args.warmup_steps, args.learning_rate,
-                                  args.num_train_steps)
+                                           args.num_train_steps)
     else:
         scheduled_lr = const_learning_rate(learning_rate)
     optimizer = fluid.optimizer.Adam(learning_rate=scheduled_lr)
     optimizer._learning_rate_map[fluid.default_main_program()] = scheduled_lr
-    # define gradient clip here
     clip_norm_thres = 1.0
 
     # set stop gradient here
@@ -143,14 +136,12 @@ def train(args):
             param_list[param.name] = param * 1.0
             param_list[param.name].stop_gradient = True
 
-    role = role_maker.MultiProcessRoleMaker()
+    role = role_maker.PaddleCloudRoleMaker(is_collective=True)
     fleet.init(role)
     strategy = DistributedStrategy()
-    strategy.use_fp32 = True
     optimizer = fleet.distributed_optimizer(optimizer, strategy=strategy)
     opts, param_and_grads = optimizer.minimize(total_loss)
 
-    # apply weight decay here
     if args.weight_decay > 0:
         for param, grad in param_and_grads:
             if exclude_from_weight_decay(param.name):
@@ -160,10 +151,10 @@ def train(args):
                 updated_param = param - param_list[
                     param.name] * args.weight_decay * scheduled_lr
                 fluid.layers.assign(output=param, input=updated_param)
-
+                
     place = fluid.CUDAPlace(int(os.getenv("FLAGS_selected_gpus")))
     dev_count = fluid.core.get_cuda_device_count()
-
+                
     exe = fluid.Executor(place)
     exe.run(fluid.default_startup_program())
     
@@ -171,11 +162,8 @@ def train(args):
         data_dir=args.data_dir,
         batch_size=args.batch_size,
         in_tokens=args.in_tokens,
-        vocab_path=args.vocab_path,
-        voc_size=bert_config['vocab_size'],
         epoch=args.epoch,
-        max_seq_len=args.max_seq_len,
-        generate_neg_sample=args.generate_neg_sample)
+        max_seq_len=args.max_seq_len)
 
     train_pyreader.decorate_tensor_provider(data_reader.data_generator())
     train_pyreader.start()
@@ -184,7 +172,8 @@ def train(args):
     lm_cost = [.0]
     acc = [.0]
     timer = BenchmarkTimer()
-    timer.set_start_step(profile_start_step)
+    timer_start_step = 20
+    timer.set_start_step(timer_start_step)
     program_cache = True
 
     while steps < args.num_train_steps:
@@ -199,11 +188,11 @@ def train(args):
         acc.extend(each_next_acc)
         lm_cost.extend(each_mask_lm_cost)
         cost.extend(each_total_cost)
-        epoch, current_file_index, total_file, current_file = data_reader.get_progress()
+        total_file, current_file_index, current_file = data_reader.get_progress()
         print("current learning_rate:%f" % np_lr[0])
-        print("epoch: %d, progress: %d/%d, step: %d, loss: %f, "
+        print("progress: %d/%d, step: %d, loss: %f, "
               "ppl: %f, next_sent_acc: %f, speed: %f steps/s, file: %s"
-              % (epoch, current_file_index, total_file, steps,
+              % (current_file_index, total_file, steps,
                  np.mean(np.array(cost)),
                  np.mean(np.exp(np.array(lm_cost))),
                  np.mean(np.array(acc)),
@@ -211,5 +200,4 @@ def train(args):
                  current_file))
 
 if __name__ == '__main__':
-    print_arguments(args)
     train(args)
