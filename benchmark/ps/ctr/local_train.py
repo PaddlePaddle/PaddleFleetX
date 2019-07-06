@@ -38,15 +38,12 @@ def train():
     dataset.set_batch_size(args.batch_size)
     dataset.set_thread(args.thread_num)
 
-    start_time = time.time()
-    for i in range(args.num_passes):
-        exe.train_from_dataset(program=fluid.default_main_program(),
-                               dataset=dataset,
-                               debug=True)
-        model_dir = args.model_output_dir + '/epoch' + str(i + 1) + ".model"
-        fluid.io.save_inference_model(model_dir, [dense_input.name] + [x.name for x in sparse_input_ids] + [label.name], [loss, auc_var], exe)
-        sys.stderr.write("epoch%d finished" % (i + 1))
-    end_time = time.time()
+    from util import run_benchmark
+    duration = run_benchmark(startup_prog=fluid.default_startup_program(),
+                             main_prog=fluid.default_main_program(),
+                             batch=args.batch_size,
+                             thread_num=args.thread_num,
+                             dataset=dataset)
     print("total training time: %f" % (end_time - start_time))
 
 if __name__ == '__main__':
