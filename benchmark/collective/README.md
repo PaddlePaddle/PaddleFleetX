@@ -37,7 +37,7 @@ Performance of Multiple-GPU Training of Resnet50 on Imagenet
 #### performance
 <p align="center">
 <img src="./img/bert_v100.png" width=400> <br />
-Performance of Multiple-GPU Training of Resnet50 on Imagenet
+Performance of Multiple-GPU Training of Bert large on baike
 </p>
 
 ### 2.3 Vgg16
@@ -55,5 +55,5 @@ Performance of Multiple-GPU Training of Resnet50 on Imagenet
 #### performance
 <p align="center">
 <img src="./img/vgg16_fp32.png" width=400> <br />
-Performance of Multiple-GPU Training of Resnet50 on Imagenet
+Performance of Multiple-GPU Training of Vgg16 on Imagenet
 </p>
