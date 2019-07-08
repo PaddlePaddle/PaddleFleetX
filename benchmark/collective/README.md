@@ -40,7 +40,7 @@ Performance of Multiple-GPU Training of Resnet50 on Imagenet
 Performance of Multiple-GPU Training of Resnet50 on Imagenet
 </p>
 
-### 2.3 Resnet50
+### 2.3 Vgg16
 
 #### Environment
 
