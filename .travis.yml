@@ -1,0 +1,10 @@
+
+language: python
+sudo: required
+dist: trusty
+os:
+  - linux
+notifications:
+  email:
+    on_success: change
+    on_failure: always
