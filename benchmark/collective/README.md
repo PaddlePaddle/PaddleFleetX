@@ -39,3 +39,21 @@ Performance of Multiple-GPU Training of Resnet50 on Imagenet
 <img src="./img/bert_v100.png" width=400> <br />
 Performance of Multiple-GPU Training of Resnet50 on Imagenet
 </p>
+
+### 2.3 Resnet50
+
+#### Environment
+
+  - GPU: NVIDIA® Tesla® V100 (8 GPU / machine)
+  - System: Centos 6u3
+  - Cuda/Cudnn: 9.0/7.1
+  - Dataset: ImageNet
+  - Date: 2019.06
+  - PaddleVersion: 1.5
+  - Batch size: 32 / GPU
+
+#### performance
+<p align="center">
+<img src="./img/vgg16_fp32.png" width=400> <br />
+Performance of Multiple-GPU Training of Resnet50 on Imagenet
+</p>
