@@ -41,13 +41,6 @@ margin = 0.1
 
 args = arg.parse_args()
 
-role = role_maker.UserDefinedRoleMaker(
-    current_id=int(os.getenv("CURRENT_ID")),
-    role=role_maker.Role.WORKER
-    if os.getenv("TRAINING_ROLE") == "TRAINER" else role_maker.Role.SERVER,
-    worker_num=int(os.getenv("TRAINER_NUM")),
-    server_endpoints=os.getenv("ENDPOINTS").split(","))
-
 q = fluid.layers.data(
     name="query", shape=[1], dtype="int64", lod_level=1)
 pt = fluid.layers.data(
@@ -60,6 +53,8 @@ avg_cost, pt_s, nt_s, pnum, nnum, train_pn = \
                     hid_dim, emb_lr, fc_lr, margin)
 
 exe = fluid.Executor(fluid.CPUPlace())
+
+role = role_maker.PaddleCloudRoleMaker()
 fleet.init(role)
 
 strategy = DistributeTranspilerConfig()
