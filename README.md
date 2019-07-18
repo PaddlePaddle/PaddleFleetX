@@ -144,7 +144,7 @@ python -m paddle.distributed.launch --worker_num 2 --server_num 2 ps_train.py
 ```python
 from paddle.fluid.incubate.fleet.collective import fleet
 # your program
-role = role_maker.PaddleCloudRoleMaker()
+role = role_maker.PaddleCloudRoleMaker(is_collective=True)
 fleet.init(role)
 
 optimizer = fluid.optimizer.SGD(learning_rate=0.0001)
