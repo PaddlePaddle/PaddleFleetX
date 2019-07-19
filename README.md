@@ -5,6 +5,8 @@
 
 ## Quick Start
 
+**Note: all the examples here should be replicated from develop branch of Paddle**
+
 We show quick-start examples for user to use **Collective** training with **Fleet API**. Multiple GPU training is frequently used in modern AI models that require high performance computing ability of deep learning framework. Sample codes can be found in examples/quick-start folder.
 
 Suppose we define a simple neural nets in examples/quick-start/nets.py
