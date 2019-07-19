@@ -79,9 +79,6 @@ def start_procs(args):
     log_fns = []
     ports = range(start_port, start_port + server_num, 1)
     endpoints = ",".join(["127.0.0.1:" + str(x) for x in ports])
-    print("worker num: %d" % worker_num)
-    print("server num: %d" % server_num)
-    print("start port: %d" % start_port)
     for i in range(server_num):
         current_env.update({
             "TRAINER_NUM":str(worker_num),
