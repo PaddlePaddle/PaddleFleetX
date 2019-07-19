@@ -38,33 +38,7 @@ dense_feature_dim = 13
 
 args = parse_args()
 
-if args.cloud_train:
-    # the port of all pservers, needed by both trainer and pserver
-    port = os.getenv("PADDLE_PORT", "6174")
-    # comma separated ips of all pservers, needed by trainer and
-    pserver_ips = os.getenv("PADDLE_PSERVERS", "")
-    eplist = []
-    for ip in pserver_ips.split(","):
-        eplist.append(':'.join([ip, port]))
-    args.endpoints = ",".join(eplist)
-    args.trainers = int(os.getenv("PADDLE_TRAINERS_NUM", "1"))
-    args.current_endpoint = os.getenv("POD_IP", "localhost") + ":" + port
-    args.role = os.getenv("TRAINING_ROLE", "TRAINER")
-    args.trainer_id = int(os.getenv("PADDLE_TRAINER_ID", "0"))
-
-# init role maker
-endpoints = args.endpoints.split(",")
-if args.role.upper() == "PSERVER":
-    current_id = endpoints.index(args.current_endpoint)
-else:
-    current_id = args.trainer_id
-role = role_maker.UserDefinedRoleMaker(
-    current_id=current_id,
-    role=role_maker.Role.WORKER
-    if args.role.upper() == "TRAINER" else role_maker.Role.SERVER,
-    worker_num=args.trainers,
-    server_endpoints=endpoints)
-
+role = role_maker.PaddleCloudRoleMaker()
 exe = fluid.Executor(fluid.CPUPlace())
 fleet.init(role)
 
