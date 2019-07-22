@@ -31,6 +31,7 @@ default_envs = {
     "NCCL_SOCKET_IFNAME": "eth0",
     "NCCL_IB_GID_INDEX": "3",
     "NCCL_IB_RETRY_CNT": "0",
+    "PYTHONPATH": os.getenv("PYTHONPATH", ""),
 }
 
 GPUS = 8
@@ -45,14 +46,7 @@ def start_procs(gpus, entrypoint, entrypoint_args, log_dir):
         if k.startswith("FLAGS_") or k.startswith("NCCL_") or \
             k.startswith("GLOG_"):
             default_envs[k] = v
-    #print("NCCL_SOCKET_IFNAME: {}".format(default_envs['NCCL_SOCKET_IFNAME']))
-    #default_envs['LD_LIBRARY_PATH'] = os.path.join(os.getcwd(), "cuda-9.0/lib64") + ":" + default_envs['LD_LIBRARY_PATH']
-    #default_envs['LD_LIBRARY_PATH'] = os.path.join(os.getcwd(), "cudnn_v7.3/cuda/lib64") + ":" + default_envs['LD_LIBRARY_PATH']
-    #default_envs['LD_LIBRARY_PATH'] = os.path.join(os.getcwd(), "cudnn_lib7.1/lib64") + ":" + default_envs['LD_LIBRARY_PATH']
-    #default_envs['LD_LIBRARY_PATH'] = os.path.join(os.getcwd(), "nccl_2.3.7-1/lib") + ":" + default_envs['LD_LIBRARY_PATH']
     default_envs['FLAGS_eager_delete_tensor_gb'] = '0'
-    print("LD_LIBRARY_PATH: {}".format(default_envs['LD_LIBRARY_PATH']))
-
     # ======== for dist training =======
     node_trainer_id = int(os.getenv("PADDLE_TRAINER_ID", "0"))
     current_ip = os.getenv("POD_IP", "127.0.0.1")
@@ -83,7 +77,7 @@ def start_procs(gpus, entrypoint, entrypoint_args, log_dir):
         fn = open("%s/workerlog.%d" % (log_dir, i), "w")
         log_fns.append(fn)
         #cmd = [sys.executable, "-u", entrypoint] + entrypoint_args
-        cmd = ['./python/bin/python', "-u", entrypoint] + entrypoint_args
+        cmd = [sys.executable, "-u", entrypoint] + entrypoint_args
         procs.append(subprocess.Popen(cmd, stdout=fn, stderr=fn, env=curr_env))
 
     for i in range(gpus):
