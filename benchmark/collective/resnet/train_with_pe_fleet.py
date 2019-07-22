@@ -24,7 +24,7 @@ import numpy as np
 import paddle
 import paddle.fluid as fluid
 
-from resnet import ResNet50
+from models.resnet import ResNet50
 from learning_rate import lr_warmup
 from reader import train, val
 from utility import add_arguments, print_arguments
