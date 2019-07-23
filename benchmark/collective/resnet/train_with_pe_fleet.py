@@ -17,7 +17,6 @@ import time
 import os
 import traceback
 import functools
-import subprocess
 
 import numpy as np
 
@@ -38,45 +37,28 @@ def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     add_arg = functools.partial(add_arguments, argparser=parser)
     # yapf: disable
-    add_arg('batch_size',       int,   32,                   "Mini-batch size.")
+    add_arg('batch_size',       int,   32,                   "Mini-batch size for training.")
+    add_arg('eval_batch_size',  int,   8,                    "Mini-batch size for validation")
     add_arg('use_gpu',          bool,  True,                 "Whether to use GPU or not.")
     add_arg('total_images',     int,   1281167,              "Number of images for training.")
     add_arg('num_epochs',       int,   120,                  "Number of epochs to run.")
     add_arg('class_dim',        int,   1000,                 "Number of classes of data set.")
     add_arg('image_shape',      str,   "3,224,224",          "Size of input images.")
     add_arg('model_save_dir',   str,   "output",             "Directory to save model.")
-    add_arg('with_mem_opt',     bool,  False,                "Whether to use memory optimization or not.")
     add_arg('lr',               float, 0.1,                  "Initial learning rate.")
-    add_arg('lr_strategy',      str,   "piecewise_decay",    "Learning rate decay strategy to use.")
-    add_arg('model',            str,   "ResNet50",           "Network to use.")
-    add_arg('enable_ce',        bool,  False,                "If set True, enable continuous evaluation job.")
     add_arg('data_dir',         str,   "./ImageNet",         "Root directory for ImageNet data set.")
+    add_arg('start_test_pass',  int,   0,                    "After how many passes to start test.")
     # for distributed
-    add_arg('multi_batch_repeat', int,  1,                   "Batch merge repeats.")
     add_arg('num_threads',        int,  4,                   "Number of threads used to run fluid program.")
     add_arg('reduce_strategy',    str,  "allreduce",         "One of reduce or allreduce.")
-    add_arg('enable_sequential_execution', bool, False,      "Skip data not if data not balanced on nodes.")
-    #for dgc
-    add_arg('enable_dgc', bool, False,                       "Skip data not if data not balanced on nodes.")
-    add_arg('rampup_begin_step', int, 5008,                  "Skip data not if data not balanced on nodes.")
+    add_arg('enable_sequential_execution', bool, False,      "Whether to enable sequential execution.")
     # yapf: enable
     args = parser.parse_args()
     return args
 
 
-def get_device_num():
-    if os.getenv("CPU_NUM"):
-        return int(os.getenv("CPU_NUM"))
-    visible_device = os.getenv('CUDA_VISIBLE_DEVICES')
-    if visible_device:
-        device_num = len(visible_device.split(','))
-    else:
-        device_num = subprocess.check_output(
-            ['nvidia-smi', '-L']).decode().count('\n')
-    return device_num
-
-
-def prepare_reader(is_train, pyreader, args, pass_id=1, num_trainers=1, trainer_id=0):
+def prepare_reader(is_train, pyreader, args, pass_id=1, 
+                   num_trainers=1, trainer_id=0):
     if is_train:
         reader = train(
             data_dir=args.data_dir, pass_id_as_seed=pass_id, infinite=False,
@@ -86,7 +68,7 @@ def prepare_reader(is_train, pyreader, args, pass_id=1, num_trainers=1, trainer_
     if is_train:
         bs = args.batch_size
     else:
-        bs = 8
+        bs = args.eval_batch_size
     pyreader.decorate_paddle_reader(paddle.batch(reader, batch_size=bs))
 
 
@@ -95,22 +77,19 @@ def build_program(is_train, main_prog, startup_prog, args):
     class_dim = args.class_dim
     image_shape = [int(m) for m in args.image_shape.split(",")]
 
-    trainer_count = int(os.getenv("PADDLE_TRAINERS_NUM", "0"))
+    trainer_count = args.role_maker.worker_num()
 
-    device_num_per_worker = get_device_num()
     with fluid.program_guard(main_prog, startup_prog):
         pyreader = fluid.layers.py_reader(
-            capacity=args.batch_size if is_train else 8,
+            capacity=args.batch_size,
             shapes=([-1] + image_shape, (-1, 1)),
             dtypes=('float32', 'int64'),
             name="train_reader" if is_train else "test_reader",
             use_double_buffer=True)
+
         with fluid.unique_name.guard():
             image, label = fluid.layers.read_file(pyreader)
-
-            # FIXME: to add VGG16
             model_def = ResNet50()
-
             predict = model_def.net(image, class_dim=class_dim)
             cost, pred = fluid.layers.softmax_with_cross_entropy(
                 predict, label, return_softmax=True)
@@ -121,32 +100,18 @@ def build_program(is_train, main_prog, startup_prog, args):
 
             optimizer = None
             if is_train:
+                global_batch_size = args.batch_size * trainer_count
+                steps_per_pass = int(math.ceil(args.total_images * 1.0 / global_batch_size))
+                warmup_steps = warmup_steps * 5 # warmup 5 passes
+                epochs = [30, 60, 80, 90]
+                bd = [steps_per_pass * e for e in epochs]
+
+                # https://github.com/tensorflow/models/blob/4909765543ff0c96627161ecc75eec6c309dbdce/official/resnet/resnet_run_loop.py#L244
+                # https://github.com/tensorflow/models/blob/4909765543ff0c96627161ecc75eec6c309dbdce/official/resnet/imagenet_main.py#L328
+                batch_denom = 256
                 start_lr = args.lr
-                end_lr = args.lr * trainer_count * args.multi_batch_repeat
-                if os.getenv("FLAGS_selected_gpus"):
-                    # in multi process mode, "trainer_count" will be total devices
-                    # in the whole cluster, and we need to scale num_of nodes.
-                    end_lr /= device_num_per_worker
-
-                total_images = args.total_images / trainer_count
-                if os.getenv("FLAGS_selected_gpus"):
-                    step = int(total_images /
-                               (args.batch_size / device_num_per_worker *
-                                args.multi_batch_repeat) + 1)
-                else:
-                    step = int(total_images / (args.batch_size *
-                                               args.multi_batch_repeat) + 1)
-                warmup_steps = step * 5  # warmup 5 passes
-                epochs = [30, 60, 80]
-                bd = [step * e for e in epochs]
-                base_lr = end_lr
+                base_lr = args.lr * global_batch_size / batch_denom
                 lr = [base_lr * (0.1**i) for i in range(len(bd) + 1)]
-                print("start lr: %s, end lr: %s, decay boundaries: %s" %
-                      (start_lr, end_lr, bd))
-
-                # NOTE: we put weight decay in layers config, and remove
-                # weight decay on bn layers, so don't add weight decay in
-                # optimizer config.
 
                 optimizer = fluid.optimizer.Momentum(
                     learning_rate=lr_warmup(
@@ -154,44 +119,93 @@ def build_program(is_train, main_prog, startup_prog, args):
                             boundaries=bd, values=lr),
                         warmup_steps,
                         start_lr,
-                        end_lr),
+                        base_lr),
                     momentum=0.9)
-
-                if args.enable_dgc:
-                    optimizer = fluid.optimizer.DGCMomentumOptimizer(
-                        learning_rate=lr_warmup(
-                            fluid.layers.piecewise_decay(
-                                boundaries=bd, values=lr),
-                            warmup_steps,
-                            start_lr,
-                            end_lr),
-                        momentum=0.9,
-                        sparsity=[0.999, 0.999],
-                        rampup_begin_step=args.rampup_begin_step)
+            else:
+                reduced_acc1 = fluid.layers.create_tensor("float32",
+                                                          name="global_acc1")
+                reduced_acc5 = fluid.layers.create_tensor("float32",
+                                                          name="global_acc5")
+                reduced_cost = fluid.layers.create_tensor('float32', 
+                                                          name='global_cost')
+                fluid.layers.collective._allreduce(batch_acc1,
+                                                   reduced_acc1,
+                                                   "sum")
+                fluid.layers.collective._allreduce(batch_acc5,
+                                                   reduced_acc5,
+                                                   "sum")
+                fluid.layers.collective._allreduce(avg_cost,
+                                                   reduced_cost,
+                                                   "sum")
+                batch_acc1 = fluid.layers.scale(reduced_acc1, 
+                                                scale=1. / trainer_count)
+                batch_acc5 = fluid.layers.scale(reduced_acc5, 
+                                                scale=1. / trainer_count)
+                avg_cost = fluid.layers.scale(reduced_cost, 
+                                              scale=1. / trainer_count)
 
     # prepare reader for current program
-    trainer_id = int(os.getenv("PADDLE_TRAINER_ID", "0"))
-    num_trainers = int(os.getenv("PADDLE_TRAINERS_NUM", "1"))
-    prepare_reader(is_train, pyreader, args, num_trainers=num_trainers, trainer_id=trainer_id)
+    trainer_id = args.role_maker.worker_index()
+    prepare_reader(is_train, pyreader, args, num_trainers=trainer_count, 
+                   trainer_id=trainer_id)
 
     return pyreader, avg_cost, batch_acc1, batch_acc5, optimizer
 
 
+def test_parallel(exe, args, pyreader, fetch_list):
+    acc1 = fluid.metrics.Accuracy()
+    acc5 = fluid.metrics.Accuracy()
+    test_losses = []
+    pyreader.start()
+    weight=args.eval_batch_size * args.role_maker.worker_num()
+    while True:
+                batch_acc1 = fluid.layers.scale(reduced_acc1, 
+                                                scale=1. / trainer_count)
+                batch_acc5 = fluid.layers.scale(reduced_acc5, 
+                                                scale=1. / trainer_count)
+
+    # prepare reader for current program
+    trainer_id = args.role_maker.worker_index()
+    prepare_reader(is_train, pyreader, args, num_trainers=trainer_count, 
+                   trainer_id=trainer_id)
+
+    return pyreader, avg_cost, batch_acc1, batch_acc5, optimizer
+
+
+def test_parallel(exe, test_prog, args, pyreader, fetch_list):
+    acc1 = fluid.metrics.Accuracy()
+    acc5 = fluid.metrics.Accuracy()
+    test_losses = []
+    pyreader.start()
+    weight=args.eval_batch_size * args.role_maker.worker_num()
+    while True:
+        try:
+            acc_rets = exe.run(fetch_list=fetch_list)
+            test_losses.append(acc_rets[0])
+            acc1.update(value=np.array(acc_rets[1]), weight=weight)
+            acc5.update(value=np.array(acc_rets[2]), weight=weight)
+        except fluid.core.EOFException:
+            pyreader.reset()
+            break
+    test_avg_loss = np.mean(np.array(test_losses))
+    return test_avg_loss, np.mean(acc1.eval()), np.mean(acc5.eval())
+
+
 def train_parallel(args):
     train_prog = fluid.Program()
+    test_prog = fluid.Program()
     startup_prog = fluid.Program()
 
     train_pyreader, train_cost, train_acc1, train_acc5, optimizer = build_program(
         True, train_prog, startup_prog, args)
+    test_pyreader, test_cost, test_acc1, test_acc5, _ = build_program(
+        False, test_prog, startup_prog, args)
 
     # For Distributed Training.
-    trainer_id = int(os.getenv("PADDLE_TRAINER_ID"))
-    num_trainers = int(os.getenv("PADDLE_TRAINERS_NUM"))
-    trainer_endpoints = os.getenv("PADDLE_TRAINER_ENDPOINTS")
-    trainer_endpoints = trainer_endpoints.split(',')
-    role_maker = UserDefinedCollectiveRoleMaker(current_id=trainer_id, worker_endpoints=trainer_endpoints)
-    # fleet = fleet()
-    fleet.init(role_maker)
+    trainer_id = args.role_maker.worker_index()
+    num_trainers = args.role_maker.worker_num()
+    trainer_endpoints = args.role_maker.worker_endpoints()
+    fleet.init(args.role_maker)
     optimizer = fleet.distributed_optimizer(optimizer)
     optimizer.minimize(train_cost, startup_prog)
 
@@ -225,12 +239,6 @@ def train_parallel(args):
         build_strategy.reduce_strategy = fluid.BuildStrategy(
         ).ReduceStrategy.AllReduce
 
-    if args.multi_batch_repeat > 1:
-        pass_builder = build_strategy._finalize_strategy_and_create_passes()
-        mypass = pass_builder.insert_pass(
-            len(pass_builder.all_passes()) - 4, "multi_batch_merge_pass")
-        mypass.set("num_repeats", args.multi_batch_repeat)
-
     build_strategy.num_trainers = len(fleet.worker_endpoints())
     build_strategy.trainer_id = fleet.worker_index()
     train_prog = compiler.CompiledProgram(train_prog)
@@ -246,8 +254,6 @@ def train_parallel(args):
         num_samples = 0
         start_time = time.time()
         batch_id = 1
-        #if pass_id == 0:
-        #    train_pyreader.start()
         train_pyreader.start()
         while True:
             try:
@@ -271,6 +277,12 @@ def train_parallel(args):
             batch_id += 1
 
         print_train_time(start_time, time.time(), num_samples)
+        if pass_id >= args.start_test_pass:
+            test_fetch_list = [test_cost.name, test_acc1.name, test_acc5.name]
+            test_ret = test_parallel(test_exe, args, 
+                                     test_pyreader, test_fetch_list)
+            print("Pass: %d, Test Loss %s, test acc1: %s, test acc5: %s\n" %
+                  (pass_id, test_ret[0], test_ret[1], test_ret[2]))
     startup_exe.close()
     print("total train time: ", time.time() - over_all_start)
 
@@ -294,6 +306,13 @@ def main():
     args = parse_args()
     print_arguments(args)
     print_paddle_envs()
+    # Initialize role_maker
+    trainer_id = int(os.getenv("PADDLE_TRAINER_ID"))
+    trainer_endpoints = os.getenv("PADDLE_TRAINER_ENDPOINTS")
+    trainer_endpoints = trainer_endpoints.split(',')
+    role_maker = UserDefinedCollectiveRoleMaker(current_id=trainer_id, 
+                                                worker_endpoints=trainer_endpoints)
+    args.role_maker = role_maker
     train_parallel(args)
 
 
