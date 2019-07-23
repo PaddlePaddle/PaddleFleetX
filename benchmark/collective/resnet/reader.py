@@ -128,7 +128,7 @@ def _reader_creator(file_list,
                     if pass_id_as_seed_counter:
                         np.random.seed(pass_id_as_seed_counter)
                     np.random.shuffle(full_lines)
-                if mode == 'train' and num_trainers > 1:
+                if (mode == 'train' or mode == 'parallel_val') and num_trainers > 1:
                     # distributed mode if more than one trainers
                     lines_per_trainer = len(full_lines) // num_trainers
                     lines = full_lines[trainer_id * lines_per_trainer:(trainer_id + 1)
@@ -141,7 +141,7 @@ def _reader_creator(file_list,
                     lines = full_lines
 
                 for line in lines:
-                    if mode == 'train' or mode == 'val':
+                    if mode == 'train' or mode == 'val' or mode == 'parallel_val':
                         img_path, label = line.split()
                         img_path = img_path.replace("JPEG", 'jpeg')
                         img_path = os.path.join(data_dir, mode, img_path)
@@ -177,13 +177,14 @@ def train(data_dir=DATA_DIR, pass_id_as_seed=0, infinite=False, num_trainers=1, 
         trainer_id=trainer_id)
 
 
-def val(data_dir=DATA_DIR, num_trainers=1, trainer_id=0):
+def val(data_dir=DATA_DIR, num_trainers=1, trainer_id=0, parallel_test=False):
     file_list = os.path.join(data_dir, 'val.txt')
-    return _reader_creator(file_list, 'val', shuffle=False, 
+    mode = 'parallel_val' if parallel_test else 'val'
+    return _reader_creator(file_list, mode, shuffle=False, 
             data_dir=data_dir, num_trainers=num_trainers, trainer_id=trainer_id)
 
 
-def test(data_dir=DATA_DIR, num_trainers=1, trainer_id=0):
+def test(data_dir=DATA_DIR, num_trainers=1, trainer_id=0, parallel_test=False):
     file_list = os.path.join(data_dir, 'val.txt')
     return _reader_creator(file_list, 'test', shuffle=False, 
             data_dir=data_dir, num_trainers=num_trainers, trainer_id=trainer_id)
