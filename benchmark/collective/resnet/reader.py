@@ -115,7 +115,7 @@ def _reader_creator(file_list,
                     color_jitter=False,
                     rotate=False,
                     data_dir=DATA_DIR,
-                    pass_id_as_seed=1,
+                    pass_id_as_seed=0,
                     infinite=False,
                     num_trainers=1,
                     trainer_id=0):
@@ -162,7 +162,7 @@ def _reader_creator(file_list,
     return paddle.reader.xmap_readers(mapper, reader, THREAD, BUF_SIZE)
 
 
-def train(data_dir=DATA_DIR, pass_id_as_seed=1, infinite=False, num_trainers=1, trainer_id=0):
+def train(data_dir=DATA_DIR, pass_id_as_seed=0, infinite=False, num_trainers=1, trainer_id=0):
     file_list = os.path.join(data_dir, 'train.txt')
     return _reader_creator(
         file_list,
