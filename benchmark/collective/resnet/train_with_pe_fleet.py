@@ -64,7 +64,7 @@ def prepare_reader(is_train, pyreader, args, pass_id=1,
             data_dir=args.data_dir, pass_id_as_seed=pass_id, infinite=False,
             num_trainers=num_trainers, trainer_id=trainer_id)
     else:
-        reader = val(data_dir=args.data_dir)
+        reader = val(data_dir=args.data_dir, parallel_test=True)
     if is_train:
         bs = args.batch_size
     else:
@@ -76,7 +76,6 @@ def build_program(is_train, main_prog, startup_prog, args):
     pyreader = None
     class_dim = args.class_dim
     image_shape = [int(m) for m in args.image_shape.split(",")]
-
     trainer_count = args.role_maker.worker_num()
 
     with fluid.program_guard(main_prog, startup_prog):
@@ -143,26 +142,6 @@ def build_program(is_train, main_prog, startup_prog, args):
                                                 scale=1. / trainer_count)
                 avg_cost = fluid.layers.scale(reduced_cost, 
                                               scale=1. / trainer_count)
-
-    # prepare reader for current program
-    trainer_id = args.role_maker.worker_index()
-    prepare_reader(is_train, pyreader, args, num_trainers=trainer_count, 
-                   trainer_id=trainer_id)
-
-    return pyreader, avg_cost, batch_acc1, batch_acc5, optimizer
-
-
-def test_parallel(exe, args, pyreader, fetch_list):
-    acc1 = fluid.metrics.Accuracy()
-    acc5 = fluid.metrics.Accuracy()
-    test_losses = []
-    pyreader.start()
-    weight=args.eval_batch_size * args.role_maker.worker_num()
-    while True:
-                batch_acc1 = fluid.layers.scale(reduced_acc1, 
-                                                scale=1. / trainer_count)
-                batch_acc5 = fluid.layers.scale(reduced_acc5, 
-                                                scale=1. / trainer_count)
 
     # prepare reader for current program
     trainer_id = args.role_maker.worker_index()
