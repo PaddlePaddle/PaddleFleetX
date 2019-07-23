@@ -51,7 +51,12 @@ def parse_args():
     # for distributed
     add_arg('num_threads',        int,  4,                   "Number of threads used to run fluid program.")
     add_arg('reduce_strategy',    str,  "allreduce",         "One of reduce or allreduce.")
+    # add_arg('nccl_comm_num',      int,  1,                   "Number of nccl communicators.")
     add_arg('enable_sequential_execution', bool, False,      "Whether to enable sequential execution.")
+    add_arg('enable_backward_op_deps', bool, False,          "Whether to enable backward_op_deps.")
+    add_arg('use_experimental_executor', bool, False,        "Whether to use experimental executor.")
+    # add_arg('use_hierarchical_allreduce', bool, False,       "Whether to use hierarchical allreduce.")
+    add_arg('fuse',             bool, False,                 "Whether to use tensor fusion.")
     # yapf: enable
     args = parser.parse_args()
     return args
@@ -200,6 +205,8 @@ def train_parallel(args):
 
     strategy = fluid.ExecutionStrategy()
     strategy.num_threads = args.num_threads
+    if args.use_experimental_executor:
+        strategy.use_experimental_executor = True
     # num_iteration_per_drop_scope indicates how
     # many iterations to clean up the temp variables which
     # is generated during execution. It may make the execution faster,
@@ -210,6 +217,10 @@ def train_parallel(args):
     build_strategy.memory_optimize = False
     build_strategy.enable_sequential_execution = bool(
         args.enable_sequential_execution)
+    if args.enable_backward_op_deps:
+        build_strategy.enable_backward_optimizer_op_deps = True
+    if args.fuse:
+        build_strategy.fuse_all_reduce_ops = True
 
     if args.reduce_strategy == "reduce":
         build_strategy.reduce_strategy = fluid.BuildStrategy(
