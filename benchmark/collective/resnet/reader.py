@@ -103,7 +103,7 @@ def process_image(sample, mode, color_jitter, rotate):
     img -= img_mean
     img /= img_std
 
-    if mode == 'train' or mode == 'val':
+    if mode == 'train' or mode == 'val' or mode == 'parallel_val':
         return img, sample[1]
     elif mode == 'test':
         return [img]
