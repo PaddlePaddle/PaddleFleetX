@@ -39,7 +39,7 @@ def parse_args():
     add_arg = functools.partial(add_arguments, argparser=parser)
     # yapf: disable
     add_arg('batch_size',       int,   32,                   "Mini-batch size for training.")
-    add_arg('eval_batch_size',  int,   64,                    "Mini-batch size for validation")
+    add_arg('eval_batch_size',  int,   100,                  "Mini-batch size for validation")
     add_arg('use_gpu',          bool,  True,                 "Whether to use GPU or not.")
     add_arg('total_images',     int,   1281167,              "Number of images for training.")
     add_arg('num_epochs',       int,   120,                  "Number of epochs to run.")
@@ -70,7 +70,8 @@ def prepare_reader(is_train, pyreader, args, pass_id=1,
             data_dir=args.data_dir, pass_id_as_seed=pass_id, infinite=False,
             num_trainers=num_trainers, trainer_id=trainer_id)
     else:
-        reader = val(data_dir=args.data_dir, parallel_test=True)
+        reader = val(data_dir=args.data_dir, num_trainers=num_trainers, 
+            trainer_id=trainer_id, parallel_test=False)
     if is_train:
         bs = args.batch_size
     else:
@@ -126,29 +127,7 @@ def build_program(is_train, main_prog, startup_prog, args):
                         start_lr,
                         base_lr),
                     momentum=0.9)
-            else:
-                reduced_acc1 = fluid.layers.create_tensor("float32",
-                                                          name="global_acc1")
-                reduced_acc5 = fluid.layers.create_tensor("float32",
-                                                          name="global_acc5")
-                reduced_cost = fluid.layers.create_tensor('float32', 
-                                                          name='global_cost')
-                fluid.layers.collective._allreduce(batch_acc1,
-                                                   reduced_acc1,
-                                                   "sum")
-                fluid.layers.collective._allreduce(batch_acc5,
-                                                   reduced_acc5,
-                                                   "sum")
-                fluid.layers.collective._allreduce(avg_cost,
-                                                   reduced_cost,
-                                                   "sum")
-                batch_acc1 = fluid.layers.scale(reduced_acc1, 
-                                                scale=1. / trainer_count)
-                batch_acc5 = fluid.layers.scale(reduced_acc5, 
-                                                scale=1. / trainer_count)
-                avg_cost = fluid.layers.scale(reduced_cost, 
-                                              scale=1. / trainer_count)
-
+            
     # prepare reader for current program
     trainer_id = args.role_maker.worker_index()
     prepare_reader(is_train, pyreader, args, num_trainers=trainer_count, 
@@ -157,21 +136,22 @@ def build_program(is_train, main_prog, startup_prog, args):
     return pyreader, avg_cost, batch_acc1, batch_acc5, optimizer
 
 
-def test_parallel(exe, test_prog, args, pyreader, fetch_list):
+def test_single(exe, test_prog, args, pyreader, fetch_list):
     acc1 = fluid.metrics.Accuracy()
     acc5 = fluid.metrics.Accuracy()
     test_losses = []
     pyreader.start()
-    weight=args.eval_batch_size * args.role_maker.worker_num()
     while True:
         try:
-            #acc_rets = exe.run(test_prog, fetch_list=fetch_list)
-            acc_rets = exe.run(fetch_list=fetch_list)
+            acc_rets = exe.run(test_prog, fetch_list=fetch_list)
             test_losses.append(acc_rets[0])
-            acc1.update(value=np.array(acc_rets[1]), weight=weight)
-            acc5.update(value=np.array(acc_rets[2]), weight=weight)
+            acc1.update(value=np.array(acc_rets[1]), weight=args.eval_batch_size)
+            acc5.update(value=np.array(acc_rets[2]), weight=args.eval_batch_size)
         except fluid.core.EOFException:
             pyreader.reset()
+            break
+        except fluid.core.EnforceNotMet:
+            traceback.print_exc()
             break
     test_avg_loss = np.mean(np.array(test_losses))
     return test_avg_loss, np.mean(acc1.eval()), np.mean(acc5.eval())
@@ -235,30 +215,12 @@ def train_parallel(args):
 
     build_strategy.num_trainers = len(fleet.worker_endpoints())
     build_strategy.trainer_id = fleet.worker_index()
-    #train_prog = compiler.CompiledProgram(train_prog)
-    #train_prog.with_data_parallel(
-    #    loss_name=train_cost.name,
-    #    build_strategy=build_strategy,
-    #    exec_strategy=strategy)
-
-    #test_prog = compiler.CompiledProgram(test_prog)
-    #test_prog.with_data_parallel(
-    #    loss_name=test_cost.name,
-    #    build_strategy=build_strategy,
-    #    exec_strategy=strategy)
     train_exe = fluid.ParallelExecutor(
             True,
             train_cost.name,
             main_program=train_prog,
             exec_strategy=strategy,
             build_strategy=build_strategy)
-    test_exe = fluid.ParallelExecutor(
-            True,
-            test_cost.name,
-            main_program=test_prog,
-            exec_strategy=strategy,
-            build_strategy=build_strategy,
-            share_vars_from=train_exe)
 
     over_all_start = time.time()
     fetch_list = [train_cost.name, train_acc1.name, train_acc5.name]
@@ -292,11 +254,12 @@ def train_parallel(args):
             batch_id += 1
 
         print_train_time(start_time, time.time(), num_samples)
-        if pass_id >= args.start_test_pass:
+        if pass_id >= args.start_test_pass and trainer_id == 0:
             test_fetch_list = [test_cost.name, test_acc1.name, test_acc5.name]
-            #test_ret = test_parallel(startup_exe, test_prog, args, 
-            test_ret = test_parallel(test_exe, test_prog, args, 
+            test_ret = test_single(startup_exe, test_prog, args,
                                      test_pyreader, test_fetch_list)
+            #print("Pass: %d, Test Loss %s\n" %
+            #      (pass_id, test_ret))
             print("Pass: %d, Test Loss %s, test acc1: %s, test acc5: %s\n" %
                   (pass_id, test_ret[0], test_ret[1], test_ret[2]))
     startup_exe.close()
