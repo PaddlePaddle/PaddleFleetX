@@ -60,8 +60,8 @@ def random_crop(img, size, scale=[0.08, 1.0], ratio=[3. / 4., 4. / 3.]):
     w = int(target_size * w)
     h = int(target_size * h)
 
-    i = np.random.randint(0, img.size[0] - w + 1)
-    j = np.random.randint(0, img.size[1] - h + 1)
+    i = np.random.randint(0, img.shape[0] - h + 1)
+    j = np.random.randint(0, img.shape[1] - w + 1)
 
     img = img[i:i+h, j:j+w, :]
     img = cv2.resize(img, (size, size))
@@ -142,9 +142,12 @@ def _reader_creator(file_list,
 
                 for line in lines:
                     if mode == 'train' or mode == 'val' or mode == 'parallel_val':
+                        subdir = mode
+                        if mode == "parallel_val":
+                            subdir = 'val'
                         img_path, label = line.split()
                         img_path = img_path.replace("JPEG", 'jpeg')
-                        img_path = os.path.join(data_dir, mode, img_path)
+                        img_path = os.path.join(data_dir, subdir, img_path)
                         yield img_path, int(label)
                     elif mode == 'test':
                         img_path, label = line.split()
