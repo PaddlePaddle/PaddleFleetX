@@ -17,6 +17,7 @@ from __future__ import print_function
 import subprocess
 import os
 import argparse
+import sys
 
 default_envs = {
     "PADDLE_TRAINER_ENDPOINTS":

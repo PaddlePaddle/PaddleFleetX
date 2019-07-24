@@ -15,6 +15,7 @@
 import argparse
 import time
 import os
+import math
 import traceback
 import functools
 
@@ -38,7 +39,7 @@ def parse_args():
     add_arg = functools.partial(add_arguments, argparser=parser)
     # yapf: disable
     add_arg('batch_size',       int,   32,                   "Mini-batch size for training.")
-    add_arg('eval_batch_size',  int,   8,                    "Mini-batch size for validation")
+    add_arg('eval_batch_size',  int,   64,                    "Mini-batch size for validation")
     add_arg('use_gpu',          bool,  True,                 "Whether to use GPU or not.")
     add_arg('total_images',     int,   1281167,              "Number of images for training.")
     add_arg('num_epochs',       int,   120,                  "Number of epochs to run.")
@@ -106,7 +107,7 @@ def build_program(is_train, main_prog, startup_prog, args):
             if is_train:
                 global_batch_size = args.batch_size * trainer_count
                 steps_per_pass = int(math.ceil(args.total_images * 1.0 / global_batch_size))
-                warmup_steps = warmup_steps * 5 # warmup 5 passes
+                warmup_steps = steps_per_pass * 5 # warmup 5 passes
                 epochs = [30, 60, 80, 90]
                 bd = [steps_per_pass * e for e in epochs]
 
@@ -164,6 +165,7 @@ def test_parallel(exe, test_prog, args, pyreader, fetch_list):
     weight=args.eval_batch_size * args.role_maker.worker_num()
     while True:
         try:
+            #acc_rets = exe.run(test_prog, fetch_list=fetch_list)
             acc_rets = exe.run(fetch_list=fetch_list)
             test_losses.append(acc_rets[0])
             acc1.update(value=np.array(acc_rets[1]), weight=weight)
@@ -188,7 +190,7 @@ def train_parallel(args):
     # For Distributed Training.
     trainer_id = args.role_maker.worker_index()
     num_trainers = args.role_maker.worker_num()
-    trainer_endpoints = args.role_maker.worker_endpoints()
+    trainer_endpoints = args.role_maker.get_trainer_endpoints()
     fleet.init(args.role_maker)
     optimizer = fleet.distributed_optimizer(optimizer)
     optimizer.minimize(train_cost, startup_prog)
@@ -229,13 +231,34 @@ def train_parallel(args):
         build_strategy.reduce_strategy = fluid.BuildStrategy(
         ).ReduceStrategy.AllReduce
 
+
+
     build_strategy.num_trainers = len(fleet.worker_endpoints())
     build_strategy.trainer_id = fleet.worker_index()
-    train_prog = compiler.CompiledProgram(train_prog)
-    train_prog.with_data_parallel(
-        loss_name=train_cost.name,
-        build_strategy=build_strategy,
-        exec_strategy=strategy)
+    #train_prog = compiler.CompiledProgram(train_prog)
+    #train_prog.with_data_parallel(
+    #    loss_name=train_cost.name,
+    #    build_strategy=build_strategy,
+    #    exec_strategy=strategy)
+
+    #test_prog = compiler.CompiledProgram(test_prog)
+    #test_prog.with_data_parallel(
+    #    loss_name=test_cost.name,
+    #    build_strategy=build_strategy,
+    #    exec_strategy=strategy)
+    train_exe = fluid.ParallelExecutor(
+            True,
+            train_cost.name,
+            main_program=train_prog,
+            exec_strategy=strategy,
+            build_strategy=build_strategy)
+    test_exe = fluid.ParallelExecutor(
+            True,
+            test_cost.name,
+            main_program=test_prog,
+            exec_strategy=strategy,
+            build_strategy=build_strategy,
+            share_vars_from=train_exe)
 
     over_all_start = time.time()
     fetch_list = [train_cost.name, train_acc1.name, train_acc5.name]
@@ -248,7 +271,8 @@ def train_parallel(args):
         while True:
             try:
                 if batch_id % 30 == 0:
-                    fetch_ret = startup_exe.run(program=train_prog, fetch_list=fetch_list)
+                    #fetch_ret = startup_exe.run(program=train_prog, fetch_list=fetch_list)
+                    fetch_ret = train_exe.run(fetch_list=fetch_list)
                     fetched_data = [np.mean(np.array(d)) for d in fetch_ret]
                     print(
                         "Pass [%d/%d], batch [%d], loss %s, acc1: %s, acc5: %s, avg batch time %.4f"
@@ -256,7 +280,8 @@ def train_parallel(args):
                            fetched_data[0], fetched_data[1], fetched_data[2],
                            (time.time() - start_time) / batch_id))
                 else:
-                    startup_exe.run(program=train_prog, fetch_list=[])
+                    #startup_exe.run(program=train_prog, fetch_list=[])
+                    train_exe.run(fetch_list=[])
             except fluid.core.EOFException:
                 train_pyreader.reset()
                 break
@@ -269,7 +294,8 @@ def train_parallel(args):
         print_train_time(start_time, time.time(), num_samples)
         if pass_id >= args.start_test_pass:
             test_fetch_list = [test_cost.name, test_acc1.name, test_acc5.name]
-            test_ret = test_parallel(test_exe, args, 
+            #test_ret = test_parallel(startup_exe, test_prog, args, 
+            test_ret = test_parallel(test_exe, test_prog, args, 
                                      test_pyreader, test_fetch_list)
             print("Pass: %d, Test Loss %s, test acc1: %s, test acc5: %s\n" %
                   (pass_id, test_ret[0], test_ret[1], test_ret[2]))
