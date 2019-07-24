@@ -23,14 +23,14 @@ img_std = np.array([0.229, 0.224, 0.225]).reshape((3, 1, 1))
 
 def resize_short(img, target_size):
     percent = float(target_size) / min(img.shape[0], img.shape[1])
-    resized_width = int(round(img.shape[0] * percent))
-    resized_height = int(round(img.shape[1] * percent))
+    resized_width = int(round(img.shape[1] * percent))
+    resized_height = int(round(img.shape[0] * percent))
     img = cv2.resize(img, (resized_width, resized_height))
     return img
 
 
 def crop_image(img, target_size, center):
-    width, height = img.shape[:2]
+    height, width = img.shape[:2]
     size = target_size
     if center:
         w_start = (width - size) / 2
