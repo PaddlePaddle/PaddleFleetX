@@ -9,5 +9,10 @@ export FLAGS_fraction_of_gpu_memory_to_use=0.84
 export NCCL_DEBUG=INFO
 
 # Change your training arguments:
-python -u ./launch.py --gpus 8 ./train_with_pe_fleet.py \
+python -m paddle.distributed.launch ./train_with_pe_fleet.py \
        --data_dir /ssd2/lilong/ImageNet --start_test_pass 0
+
+# For paddlecloud
+# python -m paddle.distributed.launch --cluster_node_ips=$PADDLE_TRAINERS \
+#     --node_ip=$POD_IP ./train_with_pe_fleet.py \
+#     --data_dir /ssd2/lilong/ImageNet --start_test_pass 0
