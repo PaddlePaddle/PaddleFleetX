@@ -26,15 +26,20 @@ optimizer = fluid.optimizer.SGD(learning_rate=0.01)
 
 role = role_maker.PaddleCloudRoleMaker(is_collective=True)
 fleet.init(role)
-optimizer = fleet.distributed_optimizer(optimizer)
-optimizer.minimize(cost)
 
-place = fluid.CUDAPlace(0)
+optimizer = fleet.distributed_optimizer(optimizer)
+optimizer.minimize(cost, fluid.default_startup_program())
+
+place = fluid.CUDAPlace(fleet.worker_index())
 
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
+
 step = 1001
 for i in range(step):
-    exe.run(feed=gen_data())
-
-
+    cost_val = exe.run(
+        program=fluid.default_main_program(),
+        feed=gen_data(),
+        fetch_list=[cost.name])
+    print("worker_index: %d, step%d cost = %f" %
+          (fleet.worker_index(), i, cost_val[0]))

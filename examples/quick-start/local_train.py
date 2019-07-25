@@ -28,6 +28,9 @@ exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
 step = 1001
 for i in range(step):
-    exe.run(feed=gen_data())
+    cost_val = exe.run(feed=gen_data(),
+                       fetch_list=[cost.name])
+    print("step%d cost=%f" % (i, cost_val[0]))
+
 
 
