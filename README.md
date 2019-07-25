@@ -56,7 +56,7 @@ input_y = fluid.layers.data(name="y", shape=[1], dtype='int64')
 cost = mlp(input_x, input_y)
 optimizer = fluid.optimizer.SGD(learning_rate=0.01)
 
-role = role_maker.PaddleCloudRoleMaker()
+role = role_maker.PaddleCloudRoleMaker(is_collective=True)
 fleet.init(role)
 optimizer = fleet.distributed_optimizer(optimizer)
 optimizer.minimize(cost)
