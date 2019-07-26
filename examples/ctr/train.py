@@ -13,6 +13,7 @@ dense_feature_dim = 13
 sparse_feature_dim = 10000001
 batch_size = 100
 thread_num = 10
+embedding_size = 10
 
 args = parse_args()
 
@@ -34,10 +35,8 @@ def main_function(is_local):
                       for x in range(len(os.listdir("raw_data")))]
     dataset.set_filelist(whole_filelist)
     loss, auc_var, batch_auc_var = ctr_dnn_model_dataset(
-        dense_input, sparse_input_ids, label, args.embedding_size,
+        dense_input, sparse_input_ids, label, embedding_size,
         sparse_feature_dim)
-
-    optimizer = fluid.optimizer.SGD(learning_rate=1e-4)
 
     exe = fluid.Executor(fluid.CPUPlace())
 
@@ -50,6 +49,7 @@ def main_function(is_local):
                                    debug=False)
         
     def local_train(optimizer):
+        optimizer = fluid.optimizer.SGD(learning_rate=1e-4)
         optimizer.minimize(loss)
         exe.run(fluid.default_startup_program())
         train_loop()
@@ -60,6 +60,7 @@ def main_function(is_local):
         fleet.init(role)
         strategy = DistributeTranspilerConfig()
         strategy.sync_mode = False
+        optimizer = fluid.optimizer.SGD(learning_rate=1e-4)
         optimizer = fleet.distributed_optimizer(optimizer, strategy)
         optimizer.minimize(loss)
         if fleet.is_server():
