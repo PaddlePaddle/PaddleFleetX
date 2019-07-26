@@ -2,8 +2,8 @@ from __future__ import print_function
 
 from args import parse_args
 import os
-import paddle.fluid as fluid
 import sys
+import paddle.fluid as fluid
 from network_conf import ctr_dnn_model_dataset
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
@@ -48,14 +48,14 @@ def main_function(is_local):
                                    fetch_info=["auc"],
                                    debug=False)
         
-    def local_train(optimizer):
+    def local_train():
         optimizer = fluid.optimizer.SGD(learning_rate=1e-4)
         optimizer.minimize(loss)
         exe.run(fluid.default_startup_program())
         train_loop()
 
 
-    def dist_train(optimizer):
+    def dist_train():
         role = role_maker.PaddleCloudRoleMaker()
         fleet.init(role)
         strategy = DistributeTranspilerConfig()
