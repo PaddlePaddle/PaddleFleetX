@@ -1,13 +1,14 @@
-# Benchmark for CTR
-Benchmark for https://github.com/PaddlePaddle/models/tree/develop/PaddleRec/ctr
-
 # To get dataset, you can run:
 ```
 sh get_data.sh
 ```
 
-# To get training throughputs
+# To simulation distributed training with parameter server
 ```
-python -m distributed.launch_ps --worker_num 2 --server_num 2 dist_ctr.py
+python -m distributed.launch_ps --worker_num 2 --server_num 2 train.py
 ```
-You will get 55000 instances/s
+
+# To run local training
+```
+python train.py --is_local 1
+```
