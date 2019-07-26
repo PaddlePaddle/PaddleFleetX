@@ -1,0 +1,83 @@
+from __future__ import print_function
+
+from args import parse_args
+import os
+import paddle.fluid as fluid
+import sys
+from network_conf import ctr_dnn_model_dataset
+import paddle.fluid.incubate.fleet.base.role_maker as role_maker
+from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
+from paddle.fluid.transpiler.distribute_transpiler import DistributeTranspilerConfig
+
+dense_feature_dim = 13
+sparse_feature_dim = 10000001
+batch_size = 100
+thread_num = 10
+
+args = parse_args()
+
+def main_function(is_local):
+    dense_input = fluid.layers.data(
+        name="dense_input", shape=[dense_feature_dim], dtype='float32')
+    sparse_input_ids = [
+        fluid.layers.data(name="C" + str(i), shape=[1], lod_level=1,
+                          dtype="int64") for i in range(1, 27)]
+    label = fluid.layers.data(name="label", shape=[1], dtype="int64")
+
+    dataset = fluid.DatasetFactory().create_dataset()
+    dataset.set_use_var([dense_input] + sparse_input_ids + [label])
+    pipe_command = "python criteo_reader.py %d" % sparse_feature_dim
+    dataset.set_pipe_command(pipe_command)
+    dataset.set_batch_size(batch_size)
+    dataset.set_thread(thread_num)
+    whole_filelist = ["raw_data/part-%d" % x 
+                      for x in range(len(os.listdir("raw_data")))]
+    dataset.set_filelist(whole_filelist)
+    loss, auc_var, batch_auc_var = ctr_dnn_model_dataset(
+        dense_input, sparse_input_ids, label, args.embedding_size,
+        sparse_feature_dim)
+
+    optimizer = fluid.optimizer.SGD(learning_rate=1e-4)
+
+    exe = fluid.Executor(fluid.CPUPlace())
+
+    def train_loop(epoch=20):
+        for i in range(epoch):
+            exe.train_from_dataset(program=fluid.default_main_program(),
+                                   dataset=dataset,
+                                   fetch_list=[auc_var],
+                                   fetch_info=["auc"],
+                                   debug=False)
+        
+    def local_train(optimizer):
+        optimizer.minimize(loss)
+        exe.run(fluid.default_startup_program())
+        train_loop()
+
+
+    def dist_train(optimizer):
+        role = role_maker.PaddleCloudRoleMaker()
+        fleet.init(role)
+        strategy = DistributeTranspilerConfig()
+        strategy.sync_mode = False
+        optimizer = fleet.distributed_optimizer(optimizer, strategy)
+        optimizer.minimize(loss)
+        if fleet.is_server():
+            fleet.init_server()
+            fleet.run_server()
+        elif fleet.is_worker():
+            fleet.init_worker()
+            exe.run(fluid.default_startup_program())
+            train_loop()
+
+    if is_local:
+        local_train(optimizer)
+    else:
+        dist_train(optimizer)
+
+        model_dir = args.model_output_dir + '/epoch' + str(i + 1) + ".model"
+        sys.stderr.write("epoch%d finished" % (i + 1))
+        fluid.io.save_inference_model(model_dir, [dense_input.name] + [x.name for x in sparse_input_ids] + [label.name], [loss, auc_var], exe)
+
+if __name__ == '__main__':
+    main_function(args.is_local)
