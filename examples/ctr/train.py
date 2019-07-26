@@ -75,9 +75,5 @@ def main_function(is_local):
     else:
         dist_train(optimizer)
 
-        model_dir = args.model_output_dir + '/epoch' + str(i + 1) + ".model"
-        sys.stderr.write("epoch%d finished" % (i + 1))
-        fluid.io.save_inference_model(model_dir, [dense_input.name] + [x.name for x in sparse_input_ids] + [label.name], [loss, auc_var], exe)
-
 if __name__ == '__main__':
     main_function(args.is_local)
