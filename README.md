@@ -11,6 +11,8 @@ We show quick-start examples for user to use **Collective** training with **Flee
 
 Suppose we define a simple neural nets in examples/quick-start/nets.py
 ```python
+import paddle.fluid as fluid
+
 def mlp(input_x, input_y, hid_dim=128, label_dim=2):
     fc_1 = fluid.layers.fc(input=input_x, size=hid_dim, act='tanh')
     fc_2 = fluid.layers.fc(input=fc_1, size=hid_dim, act='tanh')
@@ -38,17 +40,17 @@ exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
 step = 1001
 for i in range(step):
-    exe.run(feed=gen_data())
+    cost_val = exe.run(feed=gen_data(), fetch_list=[cost.name])
+    print("step%d cost=%f" % (i, cost_val[0]))
 ```
 
-If you want to use high performance chip to do distributed training, such as distributed GPU training, **Fleet API** will help you by adding less than 10 lines of code, source code of this example is in examples/quick-start/collective_trainer.py
-
+Parameter server training is suitable for parallel training of large-scale data. Based on the definition of single-machine model, we give an example of training with parameter server, source code of this example is in examples/quick-start/distributed_train.py
 ```python
 import paddle.fluid as fluid
-from utils import gen_data
 from nets import mlp
-from paddle.fluid.incubate.fleet.collective import fleet
+from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
 from paddle.fluid.incubate.fleet.base import role_maker
+from utils import gen_data
 
 input_x = fluid.layers.data(name="x", shape=[32], dtype='float32')
 input_y = fluid.layers.data(name="y", shape=[1], dtype='int64')
@@ -56,142 +58,211 @@ input_y = fluid.layers.data(name="y", shape=[1], dtype='int64')
 cost = mlp(input_x, input_y)
 optimizer = fluid.optimizer.SGD(learning_rate=0.01)
 
-role = role_maker.PaddleCloudRoleMaker(is_collective=True)
+role = role_maker.PaddleCloudRoleMaker()
 fleet.init(role)
 optimizer = fleet.distributed_optimizer(optimizer)
 optimizer.minimize(cost)
 
+if fleet.is_server():
+    fleet.init_server()
+    fleet.run_server()
+elif fleet.is_worker():
+    place = fluid.CPUPlace()
+    exe = fluid.Executor(place)
+    exe.run(fluid.default_startup_program())
+    step = 1001
+    for i in range(step):
+        cost_val = exe.run(
+            program=fluid.default_main_program(),
+            feed=gen_data(),
+            fetch_list=[cost.name])
+        print("worker_index: %d, step%d cost = %f" %
+            (fleet.worker_index(), i, cost_val[0]))
+```              
+
+Command for parameter server training with multiple process on CPU is as follows:
+```
+fluid -m paddle.distributed.launch_ps distributed_train.py
+```
+
+If you want to use high performance chip to do distributed training, such as distributed GPU training, **Fleet API** will help you by adding less than 10 lines of code, source code of this example is in examples/quick-start/collective_train.py
+
+```python
+import paddle.fluid as fluid
+from nets import mlp
+from paddle.fluid.incubate.fleet.collective import fleet
+from paddle.fluid.incubate.fleet.base import role_maker
+from utils import gen_data
+
+input_x = fluid.layers.data(name="x", shape=[32], dtype='float32')
+input_y = fluid.layers.data(name="y", shape=[1], dtype='int64')
+
+cost = mlp(input_x, input_y)
+optimizer = fluid.optimizer.SGD(learning_rate=0.01)
+role = role_maker.PaddleCloudRoleMaker(is_collective=True)
+fleet.init(role)
+
+optimizer = fleet.distributed_optimizer(optimizer)
+optimizer.minimize(cost)
 place = fluid.CUDAPlace(0)
 
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
 step = 1001
 for i in range(step):
-    exe.run(feed=gen_data())
+    cost_val = exe.run(
+        program=fluid.default_main_program(),
+        feed=gen_data(),
+        fetch_list=[cost.name])
+    print("worker_index: %d, step%d cost = %f" %
+        (fleet.worker_index(), i, cost_val[0]))
 ```
 
 Command for distributed training with multiple process on multiple GPU card is as follows:
 ```
-python -m paddle.distributed.launch collective_trainer.py
+fluid -m paddle.distributed.launch collective_train.py
 ```
 
 ## Design of Fleet
 ![Fleet API Overview](fleet_design.png)
 **Fleet API** aims to help users run distributed training of deep learning models with easy-to-use API. Also, **Fleet API** maintains the ability to plugin new distributed algorithm by developers of PaddlePaddle.
 
+### Fleet API functions
+
+
+- **init(role_maker=None)**
+
+  It is responsible for fleet initialization, which needs to be called before using other Fleet interfaces. Basically it is used to define multi-machine environment configuration.   
+
+- **is_worker()**
+
+  It is used to check whether the current node is a worker node in parameter server training. If the current node is a worker node,the function will return True, otherwise the function will return False.
+
+- **is_server(model_dir=None)**
+
+  It is used to check whether the current node is a server node in parameter server training. If the current node is a server node,the function will return True, otherwise the function will return False.
+
+- **init_server()**
+
+  Fleet loads model-related parameters stored in model_dir to initialize parameter server in parameter server training.
+
+- **run_server()**
+
+  It is used to start the server service in parameter server training.
+
+- **init_worker()**
+
+  It is used to start the worker service in parameter server training.
+
+- **stop_worker()**
+
+  It is used to terminate the worker service after the parameter server training is done.
+
+- **distributed_optimizer(optimizer, strategy=None)**
+
+  It is used to  decorate the distributed optimization algorithm. Users can bring in single optimizer and configure distributed training strategy, the function will return a distributed optimizer
+
 ### Role Maker
-A **Role Maker** specifies distributed node role in a distributed training job. For example, in parameter server training scenario, a **Role Maker** appoints current node as a worker or a server, and total node number of current distributed job will be available in **Role Maker**. Currently supported **Role Makers** are as follows:
 
 - **MPISymetricRoleMaker**
 
-  MPISymetricRoleMaker is designed for worker and server assignment
-  under MPI. Typically, a worker and a server node will be appointed
-  on each physical node. This role maker can be only used under MPI.
+**description**：MPISymetric RoleMaker assumes that each node starts two processes, one for worker service and one for parameter server service, which requires an MPI environment on the user's cluster.
 
-- **UserDefinedRoleMaker**
-
-  UserDefinedRoleMaker is designed for worker and server assignment
-  under manual. Typically, a worker and a server node will be appointed
-  on each physical node, It can be assign by user.
-  
-- **UserDefinedCollectiveRoleMaker**
-
-  UserDefinedCollectiveRoleMaker is designed for worker assignment
-  under manual for collective mode.
-  
-- **PaddleCloudRoleMaker**
-
-  PaddleCloudRoleMaker is an example case for distributed training job in cloud environment that some environment variables   are predefined. 
-  
-- **UserDefinedRoleMaker**
-
-  UserDefinedRoleMaker is designed for Parameter Server Training that a user can assign server and worker informance such as server number, trainer number, server endpoints.
-
-### Fleet Mode
-A **Fleet** API is available in https://github.com/PaddlePaddle/Paddle, a user can easily import different modes of Fleet APIk. Current available **Fleet Mode** are as follows:
-- PSLib Mode: A customized parameter server architecture.
-- Distribute Transpiler Mode: Use distributed transpiler to build parameter server training configurations.
-- Collective Mode: Use distributed transpiler to build collective training configurations.
-
-#### Distribute Transpiler Mode
+**example**：
 
 ```python
-import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
-# your program
+from paddle.fluid.incubate.fleet.base import role_maker
+
+role = role_maker.MPISymetricRoleMaker()
+fleet.init(role)
+```
+**command for running the example**：
+
+```base
+mpirun -np 2 python trainer.py
+```
+
+- **PaddleCloudRoleMaker**
+
+**description**：Paddle CloudRoleMaker is a high-level encapsulation that supports starting scripts using paddle.distributed.launch or paddle.distributed.launch_ps.
+
+**Parameter Server training example**：
+```python
+from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
+from paddle.fluid.incubate.fleet.base import role_maker
+
 role = role_maker.PaddleCloudRoleMaker()
 fleet.init(role)
+```
+**command for running the example**：
+```
+python -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 trainer.py
+```
+**Collective training example**：
+```python
+from paddle.fluid.incubate.fleet.collective import fleet
+from paddle.fluid.incubate.fleet.base import role_maker
 
-optimizer = fluid.optimizer.SGD(learning_rate=0.0001)
-optimizer = fleet.distributed_optimizer(optimizer, strategy)
-optimizer.minimize(avg_cost)
+role = role_maker.PaddleCloudRoleMaker(is_collective=True)
+fleet.init(role)
+```
+**command for running the example**：
+```
+python -m paddle.distributed.launch trainer.py
+```
+- **UserDefinedRoleMaker**
 
-if fleet.is_server():
-    fleet.init_server()
-    fleet.run_server()
-elif fleet.is_worker():
-    fleet.init_worker()
-    # run program on worker
-    fleet.stop_worker()
+**description**：User-defined node role information, IP and port information.
+
+**example**：
+```python
+from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
+from paddle.fluid.incubate.fleet.base import role_maker
+
+role = role_maker.UserDefinedRoleMaker(
+           current_id=int(os.getenv("CURRENT_ID")),
+           role=role_maker.Role.WORKER if bool(int(os.getenv("IS_WORKER"))) 
+                                                                           else role_maker.Role.SERVER,
+           worker_num=int(os.getenv("WORKER_NUM")),
+           server_endpoints=pserver_endpoints)
+fleet.init(role)
 ```
 
-Execution command
+### Strategy
+**Parameter Server Training**
+- Sync_mode
 
-```bash
-python -m paddle.distributed.launch --worker_num 2 --server_num 2 ps_train.py
+**Collective Training**
+- LocalSGD
+- ReduceGrad
+
+### Fleet Mode
+
+#### Parameter Server Training
+
+```python
+from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
 ```
 
-#### Collective Mode
+#### Collective Training
 
 ```python
 from paddle.fluid.incubate.fleet.collective import fleet
-# your program
-role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-fleet.init(role)
-
-optimizer = fluid.optimizer.SGD(learning_rate=0.0001)
-optimizer = fleet.distributed_optimizer(optimizer, strategy)
-optimizer.minimize(avg_cost)
-
-# run your program
-```
-
-Execution command
-
-```base
-python -m paddle.distributed.launch collective_train.py
 ```
 
 ## Examples
 
-### Transpiler Mode
 - [Click Through Estimation](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/ctr)
 
-- Word2Vec
+- [Semantic Matching](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/semantic_matching)
 
-- Semantic Matching
+- [Word2Vec](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/word2vec)
 
-- Resnet50 on Imagenet
+- [Resnet50 on Imagenet](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/resnet50)
 
-- VGG16 on Imagenet
+- [Transformer on En-De](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/transformer)
 
-- Bert on English Wikipedia
-
-- Transformer on En-De
+- [Bert on English Wikipedia](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/bert)
 
 
-## Benchmark
-
-- [Click Through Estimation](https://github.com/PaddlePaddle/Fleet/tree/develop/benchmark/ps/ctr)
-
-- Word2Vec
-
-- Semantic Matching
-
-- Resnet50 on Imagenet
-
-- VGG16 on Imagenet
-
-- Bert on English Wikipedia
-
-- Transformer on En-De
