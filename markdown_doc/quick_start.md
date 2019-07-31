@@ -83,14 +83,14 @@ def main_function(is_local):
 														 fetch_info=["auc"],
 														 debug=False)
 	# local training
-	def local_train(optimizer):
+	def local_train():
 		optimizer = fluid.optimizer.SGD(learning_rate=1e-4)
 		optimizer.minimize(loss)
 		exe.run(fluid.default_startup_program())
 		train_loop()
 
   # distributed training
-	def dist_train(optimizer):
+	def dist_train():
 		role = role_maker.PaddleCloudRoleMaker()
 		fleet.init(role)
 		strategy = DistributeTranspilerConfig()
@@ -107,9 +107,9 @@ def main_function(is_local):
 			exe.run(fluid.default_startup_program())
 			train_loop()
 	if is_local:
-		local_train(optimizer)
+		local_train()
 	else:
-		dist_train(optimizer)
+		dist_train()
 
 if __name__ == '__main__':
 	main_function(args.is_local)
