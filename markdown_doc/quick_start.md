@@ -135,4 +135,4 @@ python train.py --is_local 1
 python -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 train.py
 ```
 
-任务运行的日志在工作目录的logs目录下可以查看，当您能够使用单机模拟分布式训练，可以进行真正的多机分布式训练。我们建议用户直接参[百度云运行分布式任务的示例](
+任务运行的日志在工作目录的logs目录下可以查看，当您能够使用单机模拟分布式训练，可以进行真正的多机分布式训练。我们建议用户直接参[百度云运行分布式任务的示例](https://www.paddlepaddle.org.cn/documentation/docs/zh/1.5/user_guides/howto/training/deploy_ctr_on_baidu_cloud_cn.html)
