@@ -197,7 +197,7 @@ fleet.init(role)
 ```
 **command for running the example**：
 ```
-python -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 trainer.py
+fluid -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 trainer.py
 ```
 **Collective training example**：
 ```python
@@ -209,7 +209,7 @@ fleet.init(role)
 ```
 **command for running the example**：
 ```
-python -m paddle.distributed.launch trainer.py
+fluid -m paddle.distributed.launch trainer.py
 ```
 - **UserDefinedRoleMaker**
 
