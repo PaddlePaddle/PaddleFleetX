@@ -76,6 +76,9 @@ class FleetRunnerBase(object):
             server_endpoints=params.pserver_endpoints)
 
         strategy = DistributeTranspilerConfig()
+        if params.is_dataset_train:
+            params.sync_mode=False
+            params.async_mode=True
         strategy.sync_mode = params.sync_mode
         fleet.init(role)
 
