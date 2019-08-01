@@ -25,10 +25,6 @@ class Dataset:
 
 
 class CriteoDataset(Dataset):
-    """
-
-    """
-
     def __init__(self, sparse_feature_dim):
         self.cont_min_ = [0, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         self.cont_max_ = [
