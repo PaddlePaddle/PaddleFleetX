@@ -82,7 +82,7 @@ elif fleet.is_worker():
 
 Command for parameter server training with multiple process on CPU is as follows:
 ```
-fluid -m paddle.distributed.launch_ps distributed_train.py
+python -m paddle.distributed.launch_ps distributed_train.py
 ```
 
 If you want to use high performance chip to do distributed training, such as distributed GPU training, **Fleet API** will help you by adding less than 10 lines of code, source code of this example is in examples/quick-start/collective_train.py
@@ -120,7 +120,7 @@ for i in range(step):
 
 Command for distributed training with multiple process on multiple GPU card is as follows:
 ```
-fluid -m paddle.distributed.launch collective_train.py
+python -m paddle.distributed.launch collective_train.py
 ```
 
 ## Design of Fleet
@@ -197,7 +197,7 @@ fleet.init(role)
 ```
 **command for running the example**：
 ```
-fluid -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 trainer.py
+python -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 trainer.py
 ```
 **Collective training example**：
 ```python
@@ -209,7 +209,7 @@ fleet.init(role)
 ```
 **command for running the example**：
 ```
-fluid -m paddle.distributed.launch trainer.py
+python -m paddle.distributed.launch trainer.py
 ```
 - **UserDefinedRoleMaker**
 
