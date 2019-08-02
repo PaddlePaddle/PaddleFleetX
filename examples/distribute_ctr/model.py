@@ -55,8 +55,6 @@ class CTR(FleetRunnerBase):
                 return fluid.layers.embedding(
                     input=input,
                     is_sparse=True,
-                    # you need to patch https://github.com/PaddlePaddle/Paddle/pull/14190
-                    # if you want to set is_distributed to True
                     is_distributed=False,
                     size=[sparse_feature_dim, embedding_size],
                     param_attr=fluid.ParamAttr(
