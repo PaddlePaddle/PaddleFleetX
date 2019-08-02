@@ -38,20 +38,7 @@ export PADDLE_PSERVER_NUMS=2
 export PADDLE_TRAINERS=2
 
 train_method=$1
-#if [ ${train_method}!="pyreader" -a ${train_method}!="dataset" ]
-#then
-#	echo "train_method is first running parameter"
-#	echo "choose: pyreader / dataset "
-#	exit 1
-#fi
-
 role=$2
-#if [ ${role}!="ps" -a ${role}!="tr" ]
-#then
-#	echo "traing role is second running parameter"
-#	echo "choose: ps / tr"
-#	exit 1
-#fi
 
 if [[ ${role} = "ps" ]]
 then

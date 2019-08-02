@@ -221,6 +221,7 @@ class FleetRunnerBase(object):
             for epoch in range(params.epochs):
                 # Notice: py_reader should use try & catch EOFException method to enter the dataset
                 # reader.start() must declare in advance
+                print("Begin pyreader training ...")
                 reader.start()
                 start_time = time.clock()
                 batch_id = 0
@@ -401,15 +402,17 @@ class FleetRunnerBase(object):
 
         if params.is_local_cluster:
             for port in params.pserver_ports.split(","):
+                print("current port: %s"%port)
                 params.pserver_endpoints.append(':'.join(
                     [params.pserver_ip, port]))
+                print("add pserver_endpoint:%s"%(params.pserver_endpoints))
         else:
             for ip in params.pserver_ip.split(","):
                 params.pserver_endpoints.append(':'.join(
                     [ip, params.pserver_ports]))
 
         params.endpoints = ",".join(params.pserver_endpoints)
-        #params.pserver_endpoints = params.endpoints.split(",")
+        print("pserver_endpoints: {}".format(params.pserver_endpoints))
 
         if params.role == "TRAINER" and params.current_id == 0:
             params.is_first_trainer = True
