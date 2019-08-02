@@ -397,7 +397,7 @@ class FleetRunnerBase(object):
         params.current_endpoint = os.getenv(
             "POD_IP", "localhost") + ":" + params.pserver_ports
 
-        params.cpu_num = os.getenv("CPU_NUM")
+        params.cpu_num = int(os.getenv("CPU_NUM"))
         print("output path: {}".format(params.model_path))
 
         if params.is_local_cluster:
