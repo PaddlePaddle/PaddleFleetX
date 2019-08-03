@@ -125,7 +125,7 @@ python -m paddle.distributed.launch collective_train.py
 
 ## Design of Fleet
 
-![Concept of Fleet](fleet_concept.png)
+![Concept of Fleet](fleet_concept.png =50x100)
 Fleet API will prepare distributed environment and distributed program for distributed runtime.
 
 ![Fleet API Overview](fleet_design.png)
