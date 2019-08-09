@@ -1,6 +1,17 @@
 # ResNet50 on ImageNet with Fleet APIs
 ## How to Run
-sh scripts/train_gpu_mp.sh
+### with single gpu single card
+```
+scripts/train_gpu.sh:
+set NUM_CARDS=1
 
-## Warning
-The current implementation can only work with paddle-1.5. I will remove this constraint as soon as possible.
+sh scripts/train_gpu.sh
+```
+
+### with single gpu multiple cards
+```
+scripts/train_gpu.sh:
+set NUM_CARDS=8 (your gpu cards number)
+
+sh scripts/train_gpu.sh
+```
