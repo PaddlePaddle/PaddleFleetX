@@ -1224,3 +1224,247 @@ I0807 11:58:48.455982 17528 init.cc:68] Init commandline: dummy /paddle/build/bu
 grep: warning: GREP_OPTIONS is deprecated; please use an alias or script
 WARNING: Logging before InitGoogleLogging() is written to STDERR
 I0807 12:02:24.048101 17692 init.cc:68] Init commandline: dummy /paddle/build/build_ubuntu_polishfleet_debug_gpu_y_grpc/python/paddle/distributed/launch.py --tryfromenv=check_nan_inf,fast_check_nan_inf,benchmark,eager_delete_scope,initial_cpu_memory_in_mb,init_allocated_mem,free_idle_memory,paddle_num_threads,dist_threadpool_size,eager_delete_tensor_gb,fast_eager_deletion_mode,memory_fraction_of_eager_deletion,allocator_strategy,reader_queue_speed_test_mode,print_sub_graph_dir,pe_profile_fname,inner_op_parallelism,enable_parallel_graph,fuse_parameter_groups_size,multiple_of_cupti_buffer_size,fuse_parameter_memory_size,tracer_profile_fname,dygraph_debug,use_pinned_memory,cpu_deterministic,use_mkldnn,rpc_deadline,rpc_server_profile_path,enable_rpc_profiler,rpc_send_thread_num,rpc_get_thread_num,rpc_prefetch_thread_num,rpc_disable_reuse_port,communicator_independent_recv_thread,communicator_send_queue_size,communicator_min_send_grad_num_before_recv,communicator_thread_pool_size,communicator_max_merge_var_num,communicator_fake_rpc,communicator_send_wait_times,communicator_merge_sparse_grad,fraction_of_gpu_memory_to_use,initial_gpu_memory_in_mb,reallocate_gpu_memory_in_mb,cudnn_deterministic,enable_cublas_tensor_op_math,conv_workspace_size_limit,cudnn_exhaustive_search,selected_gpus,sync_nccl_allreduce,limit_of_tmp_allocation,times_excess_than_required_tmp_allocation,cudnn_batchnorm_spatial_persistent 
+grep: warning: GREP_OPTIONS is deprecated; please use an alias or script
+grep: warning: GREP_OPTIONS is deprecated; please use an alias or script
+grep: warning: GREP_OPTIONS is deprecated; please use an alias or script
+grep: warning: GREP_OPTIONS is deprecated; please use an alias or script
+grep: warning: GREP_OPTIONS is deprecated; please use an alias or script
+grep: warning: GREP_OPTIONS is deprecated; please use an alias or script
+grep: warning: GREP_OPTIONS is deprecated; please use an alias or script
+grep: warning: GREP_OPTIONS is deprecated; please use an alias or script
+grep: warning: GREP_OPTIONS is deprecated; please use an alias or script
+usage: BERT pretraining. [-h] [--bert_config_path BERT_CONFIG_PATH]
+                         [--init_checkpoint INIT_CHECKPOINT]
+                         [--checkpoints CHECKPOINTS]
+                         [--weight_sharing WEIGHT_SHARING]
+                         [--generate_neg_sample GENERATE_NEG_SAMPLE]
+                         [--epoch EPOCH] [--learning_rate LEARNING_RATE]
+                         [--lr_scheduler {linear_warmup_decay,noam_decay}]
+                         [--weight_decay WEIGHT_DECAY]
+                         [--num_train_steps NUM_TRAIN_STEPS]
+                         [--warmup_steps WARMUP_STEPS]
+                         [--save_steps SAVE_STEPS]
+                         [--validation_steps VALIDATION_STEPS]
+                         [--use_fp16 USE_FP16] [--loss_scaling LOSS_SCALING]
+                         [--skip_steps SKIP_STEPS] [--verbose VERBOSE]
+                         [--data_dir DATA_DIR]
+                         [--validation_set_dir VALIDATION_SET_DIR]
+                         [--test_set_dir TEST_SET_DIR]
+                         [--vocab_path VOCAB_PATH] [--max_seq_len MAX_SEQ_LEN]
+                         [--batch_size BATCH_SIZE] [--in_tokens IN_TOKENS]
+                         [--use_cuda USE_CUDA]
+                         [--num_iteration_per_drop_scope NUM_ITERATION_PER_DROP_SCOPE]
+                         [--num_threads NUM_THREADS] [--do_test DO_TEST]
+BERT pretraining.: error: unrecognized arguments: --log_dir log
+usage: BERT pretraining. [-h] [--bert_config_path BERT_CONFIG_PATH]
+                         [--init_checkpoint INIT_CHECKPOINT]
+                         [--checkpoints CHECKPOINTS]
+                         [--weight_sharing WEIGHT_SHARING]
+                         [--generate_neg_sample GENERATE_NEG_SAMPLE]
+                         [--epoch EPOCH] [--learning_rate LEARNING_RATE]
+                         [--lr_scheduler {linear_warmup_decay,noam_decay}]
+                         [--weight_decay WEIGHT_DECAY]
+                         [--num_train_steps NUM_TRAIN_STEPS]
+                         [--warmup_steps WARMUP_STEPS]
+                         [--save_steps SAVE_STEPS]
+                         [--validation_steps VALIDATION_STEPS]
+                         [--use_fp16 USE_FP16] [--loss_scaling LOSS_SCALING]
+                         [--skip_steps SKIP_STEPS] [--verbose VERBOSE]
+                         [--data_dir DATA_DIR]
+                         [--validation_set_dir VALIDATION_SET_DIR]
+                         [--test_set_dir TEST_SET_DIR]
+                         [--vocab_path VOCAB_PATH] [--max_seq_len MAX_SEQ_LEN]
+                         [--batch_size BATCH_SIZE] [--in_tokens IN_TOKENS]
+                         [--use_cuda USE_CUDA]
+                         [--num_iteration_per_drop_scope NUM_ITERATION_PER_DROP_SCOPE]
+                         [--num_threads NUM_THREADS] [--do_test DO_TEST]
+BERT pretraining.: error: unrecognized arguments: --log_dir log
+usage: BERT pretraining. [-h] [--bert_config_path BERT_CONFIG_PATH]
+                         [--init_checkpoint INIT_CHECKPOINT]
+                         [--checkpoints CHECKPOINTS]
+                         [--weight_sharing WEIGHT_SHARING]
+                         [--generate_neg_sample GENERATE_NEG_SAMPLE]
+                         [--epoch EPOCH] [--learning_rate LEARNING_RATE]
+                         [--lr_scheduler {linear_warmup_decay,noam_decay}]
+                         [--weight_decay WEIGHT_DECAY]
+                         [--num_train_steps NUM_TRAIN_STEPS]
+                         [--warmup_steps WARMUP_STEPS]
+                         [--save_steps SAVE_STEPS]
+                         [--validation_steps VALIDATION_STEPS]
+                         [--use_fp16 USE_FP16] [--loss_scaling LOSS_SCALING]
+                         [--skip_steps SKIP_STEPS] [--verbose VERBOSE]
+                         [--data_dir DATA_DIR]
+                         [--validation_set_dir VALIDATION_SET_DIR]
+                         [--test_set_dir TEST_SET_DIR]
+                         [--vocab_path VOCAB_PATH] [--max_seq_len MAX_SEQ_LEN]
+                         [--batch_size BATCH_SIZE] [--in_tokens IN_TOKENS]
+                         [--use_cuda USE_CUDA]
+                         [--num_iteration_per_drop_scope NUM_ITERATION_PER_DROP_SCOPE]
+                         [--num_threads NUM_THREADS] [--do_test DO_TEST]
+BERT pretraining.: error: unrecognized arguments: --log_dir log
+-----------  Configuration Arguments -----------
+cluster_node_ips: 127.0.0.1
+log_dir: None
+node_ip: 127.0.0.1
+print_config: True
+selected_gpus: None
+started_port: 6170
+training_script: ./train.py
+training_script_args: ['--log_dir', 'log', '--use_cuda', 'true', '--weight_sharing', 'true', '--batch_size', '4096', '--data_dir', 'data/train', '--validation_set_dir', 'data/validation', '--bert_config_path', 'data/demo_config/bert_config.json', '--vocab_path', 'data/demo_config/vocab.txt', '--generate_neg_sample', 'true', '--checkpoints', './output', '--save_steps', '10000', '--learning_rate', '1e-4', '--weight_decay', '0.01', '--max_seq_len', '512', '--skip_steps', '20', '--validation_steps', '1000', '--num_iteration_per_drop_scope', '10', '--use_fp16', 'false', '--loss_scaling', '8.0']
+------------------------------------------------
+trainers_endpoints: 127.0.0.1:6170,127.0.0.1:6171,127.0.0.1:6172,127.0.0.1:6173,127.0.0.1:6174,127.0.0.1:6175,127.0.0.1:6176,127.0.0.1:6177 , node_id: 0 , current_node_ip: 127.0.0.1 , num_nodes: 1 , node_ips: ['127.0.0.1'] , nranks: 8
+Traceback (most recent call last):
+  File "/usr/lib/python2.7/runpy.py", line 174, in _run_module_as_main
+    "__main__", fname, loader, pkg_name)
+  File "/usr/lib/python2.7/runpy.py", line 72, in _run_code
+    exec code in run_globals
+  File "/paddle/build/build_ubuntu_polishfleet_debug_gpu_y_grpc/python/paddle/distributed/launch.py", line 222, in <module>
+    launch()
+  File "/paddle/build/build_ubuntu_polishfleet_debug_gpu_y_grpc/python/paddle/distributed/launch.py", line 218, in launch
+    start_procs(args)
+  File "/paddle/build/build_ubuntu_polishfleet_debug_gpu_y_grpc/python/paddle/distributed/launch.py", line 211, in start_procs
+    returncode=procs[i].returncode, cmd=cmds[i])
+subprocess.CalledProcessError: Command '['/usr/bin/python', '-u', './train.py', '--log_dir', 'log', '--use_cuda', 'true', '--weight_sharing', 'true', '--batch_size', '4096', '--data_dir', 'data/train', '--validation_set_dir', 'data/validation', '--bert_config_path', 'data/demo_config/bert_config.json', '--vocab_path', 'data/demo_config/vocab.txt', '--generate_neg_sample', 'true', '--checkpoints', './output', '--save_steps', '10000', '--learning_rate', '1e-4', '--weight_decay', '0.01', '--max_seq_len', '512', '--skip_steps', '20', '--validation_steps', '1000', '--num_iteration_per_drop_scope', '10', '--use_fp16', 'false', '--loss_scaling', '8.0']' returned non-zero exit status 2
+usage: BERT pretraining. [-h] [--bert_config_path BERT_CONFIG_PATH]
+                         [--init_checkpoint INIT_CHECKPOINT]
+                         [--checkpoints CHECKPOINTS]
+                         [--weight_sharing WEIGHT_SHARING]
+                         [--generate_neg_sample GENERATE_NEG_SAMPLE]
+                         [--epoch EPOCH] [--learning_rate LEARNING_RATE]
+                         [--lr_scheduler {linear_warmup_decay,noam_decay}]
+                         [--weight_decay WEIGHT_DECAY]
+                         [--num_train_steps NUM_TRAIN_STEPS]
+                         [--warmup_steps WARMUP_STEPS]
+                         [--save_steps SAVE_STEPS]
+                         [--validation_steps VALIDATION_STEPS]
+                         [--use_fp16 USE_FP16] [--loss_scaling LOSS_SCALING]
+                         [--skip_steps SKIP_STEPS] [--verbose VERBOSE]
+                         [--data_dir DATA_DIR]
+                         [--validation_set_dir VALIDATION_SET_DIR]
+                         [--test_set_dir TEST_SET_DIR]
+                         [--vocab_path VOCAB_PATH] [--max_seq_len MAX_SEQ_LEN]
+                         [--batch_size BATCH_SIZE] [--in_tokens IN_TOKENS]
+                         [--use_cuda USE_CUDA]
+                         [--num_iteration_per_drop_scope NUM_ITERATION_PER_DROP_SCOPE]
+                         [--num_threads NUM_THREADS] [--do_test DO_TEST]
+BERT pretraining.: error: unrecognized arguments: --log_dir log
+usage: BERT pretraining. [-h] [--bert_config_path BERT_CONFIG_PATH]
+                         [--init_checkpoint INIT_CHECKPOINT]
+                         [--checkpoints CHECKPOINTS]
+                         [--weight_sharing WEIGHT_SHARING]
+                         [--generate_neg_sample GENERATE_NEG_SAMPLE]
+                         [--epoch EPOCH] [--learning_rate LEARNING_RATE]
+                         [--lr_scheduler {linear_warmup_decay,noam_decay}]
+                         [--weight_decay WEIGHT_DECAY]
+                         [--num_train_steps NUM_TRAIN_STEPS]
+                         [--warmup_steps WARMUP_STEPS]
+                         [--save_steps SAVE_STEPS]
+                         [--validation_steps VALIDATION_STEPS]
+                         [--use_fp16 USE_FP16] [--loss_scaling LOSS_SCALING]
+                         [--skip_steps SKIP_STEPS] [--verbose VERBOSE]
+                         [--data_dir DATA_DIR]
+                         [--validation_set_dir VALIDATION_SET_DIR]
+                         [--test_set_dir TEST_SET_DIR]
+                         [--vocab_path VOCAB_PATH] [--max_seq_len MAX_SEQ_LEN]
+                         [--batch_size BATCH_SIZE] [--in_tokens IN_TOKENS]
+                         [--use_cuda USE_CUDA]
+                         [--num_iteration_per_drop_scope NUM_ITERATION_PER_DROP_SCOPE]
+                         [--num_threads NUM_THREADS] [--do_test DO_TEST]
+BERT pretraining.: error: unrecognized arguments: --log_dir log
+usage: BERT pretraining. [-h] [--bert_config_path BERT_CONFIG_PATH]
+                         [--init_checkpoint INIT_CHECKPOINT]
+                         [--checkpoints CHECKPOINTS]
+                         [--weight_sharing WEIGHT_SHARING]
+                         [--generate_neg_sample GENERATE_NEG_SAMPLE]
+                         [--epoch EPOCH] [--learning_rate LEARNING_RATE]
+                         [--lr_scheduler {linear_warmup_decay,noam_decay}]
+                         [--weight_decay WEIGHT_DECAY]
+                         [--num_train_steps NUM_TRAIN_STEPS]
+                         [--warmup_steps WARMUP_STEPS]
+                         [--save_steps SAVE_STEPS]
+                         [--validation_steps VALIDATION_STEPS]
+                         [--use_fp16 USE_FP16] [--loss_scaling LOSS_SCALING]
+                         [--skip_steps SKIP_STEPS] [--verbose VERBOSE]
+                         [--data_dir DATA_DIR]
+                         [--validation_set_dir VALIDATION_SET_DIR]
+                         [--test_set_dir TEST_SET_DIR]
+                         [--vocab_path VOCAB_PATH] [--max_seq_len MAX_SEQ_LEN]
+                         [--batch_size BATCH_SIZE] [--in_tokens IN_TOKENS]
+                         [--use_cuda USE_CUDA]
+                         [--num_iteration_per_drop_scope NUM_ITERATION_PER_DROP_SCOPE]
+                         [--num_threads NUM_THREADS] [--do_test DO_TEST]
+BERT pretraining.: error: unrecognized arguments: --log_dir log
+usage: BERT pretraining. [-h] [--bert_config_path BERT_CONFIG_PATH]
+                         [--init_checkpoint INIT_CHECKPOINT]
+                         [--checkpoints CHECKPOINTS]
+                         [--weight_sharing WEIGHT_SHARING]
+                         [--generate_neg_sample GENERATE_NEG_SAMPLE]
+                         [--epoch EPOCH] [--learning_rate LEARNING_RATE]
+                         [--lr_scheduler {linear_warmup_decay,noam_decay}]
+                         [--weight_decay WEIGHT_DECAY]
+                         [--num_train_steps NUM_TRAIN_STEPS]
+                         [--warmup_steps WARMUP_STEPS]
+                         [--save_steps SAVE_STEPS]
+                         [--validation_steps VALIDATION_STEPS]
+                         [--use_fp16 USE_FP16] [--loss_scaling LOSS_SCALING]
+                         [--skip_steps SKIP_STEPS] [--verbose VERBOSE]
+                         [--data_dir DATA_DIR]
+                         [--validation_set_dir VALIDATION_SET_DIR]
+                         [--test_set_dir TEST_SET_DIR]
+                         [--vocab_path VOCAB_PATH] [--max_seq_len MAX_SEQ_LEN]
+                         [--batch_size BATCH_SIZE] [--in_tokens IN_TOKENS]
+                         [--use_cuda USE_CUDA]
+                         [--num_iteration_per_drop_scope NUM_ITERATION_PER_DROP_SCOPE]
+                         [--num_threads NUM_THREADS] [--do_test DO_TEST]
+BERT pretraining.: error: unrecognized arguments: --log_dir log
+usage: BERT pretraining. [-h] [--bert_config_path BERT_CONFIG_PATH]
+                         [--init_checkpoint INIT_CHECKPOINT]
+                         [--checkpoints CHECKPOINTS]
+                         [--weight_sharing WEIGHT_SHARING]
+                         [--generate_neg_sample GENERATE_NEG_SAMPLE]
+                         [--epoch EPOCH] [--learning_rate LEARNING_RATE]
+                         [--lr_scheduler {linear_warmup_decay,noam_decay}]
+                         [--weight_decay WEIGHT_DECAY]
+                         [--num_train_steps NUM_TRAIN_STEPS]
+                         [--warmup_steps WARMUP_STEPS]
+                         [--save_steps SAVE_STEPS]
+                         [--validation_steps VALIDATION_STEPS]
+                         [--use_fp16 USE_FP16] [--loss_scaling LOSS_SCALING]
+                         [--skip_steps SKIP_STEPS] [--verbose VERBOSE]
+                         [--data_dir DATA_DIR]
+                         [--validation_set_dir VALIDATION_SET_DIR]
+                         [--test_set_dir TEST_SET_DIR]
+                         [--vocab_path VOCAB_PATH] [--max_seq_len MAX_SEQ_LEN]
+                         [--batch_size BATCH_SIZE] [--in_tokens IN_TOKENS]
+                         [--use_cuda USE_CUDA]
+                         [--num_iteration_per_drop_scope NUM_ITERATION_PER_DROP_SCOPE]
+                         [--num_threads NUM_THREADS] [--do_test DO_TEST]
+BERT pretraining.: error: unrecognized arguments: --log_dir log
+grep: warning: GREP_OPTIONS is deprecated; please use an alias or script
+grep: warning: GREP_OPTIONS is deprecated; please use an alias or script
+-----------  Configuration Arguments -----------
+cluster_node_ips: 192.168.0.16,192.168.0.17
+log_dir: log
+node_ip: 127.0.0.1
+print_config: True
+selected_gpus: None
+started_port: 6170
+training_script: ./train.py
+training_script_args: ['--use_cuda', 'true', '--weight_sharing', 'true', '--batch_size', '4096', '--data_dir', 'data/train', '--validation_set_dir', 'data/validation', '--bert_config_path', 'data/demo_config/bert_config.json', '--vocab_path', 'data/demo_config/vocab.txt', '--generate_neg_sample', 'true', '--checkpoints', './output', '--save_steps', '10000', '--learning_rate', '1e-4', '--weight_decay', '0.01', '--max_seq_len', '512', '--skip_steps', '20', '--validation_steps', '1000', '--num_iteration_per_drop_scope', '10', '--use_fp16', 'false', '--loss_scaling', '8.0']
+------------------------------------------------
+Traceback (most recent call last):
+  File "/usr/lib/python2.7/runpy.py", line 174, in _run_module_as_main
+    "__main__", fname, loader, pkg_name)
+  File "/usr/lib/python2.7/runpy.py", line 72, in _run_code
+    exec code in run_globals
+  File "/paddle/build/build_ubuntu_polishfleet_debug_gpu_y_grpc/python/paddle/distributed/launch.py", line 222, in <module>
+    launch()
+  File "/paddle/build/build_ubuntu_polishfleet_debug_gpu_y_grpc/python/paddle/distributed/launch.py", line 218, in launch
+    start_procs(args)
+  File "/paddle/build/build_ubuntu_polishfleet_debug_gpu_y_grpc/python/paddle/distributed/launch.py", line 142, in start_procs
+    node_id = node_ips.index(current_node_ip)
+ValueError: '127.0.0.1' is not in list
+grep: warning: GREP_OPTIONS is deprecated; please use an alias or script
+grep: warning: GREP_OPTIONS is deprecated; please use an alias or script
+grep: warning: GREP_OPTIONS is deprecated; please use an alias or script
+grep: warning: GREP_OPTIONS is deprecated; please use an alias or script

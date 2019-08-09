@@ -73,9 +73,10 @@
 利用提供的示例训练数据和测试数据，我们来说明如何进行单机训练。关于预训练的启动方式，可以查看脚本 `train.sh` ，该脚本已经默认以示例数据作为输入，以 GPU 模式进行训练。在开始预训练之前，需要把 CUDA、cuDNN、NCCL2 等动态库路径加入到环境变量 `LD_LIBRARY_PATH` 之中，然后按如下方式即可开始单机多卡预训练
 
 ```shell
-export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-./train.sh -local y
+./train.sh
 ```
+
+注意：日志将生成在当前目录下的`log`下。
 
 如果采用 CPU 多核的方式进行预训练，则需要通过环境设置所用 CPU 的核数，例如 `export CPU_NUM=5`，否则会占据所有的CPU。
 
@@ -98,21 +99,16 @@ epoch: 1, progress: 1/1, step: 100, loss: 10.132796, ppl: 12748.593750, next_sen
 
 ### 分布式训练
 分布式训练可以部署在单机（多进程）或者多机上，我们使用 NCCL 进行节点间的通信。同时需要设置参与训练的所有节点 endpoints 和当前节点 endpoint.
-这里我们提供了一个在本地可以模拟分布式训练的样例: `test_local_dist.sh`，这个脚本已经说明主要的分布式训练的启动逻辑。
 例如, 如果我们需要在两台机器（192.168.0.16, 192.168.0.17）上进行分布式训练，我们可以在节点 0（192.168.0.16）上运行：
 
 ```shell
-export worker_endpoints=192.168.0.16:9184,192.168.0.17:9185
-export current_endpoint=192.168.0.16:9184
-./train.sh -local n
+./train.sh -cluster_node_ips 192.168.0.16,192.168.0.17 -node_ip 192.168.0.16
 ```
 
 节点 1（192.168.0.17）上运行:
 
 ```shell
-export worker_endpoints=192.168.0.16:9184,192.168.0.17:9185
-export current_endpoint=192.168.0.17:9185
-./train.sh -local n
+./train.sh -cluster_node_ips 192.168.0.16,192.168.0.17 -node_ip 192.168.0.17
 ```
 
 ## NLP 任务的 Fine-tuning
