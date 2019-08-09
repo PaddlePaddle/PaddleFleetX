@@ -253,7 +253,6 @@ def net_config(image, model, args, is_train, label=0, y_a=0, y_b=0, lam=0.0):
         avg_cost = fluid.layers.mean(x=cost) * args.scale_loss
     acc_top1 = fluid.layers.accuracy(input=softmax_out, label=label, k=1)
     acc_top5 = fluid.layers.accuracy(input=softmax_out, label=label, k=5)
-
     return avg_cost, acc_top1, acc_top5
 
 def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
