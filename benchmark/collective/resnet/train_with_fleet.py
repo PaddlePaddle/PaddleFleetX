@@ -457,7 +457,6 @@ def train(args):
     params = models.__dict__[args.model]().params
     for pass_id in range(params["num_epochs"]):
         train_py_reader.start()
-        os.environ["FLAGS_cudnn_exhaustive_search"] = str(1)
         train_info = [[], [], []]
         test_info = [[], [], []]
         train_time = []
@@ -517,7 +516,6 @@ def train(args):
         train_speed =   (batch_id * train_batch_size) / (train_end - train_begin)
 
         test_py_reader.start()
-        os.environ["FLAGS_cudnn_exhaustive_search"] = str(0)
         test_batch_id = 0
         try:
             while True:
