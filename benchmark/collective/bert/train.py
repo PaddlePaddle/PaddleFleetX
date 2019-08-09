@@ -75,7 +75,6 @@ data_g.add_arg("in_tokens",           bool, True,
                "Otherwise, it will be the maximum number of examples in one batch.")
 
 run_type_g = ArgumentGroup(parser, "run_type", "running type options.")
-run_type_g.add_arg("is_distributed",               bool,   True,  "If set, then start distributed training.")
 run_type_g.add_arg("use_cuda",                     bool,   True,   "If set, use GPU for training.")
 run_type_g.add_arg("num_iteration_per_drop_scope", int,    1,      "Ihe iteration intervals to clean up temporary variables.")
 run_type_g.add_arg("num_threads", int,    2,      "Ihe iteration intervals to clean up temporary variables.")
@@ -261,12 +260,9 @@ def train(args):
 
     test_prog = test_prog.clone(for_test=True)
 
-    gpu_id=0
-    if args.is_distributed:
+    if args.use_cuda:
         gpus = os.getenv("FLAGS_selected_gpus").split(",")
         gpu_id = int(gpus[0])
-
-    if args.use_cuda:
         place = fluid.CUDAPlace(gpu_id)
         dev_count = fluid.core.get_cuda_device_count()
     else:
@@ -302,21 +298,7 @@ def train(args):
         generate_neg_sample=args.generate_neg_sample)
 
     
-    # use_ngraph is for CPU only, please refer to README_ngraph.md for details
-    use_ngraph = os.getenv('FLAGS_use_ngraph')
-    if not use_ngraph:
-        """
-        train_exe = fluid.ParallelExecutor(
-            use_cuda=args.use_cuda,
-            loss_name=total_loss.name,
-            exec_strategy=exec_strategy,
-            main_program=train_program,
-            num_trainers=fleet.worker_num,
-            trainer_id=fleet.worker_index)
-        """
-        train_exe =  exe
-    else:
-        train_exe = exe
+    train_exe = exe
 
     if args.validation_set_dir and args.validation_set_dir != "":
         predict = predict_wrapper(
@@ -342,26 +324,14 @@ def train(args):
             skip_steps = args.skip_steps * fleet.worker_num()
 
             if fleet.worker_index() != 0:
-                if use_ngraph:
-                    train_exe.run(fetch_list=[], program=train_program)
-                else:
-                    train_exe.run(fetch_list=[], program=train_program)
+                train_exe.run(fetch_list=[], program=train_program)
                 continue
 
             if steps % skip_steps != 0:
-                if use_ngraph:
-                    train_exe.run(fetch_list=[], program=train_program)
-                else:
-                    train_exe.run(fetch_list=[], program=train_program)
+                train_exe.run(fetch_list=[], program=train_program)
 
             else:
-                if use_ngraph:
-                    each_next_acc, each_mask_lm_cost, each_total_cost, np_lr = train_exe.run(
-                        fetch_list=[
-                            next_sent_acc.name, mask_lm_loss.name, total_loss.name,
-                            scheduled_lr.name], program=train_program)
-                else:
-                    each_next_acc, each_mask_lm_cost, each_total_cost, np_lr = train_exe.run(
+                each_next_acc, each_mask_lm_cost, each_total_cost, np_lr = train_exe.run(
                         fetch_list=[
                             next_sent_acc.name, mask_lm_loss.name, total_loss.name,
                             scheduled_lr.name], program=train_program)
@@ -370,7 +340,6 @@ def train(args):
                 lm_cost.extend(each_mask_lm_cost)
                 cost.extend(each_total_cost)
 
-                print("feed_queue size", train_pyreader.queue.size())
                 time_end = time.time()
                 used_time = time_end - time_begin
                 epoch, current_file_index, total_file, current_file = data_reader.get_progress(
