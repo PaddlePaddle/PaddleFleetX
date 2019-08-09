@@ -27,7 +27,7 @@ import tokenization
 
 import paddle
 import paddle.fluid as fluid
-from tokenization import load_vocab
+
 from batching import prepare_batch_data
 
 
@@ -42,10 +42,9 @@ class DataReader(object):
                  epoch=100,
                  voc_size=0,
                  is_test=False,
-                 generate_neg_sample=False,
-                 **kwargs):
+                 generate_neg_sample=False):
 
-        self.vocab = load_vocab(vocab_path)
+        self.vocab = self.load_vocab(vocab_path)
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.in_tokens = in_tokens
@@ -104,6 +103,39 @@ class DataReader(object):
                     continue
                 yield parsed_line
 
+    def convert_to_unicode(self, text):
+        """Converts `text` to Unicode (if it's not already), assuming utf-8 input."""
+        if six.PY3:
+            if isinstance(text, str):
+                return text
+            elif isinstance(text, bytes):
+                return text.decode("utf-8", "ignore")
+            else:
+                raise ValueError("Unsupported string type: %s" % (type(text)))
+        elif six.PY2:
+            if isinstance(text, str):
+                return text.decode("utf-8", "ignore")
+            elif isinstance(text, unicode):
+                return text
+            else:
+                raise ValueError("Unsupported string type: %s" % (type(text)))
+        else:
+            raise ValueError("Not running on Python2 or Python 3?")
+
+    def load_vocab(self, vocab_file):
+        """Loads a vocabulary file into a dictionary."""
+        vocab = collections.OrderedDict()
+        fin = open(vocab_file)
+        for num, line in enumerate(fin):
+            items = self.convert_to_unicode(line.strip()).split("\t")
+            if len(items) > 2:
+                break
+            token = items[0]
+            index = items[1] if len(items) == 2 else num
+            token = token.strip()
+            vocab[token] = int(index)
+        return vocab
+
     def random_pair_neg_samples(self, pos_samples):
         """ randomly generate negtive samples using pos_samples
 
@@ -127,7 +159,7 @@ class DataReader(object):
 
             src_ids = origin_src_ids[:origin_sep_index + 1] + pair_src_ids[
                 pair_sep_index + 1:]
-            if len(src_ids) >= self.max_seq_len:
+            if len(src_ids) > self.max_seq_len:
                 miss_num += 1
                 continue
             sent_ids = [0] * len(origin_src_ids[:origin_sep_index + 1]) + [
