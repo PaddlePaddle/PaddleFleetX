@@ -346,60 +346,58 @@ class FleetDistRunnerBase(object):
         place = fluid.CPUPlace()
         exe = fluid.Executor(place)
         infer_result = {}
+        startup_program = fluid.framework.Program()
+        test_program = fluid.framework.Program()
 
-        with fluid.scope_guard(fluid.Scope()):
-            main_program = fluid.Program()
-            with fluid.program_guard(main_program):
-                values, pred = self.infer_net(params)
+        with fluid.framework.program_guard(test_program,startup_program):
+            values, pred = self.infer_net(params)
+            train_method = ''
+            if params.is_pyreader_train:
+                train_method = '_pyreader_train/'
+            else:
+                train_method = '_dataset_train/'
+            model_path = params.model_path + '/final' + train_method
 
-                copy_program = main_program.clone()
-                train_method = ''
-                if params.is_pyreader_train:
-                    train_method = '_pyreader_train/'
-                else:
-                    train_method = '_dataset_train/'
-                model_path = params.model_path + '/final' + train_method
+            fluid.io.load_persistables(
+                executor=exe, dirname=model_path, main_program=fluid.default_main_program())
 
-                fluid.io.load_params(
-                    executor=exe, dirname=model_path, main_program=copy_program)
+            accum_num = 0
+            accum_num_sum = 0.0
+            step_id = 0
+            for data in test_reader():
+                step_id += 1
+                b_size = len([dat[0] for dat in data])
+                wa = np.array([dat[0] for dat in data]).astype("int64").reshape(b_size, 1)
+                wb = np.array([dat[1] for dat in data]).astype("int64").reshape(b_size, 1)
+                wc = np.array([dat[2] for dat in data]).astype("int64").reshape(b_size, 1)
 
-                accum_num = 0
-                accum_num_sum = 0.0
-                step_id = 0
-                for data in test_reader():
-                    step_id += 1
-                    b_size = len([dat[0] for dat in data])
-                    wa = np.array([dat[0] for dat in data]).astype("int64").reshape(b_size, 1)
-                    wb = np.array([dat[1] for dat in data]).astype("int64").reshape(b_size, 1)
-                    wc = np.array([dat[2] for dat in data]).astype("int64").reshape(b_size, 1)
-
-                    label = [dat[3] for dat in data]
-                    input_word = [dat[4] for dat in data]
-                    para = exe.run(copy_program,
-                                   feed={
-                                       "analogy_a": wa, "analogy_b": wb, "analogy_c": wc,
-                                       "all_label":
-                                           np.arange(params.vocab_size).reshape(
-                                               params.vocab_size, 1).astype("int64"),
-                                   },
-                                   fetch_list=[pred.name, values],
-                                   return_numpy=False)
-                    pre = np.array(para[0])
-                    val = np.array(para[1])
-                    for ii in range(len(label)):
-                        top4 = pre[ii]
-                        accum_num_sum += 1
-                        for idx in top4:
-                            if int(idx) in input_word[ii]:
-                                continue
-                            if int(idx) == int(label[ii][0]):
-                                accum_num += 1
-                            break
-                    if step_id % 1 == 0:
-                        logger.info("step:%d %d " % (step_id, accum_num))
-                acc = 1.0 * accum_num / accum_num_sum
-                print("acc:%.3f " % acc)
-                infer_result['acc'] = acc
+                label = [dat[3] for dat in data]
+                input_word = [dat[4] for dat in data]
+                para = exe.run(fluid.default_main_program(),
+                               feed={
+                                   "analogy_a": wa, "analogy_b": wb, "analogy_c": wc,
+                                   "all_label":
+                                       np.arange(params.vocab_size).reshape(
+                                           params.vocab_size, 1).astype("int64"),
+                               },
+                               fetch_list=[pred.name, values],
+                               return_numpy=False)
+                pre = np.array(para[0])
+                val = np.array(para[1])
+                for ii in range(len(label)):
+                    top4 = pre[ii]
+                    accum_num_sum += 1
+                    for idx in top4:
+                        if int(idx) in input_word[ii]:
+                            continue
+                        if int(idx) == int(label[ii][0]):
+                            accum_num += 1
+                        break
+                if step_id % 1 == 0:
+                    logger.info("step:%d %d " % (step_id, accum_num))
+            acc = 1.0 * accum_num / accum_num_sum
+            print("acc:%.3f " % acc)
+            infer_result['acc'] = acc
         return infer_result
 
     def py_reader(self, params):
