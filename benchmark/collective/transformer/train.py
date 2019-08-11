@@ -1,3 +1,17 @@
+#copyright (c) 2019 PaddlePaddle Authors. All Rights Reserve.
+#
+#Licensed under the Apache License, Version 2.0 (the "License");
+#you may not use this file except in compliance with the License.
+#You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+#Unless required by applicable law or agreed to in writing, software
+#distributed under the License is distributed on an "AS IS" BASIS,
+#WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#See the License for the specific language governing permissions and
+#limitations under the License.
+
 import argparse
 import ast
 import copy
@@ -16,8 +30,8 @@ from config import *
 from desc import *
 from model import transformer, position_encoding_init
 
-from paddle.fluid.incubate.fleet.collective import fleet
-from paddle.fluid.incubate.fleet.base.role_maker import UserDefinedCollectiveRoleMaker
+from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
+import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 
 
 def parse_args():
@@ -669,13 +683,21 @@ def train(args):
     startup_program = fluid.Program()
 
     # For Distributed Training.
-    trainer_id = int(os.getenv("PADDLE_TRAINER_ID"), '0')
-    num_trainers = int(os.getenv("PADDLE_TRAINERS_NUM"), '1')
-    trainer_endpoints = os.getenv("PADDLE_TRAINER_ENDPOINTS", "127.0.0.1:6170")
-    current_endpoint = os.getenv("PADDLE_CURRENT_ENDPOINT", "127.0.0.1:6170")
-    trainer_endpoints = trainer_endpoints.split(',')
-    role_maker = UserDefinedCollectiveRoleMaker(current_id=trainer_id, worker_endpoints=trainer_endpoints)
-    fleet.init(role_maker)
+    role = role_maker.PaddleCloudRoleMaker(is_collective=True)
+    fleet.init(role)
+
+    exec_strategy = fluid.ExecutionStrategy()
+    exec_strategy.num_threads = 2
+    exec_strategy.num_iteration_per_drop_scope = 30
+
+    dist_strategy = DistributedStrategy()
+    dist_strategy.exec_strategy = exec_strategy
+
+    if fleet.node_num() > 1:
+        os.environ["FLAGS_sync_nccl_allreduce"] = 1
+        dist_strategy.nccl_comm_num = 1
+        dist_strategy.fuse_memory_size = 16 #MB
+        dist_strategy.use_hierarchical_allreduce = True
 
     with fluid.program_guard(train_program, startup_program):
         with fluid.unique_name.guard():
@@ -715,8 +737,10 @@ def train(args):
                     epsilon=TrainTaskConfig.eps)
             else:
                 optimizer = fluid.optimizer.SGD(0.003)
-            optimizer = fleet.distributed_optimizer(optimizer)
+            optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
             optimizer.minimize(avg_cost, startup_program)
+
+    train_program = fleet.main_program
 
     if args.use_mem_opt:
         fluid.memory_optimize(train_program)
