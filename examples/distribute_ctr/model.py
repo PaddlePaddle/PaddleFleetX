@@ -15,7 +15,7 @@
 
 import math
 import paddle.fluid as fluid
-from dist_continuous_evaluation import FleetRunnerBase
+from distribute_base import FleetRunnerBase
 from argument import params_args
 
 
@@ -65,30 +65,20 @@ class CTR(FleetRunnerBase):
             concated = fluid.layers.concat(
                 sparse_embed_seq + words[0:1], axis=1)
 
-            fc1 = fluid.layers.fc(
-                input=concated,
-                size=400,
-                act='relu',
-                param_attr=fluid.ParamAttr(initializer=fluid.initializer.Normal(
-                    scale=1 / math.sqrt(concated.shape[1]))))
-            fc2 = fluid.layers.fc(input=fc1,
-                                  size=400,
-                                  act='relu',
+            fc1 = fluid.layers.fc(input=concated, size=400, act='relu',
+                                  param_attr=fluid.ParamAttr(initializer=fluid.initializer.Normal(
+                                      scale=1 / math.sqrt(concated.shape[1]))))
+            fc2 = fluid.layers.fc(input=fc1, size=400, act='relu',
                                   param_attr=fluid.ParamAttr(
                                       initializer=fluid.initializer.Normal(
                                           scale=1 / math.sqrt(fc1.shape[1]))))
-            fc3 = fluid.layers.fc(input=fc2,
-                                  size=400,
-                                  act='relu',
+            fc3 = fluid.layers.fc(input=fc2, size=400, act='relu',
                                   param_attr=fluid.ParamAttr(
                                       initializer=fluid.initializer.Normal(
                                           scale=1 / math.sqrt(fc2.shape[1]))))
-            predict = fluid.layers.fc(
-                input=fc3,
-                size=2,
-                act='softmax',
-                param_attr=fluid.ParamAttr(initializer=fluid.initializer.Normal(
-                    scale=1 / math.sqrt(fc3.shape[1]))))
+            predict = fluid.layers.fc(input=fc3, size=2, act='softmax',
+                                      param_attr=fluid.ParamAttr(initializer=fluid.initializer.Normal(
+                                          scale=1 / math.sqrt(fc3.shape[1]))))
 
             cost = fluid.layers.cross_entropy(input=predict, label=words[-1])
             avg_cost = fluid.layers.reduce_sum(cost)
@@ -96,7 +86,7 @@ class CTR(FleetRunnerBase):
             auc_var, batch_auc_var, auc_states = \
                 fluid.layers.auc(input=predict, label=words[-1], num_thresholds=2 ** 12, slide_steps=20)
 
-        return avg_cost, auc_var, batch_auc_var, words
+        return avg_cost, auc_var, batch_auc_var
 
     def py_reader(self, params):
         py_reader = fluid.layers.create_py_reader_by_data(

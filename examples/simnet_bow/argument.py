@@ -22,8 +22,8 @@ def params_args(args=None):
     :return: dictionary of parameters
     """
     # parameters of model and files
-    params = argparse.ArgumentParser(description='Run distribute model CE test.')
-    params.add_argument("--name", type=str, default="gru",
+    params = argparse.ArgumentParser(description='Run distribute model simnet bow.')
+    params.add_argument("--name", type=str, default="simnet_bow",
                         help="The name of current model")
     params.add_argument("--train_files_path", type=str, default="train_data",
                         help="Data file(s) for training.")
@@ -56,10 +56,6 @@ def params_args(args=None):
     # parameters of train method
     params.add_argument("--is_pyreader_train", type=bool, default=False)
     params.add_argument("--is_dataset_train", type=bool, default=False)
-    params.add_argument('--is_local', type=int, default=1,
-                        help='Local train or distributed train (default: 1)')
-    params.add_argument('--cloud_train', type=int, default=0,
-                        help='Local train or distributed train on paddlecloud (default: 0)')
 
     # parameters of distribute
     params.add_argument("--is_distribute", type=bool, default=False)
@@ -78,8 +74,9 @@ def params_args(args=None):
     params.add_argument("--pserver_ip", type=str, default="127.0.0.1")
     params.add_argument("--pserver_endpoints", type=list, default=[])
     params.add_argument("--pserver_ports", type=str, default="36001")
-    params.add_argument("--sync_mode", type=bool, default=True)
+    params.add_argument("--sync_mode", type=bool, default=False)
     params.add_argument("--async_mode", type=bool, default=False)
+    params.add_argument("--half_async_mode", type=bool, default=False)
     params.add_argument("--cpu_num", type=int, default=1)
     params.add_argument("--use_cuda", type=bool, default=False)
 

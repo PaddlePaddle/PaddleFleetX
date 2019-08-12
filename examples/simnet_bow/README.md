@@ -31,12 +31,12 @@ sh get_data.sh
 开启参数服务器
 
 ```
-sh local_cluster.sh pyreader ps
+sh local_cluster.sh pyreader sync ps
 ```
 开启TRAINER端进行同步训练
 
 ```
-sh local_cluster.sh pyreader tr
+sh local_cluster.sh pyreader sync tr
 ```
 ***
 ###### Dataset模式
@@ -45,12 +45,12 @@ sh local_cluster.sh pyreader tr
 
 
 ```
-sh local_cluster.sh dataset ps
+sh local_cluster.sh dataset async ps
 ```
 开启TRAINER端进行异步训练
 
 ```
-sh local_cluster.sh dataset tr
+sh local_cluster.sh dataset async tr
 ```
 
 ## 细节说明
