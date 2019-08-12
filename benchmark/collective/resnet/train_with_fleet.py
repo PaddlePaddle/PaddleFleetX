@@ -46,7 +46,6 @@ import utils
 import models
 from paddle.fluid.contrib.mixed_precision.decorator import decorate
 import utils.reader_cv2 as reader
-from utils.env import dist_env
 from utils.utility import add_arguments, print_arguments, check_gpu
 from utils.learning_rate import cosine_decay_with_warmup
 from paddle.fluid.contrib.mixed_precision.fp16_lists import black_list, white_list, gray_list
@@ -568,7 +567,6 @@ def main():
     assert args.use_gpu, "only for gpu implementation."
     print_arguments(args)
     print_paddle_environments()
-    args.dist_env = dist_env()
     check_gpu(args.use_gpu)
     train(args)
 
