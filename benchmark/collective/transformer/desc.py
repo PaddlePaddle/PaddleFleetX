@@ -12,6 +12,9 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
+# This file is mainly from Paddle/models,
+# the repo: https://github.com/PaddlePaddle/models.git
+
 # The placeholder for batch_size in compile time. Must be -1 currently to be
 # consistent with some ops' infer-shape output in compile time, such as the
 # sequence_expand op used in beamsearch decoder.

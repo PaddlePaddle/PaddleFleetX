@@ -12,6 +12,9 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
+# This file is mainly from Paddle/models,
+# the repo: https://github.com/PaddlePaddle/models.git
+
 class TrainTaskConfig(object):
     # in collective mode, only support GPU now (always set to True)
     use_gpu = True
