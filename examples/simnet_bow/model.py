@@ -15,7 +15,7 @@
 
 import math
 import paddle.fluid as fluid
-from dist_continuous_evaluation import FleetRunnerBase
+from distribute_base import FleetRunnerBase
 from argument import params_args
 
 
@@ -111,7 +111,7 @@ class Simnet_bow(FleetRunnerBase):
             # acc
             acc = self.get_acc(cos_q_nt, cos_q_pt,params)
 
-            return avg_cost, acc, cos_q_pt,inputs
+            return avg_cost, acc, cos_q_pt
 
     def get_acc(self,cos_q_nt, cos_q_pt,params):
         cond = fluid.layers.less_than(cos_q_nt, cos_q_pt)
@@ -172,6 +172,7 @@ class Simnet_bow(FleetRunnerBase):
         dataset.set_batch_size(params.batch_size)
         pipe_command = 'python dataset_generator.py'
         dataset.set_pipe_command(pipe_command)
+        dataset.set_thread(int(params.cpu_num))
         return dataset
 
 

@@ -20,7 +20,7 @@ fi
 # environment variables for fleet distribute training
 export PADDLE_TRAINER_ID=0
 export PADDLE_TRAINERS_NUM=2
-export PADDLE_PORT=36001,36002
+export PADDLE_PORT=36011,36012
 export PADDLE_PSERVERS=127.0.0.1
 export POD_IP=127.0.0.1
 export CPU_NUM=2
@@ -31,14 +31,16 @@ export FLAGS_communicator_thread_pool_size=5
 export FLAGS_communicator_max_merge_var_num=20
 export FLAGS_communicator_fake_rpc=0
 
-export PADDLE_PSERVER_PORTS=36001,36002
-export PADDLE_PSERVER_PORT_ARRAY=(36001 36002)
+export PADDLE_PSERVER_PORTS=36011,36012
+export PADDLE_PSERVER_PORT_ARRAY=(36011 36012)
 
 export PADDLE_PSERVER_NUMS=2
 export PADDLE_TRAINERS=2
 
 train_method=$1
-role=$2
+sync_mode=$2
+role=$3
+
 
 if [[ ${role} = "ps" ]]
 then
@@ -51,7 +53,7 @@ then
         cur_port=${PADDLE_PSERVER_PORT_ARRAY[$i]}
         echo "PADDLE WILL START PSERVER "$cur_port
 	PADDLE_TRAINER_ID=$i
-	python -u model.py --is_${train_method}_train=True --is_local_cluster=True &> ./log/pserver.$i.log &
+	python -u model.py --is_${train_method}_train=True --is_local_cluster=True --${sync_mode}_mode=True &> ./log/pserver.$i.log &
     done
 fi
 
@@ -64,7 +66,8 @@ then
     for((i=0;i<$PADDLE_TRAINERS;i++))
     do
         echo "PADDLE WILL START Trainer "$i
-        PADDLE_TRAINER_ID=$i 
-	python -u model.py --is_${train_method}_train=True --is_local_cluster=True &> ./log/trainer.$i.log &
+        PADDLE_TRAINER_ID=$i
+	python -u model.py --is_${train_method}_train=True --is_local_cluster=True --${sync_mode}_mode=True &> ./log/trainer.$i.log &
     done
 fi
+
