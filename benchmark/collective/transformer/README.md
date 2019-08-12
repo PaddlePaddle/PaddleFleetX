@@ -1,7 +1,7 @@
 ## 简介
 
 ### 脚本说明
-本脚本源自[PaddlePaddle/models仓库](https://github.com/PaddlePaddle/models.git)，通过Fleet API实现多卡/多机分布式。
+本脚本源自[PaddlePaddle/models仓库](https://github.com/PaddlePaddle/models.git)，通过Fleet API实现多卡/多机分布式训练。
 
 ### 任务说明
 
