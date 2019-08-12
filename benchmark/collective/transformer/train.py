@@ -604,7 +604,7 @@ def train(args):
 
     if fleet.node_num() > 1:
         os.environ["FLAGS_sync_nccl_allreduce"] = 1
-        dist_strategy.nccl_comm_num = 1
+        dist_strategy.nccl_comm_num = 2
         dist_strategy.fuse_memory_size = 16 #MB
         dist_strategy.use_hierarchical_allreduce = True
 
@@ -650,7 +650,6 @@ def train(args):
             optimizer.minimize(avg_cost, startup_program)
 
     train_program = fleet.main_program
-
     train_loop(exe, train_program, startup_program, dev_count, sum_cost,
                avg_cost, token_num, predict, pyreader)
 
