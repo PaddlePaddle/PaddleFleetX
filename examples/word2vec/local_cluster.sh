@@ -53,7 +53,7 @@ then
         cur_port=${PADDLE_PSERVER_PORT_ARRAY[$i]}
         echo "PADDLE WILL START PSERVER "$cur_port
 	PADDLE_TRAINER_ID=$i
-	python -u model.py --is_${train_method}_train=True --is_local_cluster=True --${sync_mode}_mode=True &> ./log/pserver.$i.log &
+	python -u model.py --is_${train_method}_train=True --is_local_cluster=True --sync_mode=${sync_mode} &> ./log/pserver.$i.log &
     done
 fi
 
@@ -67,6 +67,6 @@ then
     do
         echo "PADDLE WILL START Trainer "$i
         PADDLE_TRAINER_ID=$i
-	python -u model.py --is_${train_method}_train=True --is_local_cluster=True --${sync_mode}_mode=True &> ./log/trainer.$i.log &
+	python -u model.py --is_${train_method}_train=True --is_local_cluster=True --sync_mode=${sync_mode} &> ./log/trainer.$i.log &
     done
 fi

@@ -476,15 +476,15 @@ class FleetDistRunnerBase(object):
         # Step2: decide communication mode between PSERVER & TRAINER
         # recommended mode: pyreader + sync_mode / dataset + async_mode
         self.strategy = DistributeTranspilerConfig()
-        if params.sync_mode:
+        if params.sync_mode == 'sync':
             self.strategy.sync_mode = True
             self.strategy.runtime_split_send_recv = False
             params.async_mode = False
-        elif params.half_async_mode:
+        elif params.sync_mode == 'half_async':
             self.strategy.sync_mode = False
             params.async_mode = False
             self.strategy.runtime_split_send_recv = False
-        elif params.async_mode:
+        elif params.sync_mode == 'async':
             self.strategy.sync_mode = False
             params.async_mode = True
             self.strategy.runtime_split_send_recv = True
@@ -528,14 +528,9 @@ class FleetDistRunnerBase(object):
             result[0]['acc'] = infer_result['acc']
             result[1] = train_result[0]['time']
             result[7] = train_result[0]['cpu']
-            if not params.is_local_cluster:
-                if not os.path.isdir("./benchmark_logs/"):
-                    os.makedirs("./benchmark_logs/")
-                with open("./benchmark_logs/log_%d" % params.current_id, 'w') as f:
-                    f.writelines(str(result))
             logger.info(result)
 
-        print("Distribute train success!")
+        logger.info("Distribute train success!")
 
 
 def process_info():
