@@ -11,7 +11,7 @@ unset https_proxy http_proxy
 
 set -xe
 
-MODEL=ResNet50
+MODEL=ResNet50 #VGG16
 MODEL_SAVE_PATH="output/"
 
 # training params
@@ -30,7 +30,7 @@ IMAGE_SHAPE=3,224,224
 #gpu params
 FUSE=True
 NCCL_COMM_NUM=1
-NUM_THREADS=2
+NUM_THREADS=3
 USE_HIERARCHICAL_ALLREDUCE=False
 NUM_CARDS=1
 FP16=False #whether to use float16 
