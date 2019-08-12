@@ -89,7 +89,6 @@ def params_args(args=None):
     params.add_argument("--pserver_endpoints", type=list, default=[])
     params.add_argument("--pserver_ports", type=str, default="36001")
     params.add_argument("--sync_mode", type=str, required=False,choices=['sync','half_async','async'])
-    params.add_argument("--async_mode", type=bool, default=False)
     params.add_argument("--cpu_num", type=int, default=2)
 
     params = params.parse_args()

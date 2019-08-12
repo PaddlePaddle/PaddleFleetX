@@ -233,7 +233,7 @@ class FleetRunnerBase(object):
         exec_strategy = fluid.ExecutionStrategy()
         exec_strategy.num_threads = int(params.cpu_num)
         build_strategy = fluid.BuildStrategy()
-        build_strategy.async_mode = params.async_mode
+        build_strategy.async_mode = self.async_mode
         if int(params.cpu_num) > 1:
             build_strategy.reduce_strategy = fluid.BuildStrategy.ReduceStrategy.Reduce
         compiled_prog = fluid.compiler.CompiledProgram(
@@ -423,14 +423,14 @@ class FleetRunnerBase(object):
         if params.sync_mode == 'sync':
             self.strategy.sync_mode = True
             self.strategy.runtime_split_send_recv = False
-            params.async_mode = False
+            self.async_mode = False
         elif params.sync_mode == 'half_async':
             self.strategy.sync_mode = False
-            params.async_mode = False
+            self.async_mode = False
             self.strategy.runtime_split_send_recv = False
         elif params.sync_mode == 'async' or params.is_dataset_train:
             self.strategy.sync_mode = False
-            params.async_mode = True
+            self.async_mode = True
             self.strategy.runtime_split_send_recv = True
 
         # Step3: Configure communication IP and ports

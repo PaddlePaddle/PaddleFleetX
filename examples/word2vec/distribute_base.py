@@ -286,7 +286,7 @@ class FleetDistRunnerBase(object):
         exec_strategy.use_experimental_executor = True
 
         build_strategy = fluid.BuildStrategy()
-        build_strategy.async_mode = params.async_mode
+        build_strategy.async_mode = self.async_mode
         if CPU_NUM > 1:
             build_strategy.reduce_strategy = fluid.BuildStrategy.ReduceStrategy.Reduce
 
@@ -479,14 +479,14 @@ class FleetDistRunnerBase(object):
         if params.sync_mode == 'sync':
             self.strategy.sync_mode = True
             self.strategy.runtime_split_send_recv = False
-            params.async_mode = False
+            self.async_mode = False
         elif params.sync_mode == 'half_async':
             self.strategy.sync_mode = False
-            params.async_mode = False
+            self.async_mode = False
             self.strategy.runtime_split_send_recv = False
         elif params.sync_mode == 'async':
             self.strategy.sync_mode = False
-            params.async_mode = True
+            self.async_mode = True
             self.strategy.runtime_split_send_recv = True
 
         # Step3: Configure communication IP and ports
