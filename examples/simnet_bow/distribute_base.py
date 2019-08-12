@@ -194,7 +194,7 @@ class FleetRunnerBase(object):
         fleet.init(role)
 
         # step2: define the input data of network
-        inputs = self.input_data(params)
+        #inputs = self.input_data(params)
         reader = self.py_reader(params)
         inputs = fluid.layers.read_file(reader)
 
@@ -282,13 +282,11 @@ class FleetRunnerBase(object):
             if params.is_first_trainer:
                 model_path = str(params.model_path) + '/trainer_' + str(params.current_id) + '_epoch_' + str(epoch)
                 fleet.save_persistables(executor=exe, dirname=model_path)
-                self.upload_files(model_path, params)
 
         if params.is_first_trainer:
             train_method = '_pyreader_train'
             model_path = str(params.model_path + '/final' + train_method)
             fleet.save_persistables(executor=exe, dirname=model_path)
-            self.upload_files(model_path, params)
 
         logger.info("Train Success!")
         fleet.stop_worker()
@@ -353,7 +351,6 @@ class FleetRunnerBase(object):
             log_path = params.log_path + '/infer_result.log'
             with open(log_path, 'w+') as f:
                 f.write(str(infer_result))
-            print("Inference complete")
         return infer_result
 
     def py_reader(self, params):
@@ -392,6 +389,7 @@ class FleetRunnerBase(object):
         train_result[epoch]['cpu'] = info['cpu']
         train_result[epoch]['rss'] = info['rss']
         train_result[epoch]['vsa'] = info['vsa']
+        return train_result
 
     def runtime_main(self, params):
         """
@@ -416,21 +414,21 @@ class FleetRunnerBase(object):
 
         params.current_endpoint = os.getenv("POD_IP", "localhost") + ":" + params.pserver_ports
 
-        params.cpu_num = os.getenv("CPU_NUM")
+        params.cpu_num = int(os.getenv("CPU_NUM"))
         logger.info("cpu num: {}".format(params.cpu_num))
 
         # Step2: decide communication mode between PSERVER & TRAINER
         # recommended mode: pyreader + sync_mode / dataset + async_mode
         self.strategy = DistributeTranspilerConfig()
-        if params.sync_mode:
+        if params.sync_mode == 'sync':
             self.strategy.sync_mode = True
             self.strategy.runtime_split_send_recv = False
             params.async_mode = False
-        elif params.half_async_mode:
+        elif params.sync_mode == 'half_async':
             self.strategy.sync_mode = False
             params.async_mode = False
             self.strategy.runtime_split_send_recv = False
-        elif params.async_mode or params.is_dataset_train:
+        elif params.sync_mode == 'async' or params.is_dataset_train:
             self.strategy.sync_mode = False
             params.async_mode = True
             self.strategy.runtime_split_send_recv = True

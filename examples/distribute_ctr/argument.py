@@ -36,25 +36,18 @@ def params_args(args=None):
     params.add_argument("-l", "--learning_rate", type=float, default=1e-4, help="Initial learning rate for training.")
     params.add_argument("-b", "--batch_size", type=int, default=1000, help="Mini batch size for training.")
     params.add_argument("-e", "--epochs", type=int, default=1, help="Number of epochs for training.")
-    params.add_argument("--decay_steps", type=int, default=2, help="Decay the learning rate after every N epochs.")
-    params.add_argument("--decay_rate", type=float, default=0.99, help='Rate of decaying the learning rate.')
-    params.add_argument("--random_seed", type=int, default=0, help="Random seed if need to fix init parameter")
 
     # customized parameters
     params.add_argument('--embedding_size', type=int, default=10, help="The size for embedding layer (default:10)")
-    params.add_argument('--num_passes', type=int, default=10, help="The number of passes to train (default: 10)")
     params.add_argument('--sparse_feature_dim', type=int, default=1000001,
                         help='sparse feature hashing space for index processing')
     params.add_argument('--dense_feature_dim', type=int, default=13)
-    params.add_argument('--no_split_var', action='store_true', default=False,
-                        help='Whether split variables into blocks when update_method is pserver')
 
     # parameters of train method
     params.add_argument("--is_pyreader_train", type=bool, default=False)
     params.add_argument("--is_dataset_train", type=bool, default=False)
 
     # parameters of distribute
-    params.add_argument("--is_distribute", type=bool, default=False)
     params.add_argument("--is_local_cluster", type=bool, default=False)
     params.add_argument("--is_sparse", type=bool, default=False)
     params.add_argument('-r', "--role", type=str, required=False, choices=['TRAINER', 'PSERVER'])
@@ -69,11 +62,9 @@ def params_args(args=None):
     params.add_argument("--pserver_ip", type=str, default="127.0.0.1")
     params.add_argument("--pserver_endpoints", type=list, default=[])
     params.add_argument("--pserver_ports", type=str, default="36001")
-    params.add_argument("--sync_mode", type=bool, default=False)
-    params.add_argument("--half_async_mode", type=bool, default=False)
-    params.add_argument("--async_mode", type=bool, default=False)
+    params.add_argument("--sync_mode", type=str, required=False, choices=['sync','half_async','async'])
+    params.add_argument("--async_mode",type=bool ,default=False)
     params.add_argument("--cpu_num", type=int, default=2)
-    params.add_argument("--use_cuda", type=bool, default=False)
 
     params = params.parse_args()
     return params

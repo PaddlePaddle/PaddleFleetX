@@ -88,14 +88,9 @@ def params_args(args=None):
     params.add_argument("--pserver_ip", type=str, default="127.0.0.1")
     params.add_argument("--pserver_endpoints", type=list, default=[])
     params.add_argument("--pserver_ports", type=str, default="36001")
-
-    params.add_argument("--sync_mode", type=bool, default=False)
-    params.add_argument("--half_async_mode", type=bool, default=False)
+    params.add_argument("--sync_mode", type=str, required=False,choices=['sync','half_async','async'])
     params.add_argument("--async_mode", type=bool, default=False)
-    params.add_argument("--runtime_split_send_recv", type=bool, default=False)
-
     params.add_argument("--cpu_num", type=int, default=2)
-    params.add_argument("--use_cuda", type=bool, default=False)
 
     params = params.parse_args()
     return params

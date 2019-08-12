@@ -292,13 +292,11 @@ class FleetRunnerBase(object):
             if params.is_first_trainer:
                 model_path = str(params.model_path) + '/trainer_' + str(params.current_id) + '_epoch_' + str(epoch)
                 fleet.save_persistables(executor=exe, dirname=model_path)
-                self.upload_files(model_path, params)
 
         if params.is_first_trainer:
             train_method = '_pyreader_train'
             model_path = str(params.model_path + '/final' + train_method)
             fleet.save_persistables(executor=exe, dirname=model_path)
-            self.upload_files(model_path, params)
 
         logger.info("Train Success!")
         fleet.stop_worker()
@@ -416,8 +414,8 @@ class FleetRunnerBase(object):
         train_result[epoch]['cpu'] = info['cpu']
         train_result[epoch]['rss'] = info['rss']
         train_result[epoch]['vsa'] = info['vsa']
-
-
+        return train_result
+    
     def runtime_main(self, params):
         """
         Function runtime_main: the entry point for program running
@@ -449,15 +447,15 @@ class FleetRunnerBase(object):
         # Step2: decide communication mode between PSERVER & TRAINER
         # recommended mode: pyreader + sync_mode / dataset + async_mode
         self.strategy = DistributeTranspilerConfig()
-        if params.sync_mode:
+        if params.sync_mode == 'sync':
             self.strategy.sync_mode = True
             self.strategy.runtime_split_send_recv = False
             params.async_mode = False
-        elif params.half_async_mode:
+        elif params.sync_mode == 'half_async':
             self.strategy.sync_mode = False
             params.async_mode = False
             self.strategy.runtime_split_send_recv = False
-        elif params.async_mode or params.is_dataset_train:
+        elif params.sync_mode == 'async' or params.is_dataset_train:
             self.strategy.sync_mode = False
             params.async_mode = True
             self.strategy.runtime_split_send_recv = True
@@ -493,7 +491,7 @@ class FleetRunnerBase(object):
                 train_result = self.run_pyreader_trainer(params)
         else:
             raise ValueError("Please choice training role for current node : PSERVER / TRAINER")
-
+        
         # Step5: If the role is first trainer, after training, perform verification on the test data
         result = dict()
         infer_result = {}
