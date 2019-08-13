@@ -90,7 +90,6 @@ add_arg('use_mixup',      bool,      False,        "Whether to use mixup or not"
 add_arg('mixup_alpha',      float,     0.2,      "Set the mixup_alpha parameter")
 add_arg('is_distill',       bool,  False,        "is distill or not")
 
-add_arg("is_distributed",               bool,   True,  "If set, then start distributed training.")
 add_arg('use_gpu',          bool,  True,                 "Whether to use GPU or not.")
 add_arg('fuse', bool, False,                      "Whether to use tensor fusion.")
 add_arg('nccl_comm_num',        int,  1,                  "nccl comm num")
@@ -346,6 +345,7 @@ def train(args):
     with_memory_optimization = args.with_mem_opt
     model_save_dir = args.model_save_dir
     use_mixup = args.use_mixup
+    use_ngraph = os.getenv('FLAGS_use_ngraph')
 
     startup_prog = fluid.Program()
     train_prog = fluid.Program()
@@ -357,15 +357,13 @@ def train(args):
 
     dist_strategy = DistributedStrategy()
     dist_strategy.exec_strategy = exec_strategy
+    dist_strategy.enable_inplace = args.with_inplace
+    if args.fuse:
+        dist_strategy.fuse_all_reduce_ops = 1
+
     role = role_maker.PaddleCloudRoleMaker(is_collective=True)
     fleet.init(role)
     print("fleet.node_num:", fleet.node_num())
-   
-    if fleet.node_num() > 1:
-        os.environ["FLAGS_sync_nccl_allreduce"] = 1
-        dist_strategy.nccl_comm_num = 1
-        dist_strategy.fuse_memory_size = 16 #MB
-        dist_strategy.use_hierarchical_allreduce = True
 
     b_out = build_program(
                      is_train=True,
@@ -400,10 +398,7 @@ def train(args):
 
     test_prog = test_prog.clone(for_test=True)
 
-    gpu_id=0
-    if args.is_distributed:
-        gpus = os.getenv("FLAGS_selected_gpus").split(",")
-    gpu_id = int(gpus[0])
+    gpu_id = int(os.environ.get('FLAGS_selected_gpus', 0))
     place = fluid.CUDAPlace(gpu_id) if args.use_gpu else fluid.CPUPlace()
     exe = fluid.Executor(place)
     exe.run(startup_prog)
@@ -445,13 +440,6 @@ def train(args):
         var.persistable=True
         test_fetch_list.append(var.name)
 
-    # use_ngraph is for CPU only, please refer to README_ngraph.md for details
-    use_ngraph = os.getenv('FLAGS_use_ngraph')
-    if not use_ngraph:
-        build_strategy = fluid.BuildStrategy()
-        build_strategy.enable_inplace = args.with_inplace
-        if args.fuse:
-            build_strategy.fuse_all_reduce_ops = 1
     train_exe = exe
 
     params = models.__dict__[args.model]().params
@@ -562,7 +550,7 @@ def train(args):
         if not os.path.isdir(model_path):
             os.makedirs(model_path)
             
-        fluid.io.save_persistables(exe, model_path, main_program=fleet.origin_program)
+        fluid.io.save_persistables(exe, model_path, main_program=fleet._origin_program)
         
 
 def print_paddle_environments():
@@ -576,9 +564,10 @@ def print_paddle_environments():
 
 def main():
     args = parser.parse_args()
+    # this distributed benchmark code can only support gpu environment.  
+    assert args.use_gpu, "only for gpu implementation."
     print_arguments(args)
     print_paddle_environments()
-    args.dist_env = dist_env()
     check_gpu(args.use_gpu)
     train(args)
 
