@@ -25,4 +25,3 @@ class BenchmarkTimer(object):
         if self.cur_step <= self.start_timer_step:
             return 0.0
         return self.total_time / (self.cur_step - self.start_timer_step)
-    
