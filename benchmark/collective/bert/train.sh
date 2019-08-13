@@ -22,6 +22,7 @@ if [[ $# -ge 1 ]]; then
   distributed_args="--cluster_node_ips ${cluster_node_ips} --node_ip ${node_ip}"
 fi
 
+export FLAGS_fuse_parameter_memory_size=64 #MB
 
 # pretrain config
 SAVE_STEPS=10000
