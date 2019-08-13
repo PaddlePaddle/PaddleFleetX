@@ -24,6 +24,11 @@ fi
 
 export FLAGS_fuse_parameter_memory_size=64 #MB
 
+IFS=',' read -r -a array <<< "${cluster_node_ips}"
+if (( ${#array[@]}  >= 2 )) ; then
+    export FLAGS_sync_nccl_allreduce=0
+fi
+
 # pretrain config
 SAVE_STEPS=10000
 BATCH_SIZE=4096
