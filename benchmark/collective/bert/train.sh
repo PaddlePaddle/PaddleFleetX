@@ -22,6 +22,11 @@ if [[ $# -ge 1 ]]; then
   distributed_args="--cluster_node_ips ${cluster_node_ips} --node_ip ${node_ip}"
 fi
 
+IFS=',' read -r -a array <<< "${cluster_node_ips}"
+if (( ${#array[@]}  >= 2 )) ; then
+    export FLAGS_sync_nccl_allreduce=0
+    export FLAGS_fuse_parameter_memory_size=64 #MB
+fi
 
 # pretrain config
 SAVE_STEPS=10000

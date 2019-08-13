@@ -228,9 +228,8 @@ def train(args):
     print("fleet.node_num:", fleet.node_num())
 
     if fleet.node_num() > 1:
-        os.environ["FLAGS_sync_nccl_allreduce"] = "0"
         dist_strategy.nccl_comm_num = 3
-        dist_strategy.fuse_memory_size = 64 #MB
+        dist_strategy.fuse_all_reduce_ops=True
         dist_strategy.use_hierarchical_allreduce = True
 
     with fluid.program_guard(train_program, startup_prog):
