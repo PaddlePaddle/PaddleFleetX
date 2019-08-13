@@ -328,50 +328,51 @@ class FleetRunnerBase(object):
             param.set(param_array, place)
 
         with fluid.framework.program_guard(test_program, startup_program):
-            inputs = self.input_data(params)
-            loss, auc_var, batch_auc_var= self.net(inputs, params)
+            with fluid.unique_name.guard():
+                inputs = self.input_data(params)
+                loss, auc_var, batch_auc_var= self.net(inputs, params)
 
-            exe = fluid.Executor(place)
-            feeder = fluid.DataFeeder(feed_list=inputs, place=place)
+                exe = fluid.Executor(place)
+                feeder = fluid.DataFeeder(feed_list=inputs, place=place)
 
-            train_method = ''
-            if params.is_pyreader_train:
-                train_method = '_pyreader_train/'
-            else:
-                train_method = '_dataset_train/'
-            model_path = params.model_path + '/final' + train_method
-            fluid.io.load_persistables(
-                executor=exe,
-                dirname=model_path,
-                main_program=fluid.default_main_program())
+                train_method = ''
+                if params.is_pyreader_train:
+                    train_method = '_pyreader_train/'
+                else:
+                    train_method = '_dataset_train/'
+                model_path = params.model_path + '/final' + train_method
+                fluid.io.load_persistables(
+                    executor=exe,
+                    dirname=model_path,
+                    main_program=fluid.default_main_program())
 
-            auc_states_names = ['_generated_var_2', '_generated_var_3']
-            for name in auc_states_names:
-                set_zero(name)
+                auc_states_names = ['_generated_var_2', '_generated_var_3']
+                for name in auc_states_names:
+                    set_zero(name)
 
-            run_index = 0
-            L = []
-            A = []
-            for batch_id, data in enumerate(test_reader()):
-                loss_val, auc_val = exe.run(test_program,
-                                            feed=feeder.feed(data),
-                                            fetch_list=[loss, auc_var])
-                run_index += 1
-                L.append(loss_val / params.batch_size)
-                A.append(auc_val)
-                if batch_id % 1000 == 0:
-                    logger.info("TEST --> batch: {} loss: {} auc: {}".format(
-                        batch_id, loss_val / params.batch_size, auc_val))
+                run_index = 0
+                L = []
+                A = []
+                for batch_id, data in enumerate(test_reader()):
+                    loss_val, auc_val = exe.run(test_program,
+                                                feed=feeder.feed(data),
+                                                fetch_list=[loss, auc_var])
+                    run_index += 1
+                    L.append(loss_val / params.batch_size)
+                    A.append(auc_val)
+                    if batch_id % 1000 == 0:
+                        logger.info("TEST --> batch: {} loss: {} auc: {}".format(
+                            batch_id, loss_val / params.batch_size, auc_val))
 
-            infer_loss = np.mean(L)
-            infer_auc = np.mean(A)
-            infer_result = {}
-            infer_result['loss'] = infer_loss
-            infer_result['auc'] = infer_auc
-            log_path = params.log_path + '/infer_result.log'
-            with open(log_path, 'w+') as f:
-                f.write(str(infer_result))
-            logger.info("Inference complete")
+                infer_loss = np.mean(L)
+                infer_auc = np.mean(A)
+                infer_result = {}
+                infer_result['loss'] = infer_loss
+                infer_result['auc'] = infer_auc
+                log_path = params.log_path + '/infer_result.log'
+                with open(log_path, 'w+') as f:
+                    f.write(str(infer_result))
+                logger.info("Inference complete")
         return infer_result
 
     def py_reader(self, params):
