@@ -42,11 +42,10 @@ import functools
 import subprocess
 import paddle
 import paddle.fluid as fluid
-import utils.reader_cv2 as reader
 import utils
 import models
 from paddle.fluid.contrib.mixed_precision.decorator import decorate
-from utils.env import dist_env
+import utils.reader_cv2 as reader
 from utils.utility import add_arguments, print_arguments, check_gpu
 from utils.learning_rate import cosine_decay_with_warmup
 from paddle.fluid.contrib.mixed_precision.fp16_lists import black_list, white_list, gray_list
