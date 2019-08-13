@@ -225,12 +225,8 @@ def train(args):
 
     role = role_maker.PaddleCloudRoleMaker(is_collective=True)
     fleet.init(role)
-    print("fleet.node_num:", fleet.node_num())
-
-    if fleet.node_num() > 1:
-        dist_strategy.nccl_comm_num = 3
-        dist_strategy.fuse_all_reduce_ops=True
-        dist_strategy.use_hierarchical_allreduce = True
+    dist_strategy.nccl_comm_num = 3
+    dist_strategy.use_hierarchical_allreduce = True
 
     with fluid.program_guard(train_program, startup_prog):
         with fluid.unique_name.guard():
