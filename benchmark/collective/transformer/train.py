@@ -67,7 +67,7 @@ def parse_args():
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=2048,
+        default=4096,
         help="The number of sequences contained in a mini-batch, or the maximum "
         "number of tokens (include paddings) contained in a mini-batch. Note "
         "that this represents the number on single device and the actual batch "
@@ -123,30 +123,15 @@ def parse_args():
         default=100,
         help="The frequency to fetch and print output.")
     parser.add_argument(
-        "--nccl_comm_num",
+        "--num_threads",
         type=int,
-        default=1,
-        help="Number of NCCL communicators.")
-    parser.add_argument(
-        "--hierarchical_allreduce_inter_nranks",
-        type=int,
-        default=8,
-        help="Hierarchical allreduce inter ranks.")
-    parser.add_argument(
-        "--use_hierarchical_allreduce",
-        type=bool,
-        default=False,
-        help="Use hierarchical allreduce or not.")
-    parser.add_argument(
-        "--enable_backward_op_deps",
-        type=bool,
-        default=False,
-        help="Whether to use enable_backward_op_deps.")
+        default=2,
+        help="How many threads to run paddle.")
     parser.add_argument(
         "--fuse",
         type=bool,
         default=False,
-        help="Whether to use fusion.")
+        help="Use tensor fusion or not.")
 
     args = parser.parse_args()
     # Append args related to dict
@@ -266,6 +251,7 @@ def prepare_data_generator(args,
     Data generator wrapper for DataReader. If use py_reader, set the data
     provider for py_reader
     """
+    shuffle_seed = 1 if args.num_trainers > 1 else None
     data_reader = reader.DataReader(
         fpattern=args.val_file_pattern if is_test else args.train_file_pattern,
         src_vocab_fpath=args.src_vocab_fpath,
@@ -276,6 +262,7 @@ def prepare_data_generator(args,
         pool_size=args.pool_size,
         sort_type=args.sort_type,
         shuffle=args.shuffle,
+        shuffle_seed=shuffle_seed,
         shuffle_batch=args.shuffle_batch,
         start_mark=args.special_token[0],
         end_mark=args.special_token[1],
@@ -321,8 +308,12 @@ def prepare_data_generator(args,
         # to make data on each device have similar token number
         data_reader = split(data_reader, count)
     if args.use_py_reader:
-        pyreader.decorate_tensor_provider(
-            py_reader_provider_wrapper(data_reader, place))
+        train_reader = py_reader_provider_wrapper(data_reader, place)
+        if args.num_trainers > 1:
+            assert shuffle_seed is not None
+            train_reader = fluid.contrib.reader.distributed_batch_reader(
+                train_reader)
+        pyreader.decorate_tensor_provider(train_reader)
         data_reader = None
     else:  # Data generator for multi-devices
         data_reader = stack(data_reader, count)
@@ -451,6 +442,7 @@ def test_context(exe, dev_count):
 
 def train_loop(exe,
                train_program,
+               orig_train_program,
                startup_program,
                dev_count,
                sum_cost,
@@ -543,12 +535,12 @@ def train_loop(exe,
                     fluid.io.save_persistables(
                         exe,
                         os.path.join(TrainTaskConfig.ckpt_dir,
-                                     "latest.checkpoint"), train_program)
+                                     "latest.checkpoint"), orig_train_program)
                     fluid.io.save_params(
                         exe,
                         os.path.join(TrainTaskConfig.model_dir,
                                      "iter_" + str(step_idx) + ".infer.model"),
-                        train_program)
+                        orig_train_program)
 
                 init_flag = False
                 batch_id += 1
@@ -594,14 +586,17 @@ def train(args):
     # For Distributed Training.
     role = role_maker.PaddleCloudRoleMaker(is_collective=True)
     fleet.init(role)
+    args.num_trainers = fleet.worker_num()
 
     exec_strategy = fluid.ExecutionStrategy()
-    exec_strategy.num_threads = 2
+    exec_strategy.num_threads = args.num_threads
     exec_strategy.num_iteration_per_drop_scope = 30
 
     dist_strategy = DistributedStrategy()
     dist_strategy.exec_strategy = exec_strategy
     dist_strategy.fuse_memory_size = 64 #MB
+    if args.fuse:
+        dist_strategy.fuse_all_reduce_ops = 1
 
     with fluid.program_guard(train_program, startup_program):
         with fluid.unique_name.guard():
@@ -645,8 +640,9 @@ def train(args):
             optimizer.minimize(avg_cost, startup_program)
 
     train_program = fleet.main_program
-    train_loop(exe, train_program, startup_program, dev_count, sum_cost,
-               avg_cost, token_num, predict, pyreader)
+    orig_train_program = fleet._origin_program
+    train_loop(exe, train_program, orig_train_program, startup_program, 
+               dev_count, sum_cost, avg_cost, token_num, predict, pyreader)
 
 
 if __name__ == "__main__":

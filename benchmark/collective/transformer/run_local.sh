@@ -1,5 +1,9 @@
 export PATH=~/python_fleet/bin:$PATH
 DATA_DIR=/ssd2/lilong/gen_data
+
+export FLAGS_eager_delete_tensor_gb=0
+export FLAGS_sync_nccl_allreduce=1
+
 python -m paddle.distributed.launch \
     --cluster_node_ips=127.0.0.1 --node_ip=127.0.0.1 --selected_gpus="6,7" --log_dir=mylog \
     train.py \
@@ -12,6 +16,7 @@ python -m paddle.distributed.launch \
     --batch_size 2048 \
     --sort_type pool \
     --pool_size 200000 \
+    --fuse True \
     n_head 8 \
     d_model 512 \
     d_inner_hid 2048 \
