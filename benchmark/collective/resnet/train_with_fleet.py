@@ -61,40 +61,38 @@ parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
 
 # yapf: disable
-add_arg('batch_size',       int,   32,                   "Minibatch size per device.")
-add_arg('total_images',     int,   1281167,              "Training image number.")
-add_arg('num_epochs',       int,   120,                  "number of epochs.")
-add_arg('class_dim',        int,   1000,                 "Class number.")
-add_arg('image_shape',      str,   "3,224,224",          "input image size")
-add_arg('model_save_dir',   str,   "output",             "model save directory")
-add_arg('with_mem_opt',     bool,  False,                "Whether to use memory optimization or not.")
-add_arg('with_inplace',     bool,  False,                "Whether to use inplace memory optimization.")
-add_arg('pretrained_model', str,   None,                 "Whether to use pretrained model.")
-add_arg('checkpoint',       str,   None,                 "Whether to resume checkpoint.")
-add_arg('lr',               float, 0.1,                  "set learning rate.")
-add_arg('lr_strategy',      str,   "piecewise_decay",    "Set the learning rate decay strategy.")
-add_arg('model',            str,   "SE_ResNeXt50_32x4d", "Set the network to use.")
-add_arg('data_dir',         str,   "./data/ILSVRC2012/",  "The ImageNet dataset root dir.")
-add_arg('fp16',             bool,  False,                "Enable half precision training with fp16." )
-add_arg('scale_loss',       float, 1.0,                  "Scale loss for fp16." )
-add_arg('l2_decay',         float, 1e-4,                 "L2_decay parameter.")
-add_arg('momentum_rate',    float, 0.9,                  "momentum_rate.")
-add_arg('use_label_smoothing',      bool,      False,        "Whether to use label_smoothing or not")
-add_arg('label_smoothing_epsilon',      float,     0.2,      "Set the label_smoothing_epsilon parameter")
-add_arg('lower_scale',      float,     0.08,      "Set the lower_scale in ramdom_crop")
-add_arg('lower_ratio',      float,     3./4.,      "Set the lower_ratio in ramdom_crop")
-add_arg('upper_ratio',      float,     4./3.,      "Set the upper_ratio in ramdom_crop")
-add_arg('resize_short_size',      int,     256,      "Set the resize_short_size")
-add_arg('use_mixup',      bool,      False,        "Whether to use mixup or not")
-add_arg('mixup_alpha',      float,     0.2,      "Set the mixup_alpha parameter")
-add_arg('is_distill',       bool,  False,        "is distill or not")
+add_arg('batch_size',                   int,    32,                   "Minibatch size per device.")
+add_arg('total_images',                 int,    1281167,              "Training image number.")
+add_arg('num_epochs',                   int,    120,                  "number of epochs.")
+add_arg('class_dim',                    int,    1000,                 "Class number.")
+add_arg('image_shape',                  str,    "3,224,224",          "input image size")
+add_arg('model_save_dir',               str,    "output",             "model save directory")
+add_arg('pretrained_model',             str,    None,                 "Whether to use pretrained model.")
+add_arg('checkpoint',                   str,    None,                 "Whether to resume checkpoint.")
+add_arg('lr',                           float,  0.1,                  "set learning rate.")
+add_arg('lr_strategy',                  str,    "piecewise_decay",    "Set the learning rate decay strategy.")
+add_arg('model',                        str,    "SE_ResNeXt50_32x4d", "Set the network to use.")
+add_arg('data_dir',                     str,    "./data/ILSVRC2012/", "The ImageNet dataset root dir.")
+add_arg('fp16',                         bool,   False,                "Enable half precision training with fp16." )
+add_arg('scale_loss',                   float,  1.0,                  "Scale loss for fp16." )
+add_arg('l2_decay',                     float,  1e-4,                 "L2_decay parameter.")
+add_arg('momentum_rate',                float,  0.9,                  "momentum_rate.")
+add_arg('use_label_smoothing',          bool,   False,                "Whether to use label_smoothing or not")
+add_arg('label_smoothing_epsilon',      float,  0.2,                  "Set the label_smoothing_epsilon parameter")
+add_arg('lower_scale',                  float,  0.08,                 "Set the lower_scale in ramdom_crop")
+add_arg('lower_ratio',                  float,  3./4.,                "Set the lower_ratio in ramdom_crop")
+add_arg('upper_ratio',                  float,  4./3.,                "Set the upper_ratio in ramdom_crop")
+add_arg('resize_short_size',            int,    256,                  "Set the resize_short_size")
+add_arg('use_mixup',                    bool,   False,                "Whether to use mixup or not")
+add_arg('mixup_alpha',                  float,  0.2,                  "Set the mixup_alpha parameter")
+add_arg('is_distill',                   bool,   False,                "is distill or not")
 
-add_arg('use_gpu',          bool,  True,                 "Whether to use GPU or not.")
-add_arg('fuse', bool, False,                      "Whether to use tensor fusion.")
-add_arg('nccl_comm_num',        int,  1,                  "nccl comm num")
-add_arg("use_hierarchical_allreduce",     bool,   False,   "Use hierarchical allreduce or not.")
-add_arg('num_threads',        int,  1,                   "Use num_threads to run the fluid program.")
-add_arg('num_iteration_per_drop_scope', int,    10,      "Ihe iteration intervals to clean up temporary variables.")
+add_arg('use_gpu',                      bool,   True,                 "Whether to use GPU or not.")
+add_arg('nccl_comm_num',                int,    1,                    "nccl comm num")
+add_arg('num_iteration_per_drop_scope', int,    10,                   "Ihe iteration intervals to clean up temporary variables.")
+
+add_arg('use_local_sgd',                bool,   True,                 "Whether to use LocalSGD argorithmn.")
+add_arg('local_sgd_steps',              int,    2,                    "The step number for local training before synchronizing parameters.")
 
 def optimizer_setting(params):
     ls = params["learning_strategy"]
@@ -278,7 +276,7 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
                 use_double_buffer=True)
 
         with fluid.unique_name.guard():
-            if is_train and  use_mixup:
+            if is_train and use_mixup:
                 image, y_a, y_b, lam = fluid.layers.read_file(py_reader)
                 if args.fp16:
                     image = fluid.layers.cast(image, "float16")
@@ -341,28 +339,18 @@ def train(args):
     model_name = args.model
     checkpoint = args.checkpoint
     pretrained_model = args.pretrained_model
-    with_memory_optimization = args.with_mem_opt
     model_save_dir = args.model_save_dir
     use_mixup = args.use_mixup
-    use_ngraph = os.getenv('FLAGS_use_ngraph')
 
     startup_prog = fluid.Program()
     train_prog = fluid.Program()
     test_prog = fluid.Program()
 
-    exec_strategy = fluid.ExecutionStrategy()
-    exec_strategy.num_threads = args.num_threads
-    exec_strategy.num_iteration_per_drop_scope = args.num_iteration_per_drop_scope
-
     dist_strategy = DistributedStrategy()
-    dist_strategy.exec_strategy = exec_strategy
-    dist_strategy.enable_inplace = args.with_inplace
-    if args.fuse:
-        dist_strategy.fuse_all_reduce_ops = 1
+    dist_strategy.use_local_sgd = args.use_local_sgd
 
     role = role_maker.PaddleCloudRoleMaker(is_collective=True)
     fleet.init(role)
-    print("fleet.node_num:", fleet.node_num())
 
     b_out = build_program(
                      is_train=True,
@@ -386,7 +374,8 @@ def train(args):
             var.persistable=True
             train_fetch_list.append(var.name)
 
-    train_prog = fleet.main_program
+    dist_prog = fleet.main_program
+    local_prog = fleet._origin_program
 
     b_out_test = build_program(
                      is_train=False,
@@ -403,14 +392,14 @@ def train(args):
     exe.run(startup_prog)
 
     if checkpoint is not None:
-        fluid.io.load_persistables(exe, checkpoint, main_program=train_prog)
+        fluid.io.load_persistables(exe, checkpoint, main_program=local_prog)
 
     if pretrained_model:
         def if_exist(var):
             return os.path.exists(os.path.join(pretrained_model, var.name))
 
         fluid.io.load_vars(
-            exe, pretrained_model, main_program=train_prog, predicate=if_exist)
+            exe, pretrained_model, main_program=local_prog, predicate=if_exist)
 
     if args.use_gpu:
         device_num = get_device_num()
@@ -441,6 +430,9 @@ def train(args):
 
     train_exe = exe
 
+    assert args.local_sgd_steps > 0, "local_sgd_steps must greater than 0"
+    step_cnt = 0
+
     params = models.__dict__[args.model]().params
     for pass_id in range(params["num_epochs"]):
         train_py_reader.start()
@@ -453,16 +445,15 @@ def train(args):
         try:
             while True:
                 t1 = time.time()
-                if use_mixup:
-                    if use_ngraph:
-                        loss, lr = train_exe.run(train_prog, fetch_list=train_fetch_list)
-                    else:
-                        loss, lr = train_exe.run(fetch_list=train_fetch_list)
+                if step_cnt % args.local_sgd_steps == 0:
+                    current_prog = dist_prog
                 else:
-                    if use_ngraph:
-                        loss, acc1, acc5, lr = train_exe.run(train_prog, fetch_list=train_fetch_list)
-                    else:
-                        loss, acc1, acc5, lr = train_exe.run(train_prog, fetch_list=train_fetch_list)
+                    current_prog = local_prog
+
+                if use_mixup:
+                    loss, lr = train_exe.run(current_prog, fetch_list=train_fetch_list)
+                else:
+                    loss, acc1, acc5, lr = train_exe.run(current_prog, fetch_list=train_fetch_list)
 
                     acc1 = np.mean(np.array(acc1))
                     acc5 = np.mean(np.array(acc5))
@@ -492,6 +483,7 @@ def train(args):
                                       lr, "%2.2f sec" % period, "%.2f" % speed))
                     sys.stdout.flush()
                 batch_id += 1
+                step_cnt += 1
         except fluid.core.EOFException:
             train_py_reader.reset()
 

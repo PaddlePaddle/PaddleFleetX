@@ -1,5 +1,4 @@
 #!/bin/bash
-export FLAGS_sync_nccl_allreduce=1
 export FLAGS_cudnn_exhaustive_search=0
 
 export GLOG_v=1
@@ -29,20 +28,11 @@ IMAGE_SHAPE=3,224,224
 
 #gpu params
 FUSE=True
-NCCL_COMM_NUM=1
-NUM_THREADS=3
-USE_HIERARCHICAL_ALLREDUCE=False
-NUM_CARDS=1
+NCCL_COMM_NUM=2
+NUM_CARDS=4
 FP16=False #whether to use float16 
 
-if [[ ${FUSE} == "True" ]]; then
-    export FLAGS_fuse_parameter_memory_size=16 #MB
-    export FLAGS_fuse_parameter_groups_size=50
-fi
-distributed_args=""
-if [[ ${NUM_CARDS} == "1" ]]; then
-    distributed_args="--selected_gpus 0"
-fi
+distributed_args="--selected_gpus `seq -s, 0 $(($NUM_CARDS-1))`"
 
 set -x
 
@@ -55,14 +45,12 @@ python -m paddle.distributed.launch ${distributed_args} --log_dir log \
        --class_dim=${CLASS_DIM} \
        --image_shape=${IMAGE_SHAPE} \
        --model_save_dir=${MODEL_SAVE_PATH} \
-       --with_mem_opt=False \
        --lr_strategy=${LR_STRATEGY} \
        --lr=${LR} \
        --num_epochs=${NUM_EPOCHS} \
        --l2_decay=1e-4 \
        --scale_loss=1.0 \
-       --fuse=${FUSE} \
-       --num_threads=${NUM_THREADS} \
        --nccl_comm_num=${NCCL_COMM_NUM} \
-       --use_hierarchical_allreduce=${USE_HIERARCHICAL_ALLREDUCE} \
-       --fp16=${FP16}
+       --fp16=${FP16} \
+       --use_local_sgd=True \
+       --local_sgd_steps=2
