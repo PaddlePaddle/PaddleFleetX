@@ -601,11 +601,12 @@ def train(args):
 
     dist_strategy = DistributedStrategy()
     dist_strategy.exec_strategy = exec_strategy
+    dist_strategy.fuse_memory_size = 64 #MB
 
     if fleet.node_num() > 1:
         os.environ["FLAGS_sync_nccl_allreduce"] = 1
         dist_strategy.nccl_comm_num = 2
-        dist_strategy.fuse_memory_size = 64 #MB
+        exec_strategy.num_threads = 3
         dist_strategy.use_hierarchical_allreduce = True
 
     with fluid.program_guard(train_program, startup_program):
