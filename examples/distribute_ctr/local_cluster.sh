@@ -47,7 +47,7 @@ then
     export TRAINING_ROLE=PSERVER
     export GLOG_v=0
     export GLOG_logtostderr=1
-
+    
     for((i=0;i<$PADDLE_PSERVER_NUMS;i++))
     do
         cur_port=${PADDLE_PSERVER_PORT_ARRAY[$i]}

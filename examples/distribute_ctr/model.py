@@ -90,7 +90,7 @@ class CTR(FleetRunnerBase):
             capacity=64,
             feed_list=self._words,
             name='py_reader',
-            use_double_buffer=True)
+            use_double_buffer=False)
 
         return py_reader
 
@@ -100,8 +100,8 @@ class CTR(FleetRunnerBase):
                             [self.label])
         pipe_command = "python dataset_generator.py"
         dataset.set_pipe_command(pipe_command)
-        dataset.set_batch_size(100)
-        thread_num = 10
+        dataset.set_batch_size(params.batch_size)
+        thread_num = int(params.cpu_num)
         dataset.set_thread(thread_num)
         return dataset
 
