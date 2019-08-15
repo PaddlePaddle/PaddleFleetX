@@ -94,7 +94,7 @@ add_arg('fuse', bool, False,                      "Whether to use tensor fusion.
 add_arg('nccl_comm_num',        int,  1,                  "nccl comm num")
 add_arg("use_hierarchical_allreduce",     bool,   False,   "Use hierarchical allreduce or not.")
 add_arg('num_threads',        int,  1,                   "Use num_threads to run the fluid program.")
-add_arg('num_iteration_per_drop_scope', int,    10,      "Ihe iteration intervals to clean up temporary variables.")
+add_arg('num_iteration_per_drop_scope', int,    30,      "Ihe iteration intervals to clean up temporary variables.")
 
 def optimizer_setting(params):
     ls = params["learning_strategy"]
@@ -341,7 +341,6 @@ def train(args):
     model_name = args.model
     checkpoint = args.checkpoint
     pretrained_model = args.pretrained_model
-    with_memory_optimization = args.with_mem_opt
     model_save_dir = args.model_save_dir
     use_mixup = args.use_mixup
     use_ngraph = os.getenv('FLAGS_use_ngraph')
@@ -359,10 +358,10 @@ def train(args):
     dist_strategy.enable_inplace = args.with_inplace
     if args.fuse:
         dist_strategy.fuse_all_reduce_ops = 1
-
+    dist_strategy.nccl_comm_num = args.nccl_comm_num
+    
     role = role_maker.PaddleCloudRoleMaker(is_collective=True)
     fleet.init(role)
-    print("fleet.node_num:", fleet.node_num())
 
     b_out = build_program(
                      is_train=True,
@@ -454,15 +453,9 @@ def train(args):
             while True:
                 t1 = time.time()
                 if use_mixup:
-                    if use_ngraph:
-                        loss, lr = train_exe.run(train_prog, fetch_list=train_fetch_list)
-                    else:
-                        loss, lr = train_exe.run(fetch_list=train_fetch_list)
+                    loss, lr = train_exe.run(train_prog, fetch_list=train_fetch_list)
                 else:
-                    if use_ngraph:
-                        loss, acc1, acc5, lr = train_exe.run(train_prog, fetch_list=train_fetch_list)
-                    else:
-                        loss, acc1, acc5, lr = train_exe.run(train_prog, fetch_list=train_fetch_list)
+		    loss, acc1, acc5, lr = train_exe.run(train_prog, fetch_list=train_fetch_list)
 
                     acc1 = np.mean(np.array(acc1))
                     acc5 = np.mean(np.array(acc5))
