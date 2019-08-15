@@ -100,7 +100,7 @@ class FleetRunnerBase(object):
         loss, auc_var, batch_auc_var = self.net(inputs, params)
 
         # step4: define the optimizer for your model
-        optimizer = fluid.optimizer.SGD(params.learning_rate)
+        optimizer = fluid.optimizer.Adam(params.learning_rate)
         optimizer = fleet.distributed_optimizer(optimizer, self.strategy)
         optimizer.minimize(loss)
 
@@ -133,7 +133,7 @@ class FleetRunnerBase(object):
         loss, auc_var, batch_auc_var = self.net(inputs, params)
 
         # step4: define the optimizer for your model
-        optimizer = fluid.optimizer.SGD(params.learning_rate)
+        optimizer = fluid.optimizer.Adam(params.learning_rate)
         optimizer = fleet.distributed_optimizer(optimizer, self.strategy)
         optimizer.minimize(loss)
 
@@ -215,7 +215,7 @@ class FleetRunnerBase(object):
 
         # step4: define the optimizer for your model
         # define the optimizer for your model
-        optimizer = fluid.optimizer.SGD(params.learning_rate)
+        optimizer = fluid.optimizer.Adam(params.learning_rate)
         optimizer = fleet.distributed_optimizer(optimizer, self.strategy)
         optimizer.minimize(loss)
 
@@ -249,6 +249,8 @@ class FleetRunnerBase(object):
         exec_strategy.num_threads = int(params.cpu_num)
         build_strategy = fluid.BuildStrategy()
         build_strategy.async_mode = self.async_mode
+        if params.sync_mode == 'async':
+            build_strategy.memory_optimize = False
         if int(params.cpu_num) > 1:
             build_strategy.reduce_strategy = fluid.BuildStrategy.ReduceStrategy.Reduce
         compiled_prog = fluid.compiler.CompiledProgram(
@@ -311,7 +313,6 @@ class FleetRunnerBase(object):
             :infer_result, type:dict, record the evalution parameter and program resource usage situation
         """
         place = fluid.CPUPlace()
-        inference_scope = fluid.Scope()
         dataset = py_reader.CriteoDataset(params.sparse_feature_dim)
         file_list = [
             str(params.test_files_path) + "/%s" % x
@@ -323,7 +324,7 @@ class FleetRunnerBase(object):
         test_program = fluid.framework.Program()
 
         def set_zero(var_name):
-            param = inference_scope.var(var_name).get_tensor()
+            param = fluid.global_scope().var(var_name).get_tensor()
             param_array = np.zeros(param._get_dims()).astype("int64")
             param.set(param_array, place)
 
@@ -346,30 +347,30 @@ class FleetRunnerBase(object):
                     dirname=model_path,
                     main_program=fluid.default_main_program())
 
-                auc_states_names = ['_generated_var_2', '_generated_var_3']
+                auc_states_names = ['_generated_var_0','_generated_var_1','_generated_var_2', '_generated_var_3']
                 for name in auc_states_names:
                     set_zero(name)
 
                 run_index = 0
+                infer_auc = 0
                 L = []
-                A = []
                 for batch_id, data in enumerate(test_reader()):
                     loss_val, auc_val = exe.run(test_program,
                                                 feed=feeder.feed(data),
                                                 fetch_list=[loss, auc_var])
                     run_index += 1
+                    infer_auc = auc_val
                     L.append(loss_val / params.batch_size)
-                    A.append(auc_val)
                     if batch_id % 1000 == 0:
                         logger.info("TEST --> batch: {} loss: {} auc: {}".format(
                             batch_id, loss_val / params.batch_size, auc_val))
 
                 infer_loss = np.mean(L)
-                infer_auc = np.mean(A)
                 infer_result = {}
                 infer_result['loss'] = infer_loss
                 infer_result['auc'] = infer_auc
                 log_path = params.log_path + '/infer_result.log'
+                print(str(infer_result))
                 with open(log_path, 'w+') as f:
                     f.write(str(infer_result))
                 logger.info("Inference complete")
@@ -442,7 +443,7 @@ class FleetRunnerBase(object):
 
         params.current_endpoint = os.getenv("POD_IP", "localhost") + ":" + params.pserver_ports
 
-        params.cpu_num = os.getenv("CPU_NUM")
+        params.cpu_num = int(os.getenv("CPU_NUM"))
         logger.info("cpu num: {}".format(params.cpu_num))
 
         # Step2: decide communication mode between PSERVER & TRAINER
