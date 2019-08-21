@@ -41,7 +41,6 @@ class CriteoDataset(Dataset):
 
     def _reader_creator(self, file_list, is_train, trainer_num, trainer_id):
         def reader():
-            print(file_list)
             for file in file_list:
                 with open(file, 'r') as f:
                     print("open file success")

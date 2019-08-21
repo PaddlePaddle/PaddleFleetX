@@ -18,12 +18,19 @@ import os
 import re
 import time
 import numpy as np
+import commands
 import paddle
+import logging
 import paddle.fluid as fluid
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
 from paddle.fluid.transpiler.distribute_transpiler import DistributeTranspilerConfig
 import py_reader_generator as py_reader
+
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("fluid")
+logger.setLevel(logging.INFO)
+
 
 class FleetRunnerBase(object):
     """
@@ -65,102 +72,87 @@ class FleetRunnerBase(object):
         Function run_pserver: Operation method of parameter server
         :param params: the hyper parameters of network
         """
+        # step1: define the role of node, configure communication parameter
         role = role_maker.UserDefinedRoleMaker(
             current_id=params.current_id,
             role=role_maker.Role.SERVER,
             worker_num=params.trainers,
             server_endpoints=params.pserver_endpoints)
-
         fleet.init(role)
-        place = fluid.CPUPlace()
-        exe = fluid.Executor(place)
-        
 
+        # step2: define the input data of network
         reader = None
         inputs = self.input_data(params)
-        feeds = []
         if params.is_pyreader_train:
             reader = self.py_reader(params)
             inputs = fluid.layers.read_file(reader)
         elif not params.is_dataset_train:
             raise ValueError("Program must has Date feed method: is_pyreader_train / is_dataset_train")
 
-        # For the model: ctr-dnn, we use loss,auc,batch_auc to measure the performance of network
+        # step3: define the network
+        # For the model: simnet, we use avg_cost, acc to measure the performance of network
         # Replace it with your network evaluation index,
-        # Oops, function: self.net don't forget return the input_data, we will use it in function: self.run_infer
-        avg_cost, acc, cos_q_pt, _ = self.net(inputs, params)
+        avg_cost, acc, cos_q_pt = self.net(inputs, params)
 
+        # step4: define the optimizer for your model
         # define the optimizer for your model
-        config = DistributeTranspilerConfig()
-        if params.is_dataset_train:
-            config.sync_mode = False
-            config.runtime_split_send_recv = True
-        elif params.is_pyreader_train:
-            config.sync_mode = True
-            config.runtime_split_send_recv = False
-        
         optimizer = fluid.optimizer.Adam(params.learning_rate)
-        optimizer = fleet.distributed_optimizer(optimizer, config)
+        optimizer = fleet.distributed_optimizer(optimizer, self.strategy)
         optimizer.minimize(avg_cost)
 
         fleet.init_server()
         print("PServer init success!")
         fleet.run_server()
 
-    def run_dataset_trainer(self,params): 
+    def run_dataset_trainer(self, params):
         """
         Function run_dataset_trainer: Operation method of training node
         :param params: the hyper parameters of network
 
         """
+        # step1: define the role of node, configure communication parameter
         role = role_maker.UserDefinedRoleMaker(
-                current_id=params.current_id,
-                role=role_maker.Role.WORKER,
-                worker_num=params.trainers,
-                server_endpoints=params.pserver_endpoints)
-
+            current_id=params.current_id,
+            role=role_maker.Role.WORKER,
+            worker_num=params.trainers,
+            server_endpoints=params.pserver_endpoints)
         fleet.init(role)
-        
-        exe = fluid.Executor(fluid.CPUPlace())
+
+        # step2: define the input data of network
         inputs = self.input_data(params)
 
-        # For the model: ctr-dnn, we use loss,auc,batch_auc to measure the performance of network
+        # step3: define the network, same with PSERVER
+        # For the model: simnet, we use avg_cost, acc to measure the performance of network
         # Replace it with your network evaluation index,
-        # Oops, function: self.net don't forget return the input_data, we will use it in function: self.run_infer
-        avg_cost, acc, cos_q_pt, _ = self.net(inputs, params)
+        avg_cost, acc, cos_q_pt = self.net(inputs, params)
 
-        # define the optimizer for your model
-        config = DistributeTranspilerConfig()
-        config.sync_mode = False
-        config.runtime_split_send_recv = True 
+        # step4: define the optimizer for your model
         optimizer = fluid.optimizer.Adam(params.learning_rate)
-        optimizer = fleet.distributed_optimizer(optimizer, config)
-        
+        optimizer = fleet.distributed_optimizer(optimizer, self.strategy)
         optimizer.minimize(avg_cost)
 
+        # step5: define Executor and run startup program
+        exe = fluid.Executor(fluid.CPUPlace())
         fleet.init_worker()
         # No need to exe.run(fluid.default_main_program())
         exe.run(fleet.startup_program)
 
-        CPU_NUM = int(params.cpu_num)
-
-        train_result = {}
-
+        # step6: init dataset reader
         # Notice: Both dataset and py_reader method don't using feed={dict} to input data
         # Paddle Fluid enter data by variable name
         # When we do the definition of the reader, the program has established the workflow
         dataset = self.dataset_reader(inputs, params)
-        file_list = [str(params.train_files_path)+"/%s" % x
-                for x in os.listdir(params.train_files_path)]
+        file_list = [str(params.train_files_path) + "/%s" % x
+                     for x in os.listdir(params.train_files_path)]
         if params.is_local_cluster:
             file_list = fleet.split_files(file_list)
+        logger.info("file list: {}".format(file_list))
+        logger.info('----------------------NO.%s trainer ready----------------' % (params.current_id))
 
-        print("file list: {}".format(file_list))
-        print("start training ...")
-
+        # step7: begin to train your model, good luck
+        train_result = {}
         for epoch in range(params.epochs):
             dataset.set_filelist(file_list)
-            dataset.set_thread(CPU_NUM)
             start_time = time.clock()
             # Notice: function train_from_dataset does not return fetch value
             exe.train_from_dataset(
@@ -172,17 +164,18 @@ class FleetRunnerBase(object):
                 debug=False)
             end_time = time.clock()
             self.record_time(epoch, train_result, end_time - start_time)
+            self.record_memory(epoch, train_result)
+            logger.info("epoch %d finished, use time=%d\n" % ((epoch), end_time - start_time))
+            if params.is_first_trainer:
+                model_path = str(params.model_path) + '/trainer_' + str(params.current_id) + '_epoch_' + str(epoch)
+                fleet.save_persistables(executor=exe, dirname=model_path)
 
-        train_method = '_dataset_train'
-        log_path = str(params.log_path + '/' + str(params.current_id) +
-                       train_method + '.log')
-        with open(log_path, 'w+') as f:
-            f.write(str(train_result))
         if params.is_first_trainer:
+            train_method = '_dataset_train'
             model_path = str(params.model_path + '/final' + train_method)
             fleet.save_persistables(executor=exe, dirname=model_path)
 
-        print("Train Success!")
+        logger.info("Train Success!")
         fleet.stop_worker()
         return train_result
 
@@ -192,70 +185,66 @@ class FleetRunnerBase(object):
         :param params: the hyper parameters of network
 
         """
-        print("run trainer")
-
+        # step1: define the role of node, configure communication parameter
         role = role_maker.UserDefinedRoleMaker(
             current_id=params.current_id,
             role=role_maker.Role.WORKER,
             worker_num=params.trainers,
             server_endpoints=params.pserver_endpoints)
-
-        config = DistributeTranspilerConfig()
-        config.sync_mode = params.sync_mode
         fleet.init(role)
-        
-        exe = fluid.Executor(fluid.CPUPlace())
-        reader = None
-        feeds = []
+
+        # step2: define the input data of network
+        #inputs = self.input_data(params)
         reader = self.py_reader(params)
         inputs = fluid.layers.read_file(reader)
 
-        # For the model: ctr-dnn, we use loss,auc,batch_auc to measure the performance of network
+        # step3: define the network, same with PSERVER
+        # For the model: simnet, we use avg_cost, acc to measure the performance of network
         # Replace it with your network evaluation index,
-        # Oops, function: self.net don't forget return the input_data, we will use it in function: self.run_infer
-        avg_cost, acc, cos_q_pt, _ = self.net(inputs, params)
+        avg_cost, acc, cos_q_pt = self.net(inputs, params)
 
+        # step4: define the optimizer for your model
         # define the optimizer for your model
         optimizer = fluid.optimizer.SGD(params.learning_rate)
-        optimizer = fleet.distributed_optimizer(optimizer, config)
+        optimizer = fleet.distributed_optimizer(optimizer, self.strategy)
         optimizer.minimize(avg_cost)
 
+        # step5: define Executor and run startup program
+        exe = fluid.Executor(fluid.CPUPlace())
         fleet.init_worker()
         # No need to exe.run(fluid.default_main_program())
         exe.run(fleet.startup_program)
 
-        CPU_NUM = int(params.cpu_num)
-        train_result = {}
-
+        # step6: init py_reader reader
         # Notice: Both dataset and py_reader method don't using feed={dict} to input data
         # Paddle Fluid enter data by variable name
         # When we do the definition of the reader, the program has established the workflow
-        file_list = [str(params.train_files_path)+"/%s" % x 
-                for x in os.listdir(params.train_files_path)] 
+        file_list = [str(params.train_files_path) + "/%s" % x
+                     for x in os.listdir(params.train_files_path)]
         if params.is_local_cluster:
             file_list = fleet.split_files(file_list)
-
+        logging.info("file list: {}".format(file_list))
         train_generator = py_reader.get_batch_reader(file_list,
-                                                batch_size=params.batch_size,
-                                                sample_rate=params.sample_rate)
-        
-        print("file list: {}".format(file_list))
-
+                                                     batch_size=params.batch_size,
+                                                     sample_rate=params.sample_rate)
         reader.decorate_paddle_reader(train_generator)
+
+        # step7: define the compiled program
         exec_strategy = fluid.ExecutionStrategy()
         exec_strategy.num_threads = int(params.cpu_num)
         build_strategy = fluid.BuildStrategy()
-        build_strategy.async_mode = params.async_mode
-
-        if CPU_NUM > 1:
+        build_strategy.async_mode = self.async_mode
+        if int(params.cpu_num) > 1:
             build_strategy.reduce_strategy = fluid.BuildStrategy.ReduceStrategy.Reduce
-
         compiled_prog = fluid.compiler.CompiledProgram(
-                fleet.main_program).with_data_parallel(
-                        loss_name=avg_cost.name,
-                        build_strategy=build_strategy,
-                        exec_strategy=exec_strategy)
+            fleet.main_program).with_data_parallel(
+            loss_name=avg_cost.name,
+            build_strategy=build_strategy,
+            exec_strategy=exec_strategy)
+        logger.info('----------------------NO.%s trainer ready----------------' % (params.current_id))
 
+        # step8: begin to train your model, good luck
+        train_result = {}
         for epoch in range(params.epochs):
             # Notice: py_reader should use try & catch EOFException method to enter the dataset
             # reader.start() must declare in advance
@@ -273,10 +262,11 @@ class FleetRunnerBase(object):
                     acc_val = np.mean(acc_val)
                     step_end = time.time()
                     samples = params.batch_size * params.cpu_num
-                    
+
                     if batch_id % 10 == 0 and batch_id != 0:
                         print(
-                            "Epoch: {0}, Step: {1}, Loss: {2}, Accuracy: {3}, Samples/sec: {4} Train total expend: {5}, py_reader.queue.size: {6}".format(
+                            "Epoch: {0}, Step: {1}, Loss: {2}, Accuracy: {3}, Samples/sec: {4} "
+                            "Train total expend: {5}, py_reader.queue.size: {6}".format(
                                 epoch, batch_id, cost_val.mean(), acc_val.mean(),
                                 int(samples / (step_end - step_start)),
                                 step_end - step_start, reader.queue.size()))
@@ -287,18 +277,18 @@ class FleetRunnerBase(object):
 
             end_time = time.clock()
             train_result = self.record_time(epoch, train_result, end_time - start_time)
-
-        train_method = '_pyreader_train'
-        log_path = str(params.log_path + '/' + str(params.current_id) +
-                       train_method + '.log')
-        with open(log_path, 'w+') as f:
-            f.write(str(train_result))
+            train_result = self.record_memory(epoch, train_result)
+            logger.info("epoch %d finished, use time=%d\n" % ((epoch), end_time - start_time))
+            if params.is_first_trainer:
+                model_path = str(params.model_path) + '/trainer_' + str(params.current_id) + '_epoch_' + str(epoch)
+                fleet.save_persistables(executor=exe, dirname=model_path)
 
         if params.is_first_trainer:
+            train_method = '_pyreader_train'
             model_path = str(params.model_path + '/final' + train_method)
-            fleet.save_persistables(exe, model_path)
+            fleet.save_persistables(executor=exe, dirname=model_path)
 
-        print("Train Success!")
+        logger.info("Train Success!")
         fleet.stop_worker()
         return train_result
 
@@ -313,17 +303,17 @@ class FleetRunnerBase(object):
         file_list = [str(params.test_files_path) + "/%s" % x
                      for x in os.listdir(params.test_files_path)]
         test_reader = py_reader.get_infer_batch_reader(file_list,
-                                                     batch_size=params.batch_size,
-                                                     sample_rate=params.sample_rate)
+                                                       batch_size=params.batch_size,
+                                                       sample_rate=params.sample_rate)
         startup_program = fluid.framework.Program()
         test_program = fluid.framework.Program()
 
-        with fluid.framework.program_guard(test_program,startup_program):
+        with fluid.framework.program_guard(test_program, startup_program):
             inputs = self.input_data(params)
-            avg_cost, acc, cos_q_pt, data_list = self.net(inputs, params)
+            avg_cost, acc, cos_q_pt, = self.net(inputs, params)
 
             exe = fluid.Executor(place)
-            feeder = fluid.DataFeeder(feed_list=data_list,place=place)
+            feeder = fluid.DataFeeder(feed_list=inputs, place=place)
 
             train_method = ''
             if params.is_pyreader_train:
@@ -361,9 +351,8 @@ class FleetRunnerBase(object):
             log_path = params.log_path + '/infer_result.log'
             with open(log_path, 'w+') as f:
                 f.write(str(infer_result))
-            print("Inference complete")
         return infer_result
-    
+
     def py_reader(self, params):
         """
         Function py_reader: define the data read method by fluid.layers.py_reader
@@ -373,7 +362,7 @@ class FleetRunnerBase(object):
         """
         raise NotImplementedError(
             "dataset_reader should be implemented by child classes.")
-    
+
     def dataset_reader(self, inputs, params):
         """
         Function dataset_reader: define the data read method by fluid.dataset.DatasetFactory
@@ -393,34 +382,62 @@ class FleetRunnerBase(object):
         train_result[epoch]['time'] = time
         return train_result
 
+    def record_memory(self, epoch, train_result):
+        info = process_info()
+        logger.info(info)
+        train_result[epoch]['memory'] = info['mem']
+        train_result[epoch]['cpu'] = info['cpu']
+        train_result[epoch]['rss'] = info['rss']
+        train_result[epoch]['vsa'] = info['vsa']
+        return train_result
+
     def runtime_main(self, params):
         """
         Function runtime_main: the entry point for program running
         :param params: the hyper parameters of network
         """
-
         # Step1: get the environment variable, mainly related to network communication parameters
         params.role = os.getenv("TRAINING_ROLE")
-        print("Training role: {}".format(params.role))
+        logger.info("Training role: {}".format(params.role))
 
         params.current_id = int(os.getenv("PADDLE_TRAINER_ID"))
-        print("Current Id: {}".format(params.current_id))
+        logger.info("Current Id: {}".format(params.current_id))
 
         params.trainers = int(os.getenv("PADDLE_TRAINERS_NUM"))
-        print("Trainer num: {}".format(params.trainers))
+        logger.info("Trainer num: {}".format(params.trainers))
 
         params.pserver_ports = os.getenv("PADDLE_PORT")
-        print("Pserver ports: {}".format(params.pserver_ports))
+        logger.info("Pserver ports: {}".format(params.pserver_ports))
 
         params.pserver_ip = os.getenv("PADDLE_PSERVERS")
-        print("Pserver IP: {}".format(params.pserver_ip))
+        logger.info("Pserver IP: {}".format(params.pserver_ip))
 
-        params.current_endpoint = os.getenv(
-            "POD_IP", "localhost") + ":" + params.pserver_ports
+        params.current_endpoint = os.getenv("POD_IP", "localhost") + ":" + params.pserver_ports
 
-        params.cpu_num =int(os.getenv("CPU_NUM"))
-        print("output path: {}".format(params.model_path))
+        params.cpu_num = int(os.getenv("CPU_NUM"))
+        logger.info("cpu num: {}".format(params.cpu_num))
 
+        # Step2: decide communication mode between PSERVER & TRAINER
+        # recommended mode: pyreader + sync_mode / dataset + async_mode
+        self.strategy = DistributeTranspilerConfig()
+        if params.sync_mode == 'sync':
+            self.strategy.sync_mode = True
+            self.strategy.runtime_split_send_recv = False
+            self.async_mode = False
+        elif params.sync_mode == 'half_async':
+            self.strategy.sync_mode = False
+            self.async_mode = False
+            self.strategy.runtime_split_send_recv = False
+        elif params.sync_mode == 'async' or params.is_dataset_train:
+            self.strategy.sync_mode = False
+            self.async_mode = True
+            self.strategy.runtime_split_send_recv = True
+
+        # Step3: Configure communication IP and ports
+        # If we use local cluster simulate real distributed environment:
+        # -- PSERVER have same IP but different port
+        # In the real distributed cluster computing environment:
+        # -- PSERVER have same port but different IP
         if params.is_local_cluster:
             for port in params.pserver_ports.split(","):
                 params.pserver_endpoints.append(':'.join(
@@ -431,26 +448,50 @@ class FleetRunnerBase(object):
                     [ip, params.pserver_ports]))
 
         params.endpoints = ",".join(params.pserver_endpoints)
-        print(str(params.pserver_endpoints))
-
+        logger.info("pserver_endpoints: {}".format(params.pserver_endpoints))
 
         if params.role == "TRAINER" and params.current_id == 0:
             params.is_first_trainer = True
-            print("This node is First Trainer")
 
-        # Step2: According to the parameters-> TRAINING_ROLE, decide which method to run
+        # Step4: According to the environment parameters-> TRAINING_ROLE, decide which method to run
+        train_result = {}
         if params.role == "PSERVER":
             self.run_pserver(params)
         elif params.role == "TRAINER":
-            if params.is_pyreader_train:
-                self.run_pyreader_trainer(params)
-            elif params.is_dataset_train:
-                self.run_dataset_trainer(params)
-            else:
-                raise ValueError("Please choice one training method: dataset / pyreader")
+            if params.is_dataset_train:
+                train_result = self.run_dataset_trainer(params)
+            elif params.is_pyreader_train:
+                train_result = self.run_pyreader_trainer(params)
         else:
             raise ValueError("Please choice training role for current node : PSERVER / TRAINER")
 
-        # Step3: If the role is first trainer, after training, perform verification on the test data
+        # Step5: If the role is first trainer, after training, perform verification on the test data
+        result = dict()
+        infer_result = {}
         if params.is_first_trainer:
-            self.run_infer(params)
+            infer_result = self.run_infer(params)
+            result[0] = dict()
+            result[0]['loss'] = infer_result['loss']
+            result[0]['acc'] = infer_result['acc']
+            result[1] = train_result[0]['time']
+        elif params.role == "TRAINER" and params.current_id != 0:
+            result[1] = train_result[0]['time']
+        result_path = params.log_path + '/' + str(params.current_id) + '_result.log'
+        with open(result_path, 'w') as f:
+            f.write(str(result))
+
+        logger.info("Distribute train success!")
+
+
+def process_info():
+    pid = os.getpid()
+    res = commands.getstatusoutput('ps aux|grep ' + str(pid))[1].split('\n')[0]
+    p = re.compile(r'\s+')
+    l = p.split(res)
+    info = {'user': l[0],
+            'pid': l[1],
+            'cpu': l[2],
+            'mem': l[3],
+            'vsa': l[4],
+            'rss': l[5], }
+    return info
