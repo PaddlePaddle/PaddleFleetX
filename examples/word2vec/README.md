@@ -1,9 +1,7 @@
 #  Simnet-bow
 
 ## 模型简介
-
-Simnet-bow是一种衡量文本相似度的神经网络模型, 通过在大规模点击数据上训练，达到衡量query-title语义匹配度的效果.
-2013年，百度搜索成功上线基于海量用户反馈数据的SimNet-BOW语义匹配模型，实现了文本语义匹配特征的自动化提取，这也是深度学习技术首次成功应用于工业级搜索引擎中。此后，深度学习模型作为百度搜索智能化的核心驱动力得到不断完善。百度在数据特性、索引对象建模、模型结构等方面做了大量深入研究，先后自主研发并上线了SimNet-CNN、多域BOW、SimNet-RNN等多个模型，大幅提升了长冷搜索的排序效果。
+本例实现了基于Fleet的分布式skip-gram模式的word2vector模型。为方便快速验证，采用了经典的text8样例数据集。全量数据可参考该实现：https://github.com/PaddlePaddle/models/tree/develop/PaddleRec/word2vec
 
 
 ## 使用方法
@@ -12,11 +10,12 @@ Simnet-bow是一种衡量文本相似度的神经网络模型, 通过在大规�
 - 模型部分
    - model.py
    - argument.py
+   - preprocess.py
 - 数据读取部分
    - py_reader_generator.py  
    - dataset_generator.py
 - 分布式运行部分
-   - dist_continuous_envalauation.py 
+   - distribute_base_.py 
 - 数据下载及程序入口
    - local_cluster.sh
    - get_data.sh
@@ -57,10 +56,11 @@ sh local_cluster.sh dataset async tr
 - 训练结束后默认在0号TRAINER开启预测任务。
 - 训练过程中的结果记录保存在./result。
 - 训练得到的模型保存在./model。
+- 训练中各个节点的日志保存在./log
 - dataset模式目前仅支持运行在Linux环境下。
 - 请确保您的Paddle fluid版本在1.5.0之上。
 - 若频繁结束进程导致分布式训练不能启动时，请更改local_cluster.sh 中的端口，选择没有被占用的端口可以解决该问题。
-
+- 不推荐在windows环境下运行该程序
 
 
 
