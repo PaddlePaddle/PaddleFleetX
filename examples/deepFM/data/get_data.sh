@@ -1,12 +1,5 @@
 #!/bin/bash
-tar zxf aid_data.tar.gz
 
-wget --no-check-certificate https://s3-eu-west-1.amazonaws.com/kaggle-display-advertising-challenge-dataset/dac.tar.gz
-tar zxf dac.tar.gz
-rm -f dac.tar.gz
-
-python preprocess.py
-rm *.txt
-rm -r raw_data
-
+wget --no-check-certificate https://fleet.bj.bcebos.com/criteo_after_preprocessing.tar.gz
+tar zxvf criteo_after_preprocessing.tar.gz
 cp ./aid_data/feat_dict_10.pkl2 ../
