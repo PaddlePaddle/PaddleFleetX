@@ -73,7 +73,7 @@ sh local_cluster.sh dataset async tr
 - 请确保您的Paddle fluid版本在1.5.0之上
 - 在每次结束运行后，建议使用下述命令，手动结束PSERVER的进程。请注意，该命令会同时结束其他python进程。
   >ps -ef|grep python|awk '{print $2}'|xargs kill -9
-
+- 请根据自身系统选择bash命令替换sh
 
 
 
