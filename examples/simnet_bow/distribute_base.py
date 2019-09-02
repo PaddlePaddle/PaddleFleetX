@@ -424,6 +424,7 @@ class FleetRunnerBase(object):
             self.strategy.sync_mode = True
             self.strategy.runtime_split_send_recv = False
             self.async_mode = False
+            params.batch_size = int(params.batch_size / params.trainers)
         elif params.sync_mode == 'half_async':
             self.strategy.sync_mode = False
             self.async_mode = False
