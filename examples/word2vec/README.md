@@ -1,7 +1,8 @@
-#  Simnet-bow
+#  Word2Vec
 
 ## 模型简介
-本例实现了基于Fleet的分布式skip-gram模式的word2vector模型。为方便快速验证，采用了经典的text8样例数据集。全量数据可参考该实现：https://github.com/PaddlePaddle/models/tree/develop/PaddleRec/word2vec
+本例实现了基于Fleet的分布式skip-gram模式的word2vector模型。为方便快速验证，采用了经典的text8样例数据集。全量数据可参考该实现：
+>https://github.com/PaddlePaddle/models/tree/develop/PaddleRec/word2vec
 
 
 ## 使用方法
@@ -59,8 +60,9 @@ sh local_cluster.sh dataset async tr
 - 训练中各个节点的日志保存在./log
 - dataset模式目前仅支持运行在Linux环境下。
 - 请确保您的Paddle fluid版本在1.5.0之上。
-- 若频繁结束进程导致分布式训练不能启动时，请更改local_cluster.sh 中的端口，选择没有被占用的端口可以解决该问题。
-- 不推荐在windows环境下运行该程序
+- 在每次结束运行后，建议使用下述命令，手动结束PSERVER的进程。请注意，该命令会同时结束其他python进程。
+  >ps -ef|grep python|awk '{print $2}'|xargs kill -9
+- 请根据自身系统选择bash命令替换sh
 
 
 

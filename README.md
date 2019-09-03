@@ -256,7 +256,11 @@ from paddle.fluid.incubate.fleet.collective import fleet
 
 - [Click Through Estimation](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/ctr)
 
-- [Semantic Matching](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/semantic_matching)
+- [Distribute CTR](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/distribute_ctr)
+
+- [DeepFM](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/deepFM)
+
+- [Semantic Matching](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/simnet_bow)
 
 - [Word2Vec](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/word2vec)
 
