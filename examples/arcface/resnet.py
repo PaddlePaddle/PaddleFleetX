@@ -4,6 +4,7 @@ import math
 import os
 import numpy as np
 from paddle.fluid import unique_name
+from paddle.fluid.layers import dist_algo
 
 __all__ = ["ResNet_ARCFACE", "ResNet_ARCFACE50", "ResNet_ARCFACE101", "ResNet_ARCFACE152"]
 
@@ -70,10 +71,10 @@ class ResNet_ARCFACE():
         elif loss_type == 'arcface':
             loss = self.arcface(emb, label, class_dim)
         elif loss_type == 'dist_softmax':
-            loss = fluid.layers.collective._distributed_fc_classify(
+            loss = dist_algo._distributed_softmax_classify(
                     x=emb, label=label, class_num=class_dim, nranks=nranks, rank_id=rank_id)
         elif loss_type == 'dist_arcface':
-            loss = fluid.layers.collective._distributed_arcface_classify(
+            loss = dist_algo._distributed_arcface_classify(
                     x=emb, label=label, class_num=class_dim, nranks=nranks, rank_id=rank_id)
         else:
             raise ValueError('Invalid loss type:', loss_type)
@@ -96,15 +97,14 @@ class ResNet_ARCFACE():
         input = fluid.layers.elementwise_div(input, input_norm, axis=0)
 
         weight = fluid.layers.create_parameter(
-                    shape=[out_dim, input.shape[1]], 
+                    shape=[input.shape[1], out_dim], 
                     dtype='float32',
                     name=unique_name.generate('final_fc_w'),
                     attr=fluid.param_attr.ParamAttr(
                         initializer=fluid.initializer.Xavier(uniform=False)))
 
-        weight_norm = fluid.layers.sqrt(fluid.layers.reduce_sum(fluid.layers.square(weight), dim=1))
-        weight = fluid.layers.elementwise_div(weight, weight_norm, axis=0)
-        weight = fluid.layers.transpose(weight, perm=[1, 0])
+        weight_norm = fluid.layers.sqrt(fluid.layers.reduce_sum(fluid.layers.square(weight), dim=0))
+        weight = fluid.layers.elementwise_div(weight, weight_norm, axis=1)
         cos = fluid.layers.mul(input, weight)
 
         theta = fluid.layers.acos(cos)
