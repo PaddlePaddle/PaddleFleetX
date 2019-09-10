@@ -1,6 +1,5 @@
 import os
 import sys
-import math
 import time
 import argparse
 import functools
@@ -11,27 +10,32 @@ import resnet
 import reader
 from verification import evaluate
 from utility import add_arguments, print_arguments
+from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
+import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 from paddle.fluid.transpiler.details.program_utils import program_to_code
 from paddle.fluid.transpiler.collective import DistributedClassificationOptimizer
 
 parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
 # yapf: disable
-add_arg('train_batch_size', int, 512, "Minibatch size.")
-add_arg('test_batch_size', int, 120, "Minibatch size.")
-add_arg('num_epochs', int, 120, "number of epochs.")
-add_arg('image_shape', str, "3,112,112", "input image size")
-add_arg('model_save_dir', str, "output", "model save directory")
-add_arg('pretrained_model', str, None, "Whether to use pretrained model.")
-add_arg('checkpoint', str, None, "Whether to resume checkpoint.")
-add_arg('lr', float, 0.1, "set learning rate.")
-add_arg('model', str, "ResNet_ARCFACE50", "Set the network to use.")
-add_arg('loss', str, "distfc", "Set loss to use.")
-add_arg('margin', float, 0.5, "margin.")
-add_arg('scale', float, 64.0, "scale.")
-add_arg('mode', str, '2', "margin mode.")
-add_arg('with_test', bool, False, "open test mode.")
+add_arg('train_batch_size', int,   512,         "Minibatch size for training.")
+add_arg('test_batch_size',  int,   120,         "Minibatch size for test.")
+add_arg('num_epochs',       int,   120,         "Maximum number of epochs to run.")
+add_arg('image_shape',      str,   "3,112,112", "Input image size in the format of CHW.")
+add_arg('emb_dim',          int,   512,         "Embedding dim size.")
+add_arg('class_dim',        int,   85184,       "Number of classes.")
+add_arg('model_save_dir',   str,   "output",    "Directory to save model.")
+add_arg('pretrained_model', str,   None,        "Directory for pretrained model.")
+add_arg('checkpoint',       str,   None,        "Directory for checkpoint.")
+add_arg('lr',               float, 0.1,         "Initial learning rate.")
+add_arg('model',            str,   "ResNet_ARCFACE50", "Name of the network to use.")
+add_arg('loss_type',        str,   "softmax",   "Type of network loss to use.")
+add_arg('margin',           float, 0.5,         "Parameter of margin for arcface or dist_arcface.")
+add_arg('scale',            float, 64.0,        "Parameter of scale for arcface or dist_arcface.")
+add_arg('mode',             str,   '2',         "Margin mode to use.")
+add_arg('with_test',        bool, False,        "Whether to do test during training.")
 # yapf: enable
+args = parser.parse_args()
 
 model_list = [m for m in dir(resnet) if "__" not in m]
 
@@ -42,11 +46,12 @@ def transpile(startup_prog, train_prog):
     t = fluid.DistributeTranspiler(config=config)
 
     t.transpile(
-        trainer_id=int(os.getenv("PADDLE_TRAINER_ID")),
-        trainers=os.getenv("PADDLE_TRAINER_ENDPOINTS"),
-        current_endpoint=os.getenv("PADDLE_CURRENT_ENDPOINT"),
+        trainer_id=int(os.getenv("PADDLE_TRAINER_ID", 0)),
+        trainers=os.getenv("PADDLE_TRAINER_ENDPOINTS", "127.0.0.1:6170"),
+        current_endpoint=os.getenv("PADDLE_CURRENT_ENDPOINT", "127.0.0.1:6170"),
         startup_program=startup_prog,
         program=train_prog)
+        
 
 def optimizer_setting(params, args):
     ls = params["learning_strategy"]
@@ -63,12 +68,12 @@ def optimizer_setting(params, args):
         momentum=0.9,
         regularization=fluid.regularizer.L2Decay(5e-4))
 
-    if args.loss == "dist_softmax" or args.loss == "dist_arcface":
+    if args.loss_type in ["dist_softmax", "dist_arcface"]:
         wrapper = DistributedClassificationOptimizer(optimizer, params["learning_strategy"]["batch_size"])
-    elif args.loss == "softmax" or args.loss == "arcface":
+    elif args.loss_type in ["softmax", "arcface"]:
         wrapper = optimizer
     else:
-        raise ValueError("Unknown loss type: {}".format(args.loss))
+        raise ValueError("Unknown loss type: {}".format(args.loss_type))
     return wrapper
 
 def train(args):
@@ -80,8 +85,7 @@ def train(args):
 
     image_shape = [int(m) for m in args.image_shape.split(",")]
 
-    trainer_id = int(os.getenv("PADDLE_TRAINER_ID"))
-
+    trainer_id = int(os.getenv("PADDLE_TRAINER_ID", 0))
     assert model_name in model_list, "{} is not in lists: {}".format(args.model, model_list)
 
     image = fluid.layers.data(name='image', shape=image_shape, dtype='float32')
@@ -91,11 +95,28 @@ def train(args):
     model = resnet.__dict__[model_name]()
     emb, loss = model.net(input=image,
                     label=label,
-                    emb_dim=512,
-                    class_dim=85184,
-                    loss_type=args.loss,
+                    emb_dim=args.emb_dim,
+                    class_dim=args.class_dim,
+                    loss_type=args.loss_type,
                     margin=args.margin,
                     scale=args.scale)
+    if args.loss_type in ["dist_softmax", "dist_arcface"]:
+        prob_all = loss.get_info("shard_prob")
+        prob_all = fluid.layers.collective._c_allgather(shard_prob,
+            nranks=worker_num, use_calc_stream=True)
+        prob_list = fluid.layers.split(prob_all, dim=0, num_or_sections=worker_num)
+        prob = fluid.layers.concat(prob_list, axis=1)
+        label_all = fluid.layers.collective._c_allgather(label,
+            nranks=worker_num, use_calc_stream=True)
+        acc1 = fluid.layers.accuracy(input=prob, label=label_all, k=1)
+        acc5 = fluid.layers.accuracy(input=prob, label=label_all, k=5)
+    elif args.loss_type in ["softmax", "arcface"]:
+        prob = loss[1]
+        loss = loss[0]
+        acc1 = fluid.layers.accuracy(input=prob, label=label, k=1)
+        acc5 = fluid.layers.accuracy(input=prob, label=label, k=5)
+    else:
+        raise ValueError("Unknown loss type: {}".format(args.loss))
 
     startup_prog = fluid.default_startup_program()
     train_prog = fluid.default_main_program()
@@ -111,9 +132,9 @@ def train(args):
     optimizer = optimizer_setting(params, args)
     opts = optimizer.minimize(loss)
 
-    if args.loss == "dist_softmax" or args.loss == "dist_arcface":
+    if args.loss_type in ["dist_softmax", "dist_arcface"]:
         global_lr = optimizer._optimizer._global_learning_rate()
-    elif args.loss == "softmax" or args.loss == "arcface":
+    elif args.loss_type in ["softmax", "arcface"]:
         global_lr = optimizer._global_learning_rate()
     else:
         raise ValueError("Unknown loss type: {}".format(args.loss))
@@ -128,7 +149,7 @@ def train(args):
         with open('origin.program', 'w') as fout:
             program_to_code(origin_prog, fout, True)
 
-    gpu_id = int(os.getenv("FLAGS_selected_gpus"))
+    gpu_id = int(os.getenv("FLAGS_selected_gpus", 0))
     place = fluid.CUDAPlace(gpu_id)
     exe = fluid.Executor(place)
     exe.run(startup_prog)
@@ -149,10 +170,10 @@ def train(args):
         test_list, test_name_list = reader.test()
     feeder = fluid.DataFeeder(place=place, feed_list=[image, label])
 
-    fetch_list_train = [loss.name, global_lr.name]
-    fetch_list_test = [emb.name]
+    fetch_list_train = [loss.name, global_lr.name, acc1.name, acc5.name]
+    fetch_list_test = [emb.name, acc1.name, acc5.name]
 
-    num_trainers = int(os.getenv("PADDLE_TRAINERS_NUM"))
+    num_trainers = int(os.getenv("PADDLE_TRAINERS_NUM", 1))
     real_batch_size = args.train_batch_size * num_trainers
     local_time = 0.0
     nsamples = 0
@@ -164,7 +185,7 @@ def train(args):
         for batch_id, data in enumerate(train_reader()):
             nsamples += real_batch_size
             t1 = time.time()
-            loss, lr = exe.run(train_prog,
+            loss, lr, acc1, acc5 = exe.run(train_prog,
                                feed=feeder.feed(data),
                                fetch_list=fetch_list_train,
                                use_program_cache=True)
@@ -178,8 +199,9 @@ def train(args):
             if batch_id % inspect_steps == 0:
                 avg_loss = np.mean(local_train_info[0])
                 avg_lr = np.mean(local_train_info[1])
-                print("Pass:%d batch:%d lr:%f loss:%f qps:%.2f" % (
-                    pass_id, batch_id, avg_lr, avg_loss, nsamples / local_time))
+                print("Pass:%d batch:%d lr:%f loss:%f qps:%.2f acc1:%.4f acc5:%.4f" % (
+                    pass_id, batch_id, avg_lr, avg_loss, nsamples / local_time,
+                    acc1, acc5))
                 local_time = 0
                 nsamples = 0
                 local_train_info = [[], [], [], []]
@@ -199,7 +221,8 @@ def train(args):
                             _data = []
                             for k in xrange(end - args.test_batch_size, end):
                                 _data.append((data[k], 0))
-                            [_embeddings] = exe.run(test_program, fetch_list = fetch_list_test, feed=feeder.feed(_data))
+                            [_embeddings, acc1, acc5] = exe.run(test_program, 
+                                fetch_list = fetch_list_test, feed=feeder.feed(_data))
                             if embeddings is None:
                                 embeddings = np.zeros((data.shape[0], _embeddings.shape[1]))
                             embeddings[beg:end, :] = _embeddings[(args.test_batch_size-count):, :]
@@ -235,7 +258,7 @@ def train(args):
             fluid.io.save_persistables(exe, model_path)
 
 def main():
-    args = parser.parse_args()
+    global args
     print_arguments(args)
     train(args)
 

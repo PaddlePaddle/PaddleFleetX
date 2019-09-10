@@ -20,12 +20,13 @@ BUF_SIZE = 10240
 
 DATA_DIR = "./train_data/"
 TRAIN_LIST = './train_data/label.txt'
-TEST_LIST = 'lfw,cfp_fp,agedb_30,cfp_ff'
-#TEST_LIST = 'lfw'
+#TEST_LIST = 'lfw,cfp_fp,agedb_30,cfp_ff'
+TEST_LIST = 'lfw'
 
 train_list = open(TRAIN_LIST, "r").readlines()
 random.shuffle(train_list)
 train_image_list = []
+lines = train_list
 if os.getenv("PADDLE_TRAINER_ENDPOINTS"):
     trainer_id = int(os.getenv("PADDLE_TRAINER_ID", "0"))
     trainer_count = int(os.getenv("PADDLE_TRAINERS_NUM", "1"))

@@ -63,8 +63,8 @@ class ResNet_ARCFACE():
                 initializer=fluid.initializer.ConstantInitializer()))
         emb = fluid.layers.batch_norm(input=fc, act=None)
 
-        nranks = int(os.getenv("PADDLE_TRAINERS_NUM"))
-        rank_id = int(os.getenv("PADDLE_TRAINER_ID"))
+        nranks = int(os.getenv("PADDLE_TRAINERS_NUM", 1))
+        rank_id = int(os.getenv("PADDLE_TRAINER_ID", 0))
 
         if loss_type == 'softmax':
             loss = self.fc_classify(emb, label, class_dim)
@@ -88,9 +88,10 @@ class ResNet_ARCFACE():
                               param_attr=fluid.param_attr.ParamAttr(
                                   initializer=fluid.initializer.Uniform(-stdv,
                                                                         stdv)))
-        loss = fluid.layers.softmax_with_cross_entropy(logits=out, label=label)
+        loss, prob = fluid.layers.softmax_with_cross_entropy(logits=out, 
+            label=label, return_softmax=True)
         avg_loss = fluid.layers.mean(x=loss)
-        return avg_loss
+        return avg_loss, prob
 
     def arcface(self, input, label, out_dim):
         input_norm = fluid.layers.sqrt(fluid.layers.reduce_sum(fluid.layers.square(input), dim=1))
@@ -114,12 +115,13 @@ class ResNet_ARCFACE():
         target_cos = cos + diff
         logit = fluid.layers.scale(target_cos, scale=64.)
 
-        loss = fluid.layers.softmax_with_cross_entropy(logits=logit, label=label)
+        loss, prob = fluid.layers.softmax_with_cross_entropy(logits=logit, 
+            label=label, return_softmax=True)
         avg_loss = fluid.layers.mean(x=loss)
 
         one_hot.stop_gradient = True
 
-        return avg_loss
+        return avg_loss, prob
 
     def conv_bn_layer(self,
                       input,
