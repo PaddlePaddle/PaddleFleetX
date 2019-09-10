@@ -69,11 +69,10 @@ def optimizer_setting(params, args):
         regularization=fluid.regularizer.L2Decay(5e-4))
 
     if args.loss_type in ["dist_softmax", "dist_arcface"]:
-        wrapper = DistributedClassificationOptimizer(optimizer, params["learning_strategy"]["batch_size"])
+        wrapper = DistributedClassificationOptimizer(
+            optimizer, params["learning_strategy"]["batch_size"])
     elif args.loss_type in ["softmax", "arcface"]:
         wrapper = optimizer
-    else:
-        raise ValueError("Unknown loss type: {}".format(args.loss_type))
     return wrapper
 
 def train(args):
@@ -86,6 +85,7 @@ def train(args):
     image_shape = [int(m) for m in args.image_shape.split(",")]
 
     trainer_id = int(os.getenv("PADDLE_TRAINER_ID", 0))
+    worker_num = int(os.getenv("PADDLE_TRAINERS_NUM", 1))
     assert model_name in model_list, "{} is not in lists: {}".format(args.model, model_list)
 
     image = fluid.layers.data(name='image', shape=image_shape, dtype='float32')
@@ -101,7 +101,7 @@ def train(args):
                     margin=args.margin,
                     scale=args.scale)
     if args.loss_type in ["dist_softmax", "dist_arcface"]:
-        prob_all = loss.get_info("shard_prob")
+        shard_prob = loss._get_info("shard_prob")
         prob_all = fluid.layers.collective._c_allgather(shard_prob,
             nranks=worker_num, use_calc_stream=True)
         prob_list = fluid.layers.split(prob_all, dim=0, num_or_sections=worker_num)
@@ -115,8 +115,6 @@ def train(args):
         loss = loss[0]
         acc1 = fluid.layers.accuracy(input=prob, label=label, k=1)
         acc5 = fluid.layers.accuracy(input=prob, label=label, k=5)
-    else:
-        raise ValueError("Unknown loss type: {}".format(args.loss))
 
     startup_prog = fluid.default_startup_program()
     train_prog = fluid.default_main_program()
@@ -136,8 +134,6 @@ def train(args):
         global_lr = optimizer._optimizer._global_learning_rate()
     elif args.loss_type in ["softmax", "arcface"]:
         global_lr = optimizer._global_learning_rate()
-    else:
-        raise ValueError("Unknown loss type: {}".format(args.loss))
 
     origin_prog = train_prog.clone()
     transpile(startup_prog, train_prog)
@@ -259,6 +255,8 @@ def train(args):
 
 def main():
     global args
+    assert args.loss_type in ["softmax", "arcface", "dist_softmax", "dist_arcface"], \
+        "Unknown loss type: {}".format(args.loss_type)
     print_arguments(args)
     train(args)
 
