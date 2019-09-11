@@ -9,17 +9,13 @@ def nccl2_prepare(args, startup_program, main_program):
     trainer_endpoints = os.getenv("PADDLE_TRAINER_ENDPOINTS", "127.0.0.1:6170")
 
     config = fluid.DistributeTranspilerConfig()
-    # config.use_hierarchical_allreduce = True
-    # config.hierarchical_allreduce_inter_nranks = 8
     config.mode = "nccl2"
     if args.nccl_comm_num > 1:
         config.nccl_comm_num = args.nccl_comm_num
     trainers_num = len(trainer_endpoints.split(','))
-    if args.use_hierarchical_allreduce and trainers_num > args.hierarchical_allreduce_inter_nranks:
-        config.use_hierarchical_allreduce = args.use_hierarchical_allreduce
+    if args.use_hallreduce and trainers_num > 8:
+        config.use_hierarchical_allreduce = args.use_hallreduce
         config.hierarchical_allreduce_inter_nranks = 8
-        if config.hierarchical_allreduce_inter_nranks > 1:
-            config.hierarchical_allreduce_inter_nranks = args.hierarchical_allreduce_inter_nranks
 
         assert config.hierarchical_allreduce_inter_nranks > 1
         assert trainers_num % config.hierarchical_allreduce_inter_nranks == 0
