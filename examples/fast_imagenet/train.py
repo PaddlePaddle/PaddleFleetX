@@ -95,7 +95,6 @@ def test_single(exe, test_args, reader, feeder, prog=None):
 
 def build_program(args, is_train, main_program, startup_program, sz, bs):
     img_shape = [3, sz, sz]
-    class_num = args.class_num
     pyreader = None
     with fluid.program_guard(main_program, startup_program):
         with fluid.unique_name.guard():
@@ -112,25 +111,20 @@ def build_program(args, is_train, main_program, startup_program, sz, bs):
                     name="image", shape=[3, 244, 244], dtype="uint8")
                 label = fluid.layers.data(
                     name="label", shape=[1], dtype="int64")
-            cast_img_type = "float16" if args.fp16 else "float32"
-            cast = fluid.layers.cast(img, cast_img_type)
+            cast_type = "float16" if args.fp16 else "float32"
+            casted_img = fluid.layers.cast(img, cast_type)
             img_mean = fluid.layers.create_global_var(
-                [3, 1, 1], 0.0, cast_img_type, 
-                name="img_mean", persistable=True)
+                [3, 1, 1], 0.0, cast_type, name="img_mean", persistable=True)
             img_std = fluid.layers.create_global_var(
-                [3, 1, 1], 0.0, cast_img_type, 
-                name="img_std", persistable=True)
-            t1 = fluid.layers.elementwise_sub(cast, img_mean, axis=1)
+                [3, 1, 1], 0.0, cast_type, name="img_std", persistable=True)
+            t1 = fluid.layers.elementwise_sub(casted_img, img_mean, axis=1)
             t2 = fluid.layers.elementwise_div(t1, img_std, axis=1)
 
             model = FastImageNet(is_train=is_train)
-            predict = model.net(t2, class_dim=class_num)
+            logit = model.net(t2, class_dim=args.class_num)
             cost, prob = fluid.layers.softmax_with_cross_entropy(
-                predict, label, return_softmax=True)
-            if args.scale_loss > 1.0:
-                avg_cost = fluid.layers.mean(x=cost) * args.scale_loss
-            else:
-                avg_cost = fluid.layers.mean(x=cost)
+                logit, label, return_softmax=True)
+            avg_cost = fluid.layers.mean(x=cost) * args.scale_loss
 
             batch_acc1 = fluid.layers.accuracy(input=prob, label=label, k=1)
             batch_acc5 = fluid.layers.accuracy(input=prob, label=label, k=5)
@@ -507,6 +501,8 @@ def main():
     global args
     print_arguments(args)
     print_paddle_environments()
+    if args.scale_loss > 1.0 and not args.fp16:
+        print("Warning: Are you sure to set loss scaling for fp32 training!")
     args.dist_env = dist_env()
 
     args.epochs = [(0, args.sep_epoch), (args.sep_epoch, 13),
