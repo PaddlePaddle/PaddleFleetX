@@ -34,7 +34,7 @@ import functools
 from fast_imagenet import FastImageNet, lr_decay
 import utils
 from env import dist_env
-# from dist_utils import nccl2_prepare
+from dist_utils import nccl2_prepare
 
 
 parser = argparse.ArgumentParser(
@@ -124,14 +124,13 @@ def build_program(args, is_train, main_program, startup_program, sz, bs):
             t2 = fluid.layers.elementwise_div(t1, img_std, axis=1)
 
             model = FastImageNet(is_train=is_train)
-            predict = model.net(t2, class_dim=class_num, img_size=sz)
+            predict = model.net(t2, class_dim=class_num)
             cost, prob = fluid.layers.softmax_with_cross_entropy(
                 predict, label, return_softmax=True)
-            # if args.scale_loss > 1.0:
-            #     avg_cost = fluid.layers.mean(x=cost) * args.scale_loss
-            # else:
-            #     avg_cost = fluid.layers.mean(x=cost)
-            avg_cost = fluid.layers.mean(x=cost)
+            if args.scale_loss > 1.0:
+                avg_cost = fluid.layers.mean(x=cost) * args.scale_loss
+            else:
+                avg_cost = fluid.layers.mean(x=cost)
 
             batch_acc1 = fluid.layers.accuracy(input=prob, label=label, k=1)
             batch_acc5 = fluid.layers.accuracy(input=prob, label=label, k=5)
@@ -183,19 +182,18 @@ def build_program(args, is_train, main_program, startup_program, sz, bs):
                     #     boundaries=boundaries, values=values),
                     learning_rate=utils.lr_linear(
                         step_bounds, lrs),
-                    momentum=0.9,
-                    regularization=fluid.regularizer.L2Decay(1e-4))
+                    momentum=0.9)
                 if args.fp16:
-                    # params_grads = optimizer.backward(avg_cost)
-                    # master_params_grads = utils.create_master_params_grads(
-                    #     params_grads, main_program, startup_program, args.scale_loss)
-                    # optimizer.apply_gradients(master_params_grads)
-                    # utils.master_param_to_train_param(master_params_grads,
-                    #                                   params_grads, main_program)
-                    optimizer = decorate(optimizer, 
-                        init_loss_scaling=args.scale_loss, 
-                        use_dynamic_loss_scaling=False)
-                    optimizer.minimize(avg_cost)
+                    params_grads = optimizer.backward(avg_cost)
+                    master_params_grads = utils.create_master_params_grads(
+                        params_grads, main_program, startup_program, args.scale_loss)
+                    optimizer.apply_gradients(master_params_grads)
+                    utils.master_param_to_train_param(master_params_grads,
+                                                      params_grads, main_program)
+                    #optimizer = decorate(optimizer, 
+                    #    init_loss_scaling=args.scale_loss, 
+                    #    use_dynamic_loss_scaling=False)
+                    #optimizer.minimize(avg_cost)
                 else:
                     optimizer.minimize(avg_cost)
 
