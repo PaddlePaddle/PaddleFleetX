@@ -34,7 +34,7 @@ class FastImageNet():
         self.layers = layers
         self.is_train = is_train
 
-    def net(self, input, class_dim=1000, img_size=224, is_train=True):
+    def net(self, input, class_dim=1000, is_train=True):
         layers = self.layers
         supported_layers = [50, 101, 152]
         assert layers in supported_layers, \
@@ -63,9 +63,8 @@ class FastImageNet():
                     input=conv,
                     num_filters=num_filters[block],
                     stride=2 if i == 0 and block != 0 else 1)
-        pool_size = int(img_size / 32)
         pool = fluid.layers.pool2d(
-            input=conv, pool_size=pool_size, pool_type='avg', global_pooling=True)
+            input=conv, pool_size=1, pool_type='avg', global_pooling=True)
         out = fluid.layers.fc(input=pool,
                               size=class_dim,
                               act=None,

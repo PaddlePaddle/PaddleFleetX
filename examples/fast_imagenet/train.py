@@ -37,42 +37,41 @@ from env import dist_env
 # from dist_utils import nccl2_prepare
 
 
-def parse_args():
-    # yapf: disable
-    parser = argparse.ArgumentParser(description="Train ImageNet in tens of minutes.")
-    add_arg = functools.partial(add_arguments, argparser=parser)
-    add_arg('total_images',     int,   1281167,              "Total number of training images.")
-    add_arg('num_epochs',       int,   120,                  "Maximum number of epochs to train.")
-    add_arg('model_save_dir',   str,   "output",             "Directory to save models.")
-    add_arg('lr',               float, 1.0,                  "Initial learning rate.")
-    add_arg('bs_decay',         float, 0.8,                  "Batch size decay.")
-    add_arg('bs0',              int,   224,                  "Batch size for the first phase.")
-    add_arg('bs1',              int,   96,                   "Batch size for the second phase.")
-    add_arg('bs2',              int,   50,                   "Batch size for the third phase.")
-    add_arg('data_dir',         str,   "dataset/",           "Directory for dataset.")
-    add_arg('fp16',             bool,  False,                "Enable half precision training with fp16.")
-    add_arg('sep_epoch',        int,   7,                    "The separation epoch in the first phase.")
-    add_arg('sep_epoch2',       int,   22,                   "The separation epoch in the second phase.")
-    add_arg('lr_scale',         float, 2.0,                  "LR scaling factor.")
-    add_arg('scale_loss',       float, 128.0,                "Scale loss for fp16.")
-    add_arg('use_fake_data',    bool,  False,                "Whether to use fake data for training to test performance.")
-    add_arg('start_test_pass',  int,   0,                    "At which pass to start test.")
-    add_arg('log_period',       int,   30,                   "How often to print a log, default is 30.")
-    add_arg('best_acc5',        float, 0.93,                 "The best acc5, default is 93%.")
-    add_arg('nccl_comm_num',    int,   1,                    "Number of NCCL communicators.")
-    add_arg("hierarchical_allreduce_inter_nranks", int, 8,   "Hierarchical allreduce inter ranks.")
-    add_arg("use_hierarchical_allreduce", bool, False,       "Use hierarchical allreduce or not.")
-    add_arg("enable_backward_op_deps", bool, True,           "Whether to use enable_backward_op_deps.")
-    add_arg("fuse",             bool,   False,               "Whether to use fusion.")
-    add_arg("profile",          bool,   False,               "Whether to profile performance.")
-    add_arg("start_profile_batch", int, 10,                  "After which batch to start profiling.")
-    add_arg("stop_profile_batch",  int, 16,                  "After which batch to stop profiling.")
-    # yapf: enable
-    args = parser.parse_args()
-    return args
+parser = argparse.ArgumentParser(
+    description="Train ImageNet in tens of minutes.")
+# yapf: disable
+add_arg = functools.partial(add_arguments, argparser=parser)
+add_arg('total_images',     int,   1281167,            "Total number of training images.")
+add_arg('num_epochs',       int,   120,                "Maximum number of epochs to train.")
+add_arg('class_num',        int,   1000,               "Number of classes.")
+add_arg('model_save_dir',   str,   "output",           "Directory to save models.")
+add_arg('lr',               float, 1.0,                "Initial learning rate.")
+add_arg('bs_decay',         float, 0.8,                "Batch size decay.")
+add_arg('bs0',              int,   224,                "Batch size for the first phase.")
+add_arg('bs1',              int,   96,                 "Batch size for the second phase.")
+add_arg('bs2',              int,   50,                 "Batch size for the third phase.")
+add_arg('data_dir',         str,   "dataset/",         "Directory for dataset.")
+add_arg('fp16',             bool,  False,              "Enable half precision training with fp16.")
+add_arg('sep_epoch',        int,   7,                  "The separation epoch in the first phase.")
+add_arg('sep_epoch2',       int,   22,                 "The separation epoch in the second phase.")
+add_arg('lr_scale',         float, 2.0,                "LR scaling factor.")
+add_arg('scale_loss',       float, 128.0,              "Scale loss for fp16.")
+add_arg('use_fake_data',    bool,  False,              "Whether to use fake data for training to test performance.")
+add_arg('start_test_pass',  int,   0,                  "At which pass to start test.")
+add_arg('log_period',       int,   30,                 "How often to print a log, default is 30.")
+add_arg('best_acc5',        float, 0.93,               "The best acc5 used to stop training early, default is 93%.")
+add_arg('nccl_comm_num',    int,   1,                  "Number of NCCL communicators.")
+add_arg("use_hallreduce",   bool,  False,              "Use hierarchical allreduce or not.")
+add_arg("use_backward_dep", bool,  True,               "Whether to use enable_backward_op_deps.")
+add_arg("fuse",             bool,  False,              "Whether to use fusion.")
+add_arg("profile",          bool,  False,              "Whether to profile performance.")
+add_arg("start_pf_batch",   int,   10,                 "After which batch to start profiling.")
+add_arg("stop_pf_batch",    int,   16,                 "After which batch to stop profiling.")
+# yapf: enable
+args = parser.parse_args()
 
 
-def test_single(exe, test_args, reader, feeder, bs, prog):
+def test_single(exe, test_args, reader, feeder, prog=None):
     acc_evaluators = []
     for _ in range(len(test_args[1])):
         acc_evaluators.append(fluid.metrics.Accuracy())
@@ -82,8 +81,8 @@ def test_single(exe, test_args, reader, feeder, bs, prog):
     num_samples = 0
     for batch_id, data in enumerate(reader()):
         weight = len(data)
-        acc_results = exe.run(prog, fetch_list=to_fetch, feed=feeder.feed(data))
-        #acc_results = exe.run(fetch_list=to_fetch, feed=feeder.feed(data))
+        #acc_results = exe.run(prog, fetch_list=to_fetch, feed=feeder.feed(data))
+        acc_results = exe.run(fetch_list=to_fetch, feed=feeder.feed(data))
         ret_result = [np.mean(np.array(ret)) for ret in acc_results]
         print("Test batch: [%d], acc_result: [%s]" % (batch_id, ret_result))
         for i, e in enumerate(acc_evaluators):
@@ -94,15 +93,9 @@ def test_single(exe, test_args, reader, feeder, bs, prog):
     return [e.eval() for e in acc_evaluators]
 
 
-def build_program(args,
-                  is_train,
-                  main_program,
-                  startup_program,
-                  sz,
-                  bs):
-
+def build_program(args, is_train, main_program, startup_program, sz, bs):
     img_shape = [3, sz, sz]
-    class_num = 1000
+    class_num = args.class_num
     pyreader = None
     with fluid.program_guard(main_program, startup_program):
         with fluid.unique_name.guard():
@@ -111,12 +104,10 @@ def build_program(args,
                     capacity=bs,
                     shapes=([-1] + img_shape, (-1, 1)),
                     dtypes=('uint8', 'int64'),
-                    name="train_reader_" + str(sz)
-                    if is_train else "test_reader_" + str(sz),
+                    name="train_reader_" + str(sz),
                     use_double_buffer=True)
                 img, label = fluid.layers.read_file(pyreader)
             else:
-                # FIXME: for testing, why the shape is [3, 244, 244]
                 img = fluid.layers.data(
                     name="image", shape=[3, 244, 244], dtype="uint8")
                 label = fluid.layers.data(
@@ -293,7 +284,7 @@ def refresh_program(args, sz, bs, val_bs):
     strategy.use_experimental_executor = True
     build_strategy = fluid.BuildStrategy()
     build_strategy.enable_inplace = True
-    build_strategy.enable_backward_optimizer_op_deps = args.enable_backward_op_deps
+    build_strategy.enable_backward_optimizer_op_deps = args.use_backward_dep
     build_strategy.reduce_strategy = fluid.BuildStrategy(
     ).ReduceStrategy.AllReduce
     if args.fuse:
@@ -436,9 +427,9 @@ def train_parallel(args):
             fetch_ret = []
             gpu_id = int(os.getenv("FLAGS_selected_gpus"))
             try:
-                if args.profile and gpu_id == 0 and iters == args.start_profile_batch and epoch_id in [0, 13, 25]:
+                if args.profile and gpu_id == 0 and iters == args.start_pf_batch and epoch_id in [0, 13, 25]:
                     profiler.start_profiler("All")
-                elif args.profile and gpu_id == 0 and iters == args.stop_profile_batch and epoch_id in [0, 13, 25]:
+                elif args.profile and gpu_id == 0 and iters == args.stop_pf_batch and epoch_id in [0, 13, 25]:
                     profiler.stop_profiler("total", "./profile_lilong_%d" % epoch_id)
                 if should_print:
                     fetch_ret = exe.run(fetch_list)
@@ -486,8 +477,8 @@ def train_parallel(args):
                 gpu_id = int(os.getenv("FLAGS_selected_gpus"))
             test_feeder = fluid.DataFeeder(
                 feed_list=feed_list, place=fluid.CUDAPlace(gpu_id))
-            test_ret = test_single(startup_exe, test_args, test_reader, test_feeder, val_bs, test_program)
-            #test_ret = test_single(test_exe, test_args, test_reader, test_feeder, val_bs, test_program)
+            test_ret = test_single(startup_exe, test_args, test_reader, test_feeder, test_program)
+            #test_ret = test_single(test_exe, test_args, test_reader, test_feeder)
             test_acc1, test_acc5 = [np.mean(np.array(v)) for v in test_ret]
             print("Epoch: %d, Test Accuracy: %s, Spend %.2f hours\n" %
                   (epoch_id, [test_acc1, test_acc5], (time.time() - over_all_start) / 3600))
@@ -515,7 +506,7 @@ def print_paddle_environments():
 
 
 def main():
-    args = parse_args()
+    global args
     print_arguments(args)
     print_paddle_environments()
     args.dist_env = dist_env()
