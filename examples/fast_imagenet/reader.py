@@ -1,10 +1,9 @@
 from __future__ import division
-import os
 
+import os
 import numpy as np
 import math
 import random
-
 import pickle
 import time
 import multiprocessing

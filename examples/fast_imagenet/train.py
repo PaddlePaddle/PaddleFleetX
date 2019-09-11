@@ -142,19 +142,6 @@ def build_program(args, is_train, main_program, startup_program, sz, bs):
                     lr = 2.0
                 print("initial lr: {}.".format(lr))
 
-                # epochs = [(0, args.sep_epoch), (args.sep_epoch, 13),
-                #           (13, 22), (22, 25), (25, 28)]
-                # bs_epoch = [int(bs * num_trainers * args.bs_decay) for bs in [224, 224, 96, 96, 50]]
-                # bs_orig = [args.bs0, args.bs0, args.bs1, args.bs1, args.bs2]
-                # bs_list = [int(bs * args.bs_decay) for bs in bs_orig]
-                # bs_epoch = [int(bs * num_trainers * args.bs_decay) for bs in [256, 256, 96, 96, 64]]
-                # bs_epoch = [bs * num_trainers for bs in [112, 112, 48, 48, 25]]
-                # bs_scale = [bs * 1.0 / bs_list[0] for bs in bs_orig]
-                # lrs = [(lr, lr * 2), (lr * 2, lr / 4),
-                #        (lr * bs_scale[2], lr / 10 * bs_scale[2]),
-                #        (lr / 10 * bs_scale[2], lr / 100 * bs_scale[2]),
-                #        (lr / 100 * bs_scale[4], lr / 1000 * bs_scale[4]),
-                #        lr / 1000 * bs_scale[4]]
                 lrs = [(lr, lr*args.lr_scale), (lr*args.lr_scale, lr),
                        (lr*args.bs_scale[2], lr/10 * args.bs_scale[2]),
                        (lr/10*args.bs_scale[2], lr/100*args.bs_scale[2]),
@@ -191,37 +178,21 @@ def build_program(args, is_train, main_program, startup_program, sz, bs):
                 else:
                     optimizer.minimize(avg_cost)
 
-    # print("py_reader_startup_program:")
-    # program_to_code(py_reader_startup_program)
-    # print("startup_program:")
-    # program_to_code(startup_program)
-    # print("main_program:")
-    # program_to_code(main_program)
-    # exit()
-
+    with open("startup_program", "w") as f:
+        program_to_code(startup_program, fout=f)
+    with open("main_program", "w") as f:
+        program_to_code(main_program, fout=f)
     return avg_cost, [batch_acc1, batch_acc5], pyreader
 
 
 def refresh_program(args, sz, bs, val_bs):
-    train_program = fluid.Program()
-    test_program = fluid.Program()
-    startup_program = fluid.Program()
+    train_prog = fluid.Program()
+    test_prog = fluid.Program()
+    startup_prog = fluid.Program()
 
-    train_args = build_program(
-        args,
-        True,
-        train_program,
-        startup_program,
-        sz,
-        bs)
+    train_args = build_program(args, True, train_prog, startup_prog, sz, bs)
 
-    test_args = build_program(
-        args,
-        False,
-        test_program,
-        startup_program,
-        sz,
-        val_bs)
+    test_args = build_program(args, False, test_prog, startup_prog, sz, val_bs)
 
     gpu_id = 0
     if os.getenv("FLAGS_selected_gpus"):
@@ -229,11 +200,11 @@ def refresh_program(args, sz, bs, val_bs):
     place = fluid.CUDAPlace(gpu_id)
     startup_exe = fluid.Executor(place)
 
-    nccl2_prepare(args, startup_program, main_program=train_program)
+    nccl2_prepare(args, startup_prog, main_program=train_prog)
 
-    startup_exe.run(startup_program)
+    startup_exe.run(startup_prog)
     conv2d_w_vars = [
-        var for var in startup_program.global_block().vars.values()
+        var for var in startup_prog.global_block().vars.values()
         if var.name.startswith('conv2d_')
     ]
     for var in conv2d_w_vars:
@@ -250,8 +221,7 @@ def refresh_program(args, sz, bs, val_bs):
         kaiming_np = np.random.normal(0, std, var.shape)
         tensor = fluid.global_scope().find_var(var.name).get_tensor()
         if args.fp16 and ".master" not in var.name:
-            tensor.set(np.array(
-                kaiming_np, dtype="float16").view(np.uint16),
+            tensor.set(np.array(kaiming_np, dtype="float16").view(np.uint16),
                 place)
         else:
             tensor.set(np.array(kaiming_np, dtype="float32"), place)
@@ -291,7 +261,7 @@ def refresh_program(args, sz, bs, val_bs):
     train_exe = fluid.ParallelExecutor(
         True,
         avg_loss.name,
-        main_program=train_program,
+        main_program=train_prog,
         exec_strategy=strategy,
         build_strategy=build_strategy,
         num_trainers=num_trainers,
@@ -306,17 +276,15 @@ def refresh_program(args, sz, bs, val_bs):
         #).ReduceStrategy.AllReduce
         test_exe = fluid.ParallelExecutor(
             True,
-            main_program=test_program,
+            main_program=test_prog,
             share_vars_from=train_exe,
-            #exec_strategy=strategy,
-            #build_strategy=build_strategy,
             exec_strategy=None,
             build_strategy=None,
             num_trainers=1,
             trainer_id=0)
     # test_exe = startup_exe
 
-    return train_args, test_args, test_program, train_exe, test_exe, startup_exe, train_program
+    return train_args, test_args, test_prog, train_exe, test_exe, startup_exe, train_prog
 
 
 def prepare_reader(epoch_id, train_py_reader, train_bs, val_bs, trn_dir,
@@ -380,7 +348,7 @@ def train_parallel(args):
         elif epoch_id == 25:
             #bs = 50
             bs = args.bs2
-            val_bs = 64
+            val_bs = 8
             trn_dir = ""
             img_dim = 288
             min_scale = 0.5
@@ -469,7 +437,7 @@ def train_parallel(args):
                 gpu_id = int(os.getenv("FLAGS_selected_gpus"))
             test_feeder = fluid.DataFeeder(
                 feed_list=feed_list, place=fluid.CUDAPlace(gpu_id))
-            #test_ret = test_single(startup_exe, test_args, test_reader, test_feeder, test_program)
+            #test_ret = test_single(startup_exe, test_args, test_reader, test_feeder, test_prog)
             test_ret = test_single(test_exe, test_args, test_reader, test_feeder)
             test_acc1, test_acc5 = [np.mean(np.array(v)) for v in test_ret]
             print("Epoch: %d, Test Accuracy: %s, Spend %.2f hours\n" %
