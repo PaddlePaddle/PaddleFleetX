@@ -10,24 +10,14 @@ export FLAGS_fuse_parameter_groups_size=50
 
 FP16=True
 LR=1.0
-PROFILE=False
 SCALE_LOSS=128.0
-BS_DECAY=1.0
-LOGDIR="mylog_fp${FP16}_p${PROFILE}_bs${BS_DECAY}"
+LOGDIR="mylog_fp${FP16}_p${PROFILE}"
 python -m paddle.distributed.launch ${config} \
   --selected_gpus="0,1,2,3,4,5,6,7" \
   --log_dir=${LOGDIR} \
   train.py --data_dir=/ssd2/lilong/fast_resnet_data/ \
-  --bs_decay=${BS_DECAY} \
-  --bs0=224 \
-  --bs1=96 \
-  --bs2=50 \
   --num_epochs=28 --lr=${LR} --fp16=${FP16} \
   --scale_loss=${SCALE_LOSS} \
-  --start_test_pass=0 --log_period=100 --nccl_comm_num=1 \
-  --use_hallreduce=False \
-  --use_backward_dep=True \
+  --start_test_pass=25 --log_period=100 --nccl_comm_num=1 \
   --fuse=True \
-  --profile=False \
-  --start_pf_batch=10 \
-  --stop_pf_batch=16
+  --profile=False 
