@@ -179,6 +179,9 @@ def train(args):
         train_info = [[], [], [], []]
         local_train_info = [[], [], [], []]
         for batch_id, data in enumerate(train_reader()):
+            label = data[1]
+            assert label < args.class_dim, \
+                "number of classes of train dataset should be less than the class_dim user specified."
             nsamples += real_batch_size
             t1 = time.time()
             loss, lr, acc1, acc5 = exe.run(train_prog,
