@@ -17,13 +17,13 @@ https://github.com/PaddlePaddle/Fleet/tree/develop/examples/distribute_ctr
 sh prepare_data.sh
 ```
 2. 单机非分布式
-* 训练，运行命令如下，首先创建checkpoint和log保存目录，然后运行ctr_dnn_local.py文件
+* 训练，运行命令如下，首先创建单机checkpoint和log保存目录，然后运行ctr_dnn_local.py文件。此后可以通过命令```tail -f log/local/local.log```查看训练日志
 ```
 mkdir -p output/checkpoint/local
 mkdir -p log/local
 python -u ctr_dnn_local.py &> log/local/local.log &
 ```
-* 预测
+* 预测，运行命令如下，首先创建预测日志和结果存放目录，然后执行eval.py进行预测，其中```task_mode```可以自行命名，用以区分不同任务模式，最终得到的预测日志文件和预测结果文件均以此命名，本示例中单机模式命名为```local```。```checkpoint_path```为训练checkpoint文件存放的路径，```result_path```则为保存结果文件的目录。最终预测任务产出为两个文件，一个是存放在evals/logs目录下以task_mode命名的日志文件，一个是存放在evals/results目录下以task_mode命名的结果json文件。
 ```
 mkdir -p evals/logs
 mkdir -p evals/results
@@ -35,7 +35,7 @@ python -u eval.py --task_mode=local --checkpoint_path=output/checkpoint/local --
 ```
 sh local_cluster.sh async
 ```
-* 预测
+* 预测，用法同单机非分布式预测。
 ```
 mkdir -p evals/logs
 mkdir -p evals/results
