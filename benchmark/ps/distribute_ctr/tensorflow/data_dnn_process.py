@@ -69,7 +69,7 @@ if __name__ == '__main__':
     dataset = CriteoDataset(sparse_feature_dim)
     raw_suffix = '_raw'
     processed_suffix = '_processed'
-    directory = ['./train_data', './test_data']
+    directory = ['./train_data']
     for _ in directory:
         dir_ = _ + raw_suffix
         print("process %s" % dir_)
