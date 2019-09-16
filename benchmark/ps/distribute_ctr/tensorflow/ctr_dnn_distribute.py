@@ -197,6 +197,7 @@ def main(_):
                 try:
                     batch_id = 0
                     total_time = 0.0
+                    last_global_step = sess.run([global_step])
                     while True:
                         start_time = time.time()
                         _, auc_v, update_op_v, loss_v, step = sess.run([train_op, train_auc, train_update_op, avg_cost, global_step])
@@ -204,7 +205,8 @@ def main(_):
                         total_time += end_time - start_time
                         batch_id += 1
                         if (batch_id - 1) % 100 == 0:
-                            print_log("step: %d, local step: %d, auc: %f, loss: %f, speed: %f secs/batch" % (step, batch_id, auc_v, loss_v, total_time / float(batch_id)))
+                            print_log("step: %d, local step: %d, auc: %f, loss: %f, speed: %f secs/batch" % (step, batch_id, auc_v, loss_v, total_time / float(step - last_global_step)))
+                            last_global_step = step
                 except tf.errors.OutOfRangeError:
                     print("there are a total of %d batchs" % step)
    
