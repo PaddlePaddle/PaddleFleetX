@@ -32,7 +32,7 @@ tf.app.flags.DEFINE_integer("dense_nums", 13, "dense feature num")
 tf.app.flags.DEFINE_integer("slot_nums", 26, "sparse feature num")
 
 tf.app.flags.DEFINE_string("test_data_dir", 'test_data', "test data dir")
-tf.app.flagsdd.DEFINE_string("task_mode", '', "task_mode")
+tf.app.flags.DEFINE_string("task_mode", '', "task_mode")
 tf.app.flags.DEFINE_string("checkpoint_path", '', "directory to save checkpoint file")
 tf.app.flags.DEFINE_string("result_path", '', "directory to save evaluate result")
 
