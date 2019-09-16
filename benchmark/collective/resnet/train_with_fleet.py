@@ -529,7 +529,7 @@ def train(args):
                     os.makedirs(model_path)
 
             	fluid.io.save_persistables(exe, model_path, main_program=fleet._origin_program)
-                if benchmark_test:
+                if args.benchmark_test:
                     if not os.path.isdir("./benchmark_logs/"):
                         os.makedirs("./benchmark_logs/")
                     with open("./benchmark_logs/log_%d" % trainer_id, 'w') as f:
