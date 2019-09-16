@@ -49,3 +49,15 @@ python -u eval.py --task_mode=async --checkpoint_path=output/checkpoint/async --
 3. 实验效果
 * test auc 单机：0.7964 同步：0.7967 异步：0.7955
 * 速度secs/epoch 单机：7480s(0.17 * 44000)，同步：4400s(0.10 * 44000)，异步：3916s(0.089 * 44000)
+
+## 其他环境相关
+1. tensorflow版本：1.14.0
+2. python版本：2.7.15+[GCC 7.3.0]
+3. 系统配置
+* Intel(R) Xeon(R) Gold 5117 CPU @ 2.00GHz
+* CPU MHz: 2000
+* cpu(s): 56
+* L1d cache: 32K
+* L1i cache: 32K
+* L2 cache: 1024K
+* L3 cache: 19712K
