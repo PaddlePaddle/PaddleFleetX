@@ -9,10 +9,10 @@ https://github.com/PaddlePaddle/Fleet/tree/develop/examples/distribute_ctr
 * ctr_dnn_local.py 单机训练文件
 * ctr_dnn_distribute.py 分布式训练文件
 * eval.py 预测文件
-* prepare.sh 数据下载及训练数据预处理
+* prepare_data.sh 数据下载及训练数据预处理
 
 ## 使用方法
-1. 数据处理：运行prepare.sh之后会在当前目录下得到两个文件夹，train_data用于训练，test_data用于测试
+1. 数据处理：运行prepare.sh之后会在当前目录下得到两个文件夹，train_data用于训练，test_data用于测试。(ps. 数据处理可能得花费十几分钟，请耐心等待)
 ```
 sh prepare_data.sh
 ```
