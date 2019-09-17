@@ -15,12 +15,12 @@ MODEL_SAVE_PATH="output/"
 
 # training params
 NUM_EPOCHS=90
-BATCH_SIZE=32
-LR=0.001
+BATCH_SIZE=128
+LR=0.1
 LR_STRATEGY=piecewise_decay
 
 # data params
-DATA_PATH="./ImageNet"
+DATA_PATH="/ssd2/shenliang/ImageNet"
 TOTAL_IMAGES=1281167
 CLASS_DIM=1000
 IMAGE_SHAPE=3,224,224
@@ -29,7 +29,7 @@ IMAGE_SHAPE=3,224,224
 #gpu params
 FUSE=True
 NCCL_COMM_NUM=2
-NUM_CARDS=4
+NUM_CARDS=8
 FP16=False #whether to use float16 
 
 distributed_args="--selected_gpus `seq -s, 0 $(($NUM_CARDS-1))`"
@@ -53,4 +53,6 @@ python -m paddle.distributed.launch ${distributed_args} --log_dir log \
        --nccl_comm_num=${NCCL_COMM_NUM} \
        --fp16=${FP16} \
        --use_local_sgd=True \
-       --local_sgd_steps=2
+       --local_sgd_is_warm_steps=30 \
+       --local_sgd_steps=16 \
+       --lsgd_warmup_strategy=1

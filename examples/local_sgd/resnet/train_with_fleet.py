@@ -47,9 +47,9 @@ import models
 from paddle.fluid.contrib.mixed_precision.decorator import decorate
 import utils.reader_cv2 as reader
 from utils.utility import add_arguments, print_arguments, check_gpu
-from utils.learning_rate import cosine_decay_with_warmup
+from utils.learning_rate import cosine_decay_with_warmup, lr_warmup
 from paddle.fluid.contrib.mixed_precision.fp16_lists import black_list, white_list, gray_list
-from paddle.fluid.contrib.mixed_precision.fp16_utils import create_master_params_grads, master_param_to_train_param, rewrite_program
+#from paddle.fluid.contrib.mixed_precision.fp16_utils import create_master_params_grads, master_param_to_train_param, rewrite_program
 import paddle.fluid.contrib.mixed_precision.fp16_lists as amp_lists
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
@@ -89,30 +89,57 @@ add_arg('is_distill',                   bool,   False,                "is distil
 
 add_arg('use_gpu',                      bool,   True,                 "Whether to use GPU or not.")
 add_arg('nccl_comm_num',                int,    1,                    "nccl comm num")
-add_arg('num_iteration_per_drop_scope', int,    10,                   "Ihe iteration intervals to clean up temporary variables.")
+add_arg('num_iteration_per_drop_scope', int,    30,                   "Ihe iteration intervals to clean up temporary variables.")
 
 add_arg('use_local_sgd',                bool,   True,                 "Whether to use LocalSGD argorithmn.")
 add_arg('local_sgd_steps',              int,    2,                    "The step number for local training before synchronizing parameters.")
+add_arg('local_sgd_is_warm_steps',      int,    30,                   "The warmup step of number for local sgd.")
+add_arg('lsgd_warmup_strategy',         int,    1,                    "Select strategy to warmup the lsgd,1:exp,2:const,3:linear")
+add_arg('isTest',                       bool,   False,                "Whether to test on every epoch")
+
+
 
 def optimizer_setting(params):
     ls = params["learning_strategy"]
     l2_decay = params["l2_decay"]
     momentum_rate = params["momentum_rate"]
     if ls["name"] == "piecewise_decay":
-        assert "total_images" in params
-        total_images = params["total_images"]
-        images_per_trainer = total_images // num_trainers
-        batch_size = ls["batch_size"]
-        step = int(math.ceil(float(images_per_trainer) / batch_size))
-        bd = [step * e for e in ls["epochs"]]
-        base_lr = params["lr"]
-        lr = []
+        global_batch_size = ls["batch_size"] * num_trainers
+        steps_per_pass = int(math.ceil(params["total_images"] * 1.0 / global_batch_size)) 
+        warmup_steps = steps_per_pass * 5
+        passes = [30,60,80,90]
+        bd = [steps_per_pass * p for p in passes]
+
+        batch_denom = 256
+        start_lr = params["lr"]
+        base_lr = params["lr"] * global_batch_size / batch_denom
         lr = [base_lr * (0.1**i) for i in range(len(bd) + 1)]
-        optimizer = fluid.optimizer.Momentum(
-            learning_rate=fluid.layers.piecewise_decay(
-                boundaries=bd, values=lr),
-            momentum=momentum_rate,
-            regularization=fluid.regularizer.L2Decay(l2_decay))
+        lr_var = lr_warmup(fluid.layers.piecewise_decay(boundaries=bd, values=lr),\
+                           warmup_steps, start_lr, base_lr)
+        optimizer = fluid.optimizer.Momentum(learning_rate=lr_var,momentum=momentum_rate,\
+                                            regularization=fluid.regularizer.L2Decay(l2_decay))
+
+    elif ls["name"] == "piecewise_decay_lsgd":
+        global_batch_size = ls["batch_size"] * num_trainers
+        steps_per_pass = int(math.ceil(params["total_images"] * 1.0 / global_batch_size)) 
+        warmup_steps = steps_per_pass * 5
+        passes = [30,60,80,90]
+        bd = [steps_per_pass * p for p in passes]
+
+        batch_denom = 256
+        start_lr = params["lr"]
+        base_lr = params["lr"] * global_batch_size / batch_denom
+        lr = []
+        for i in range(len(bd)+1):
+            if i < 1:
+                lr.append(base_lr * (0.1**i))
+            else:
+                lr.append(base_lr * (0.1**i) / num_trainers)
+        #lr = [base_lr * (0.1**i) for i in range(len(bd) + 1)]
+        lr_var = lr_warmup(fluid.layers.piecewise_decay(boundaries=bd, values=lr),\
+                           warmup_steps, start_lr, base_lr)
+        optimizer = fluid.optimizer.Momentum(learning_rate=lr_var,momentum=momentum_rate,\
+                                            regularization=fluid.regularizer.L2Decay(l2_decay))
 
     elif ls["name"] == "cosine_decay":
         assert "total_images" in params
@@ -255,8 +282,8 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
     image_shape = [int(m) for m in args.image_shape.split(",")]
     model_name = args.model
     model_list = [m for m in dir(models) if "__" not in m]
-    assert model_name in model_list, "{} is not in lists: {}".format(args.model,
-                                                                     model_list)
+ #   assert model_name in model_list, "{} is not in lists: {}".format(args.model,
+  #                                                                   model_list)
     model = models.__dict__[model_name]()
     with fluid.program_guard(main_prog, startup_prog):
         use_mixup = args.use_mixup
@@ -306,12 +333,13 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
                 optimizer = optimizer_setting(params)
                 global_lr = optimizer._global_learning_rate()
                 if args.fp16:
-                    params_grads = optimizer.backward(avg_cost, startup_prog)
-                    master_params_grads = create_master_params_grads(
-                        params_grads, main_prog, startup_prog, args.scale_loss)
-                    optimizer.apply_gradients(master_params_grads)
-                    master_param_to_train_param(master_params_grads,
-                                                params_grads, main_prog)
+                 #   params_grads = optimizer.backward(avg_cost, startup_prog)
+                 #   master_params_grads = create_master_params_grads(
+                 #       params_grads, main_prog, startup_prog, args.scale_loss)
+                 #   optimizer.apply_gradients(master_params_grads)
+                 #   master_param_to_train_param(master_params_grads,
+                 #                               params_grads, main_prog)
+                     pass
                 else:
                     dist_optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
                     _, param_grads = dist_optimizer.minimize(avg_cost)
@@ -334,6 +362,24 @@ def get_device_num():
     device_num = fluid.core.get_cuda_device_count()
     return device_num
 
+def get_local_sgd_steps(passid, local_sgd_steps, local_sgd_warmup, lsgd_warmup_strategy):
+    offset = passid - local_sgd_warmup
+    if offset < 0:
+        return 1
+    if lsgd_warmup_strategy == 1:
+        warm_up = [2**i for i in range(local_sgd_steps) if 2**i <=local_sgd_steps]
+    elif lsgd_warmup_strategy == 2:
+        warm_up = [local_sgd_steps]
+    elif lsgd_warmup_strategy == 3:
+        warm_up = [2*i for i in range(local_sgd_steps) if 2*i <=local_sgd_steps]
+        warm_up[0] = 1
+
+    warm_size = len(warm_up)
+    if offset >= warm_size:
+        return local_sgd_steps
+    else:
+        return warm_up[offset]
+     
 def train(args):
     # parameters from arguments
     model_name = args.model
@@ -346,8 +392,13 @@ def train(args):
     train_prog = fluid.Program()
     test_prog = fluid.Program()
 
+    exec_strategy = fluid.ExecutionStrategy()
+    exec_strategy.num_iteration_per_drop_scope = args.num_iteration_per_drop_scope
+
     dist_strategy = DistributedStrategy()
     dist_strategy.use_local_sgd = args.use_local_sgd
+    dist_strategy.exec_strategy = exec_strategy
+
 
     role = role_maker.PaddleCloudRoleMaker(is_collective=True)
     fleet.init(role)
@@ -383,7 +434,6 @@ def train(args):
                      startup_prog=startup_prog,
                      args=args)
     test_py_reader, test_cost, test_acc1, test_acc5 = b_out_test[0],b_out_test[1],b_out_test[2],b_out_test[3]
-
     test_prog = test_prog.clone(for_test=True)
 
     gpu_id = int(os.environ.get('FLAGS_selected_gpus', 0))
@@ -414,7 +464,7 @@ def train(args):
     # must be the same in the respective processes.
     shuffle_seed = 1 if num_trainers > 1 else None
 
-    train_reader = reader.train(settings=args, data_dir=args.data_dir, pass_id_as_seed=shuffle_seed)
+    train_reader = reader.train(settings=args, data_dir=args.data_dir, pass_id_as_seed=shuffle_seed,num_epoch=args.num_epochs+1)
     test_reader = reader.val(settings=args, data_dir=args.data_dir)
     
     train_py_reader.decorate_paddle_reader(paddle.batch(train_reader,
@@ -434,115 +484,157 @@ def train(args):
     step_cnt = 0
 
     params = models.__dict__[args.model]().params
-    for pass_id in range(params["num_epochs"]):
+
+    global_batch_size = args.batch_size * num_trainers
+    steps_per_pass = int(math.ceil(args.total_images * 1.0 / global_batch_size))
+    print("steps_per_pass  {}".format(steps_per_pass))
+    print("global_batch_size {}".format(global_batch_size))
+
+    pass_id = 0
+    # while 
+   # train_py_reader.start()
+    all_train_time = []
+    try :
         train_py_reader.start()
         train_info = [[], [], []]
         test_info = [[], [], []]
-        train_time = []
         train_begin=time.time()
         batch_id = 0
         time_record=[]
-        try:
-            while True:
-                t1 = time.time()
-                if step_cnt % args.local_sgd_steps == 0:
-                    current_prog = dist_prog
-                else:
-                    current_prog = local_prog
-
-                if use_mixup:
-                    loss, lr = train_exe.run(current_prog, fetch_list=train_fetch_list)
-                else:
-                    loss, acc1, acc5, lr = train_exe.run(current_prog, fetch_list=train_fetch_list)
-
-                    acc1 = np.mean(np.array(acc1))
-                    acc5 = np.mean(np.array(acc5))
-                    train_info[1].append(acc1)
-                    train_info[2].append(acc5)
-
-                t2 = time.time()
-                period = t2 - t1
-                time_record.append(period)
-
-                loss = np.mean(np.array(loss))
-                train_info[0].append(loss)
-                lr = np.mean(np.array(lr))
-                train_time.append(period)
-
-                if batch_id % 10 == 0:
-                    period = np.mean(time_record)
-                    speed = args.batch_size * 1.0 / period
-                    time_record=[]
-                    if use_mixup:
-                        print("Pass {0}, trainbatch {1}, loss {2}, lr {3}, time {4}, speed {5}"
-                              .format(pass_id, batch_id, "%.5f"%loss, "%.5f" %lr, "%2.2f sec" % period, "%.2f" % speed))
-                    else:
-                        print("Pass {0}, trainbatch {1}, loss {2}, \
-                            acc1 {3}, acc5 {4}, lr {5}, time {6}, speed {7}"
-                              .format(pass_id, batch_id, "%.5f"%loss, "%.5f"%acc1, "%.5f"%acc5, "%.5f" %
-                                      lr, "%2.2f sec" % period, "%.2f" % speed))
-                    sys.stdout.flush()
-                batch_id += 1
-                step_cnt += 1
-        except fluid.core.EOFException:
-            train_py_reader.reset()
-
-        train_loss = np.array(train_info[0]).mean()
-        if not use_mixup:
-            train_acc1 = np.array(train_info[1]).mean()
-            train_acc5 = np.array(train_info[2]).mean()
-        train_end=time.time()
-        train_speed =   (batch_id * train_batch_size) / (train_end - train_begin)
-
-        test_py_reader.start()
-        test_batch_id = 0
-        try:
-            while True:
-                t1 = time.time()
-                loss, acc1, acc5 = exe.run(program=test_prog,
-                                           fetch_list=test_fetch_list)
-                t2 = time.time()
-                period = t2 - t1
-                loss = np.mean(loss)
-                acc1 = np.mean(acc1)
-                acc5 = np.mean(acc5)
-                test_info[0].append(loss)
-                test_info[1].append(acc1)
-                test_info[2].append(acc5)
-
-                if test_batch_id % 10 == 0:
-                    test_speed = test_batch_size * 1.0 / period
-                    print("Pass {0},testbatch {1},loss {2}, \
-                        acc1 {3},acc5 {4},time {5},speed {6}"
-                          .format(pass_id, test_batch_id, "%.5f"%loss,"%.5f"%acc1, "%.5f"%acc5,
-                                  "%2.2f sec" % period, "%.2f" % test_speed))
-                    sys.stdout.flush()
-                test_batch_id += 1
-        except fluid.core.EOFException:
-            test_py_reader.reset()
-
-        test_loss = np.array(test_info[0]).mean()
-        test_acc1 = np.array(test_info[1]).mean()
-        test_acc5 = np.array(test_info[2]).mean()
-
-        if use_mixup:
-            print("End pass {0}, train_loss {1}, test_loss {2}, test_acc1 {3}, test_acc5 {4} speed {7}".format(
-                      pass_id, "%.5f"%train_loss, "%.5f"%test_loss, "%.5f"%test_acc1, "%.5f"%test_acc5, "%.2f" % train_speed))
-        else:
-
-            print("End pass {0}, train_loss {1}, train_acc1 {2}, train_acc5 {3}, "
-                  "test_loss {4}, test_acc1 {5}, test_acc5 {6} speed {7}".format(
-                      pass_id, "%.5f"%train_loss, "%.5f"%train_acc1, "%.5f"%train_acc5, "%.5f"%test_loss,
-                      "%.5f"%test_acc1, "%.5f"%test_acc5, "%.2f" % train_speed))
-        sys.stdout.flush()
-
-        model_path = os.path.join(model_save_dir + '/' + model_name,
-                                  str(pass_id))
-        if not os.path.isdir(model_path):
-            os.makedirs(model_path)
+        while True:
+            t1 = time.time()
+            pass_id =  step_cnt // steps_per_pass
+            if pass_id >= args.num_epochs:
+                train_py_reader.reset()
+                print("Train is over. Time is {}".format(all_train_time))
+                break
+            local_sgd_steps = get_local_sgd_steps(pass_id, args.local_sgd_steps, args.local_sgd_is_warm_steps,args.lsgd_warmup_strategy)
             
-        fluid.io.save_persistables(exe, model_path, main_program=fleet._origin_program)
-        
+            if step_cnt % local_sgd_steps == 0:
+                current_prog = dist_prog
+            else:
+                current_prog = local_prog
+            loss, acc1, acc5, lr = train_exe.run(current_prog, fetch_list=train_fetch_list, use_program_cache=True)
+       
+            acc1 = np.mean(np.array(acc1))
+            acc5 = np.mean(np.array(acc5))
+            train_info[1].append(acc1)
+            train_info[2].append(acc5)
+           
+            t2 = time.time() 
+ 
+            period = t2 - t1
+            time_record.append(period)
+
+            loss = np.mean(np.array(loss))
+            train_info[0].append(loss)
+            lr = np.mean(np.array(lr))
+
+            if batch_id % 30 == 0:
+                period = np.mean(time_record)
+                speed = args.batch_size * 1.0 / period
+                time_record=[]
+                print("Pass {0}, trainbatch {1}, loss {2}, acc1 {3}, acc5 {4}, lr {5}, time {6}, speed {7}"\
+                       .format(pass_id, batch_id, "%.5f"%loss, "%.5f"%acc1, "%.5f"%acc5, "%.5f" %\
+                       lr, "%2.2f sec" % period, "%.2f" % speed))
+                sys.stdout.flush()
+            batch_id += 1
+            step_cnt += 1
+            if (step_cnt // steps_per_pass) != pass_id:   # train epoch end
+                train_loss = np.array(train_info[0]).mean()
+                train_acc1 = np.array(train_info[1]).mean()
+                train_acc5 = np.array(train_info[2]).mean()
+                train_end=time.time()
+                all_train_time.append(train_end - train_begin)
+                train_speed = (batch_id * train_batch_size) / (train_end - train_begin)
+                print("current local_sgd_steps {}".format(local_sgd_steps))
+                print("End pass {0}, train_loss {1}, train_acc1 {2}, train_acc5 {3}, "
+                      "speed {4}".format(\
+                      pass_id, "%.5f"%train_loss, "%.5f"%train_acc1, "%.5f"%train_acc5, "%.2f" % train_speed))
+                sys.stdout.flush()
+                #init 
+                batch_id = 0
+                train_info = [[], [], []]
+                train_begin=time.time()
+                batch_id = 0
+                time_record=[]
+
+                if args.isTest:#test
+                    test_info = [[], [], []]
+                    test_py_reader.start()
+                    test_batch_id = 0
+                    try:
+                        while True:
+                            t1 = time.time()
+                            loss, acc1, acc5 = exe.run(program=test_prog,\
+                                                       fetch_list=test_fetch_list)
+                            t2 = time.time()
+                            period = t2 - t1
+                            loss = np.mean(loss)
+                            acc1 = np.mean(acc1)
+                            acc5 = np.mean(acc5)
+                            test_info[0].append(loss)
+                            test_info[1].append(acc1)
+                            test_info[2].append(acc5)
+
+                            if test_batch_id % 200 == 0:
+                                test_speed = test_batch_size * 1.0 / period
+                                print("Pass {0},testbatch {1},loss {2}, acc1 {3},acc5 {4},time {5},speed {6}"\
+                                     .format(pass_id, test_batch_id, "%.5f"%loss,"%.5f"%acc1, "%.5f"%acc5,\
+                                     "%2.2f sec" % period, "%.2f" % test_speed))
+                                sys.stdout.flush()
+                            test_batch_id += 1
+                    except fluid.core.EOFException:
+                        test_py_reader.reset()
+
+                    test_loss = np.array(test_info[0]).mean()
+                    test_acc1 = np.array(test_info[1]).mean()
+                    test_acc5 = np.array(test_info[2]).mean()
+
+                    print("End pass {0}, test_loss {1}, test_acc1 {2}, test_acc5 {3}".format(pass_id,"%.5f"%test_loss,\
+                          "%.5f"%test_acc1, "%.5f"%test_acc5))
+                    sys.stdout.flush()
+    except fluid.core.EOFException:
+        train_py_reader.reset()
+
+    #start test
+    test_py_reader.start()
+    test_batch_id = 0
+    test_info = [[], [], []]
+    try:
+        while True:
+            t1 = time.time()
+            loss, acc1, acc5 = exe.run(program=test_prog,\
+                                       fetch_list=test_fetch_list)
+            t2 = time.time()
+            period = t2 - t1
+            loss = np.mean(loss)
+            acc1 = np.mean(acc1)
+            acc5 = np.mean(acc5)
+            test_info[0].append(loss)
+            test_info[1].append(acc1)
+            test_info[2].append(acc5)
+
+            if test_batch_id % 100 == 0:
+                test_speed = test_batch_size * 1.0 / period
+                print("Pass {0},testbatch {1},loss {2}, acc1 {3},acc5 {4},time {5},speed {6}"\
+                      .format(pass_id, test_batch_id, "%.5f"%loss,"%.5f"%acc1, "%.5f"%acc5,\
+                      "%2.2f sec" % period, "%.2f" % test_speed))
+            sys.stdout.flush()
+            test_batch_id += 1
+    except fluid.core.EOFException:
+        test_py_reader.reset()
+    test_loss = np.array(test_info[0]).mean()
+    test_acc1 = np.array(test_info[1]).mean()
+    test_acc5 = np.array(test_info[2]).mean()
+
+    print("test_loss {0}, test_acc1 {1}, test_acc5 {2}".format("%.5f"%test_loss,\
+          "%.5f"%test_acc1, "%.5f"%test_acc5))
+    sys.stdout.flush()
+    model_path = os.path.join(model_save_dir + '/' + model_name, str(pass_id))
+    if not os.path.isdir(model_path):
+        os.makedirs(model_path)
+    fluid.io.save_persistables(exe, model_path, main_program=fleet._origin_program)
 
 def print_paddle_environments():
     print('--------- Configuration Environments -----------')
