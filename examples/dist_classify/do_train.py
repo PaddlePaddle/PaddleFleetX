@@ -154,6 +154,7 @@ def train(args):
         fluid.io.load_persistables(exe, checkpoint)
 
     if pretrained_model:
+        pretrained_model = os.path.join(pretrained_model, str(trainer_id))
         def if_exist(var):
             has_var = os.path.exists(os.path.join(pretrained_model, var.name))
             if has_var:
@@ -168,6 +169,7 @@ def train(args):
 
     fetch_list_train = [loss.name, global_lr.name, acc1.name, acc5.name]
     fetch_list_test = [emb.name, acc1.name, acc5.name]
+    # test_program = test_program._prune(targets=loss)
 
     num_trainers = int(os.getenv("PADDLE_TRAINERS_NUM", 1))
     real_batch_size = args.train_batch_size * num_trainers
@@ -221,7 +223,8 @@ def train(args):
                             for k in xrange(end - args.test_batch_size, end):
                                 _data.append((data[k], 0))
                             [_embeddings, acc1, acc5] = exe.run(test_program, 
-                                fetch_list = fetch_list_test, feed=feeder.feed(_data))
+                                fetch_list = fetch_list_test, feed=feeder.feed(_data),
+                                use_program_cache=True)
                             if embeddings is None:
                                 embeddings = np.zeros((data.shape[0], _embeddings.shape[1]))
                             embeddings[beg:end, :] = _embeddings[(args.test_batch_size-count):, :]
@@ -249,13 +252,13 @@ def train(args):
         sys.stdout.flush()
 
         #save model
-        if trainer_id == 0:
-            model_path = os.path.join(model_save_dir + '/' + model_name,
-                                  str(pass_id))
-            if not os.path.isdir(model_path):
-                os.makedirs(model_path)
-            fluid.io.save_persistables(exe, model_path)
-
+        #if trainer_id == 0:
+        model_path = os.path.join(model_save_dir + '/' + model_name,
+                              str(pass_id), str(trainer_id))
+        if not os.path.isdir(model_path):
+            os.makedirs(model_path)
+        fluid.io.save_persistables(exe, model_path)
+        
 def main():
     global args
     assert args.loss_type in ["softmax", "arcface", "dist_softmax", "dist_arcface"], \
