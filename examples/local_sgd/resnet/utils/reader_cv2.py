@@ -32,7 +32,7 @@ def _reader_creator(settings,
                     color_jitter=False,
                     rotate=False,
                     data_dir=DATA_DIR,
-                    pass_id_as_seed=0):
+                    pass_id_as_seed=0,num_epoch=0):
     def reader():
         with open(file_list) as flist:
             full_lines = [line.strip() for line in flist]
@@ -47,8 +47,17 @@ def _reader_creator(settings,
                     trainer_count = int(os.getenv("PADDLE_TRAINERS", "1"))
 
                 per_node_lines = len(full_lines) // trainer_count
-                lines = full_lines[trainer_id * per_node_lines:(trainer_id + 1)
-                                   * per_node_lines]
+                lines = []
+                for passid in range(num_epoch):
+                    if shuffle:
+                        random.Random(pass_id_as_seed).shuffle(full_lines)
+
+                    temp_lines = list(full_lines[trainer_id * per_node_lines:(trainer_id + 1)
+                                            * per_node_lines])
+                    lines.extend(temp_lines)
+                random.Random(pass_id_as_seed).shuffle(lines) 
+               # lines = full_lines[trainer_id * per_node_lines:(trainer_id + 1)
+                #                   * per_node_lines]
                 print("trainerid, trainer_count", trainer_id, trainer_count)
                 print(
                     "read images from %d, length: %d, lines length: %d, total: %d"
@@ -85,7 +94,7 @@ def _reader_creator(settings,
         image_mapper, reader, THREAD, BUF_SIZE, order=False)
     return reader
 
-def train(settings, data_dir=DATA_DIR, pass_id_as_seed=0):
+def train(settings, data_dir=DATA_DIR, pass_id_as_seed=0, num_epoch=90):
     file_list = os.path.join(data_dir, 'train.txt')
     reader =  _reader_creator(
         settings,
@@ -96,6 +105,7 @@ def train(settings, data_dir=DATA_DIR, pass_id_as_seed=0):
         rotate=False,
         data_dir=data_dir,
         pass_id_as_seed=pass_id_as_seed,
+        num_epoch=num_epoch
         )
     return reader
 
