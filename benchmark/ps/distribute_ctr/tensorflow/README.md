@@ -14,7 +14,7 @@ https://github.com/PaddlePaddle/Fleet/tree/develop/examples/distribute_ctr
 ## 使用方法
 1. 数据处理：运行prepare.sh之后会在当前目录下得到两个文件夹，train_data用于训练，test_data用于测试。(ps. 数据处理可能得花费十几分钟，请耐心等待)
 ```
-sh prepare_data.sh
+./prepare_data.sh
 ```
 2. 单机非分布式
 * 训练，运行命令如下，首先创建单机checkpoint和log保存目录，然后运行ctr_dnn_local.py文件。此后可以通过命令```tail -f log/local/local.log```查看训练日志
@@ -33,7 +33,7 @@ python -u eval.py --task_mode=local --checkpoint_path=output/checkpoint/local --
 3. 本地多进程模拟分布式
 * 训练，运行命令如下，如果需要运行同步模式，则只需将async替换为sync，同时更改ctr_dnn_distribute.py中的batch_size，tensorflow框架中同步(sync)的batch_size等于异步(async)batch_size/节点数
 ```
-sh local_cluster.sh async
+./local_dist.sh async
 ```
 * 预测，用法同单机非分布式预测。
 ```
