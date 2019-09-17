@@ -204,9 +204,10 @@ def main(_):
                         end_time = time.time()
                         total_time += end_time - start_time
                         batch_id += 1
-                        if (batch_id - 1) % 100 == 0:
+                        if (batch_id - 1) % 100 == 0 and (batch_id - 1) > 0:
                             print_log("step: %d, local step: %d, auc: %f, loss: %f, speed: %f secs/batch" % (step, batch_id, auc_v, loss_v, total_time / float(step - last_global_step)))
                             last_global_step = step
+                            total_time = 0
                 except tf.errors.OutOfRangeError:
                     print("there are a total of %d batchs" % step)
    
