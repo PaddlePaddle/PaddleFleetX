@@ -307,10 +307,15 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
                 optimizer = optimizer_setting(params)
                 global_lr = optimizer._global_learning_rate()
                 if args.fp16:
-		    dist_strategy.use_mixed_precision = True
-		    dist_strategy.loss_scaling = args.scale_loss
-                dist_optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
-                _, param_grads = dist_optimizer.minimize(avg_cost)
+                    params_grads = optimizer.backward(avg_cost, startup_prog)
+                    master_params_grads = create_master_params_grads(
+                        params_grads, main_prog, startup_prog, args.scale_loss)
+                    optimizer.apply_gradients(master_params_grads)
+                    master_param_to_train_param(master_params_grads,
+                                                params_grads, main_prog)
+                else:
+                    dist_optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
+                    _, param_grads = dist_optimizer.minimize(avg_cost)
 
                 global_lr.persistable=True
                 build_program_out.append(global_lr)
