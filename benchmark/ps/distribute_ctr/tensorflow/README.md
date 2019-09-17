@@ -47,8 +47,9 @@ python -u eval.py --task_mode=async --checkpoint_path=output/checkpoint/async --
 1. 单机配置：11个线程，learning rate = 0.0001，batch_size = 1000
 2. 分布式配置：5x5(5个server,5个trainer)， 11个线程，learning rate = 0.0001， 同步batch_size = 200, 异步batch_size = 1000
 3. 实验效果
-* test auc 单机：0.7964 同步：0.7967 异步：0.7955
-* 速度secs/epoch 单机：7480s(0.17 * 44000)，同步：4400s(0.10 * 44000)，异步：3916s(0.089 * 44000)
+![experimental results](tensorflow_ctr_dnn_benchmark.png)
+* test auc 单机：0.796261 同步：0.796595 异步：0.795071
+* 速度secs/epoch 单机：7040s(0.16 * 44000)，同步：5280s(0.12 * 44000)，异步：3579s(0.08 * 44000) (同步加速比～=1.33， 异步加速比～=2）
 
 ## 其他环境相关
 1. tensorflow版本：1.14.0
