@@ -1,6 +1,7 @@
 #!/bin/bash
+
 export FLAGS_sync_nccl_allreduce=1
-export FLAGS_cudnn_exhaustive_search=0
+export FLAGS_cudnn_exhaustive_search=1
 
 export GLOG_v=1
 export GLOG_logtostderr=1
@@ -17,7 +18,7 @@ MODEL_SAVE_PATH="output/"
 # training params
 NUM_EPOCHS=90
 BATCH_SIZE=32
-LR=0.001
+LR=0.1
 LR_STRATEGY=piecewise_decay
 
 # data params
@@ -30,7 +31,7 @@ IMAGE_SHAPE=3,224,224
 #gpu params
 FUSE=True
 NCCL_COMM_NUM=1
-NUM_THREADS=3
+NUM_THREADS=2
 USE_HIERARCHICAL_ALLREDUCE=False
 NUM_CARDS=1
 FP16=False #whether to use float16 
