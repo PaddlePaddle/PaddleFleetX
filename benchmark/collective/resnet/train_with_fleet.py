@@ -279,15 +279,11 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
         with fluid.unique_name.guard():
             if is_train and  use_mixup:
                 image, y_a, y_b, lam = fluid.layers.read_file(py_reader)
-                if args.fp16:
-                    image = fluid.layers.cast(image, "float16")
                 avg_cost = net_config(image=image, y_a=y_a, y_b=y_b, lam=lam, model=model, args=args, label=0, is_train=True)
                 avg_cost.persistable = True
                 build_program_out = [py_reader, avg_cost]
             else:
                 image, label = fluid.layers.read_file(py_reader)
-                if args.fp16:
-                    image = fluid.layers.cast(image, "float16")
                 avg_cost, acc_top1, acc_top5 = net_config(image, model, args, label=label, is_train=is_train)
                 avg_cost.persistable = True
                 acc_top1.persistable = True
@@ -307,15 +303,9 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
                 optimizer = optimizer_setting(params)
                 global_lr = optimizer._global_learning_rate()
                 if args.fp16:
-                    params_grads = optimizer.backward(avg_cost, startup_prog)
-                    master_params_grads = create_master_params_grads(
-                        params_grads, main_prog, startup_prog, args.scale_loss)
-                    optimizer.apply_gradients(master_params_grads)
-                    master_param_to_train_param(master_params_grads,
-                                                params_grads, main_prog)
-                else:
-                    dist_optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
-                    _, param_grads = dist_optimizer.minimize(avg_cost)
+                    optimizer = fluid.contrib.mixed_precision.decorate(optimizer)
+                dist_optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
+                _, param_grads = dist_optimizer.minimize(avg_cost)
 
                 global_lr.persistable=True
                 build_program_out.append(global_lr)
