@@ -15,7 +15,7 @@
 import paddle.fluid as fluid
 from utils import gen_data
 from nets import mlp
-from paddle.fluid.incubate.fleet.collective import fleet
+from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 from paddle.fluid.incubate.fleet.base import role_maker
 
 input_x = fluid.layers.data(name="x", shape=[32], dtype='float32')
@@ -24,10 +24,11 @@ input_y = fluid.layers.data(name="y", shape=[1], dtype='int64')
 cost = mlp(input_x, input_y)
 optimizer = fluid.optimizer.SGD(learning_rate=0.01)
 
+dist_strategy = DistributedStrategy()
 role = role_maker.PaddleCloudRoleMaker(is_collective=True)
 fleet.init(role)
 
-optimizer = fleet.distributed_optimizer(optimizer)
+optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
 optimizer.minimize(cost, fluid.default_startup_program())
 
 place = fluid.CUDAPlace(fleet.worker_index())
