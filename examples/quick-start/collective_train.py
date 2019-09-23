@@ -31,6 +31,8 @@ fleet.init(role)
 optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
 optimizer.minimize(cost, fluid.default_startup_program())
 
+train_prog = fleet.main_program
+
 place = fluid.CUDAPlace(fleet.worker_index())
 
 exe = fluid.Executor(place)
@@ -39,7 +41,7 @@ exe.run(fluid.default_startup_program())
 step = 1001
 for i in range(step):
     cost_val = exe.run(
-        program=fluid.default_main_program(),
+        program=train_prog,
         feed=gen_data(),
         fetch_list=[cost.name])
     print("worker_index: %d, step%d cost = %f" %
