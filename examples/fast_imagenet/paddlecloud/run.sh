@@ -23,41 +23,21 @@ k8s_wall_time="240:00:00"
 k8s_memory="300Gi"
 k8s_priority="high"
 is_standalone="1"
-k8s_trainers="1"
+k8s_trainers="4"
 
 # 请替换成所在组关联的集群名称
 cluster_name="v100-32-0-cluster"
 # 作业版本
 job_version="paddle-fluid-v1.5.1"
 # 启动命令
-#start_cmd="python -u launch.py train.py \
-#           --src_vocab_fpath ./wmt16_ende_data_bpe/vocab_all.bpe.32000 \
-#           --trg_vocab_fpath ./wmt16_ende_data_bpe/vocab_all.bpe.32000 \
-#           --special_token '<s>' '<e>' '<unk>' \
-#           --train_file_pattern ./wmt16_ende_data_bpe/train.tok.clean.bpe.32000.en-de \
-#           --token_delimiter ' ' \
-#           --use_token_batch True \
-#           --batch_size 2048 \
-#           --nccl_comm_num 3 \
-#           --use_hierarchical_allreduce True \
-#           --fuse True \
-#           --hierarchical_allreduce_inter_nranks 8 \
-#           --use_experimental_executor True \
-#           --enable_backward_op_deps True \
-#           --batch_size 2048 \
-#           --sort_type pool \
-#           --update_method nccl2 \
-#           --pool_size 200000 \
-#           n_head 8 \
-#           d_model 512 \
-#           d_inner_hid 2048 \
-#           prepostprocess_dropout 0.1"
-#start_cmd="python launch.py train.py --fp16=False --data_dir=./fast_resnet_data --nccl_comm_num=2 \
-#    --use_hierarchical_allreduce=False --fuse=True  --enable_backward_op_deps=True \
-#    --hierarchical_allreduce_inter_nranks=8 --log_period=5 --profile=True \
-#    --start_profile_batch=20 --stop_profile_batch=26 --num_threads=4"
 
 start_cmd="python run.py"
+
+distributed_conf="1 "
+if [ ${k8s_trainers} -gt 1 ]
+then
+    distributed_conf="0 --distribute-job-type NCCL2 "
+fi
 
 paddlecloud job --server ${server} \
         --port ${port} \
@@ -76,5 +56,4 @@ paddlecloud job --server ${server} \
         --k8s-cpu-cores 35 \
         --k8s-priority=${k8s_priority} \
         --k8s-trainers ${k8s_trainers} \
-        --is-standalone 1
-#        --distribute-job-type NCCL2
+        --is-standalone ${distributed_conf}

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import division
 
 import argparse
 import cProfile
@@ -20,6 +21,7 @@ import traceback
 
 import numpy as np
 import math
+os.environ['FLAGS_sync_nccl_allreduce'] = '1'
 import reader
 import paddle
 import paddle.fluid as fluid
@@ -38,42 +40,27 @@ def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     add_arg = functools.partial(add_arguments, argparser=parser)
     # yapf: disable
-    add_arg('total_images',     int,   1281167,              "Number of training images.")
-    add_arg('num_epochs',       int,   120,                  "Maximum number of epochs to run.")
-    add_arg('model_save_dir',   str,   "output",             "Directory to save models")
-    add_arg('lr',               float, 1.0,                  "Initial learning rate.")
-    add_arg('data_dir',         str,   "dataset/",           "Directory for dataset.")
-    add_arg('fp16',             bool,  False,                "Enable half precision training with fp16.")
-    add_arg('scale_loss',       float, 64.0,                 "Scale loss for fp16.")
-    add_arg('update_method',    str,   "nccl2",              "Variable update method. Can be local or nccl2.")
-    add_arg('start_test_pass',  int,   0,                    "At which pass to start test.")
-    add_arg('log_period',       int,   30,                   "How often to print a log, default is 30.")
-    add_arg('best_acc5',        float, 0.93,                 "The best acc5, default is 93%.")
-    add_arg('nccl_comm_num',    int,   1,                    "Number of NCCL communicators.")
-    add_arg("hierarchical_allreduce_inter_nranks", int, 8,   "Hierarchical allreduce inter ranks.")
-    add_arg("use_hierarchical_allreduce", bool, False,       "Use hierarchical allreduce or not.")
-    add_arg("enable_backward_op_deps", bool, True,           "Whether to use enable_backward_op_deps.")
-    add_arg("fuse",             bool,   False,               "Whether to use fusion.")
-    add_arg("profile",          bool,   False,               "Whether to profile performance.")
-    add_arg("start_profile_batch", int, 10,                  "After which batch to start profiling.")
-    add_arg("stop_profile_batch",  int, 16,                  "After which batch to stop profiling.")
-    add_arg("use_larsmomentum", bool,   False,               "Whether to use LarsMomentumOptimizer.")
+    add_arg('total_images',     int,   1281167,            "Number of training images.")
+    add_arg('num_epochs',       int,   120,                "Maximum number of epochs to run.")
+    add_arg('model_save_dir',   str,   "output",           "Directory to save models")
+    add_arg('lr',               float, 1.0,                "Initial learning rate.")
+    add_arg('data_dir',         str,   "dataset/",         "Directory for dataset.")
+    add_arg('fp16',             bool,  False,              "Enable half precision training with fp16.")
+    add_arg('scale_loss',       float, 64.0,               "Scale loss for fp16.")
+    add_arg('update_method',    str,   "nccl2",            "Variable update method. Can be local or nccl2.")
+    add_arg('start_test_pass',  int,   0,                  "At which pass to start test.")
+    add_arg('log_period',       int,   30,                 "How often to print a log, default is 30.")
+    add_arg('best_acc5',        float, 0.93,               "The best acc5, default is 93%.")
+    add_arg('nccl_comm_num',    int,   1,                  "Number of NCCL communicators.")
+    add_arg("use_hallreduce",   bool,  False,              "Use hierarchical allreduce or not.")
+    add_arg("enable_backward_op_deps", bool, True,         "Whether to use enable_backward_op_deps.")
+    add_arg("fuse",             bool,   False,             "Whether to use fusion.")
+    add_arg("profile",          bool,   False,             "Whether to profile performance.")
+    add_arg("start_profile_batch", int, 10,                "After which batch to start profiling.")
+    add_arg("stop_profile_batch",  int, 16,                "After which batch to stop profiling.")
     # yapf: enable
     args = parser.parse_args()
     return args
-
-
-def get_device_num():
-    import subprocess
-    visible_device = os.getenv('CUDA_VISIBLE_DEVICES')
-    if visible_device:
-        device_num = len(visible_device.split(','))
-    else:
-        device_num = subprocess.check_output(['nvidia-smi', '-L']).decode().count('\n')
-    return device_num
-
-
-DEVICE_NUM = get_device_num()
 
 
 def test_single(exe, test_args, test_reader, feeder, bs, test_prog):
@@ -135,7 +122,7 @@ def build_program(args,
             t2 = fluid.layers.elementwise_div(t1, img_std, axis=1)
 
             model = FastImageNet(is_train=is_train)
-            predict = model.net(t2, class_dim=class_num, img_size=sz)
+            predict = model.net(t2, class_dim=class_num)
             cost, prob = fluid.layers.softmax_with_cross_entropy(
                 predict, label, return_softmax=True)
             if args.scale_loss > 1.0:
@@ -150,7 +137,8 @@ def build_program(args,
             if is_train:
                 total_images = args.total_images
                 num_trainers = args.dist_env["num_trainers"]
-                lr = args.lr
+                base_lr = args.lr
+                lr = base_lr * num_trainers / 8
 
                 epochs = [(0, 7), (7, 13), (13, 22), (22, 25), (25, 28)]
                 bs_epoch = [bs * num_trainers for bs in [224, 224, 96, 96, 50]]
@@ -163,17 +151,17 @@ def build_program(args,
 
                 boundaries, values = lr_decay(lrs, epochs, bs_epoch,
                                               total_images)
-
-                if args.use_larsmomentum:
-                    optimizer = fluid.optimizer.LarsMomentumOptimizer(
-                        learning_rate=fluid.layers.piecewise_decay(
-                            boundaries=boundaries, values=values),
-                        momentum=0.9)
-                else:
-                    optimizer = fluid.optimizer.Momentum(
-                        learning_rate=fluid.layers.piecewise_decay(
-                            boundaries=boundaries, values=values),
-                        momentum=0.9)
+                image_per_trainer = int(math.ceil(args.total_images / num_trainers))
+                step_per_trainer = int(math.ceil(image_per_trainer / 224))
+                warmup_steps = step_per_trainer * 3 # 3 warmup epochs
+                lr_var = utils.lr_warmup(
+                        fluid.layers.piecewise_decay(boundaries=boundaries, values=values),
+                        warmup_steps, base_lr, lr)
+                optimizer = fluid.optimizer.Momentum(
+                    learning_rate=lr_var,
+                    #learning_rate=fluid.layers.piecewise_decay(
+                    #    boundaries=boundaries, values=values),
+                    momentum=0.9)
                 if args.fp16:
                     params_grads = optimizer.backward(avg_cost)
                     master_params_grads = utils.create_master_params_grads(
@@ -425,7 +413,6 @@ def train_parallel(args):
                 traceback.print_exc()
                 exit(1)
 
-            # num_samples += bs * DEVICE_NUM
             num_samples += bs
 
             if should_print:
@@ -478,7 +465,6 @@ def print_train_time(start_time, end_time, num_samples):
 
 def print_paddle_environments():
     print('--------- Configuration Environments -----------')
-    print("Devices per node: %d" % DEVICE_NUM)
     for k in os.environ:
         if "PADDLE_" in k or "FLAGS_" in k:
             print("%s: %s" % (k, os.environ[k]))

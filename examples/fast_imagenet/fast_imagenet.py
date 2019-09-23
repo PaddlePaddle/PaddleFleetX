@@ -34,7 +34,7 @@ class FastImageNet():
         self.layers = layers
         self.is_train = is_train
 
-    def net(self, input, class_dim=1000, is_train=True):
+    def net(self, input, class_dim=1000):
         layers = self.layers
         supported_layers = [50, 101, 152]
         assert layers in supported_layers, \

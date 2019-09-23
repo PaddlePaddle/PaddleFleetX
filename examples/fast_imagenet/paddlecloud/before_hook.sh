@@ -16,15 +16,10 @@ mv gcc-4.8.2 /opt/compiler
 rm gcc-4.8.2.tar.gz
 
 echo "fetch python..."
-hadoop fs -D fs.default.name=${HADOOP_FS_NAME} -D hadoop.job.ugi=${HADOOP_UGI} -get ./lilong/python_dev.tar.gz ./
+hadoop fs -D fs.default.name=${HADOOP_FS_NAME} -D hadoop.job.ugi=${HADOOP_UGI} -get ./lilong/python_latest.tar.gz ./
 echo "untar..."
-tar zxvf python_dev.tar.gz > /dev/null
-rm python_dev.tar.gz
-
-hadoop fs -D fs.default.name=${HADOOP_FS_NAME} -D hadoop.job.ugi=mlarch,Fv1M87 -get ./tmp/mpi/python_reader.tar.gz ./
-echo "untar..."
-tar zxvf python_reader.tar.gz > /dev/null
-rm python_reader.tar.gz
+tar zxvf python_latest.tar.gz > /dev/null
+rm python_latest.tar.gz
 
 echo "fetch data..."
 #export PATH=/root/paddlejob/hadoop-client/hadoop/bin:$PATH
@@ -91,6 +86,21 @@ FP16=True
 LR=1.0
 PROFILE=False
 SCALE_LOSS=128.0
+LOGDIR="mylog_fp${FP16}_lr${LR}"
+python -m paddle.distributed.launch ${config} \
+  --selected_gpus="0,1,2,3,4,5,6,7" \
+  --log_dir=${LOGDIR} \
+  train.py --data_dir=./fast_resnet_data/ \
+  --num_epochs=30 --lr=${LR} --fp16=${FP16} \
+  --scale_loss=${SCALE_LOSS} \
+  --start_test_pass=0 --log_period=100 --nccl_comm_num=2 \
+  --fuse=True \
+  --profile=False 
+
+FP16=False
+LR=1.0
+PROFILE=False
+SCALE_LOSS=1.0
 LOGDIR="mylog_fp${FP16}_lr${LR}"
 python -m paddle.distributed.launch ${config} \
   --selected_gpus="0,1,2,3,4,5,6,7" \
