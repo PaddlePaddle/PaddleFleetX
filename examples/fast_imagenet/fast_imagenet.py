@@ -122,13 +122,13 @@ class FastImageNet():
 
         return fluid.layers.elementwise_add(x=short, y=conv2, act='relu')
 
-def lr_decay(lrs, epochs, bs, total_image):
+
+def lr_decay(lrs, epochs, bs, total_image, num_trainers=1):
     boundaries = []
     values = []
     for idx, epoch in enumerate(epochs):
-        step = total_image // bs[idx]
-        if step * bs[idx] < total_image:
-            step += 1
+        images_per_trainer = int(math.ceil(total_image / num_trainers))
+        step = int(math.ceil(images_per_trainer / bs[idx]))
         ratio = (lrs[idx][1] - lrs[idx][0])*1.0 / (epoch[1] - epoch[0])
         lr_base = lrs[idx][0]
         for s in range(epoch[0], epoch[1]):
@@ -142,3 +142,4 @@ def lr_decay(lrs, epochs, bs, total_image):
     values.append(lrs[-1])
     print("epoch: [%d:], steps: [%d:], lr:[%f]" % (epochs[-1][-1], boundaries[-1], values[-1]))
     return boundaries, values
+
