@@ -49,7 +49,6 @@ import utils.reader_cv2 as reader
 from utils.utility import add_arguments, print_arguments, check_gpu
 from utils.learning_rate import cosine_decay_with_warmup, lr_warmup
 from paddle.fluid.contrib.mixed_precision.fp16_lists import black_list, white_list, gray_list
-#from paddle.fluid.contrib.mixed_precision.fp16_utils import create_master_params_grads, master_param_to_train_param, rewrite_program
 import paddle.fluid.contrib.mixed_precision.fp16_lists as amp_lists
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
@@ -135,7 +134,6 @@ def optimizer_setting(params):
                 lr.append(base_lr * (0.1**i))
             else:
                 lr.append(base_lr * (0.1**i) / num_trainers)
-        #lr = [base_lr * (0.1**i) for i in range(len(bd) + 1)]
         lr_var = lr_warmup(fluid.layers.piecewise_decay(boundaries=bd, values=lr),\
                            warmup_steps, start_lr, base_lr)
         optimizer = fluid.optimizer.Momentum(learning_rate=lr_var,momentum=momentum_rate,\
@@ -211,7 +209,6 @@ def optimizer_setting(params):
                 learning_rate=lr, step_each_epoch=step, epochs=num_epochs),
             momentum=momentum_rate,
             regularization=fluid.regularizer.L2Decay(l2_decay),
-            # RMSProp Optimizer: Apply epsilon=1 on ImageNet.
             epsilon=1)
     else:
         lr = params["lr"]
@@ -282,8 +279,6 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
     image_shape = [int(m) for m in args.image_shape.split(",")]
     model_name = args.model
     model_list = [m for m in dir(models) if "__" not in m]
- #   assert model_name in model_list, "{} is not in lists: {}".format(args.model,
-  #                                                                   model_list)
     model = models.__dict__[model_name]()
     with fluid.program_guard(main_prog, startup_prog):
         use_mixup = args.use_mixup
@@ -333,12 +328,6 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
                 optimizer = optimizer_setting(params)
                 global_lr = optimizer._global_learning_rate()
                 if args.fp16:
-                 #   params_grads = optimizer.backward(avg_cost, startup_prog)
-                 #   master_params_grads = create_master_params_grads(
-                 #       params_grads, main_prog, startup_prog, args.scale_loss)
-                 #   optimizer.apply_gradients(master_params_grads)
-                 #   master_param_to_train_param(master_params_grads,
-                 #                               params_grads, main_prog)
                      pass
                 else:
                     dist_optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
@@ -491,8 +480,6 @@ def train(args):
     print("global_batch_size {}".format(global_batch_size))
 
     pass_id = 0
-    # while 
-   # train_py_reader.start()
     all_train_time = []
     try :
         train_py_reader.start()
@@ -559,7 +546,7 @@ def train(args):
                 batch_id = 0
                 time_record=[]
 
-                if args.isTest:#test
+                if args.isTest:
                     test_info = [[], [], []]
                     test_py_reader.start()
                     test_batch_id = 0
@@ -567,7 +554,7 @@ def train(args):
                         while True:
                             t1 = time.time()
                             loss, acc1, acc5 = exe.run(program=test_prog,\
-                                                       fetch_list=test_fetch_list)
+                                                       fetch_list=test_fetch_list, use_program_cache=True)
                             t2 = time.time()
                             period = t2 - t1
                             loss = np.mean(loss)
@@ -638,7 +625,6 @@ def train(args):
 
 def print_paddle_environments():
     print('--------- Configuration Environments -----------')
-    #print("Devices per node: %d" % DEVICE_NUM)
     for k in os.environ:
         if "PADDLE_" in k or "FLAGS_" in k:
             print("%s: %s" % (k, os.environ[k]))

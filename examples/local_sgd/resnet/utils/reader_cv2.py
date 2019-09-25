@@ -32,7 +32,8 @@ def _reader_creator(settings,
                     color_jitter=False,
                     rotate=False,
                     data_dir=DATA_DIR,
-                    pass_id_as_seed=0,num_epoch=0):
+                    pass_id_as_seed=0,
+                    num_epoch=0):
     def reader():
         with open(file_list) as flist:
             full_lines = [line.strip() for line in flist]
@@ -56,8 +57,6 @@ def _reader_creator(settings,
                                             * per_node_lines])
                     lines.extend(temp_lines)
                 random.Random(pass_id_as_seed).shuffle(lines) 
-               # lines = full_lines[trainer_id * per_node_lines:(trainer_id + 1)
-                #                   * per_node_lines]
                 print("trainerid, trainer_count", trainer_id, trainer_count)
                 print(
                     "read images from %d, length: %d, lines length: %d, total: %d"

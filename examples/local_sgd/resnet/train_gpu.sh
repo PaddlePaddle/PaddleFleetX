@@ -20,7 +20,8 @@ LR=0.1
 LR_STRATEGY=piecewise_decay
 
 # data params
-DATA_PATH="/ssd2/shenliang/ImageNet"
+# the path of the data set
+DATA_PATH="./ImageNet"
 TOTAL_IMAGES=1281167
 CLASS_DIM=1000
 IMAGE_SHAPE=3,224,224
