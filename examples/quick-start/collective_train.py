@@ -11,11 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 
 import paddle.fluid as fluid
 from utils import gen_data
 from nets import mlp
-from paddle.fluid.incubate.fleet.collective import fleet
+from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 from paddle.fluid.incubate.fleet.base import role_maker
 
 input_x = fluid.layers.data(name="x", shape=[32], dtype='float32')
@@ -24,13 +25,17 @@ input_y = fluid.layers.data(name="y", shape=[1], dtype='int64')
 cost = mlp(input_x, input_y)
 optimizer = fluid.optimizer.SGD(learning_rate=0.01)
 
+dist_strategy = DistributedStrategy()
 role = role_maker.PaddleCloudRoleMaker(is_collective=True)
 fleet.init(role)
 
-optimizer = fleet.distributed_optimizer(optimizer)
+optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
 optimizer.minimize(cost, fluid.default_startup_program())
 
-place = fluid.CUDAPlace(fleet.worker_index())
+train_prog = fleet.main_program
+
+gpu_id = int(os.getenv("FLAGS_selected_gpus", "0"))
+place = fluid.CUDAPlace(gpu_id)
 
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
@@ -38,7 +43,7 @@ exe.run(fluid.default_startup_program())
 step = 1001
 for i in range(step):
     cost_val = exe.run(
-        program=fluid.default_main_program(),
+        program=train_prog,
         feed=gen_data(),
         fetch_list=[cost.name])
     print("worker_index: %d, step%d cost = %f" %
