@@ -32,8 +32,7 @@ def _reader_creator(settings,
                     color_jitter=False,
                     rotate=False,
                     data_dir=DATA_DIR,
-                    pass_id_as_seed=0,
-                    num_epoch=0):
+                    pass_id_as_seed=0,num_epoch=0):
     def reader():
         with open(file_list) as flist:
             full_lines = [line.strip() for line in flist]
@@ -81,7 +80,6 @@ def _reader_creator(settings,
                     img_path = os.path.join(data_dir, line)
                     yield [img_path]
 
-
     image_mapper = functools.partial(
         process_image,
         settings=settings,
@@ -112,7 +110,6 @@ def val(settings,data_dir=DATA_DIR):
     file_list = os.path.join(data_dir, 'val.txt')
     return _reader_creator(settings ,file_list, 'val', shuffle=False, 
             data_dir=data_dir)
-
 
 def test(data_dir=DATA_DIR):
     file_list = os.path.join(data_dir, 'val.txt')
