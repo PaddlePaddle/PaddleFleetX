@@ -77,7 +77,7 @@ add_arg('use_local_sgd',                bool,   True,                 "Whether t
 add_arg('local_sgd_steps',              int,    2,                    "The step number for local training before synchronizing parameters.")
 add_arg('local_sgd_is_warm_steps',      int,    30,                   "The warmup step of number for local sgd.")
 add_arg('lsgd_warmup_strategy',         int,    1,                    "Select strategy to warmup the lsgd,1:exp,2:const,3:linear")
-add_arg('isTest',                       bool,   False,                "Whether to test on every epoch")
+add_arg('is_Test',                       bool,   False,                "Whether to test on every epoch")
 
 
 def optimizer_setting(params):
@@ -350,7 +350,7 @@ def train(args):
                 batch_id = 0
                 time_record=[]
 
-                if args.isTest:
+                if args.is_Test:
                     test_info = [[], [], []]
                     test_py_reader.start()
                     test_batch_id = 0
