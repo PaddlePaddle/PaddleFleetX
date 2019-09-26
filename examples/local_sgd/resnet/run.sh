@@ -26,8 +26,6 @@ IMAGE_SHAPE=3,224,224
 
 # gpu params
 NCCL_COMM_NUM=2
-NUM_CARDS=8
-
 
 set -x
 config="--selected_gpus=0,1,2,3,4,5,6,7 --log_dir mylog"
