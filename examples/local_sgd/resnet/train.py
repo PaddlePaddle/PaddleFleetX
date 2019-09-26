@@ -23,7 +23,6 @@ import sys
 import functools
 import math
 
-
 def set_paddle_flags(flags):
     for key, value in flags.items():
         if os.environ.get(key, None) is None:
@@ -90,7 +89,6 @@ def optimizer_setting(params):
     warmup_steps = steps_per_pass * 5
     passes = [30,60,80,90]
     bd = [steps_per_pass * p for p in passes]
-
     batch_denom = 256
     start_lr = params["lr"]
     base_lr = params["lr"] * global_batch_size / batch_denom
@@ -149,12 +147,10 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
                 params["batch_size"] = args.batch_size
                 params["l2_decay"] = args.l2_decay
                 params["momentum_rate"] = args.momentum_rate
-
                 optimizer = optimizer_setting(params)
                 global_lr = optimizer._global_learning_rate()
                 dist_optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
                 _, param_grads = dist_optimizer.minimize(avg_cost)
-
                 global_lr.persistable=True
                 build_program_out.append(global_lr)
 
@@ -278,14 +274,11 @@ def train(args):
     for var in test_fetch_vars:
         var.persistable=True
         test_fetch_list.append(var.name)
-
     train_exe = exe
 
     assert args.local_sgd_steps > 0, "local_sgd_steps must greater than 0"
     step_cnt = 0
-
     params = models.__dict__[args.model]().params
-
     global_batch_size = args.batch_size * num_trainers
     steps_per_pass = int(math.ceil(args.total_images * 1.0 / global_batch_size))
     print("steps_per_pass  {}".format(steps_per_pass))
@@ -321,7 +314,6 @@ def train(args):
             train_info[2].append(acc5)
            
             t2 = time.time() 
- 
             period = t2 - t1
             time_record.append(period)
 
@@ -365,8 +357,8 @@ def train(args):
                     try:
                         while True:
                             t1 = time.time()
-                            loss, acc1, acc5 = exe.run(program=test_prog,\
-                                                       fetch_list=test_fetch_list,\
+                            loss, acc1, acc5 = exe.run(program=test_prog,
+                                                       fetch_list=test_fetch_list,
                                                        use_program_cache=True)
                             t2 = time.time()
                             period = t2 - t1
@@ -391,7 +383,7 @@ def train(args):
                     test_acc1 = np.array(test_info[1]).mean()
                     test_acc5 = np.array(test_info[2]).mean()
 
-                    print("End pass {0}, test_loss {1}, test_acc1 {2}, test_acc5 {3}".format(pass_id,"%.5f"%test_loss,\
+                    print("End pass {0}, test_loss {1}, test_acc1 {2}, test_acc5 {3}".format(pass_id,"%.5f"%test_loss,
                           "%.5f"%test_acc1, "%.5f"%test_acc5))
                     sys.stdout.flush()
     except fluid.core.EOFException:
@@ -404,7 +396,8 @@ def train(args):
         while True:
             t1 = time.time()
             loss, acc1, acc5 = exe.run(program=test_prog,
-                                       fetch_list=test_fetch_list)
+                                       fetch_list=test_fetch_list,
+                                       use_program_cache=True)
             t2 = time.time()
             period = t2 - t1
             loss = np.mean(loss)
