@@ -15,7 +15,6 @@ MODEL_SAVE_PATH="./output"
 NUM_EPOCHS=90
 BATCH_SIZE=128
 LR=0.1
-LR_STRATEGY=piecewise_decay
 
 # data params
 # the path of the data set
