@@ -53,8 +53,6 @@ def lr_warmup(learning_rate, warmup_steps, start_lr, end_lr):
 
 def lr_linear(step_bounds, lr_list):
     """ Applies linear learning rate per segment for distributed training
-        Argument learning_rate can be float or a Variable
-        lr = lr + (warmup_rate * step / warmup_steps)
     """
     with fluid.default_main_program()._lr_schedule_guard():
         lr = fluid.layers.tensor.create_global_var(
@@ -63,8 +61,8 @@ def lr_linear(step_bounds, lr_list):
             dtype='float32',
             persistable=True,
             name="learning_rate_linear")
-        default_lr = fluid.layers.fill_constant(shape=[1], value=lr_list[4][1], dtype='float32')
-
+        # default_lr = fluid.layers.fill_constant(shape=[1], 
+        #     value=lr_list[4][1], dtype='float32')
 
         global_step = fluid.layers.learning_rate_scheduler._decay_step_counter()
 
