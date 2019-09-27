@@ -107,7 +107,6 @@ def build_program(args,
                     use_double_buffer=True)
                 img, label = fluid.layers.read_file(pyreader)
             else:
-                # FIXME: for testing, why the shape is [3, 244, 244]
                 img = fluid.layers.data(
                     name="image", shape=[3, 244, 244], dtype="uint8")
                 label = fluid.layers.data(
@@ -137,11 +136,19 @@ def build_program(args,
             if is_train:
                 total_images = args.total_images
                 num_trainers = args.dist_env["num_trainers"]
-                base_lr = args.lr
-                lr = base_lr * num_trainers / 8
+                num_nodes = num_trainers // 8
+                lr = args.lr
 
                 epochs = [(0, 7), (7, 13), (13, 22), (22, 25), (25, 28)]
-                bs_epoch = [bs * num_trainers for bs in [224, 224, 96, 96, 50]]
+                if num_nodes == 1 or num_nodes == 2:
+                    bs_epoch = [bs * num_trainers for bs in [224, 224, 96, 96, 50]]
+                elif num_nodes == 4:
+                    bs_epoch = [int(bs * num_trainers * 0.8) for bs in [224, 224, 96, 96, 50]]
+                elif num_nodes == 8:
+                    bs_epoch = [int(bs * num_trainers * 0.8) for bs in [112, 112, 48, 48, 25]]
+                else:
+                    print("Only we support 1, 2, 4, 8 machines now.")
+                    exit()
                 bs_scale = [bs * 1.0 / bs_epoch[0] for bs in bs_epoch]
                 lrs = [(lr, lr * 2), (lr * 2, lr / 4),
                        (lr * bs_scale[2], lr / 10 * bs_scale[2]),
@@ -151,16 +158,9 @@ def build_program(args,
 
                 boundaries, values = lr_decay(lrs, epochs, bs_epoch,
                                               total_images)
-                image_per_trainer = int(math.ceil(args.total_images / num_trainers))
-                step_per_trainer = int(math.ceil(image_per_trainer / 224))
-                warmup_steps = step_per_trainer * 3 # 3 warmup epochs
-                lr_var = utils.lr_warmup(
-                        fluid.layers.piecewise_decay(boundaries=boundaries, values=values),
-                        warmup_steps, base_lr, lr)
                 optimizer = fluid.optimizer.Momentum(
-                    learning_rate=lr_var,
-                    #learning_rate=fluid.layers.piecewise_decay(
-                    #    boundaries=boundaries, values=values),
+                    learning_rate=fluid.layers.piecewise_decay(
+                        boundaries=boundaries, values=values),
                     momentum=0.9)
                 if args.fp16:
                     params_grads = optimizer.backward(avg_cost)
@@ -344,21 +344,21 @@ def train_parallel(args):
         # refresh program
         train_start_time = time.time()
         if epoch_id == 0:
-            bs = 224
+            bs = 112 if args.num_nodes == 8 else 224
             val_bs = 64
             trn_dir = "160/"
             img_dim = 128
             min_scale = 0.08
             rect_val = False
         elif epoch_id == 13:
-            bs = 96
+            bs = 48 if args.num_nodes == 8 else 96
             val_bs = 64
             trn_dir = "352/"
             img_dim = 224
             min_scale = 0.087
             rect_val = False
         elif epoch_id == 25:
-            bs = 50
+            bs = 25 if args.num_nodes == 8 else 50
             val_bs = 8
             trn_dir = ""
             img_dim = 288
@@ -473,10 +473,18 @@ def print_paddle_environments():
 
 def main():
     args = parse_args()
-    print_arguments(args)
-    print_paddle_environments()
     if args.update_method != 'local':
         args.dist_env = dist_env()
+    num_nodes = args.dist_env["num_trainers"] // 8
+    args.num_nodes = num_nodes
+    if num_nodes > 1:
+        args.nccl_comm_num = 2
+    if num_nodes == 1:
+        args.lr = 1.0
+    else:
+        args.lr = 2.0
+    print_arguments(args)
+    print_paddle_environments()
     train_parallel(args)
 
 
