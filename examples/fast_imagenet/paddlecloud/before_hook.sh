@@ -24,7 +24,7 @@ rm python_latest.tar.gz
 echo "fetch data..."
 #export PATH=/root/paddlejob/hadoop-client/hadoop/bin:$PATH
 tar zxf ./afs/fast_resnet_data.tar.gz
-mv ./afs/sorted_idxar.p ./fast_resnet_data/
+cp ./afs/sorted_idxar.p ./fast_resnet_data/
 
 echo "fetch CUDA environment"
 tar zxf ./afs/cuda-9.2.tar.gz
