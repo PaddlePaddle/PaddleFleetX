@@ -36,16 +36,9 @@ class FastImageNet():
 
     def net(self, input, class_dim=1000):
         layers = self.layers
-        supported_layers = [50, 101, 152]
-        assert layers in supported_layers, \
-            "supported layers are {} but input layer is {}".format(supported_layers, layers)
+        assert layers == 50, "Only supported layer is 50."
 
-        if layers == 50:
-            depth = [3, 4, 6, 3]
-        elif layers == 101:
-            depth = [3, 4, 23, 3]
-        elif layers == 152:
-            depth = [3, 8, 36, 3]
+        depth = [3, 4, 6, 3]
         num_filters = [64, 128, 256, 512]
 
         conv = self.conv_bn_layer(
@@ -64,7 +57,7 @@ class FastImageNet():
                     num_filters=num_filters[block],
                     stride=2 if i == 0 and block != 0 else 1)
         pool = fluid.layers.pool2d(
-            input=conv, pool_size=1, pool_type='avg', global_pooling=True)
+            input=conv, pool_type='avg', global_pooling=True)
         out = fluid.layers.fc(input=pool,
                               size=class_dim,
                               act=None,
@@ -116,7 +109,11 @@ class FastImageNet():
             act='relu')
         # init bn-weight0
         conv2 = self.conv_bn_layer(
-            input=conv1, num_filters=num_filters * 4, filter_size=1, act=None, bn_init_value=0.0)
+            input=conv1,
+            num_filters=num_filters * 4,
+            filter_size=1,
+            act=None,
+            bn_init_value=0.0)
 
         short = self.shortcut(input, num_filters * 4, stride)
 
