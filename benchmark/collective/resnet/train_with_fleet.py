@@ -23,20 +23,6 @@ import sys
 import functools
 import math
 import json
-
-def set_paddle_flags(flags):
-    for key, value in flags.items():
-        if os.environ.get(key, None) is None:
-            os.environ[key] = str(value)
-
-
-# NOTE(paddle-dev): All of these flags should be
-# set before `import paddle`. Otherwise, it would
-# not take any effect. 
-set_paddle_flags({
-    'FLAGS_eager_delete_tensor_gb': 0,  # enable gc 
-    'FLAGS_fraction_of_gpu_memory_to_use': 0.98
-})
 import argparse
 import functools
 import subprocess
@@ -51,6 +37,7 @@ from utils.learning_rate import cosine_decay_with_warmup, lr_warmup
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 from paddle.fluid import compiler
+import paddle.fluid.profiler as profiler
 
 num_trainers = int(os.environ.get('PADDLE_TRAINERS_NUM', 1))
 trainer_id = int(os.environ.get('PADDLE_TRAINER_ID'))
@@ -86,6 +73,7 @@ add_arg('resize_short_size',      int,     256,      "Set the resize_short_size"
 add_arg('use_mixup',      bool,      False,        "Whether to use mixup or not")
 add_arg('mixup_alpha',      float,     0.2,      "Set the mixup_alpha parameter")
 add_arg('is_distill',       bool,  False,        "is distill or not")
+add_arg('profile',             bool,  False,                "Enable profiler or not." )
 
 add_arg('use_gpu',          bool,  True,                 "Whether to use GPU or not.")
 add_arg('fuse', bool, False,                      "Whether to use tensor fusion.")
@@ -236,7 +224,7 @@ def net_config(image, model, args, is_train, label=0, y_a=0, y_b=0, lam=0.0):
             else:
                 print("Use fluid.layers.softmax_with_cross_entropy.")
                 cost, prob = fluid.layers.softmax_with_cross_entropy(
-                    out, label, return_softmax=True) 
+                    out, label, return_softmax=True)
         else:
             cost = fluid.layers.cross_entropy(input=softmax_out, label=label)
     else:
@@ -348,7 +336,7 @@ def train(args):
     if args.fuse:
         dist_strategy.fuse_all_reduce_ops = 1
     dist_strategy.nccl_comm_num = args.nccl_comm_num
-    
+
     role = role_maker.PaddleCloudRoleMaker(is_collective=True)
     fleet.init(role)
 
@@ -417,7 +405,7 @@ def train(args):
 
     train_reader = reader.train(settings=args, data_dir=args.data_dir, pass_id_as_seed=shuffle_seed)
     test_reader = reader.val(settings=args, data_dir=args.data_dir)
-    
+
     train_py_reader.decorate_paddle_reader(paddle.batch(train_reader,
                                                         batch_size=train_batch_size))
     test_py_reader.decorate_paddle_reader(paddle.batch(test_reader,
@@ -436,33 +424,43 @@ def train(args):
         train_py_reader.start()
         train_info = [[], [], []]
         test_info = [[], [], []]
-        train_time = []
         train_begin=time.time()
         batch_id = 0
         time_record=[]
         try:
             while True:
                 t1 = time.time()
-                if use_mixup:
-                    loss, lr = train_exe.run(train_prog, fetch_list=train_fetch_list)
+                if batch_id % 30 != 0:
+                        train_exe.run(train_prog)
                 else:
-		    loss, acc1, acc5, lr = train_exe.run(train_prog, fetch_list=train_fetch_list)
-
-                    acc1 = np.mean(np.array(acc1))
-                    acc5 = np.mean(np.array(acc5))
-                    train_info[1].append(acc1)
-                    train_info[2].append(acc5)
+                    if use_mixup:
+                        loss, lr = train_exe.run(train_prog, fetch_list=train_fetch_list)
+                    else:
+                        loss, acc1, acc5, lr = train_exe.run(train_prog, fetch_list=train_fetch_list)
+                        acc1 = np.mean(np.array(acc1))
+                        acc5 = np.mean(np.array(acc5))
+                        train_info[1].append(acc1)
+                        train_info[2].append(acc5)
 
                 t2 = time.time()
                 period = t2 - t1
                 time_record.append(period)
 
-                loss = np.mean(np.array(loss))
-                train_info[0].append(loss)
-                lr = np.mean(np.array(lr))
-                train_time.append(period)
+                if args.profile and batch_id == 50:
+                    print("begin profiler")
+                    if trainer_id == 0:
+                        profiler.start_profiler("All")
+                elif args.profile and batch_id == 55:
+                    print("begin to end profiler")
+                    if trainer_id == 0:
+                        profiler.stop_profiler("total", "./profile_%d" % (trainer_id))
+                    print("end profiler break!")
+                    args.profile=False
 
-                if batch_id % 10 == 0:
+                if batch_id % 30 == 0:
+                    loss = np.mean(np.array(loss))
+                    train_info[0].append(loss)
+                    lr = np.mean(np.array(lr))
                     period = np.mean(time_record)
                     speed = args.batch_size * 1.0 / period
                     time_record=[]
@@ -519,11 +517,11 @@ def train(args):
             test_acc1 = np.array(test_info[1]).mean()
             test_acc5 = np.array(test_info[2]).mean()
             if trainer_id == 0:
-            	model_path = os.path.join(model_save_dir + '/' + model_name, str(pass_id))
-            	if not os.path.isdir(model_path):
+                model_path = os.path.join(model_save_dir + '/' + model_name, str(pass_id))
+                if not os.path.isdir(model_path):
                     os.makedirs(model_path)
 
-            	fluid.io.save_persistables(exe, model_path, main_program=fleet._origin_program)
+                fluid.io.save_persistables(exe, model_path, main_program=fleet._origin_program)
                 if args.benchmark_test:
                     if not os.path.isdir("./benchmark_logs/"):
                         os.makedirs("./benchmark_logs/")
@@ -534,7 +532,7 @@ def train(args):
                         result['0']['acc5'] = str(test_acc5)
                         result['1'] = str(train_speed * num_trainers)
                         print(result)
-                        f.writelines(json.dumps(result) + '\n') 
+                        f.writelines(json.dumps(result) + '\n')
         if use_mixup:
             print("End pass {0}, train_loss {1}, speed {2}".format(pass_id, "%.5f"%train_loss, "%.2f" % train_speed))
         else:
@@ -555,7 +553,7 @@ def print_paddle_environments():
 
 def main():
     args = parser.parse_args()
-    # this distributed benchmark code can only support gpu environment.  
+    # this distributed benchmark code can only support gpu environment.
     assert args.use_gpu, "only for gpu implementation."
     print_arguments(args)
     print_paddle_environments()
@@ -565,5 +563,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
