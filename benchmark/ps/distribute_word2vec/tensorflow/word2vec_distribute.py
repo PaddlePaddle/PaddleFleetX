@@ -108,6 +108,14 @@ def GetFileList(data_dir, trainer_nums, trainer_id):
 
     return trainer_files[trainer_id]
 
+def upload(trainer_id, model_path):
+    import paddlecloud.upload_utils as upload_utils
+    sys_job_id = os.getenv("SYS_JOB_ID")
+    output_path = os.getenv("OUTPUT_PATH")
+    remote_path = output_path + "/" + sys_job_id + "/model_trainer_" + str(trainer_id)
+    upload_rst = upload_utils.upload_to_hdfs(local_file_path=model_path, remote_file_path=remote_path)
+    print_log("remote_path: {}, upload_rst: {}".format(remote_path, upload_rst))
+
 def main(_):
     ps_hosts = os.getenv("PADDLE_PSERVERS_IP_PORT_LIST").split(",")
     worker_hosts = os.getenv("PADDLE_WORKERS_IP_PORT_LIST").split(",")
@@ -176,5 +184,7 @@ def main(_):
                         batch_id += 1
                     now = time.time()
                     print("epoch: %4d total time: %8d" % (epoch, now - start_time))
+                    if not FLAGS.is_local:
+                        upload(trainer_id, log_dir)
 if __name__ == "__main__":
   tf.app.run()
