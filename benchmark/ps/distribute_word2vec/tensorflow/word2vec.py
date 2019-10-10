@@ -47,9 +47,9 @@ from net import skip_gram_word2vec
 
 flags = tf.app.flags
 
-flags.DEFINE_string("model_output_dir", './output/local', "Directory to write the model and "
+flags.DEFINE_string("model_output_dir", 'output/local', "Directory to write the model and "
                     "training summaries.")
-flags.DEFINE_string("train_data_dir", './data/convert_text8_space', "Training text data directory.")
+flags.DEFINE_string("train_data_dir", 'train_data', "Training text data directory.")
 flags.DEFINE_integer("embedding_size", 300, "The embedding dimension size.")
 flags.DEFINE_integer("epochs_to_train", 5, "Number of epochs to train." 
                      "Each epoch processes the training data once completely.")
@@ -59,13 +59,11 @@ flags.DEFINE_integer("num_neg_samples", 5,
 flags.DEFINE_integer("batch_size", 100,
                      "Number of training examples processed per step "
                      "(size of a minibatch).")
-flags.DEFINE_integer("concurrent_steps", 12,
-                     "The number of concurrent training steps.")
 flags.DEFINE_integer("window_size", 5,
                      "The number of words to predict to the left and right "
                      "of the target word.")
 
-flags.DEFINE_string("dict_path", './data/test_build_dict', "dict path")
+flags.DEFINE_string("dict_path", 'thirdparty/test_build_dict', "dict path")
 FLAGS = flags.FLAGS
 
 def get_batch(reader, batch_size):
@@ -111,10 +109,8 @@ def main(_):
         train_op = optimizer.minimize(loss, global_step=global_step)
         saver = tf.train.Saver(max_to_keep=None)
         tf.global_variables_initializer().run()
-        log_dir = FLAGS.model_output_dir + '/model.ckpt' 
+        log_dir = FLAGS.model_output_dir + '/model.ckpt'
         for epoch in xrange(FLAGS.epochs_to_train):
-            #last_time = time.time()
-            #last_words = word2vec_reader.processed_words
             start_time = time.time()
             for examples_, labels_, in get_batch(word2vec_reader.train(), FLAGS.batch_size):
                 feed_dict = {}
@@ -122,12 +118,7 @@ def main(_):
                 feed_dict[labels] = labels_
                 _, loss_, step_ = session.run([train_op, loss, global_step], feed_dict=feed_dict)
                 if step_ % 1000 == 0:
-                #    now = time.time()
-                #    words_ = word2vec_reader.processed_words
-                #    rate = (words_ - last_words) / (now - last_time)
                     print("Epoch %4d Step %8d loss = %6.2f" % (epoch, step_, loss_))
-                #    last_time = now
-                #    last_words = words_
             now = time.time()
             print("epoch: %4d total time: %8d" % (epoch, now - start_time))
             saver.save(session, log_dir, global_step=step)

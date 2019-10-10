@@ -45,7 +45,7 @@ import reader
 from net import skip_gram_word2vec
 flags = tf.app.flags
 
-flags.DEFINE_string("model_output_dir", 'output/distribute/', "Directory to write the model and "
+flags.DEFINE_string("model_output_dir", 'output/distribute', "Directory to write the model and "
                     "training summaries.")
 flags.DEFINE_string("train_data_dir", 'train_data', "Training text data directory.")
 flags.DEFINE_integer("embedding_size", 300, "The embedding dimension size.")
@@ -54,20 +54,18 @@ flags.DEFINE_integer("epochs_to_train", 5, "Number of epochs to train."
 flags.DEFINE_float("learning_rate", 1.0, "Initial learning rate.")
 flags.DEFINE_integer("num_neg_samples", 5,
                      "Negative samples per training example.")
-flags.DEFINE_integer("batch_size", 20,
+flags.DEFINE_integer("batch_size", 100,
                      "Number of training examples processed per step "
                      "(size of a minibatch).")
-flags.DEFINE_integer("concurrent_steps", 12,
-                     "The number of concurrent training steps.")
 flags.DEFINE_integer("window_size", 5,
                      "The number of words to predict to the left and right "
                      "of the target word.")
 
 flags.DEFINE_string("dict_path", 'thirdparty/test_build_dict', "dict path")
-flags.DEFINE_integer("save_steps", 500000,
-                     "The number of step to save (default: 500000)")
-flags.DEFINE_boolean("sync_mode", True, "sync_mode or async_mode")
-flags.DEFINE_boolean("is_local", True, "local or cluster")
+flags.DEFINE_integer("save_steps", 6000000,
+                     "The number of step to save (default: 600000)")
+flags.DEFINE_string("dist_mode", "sync", "sync_mode or async_mode")
+flags.DEFINE_integer("is_local", 1, "local or mpi cluster")
 FLAGS = flags.FLAGS
 
 def get_batch(reader, batch_size):
@@ -110,17 +108,7 @@ def GetFileList(data_dir, trainer_nums, trainer_id):
 
     return trainer_files[trainer_id]
 
-def upload(trainer_id, model_path):
-    sys_job_id = os.getenv("SYS_JOB_ID")
-    output_path = os.getenv("OUTPUT_PATH")
-    remote_path = output_path + "/" + sys_job_id + "/model_trainer_" + str(trainer_id)
-    upload_rst = upload_utils.upload_to_hdfs(local_file_path=model_path, remote_file_path=remote_path)
-    print_log("remote_path: {}, upload_rst: {}".format(remote_path, upload_rst))
-
 def main(_):
-    if not FLAGS.is_local:
-        import paddlecloud.upload_utils as upload_utils
-
     ps_hosts = os.getenv("PADDLE_PSERVERS_IP_PORT_LIST").split(",")
     worker_hosts = os.getenv("PADDLE_WORKERS_IP_PORT_LIST").split(",")
     role = os.getenv("TRAINING_ROLE")
@@ -129,7 +117,6 @@ def main(_):
 
     if role == "PSERVER":
         pserver_id = int(os.getenv("PADDLE_TRAINER_ID", "0"))
-        print(pserver_id)
         server = tf.train.Server(cluster,
                                  job_name="ps",
                                  task_index=pserver_id)
@@ -158,19 +145,18 @@ def main(_):
                     learning_rate=FLAGS.learning_rate, global_step=global_step, decay_steps=100000, decay_rate=0.999, staircase=True)
             optimizer = tf.train.GradientDescentOptimizer(learning_rate=lr)
             hooks = []
-            if FLAGS.sync_mode:
+            if FLAGS.dist_mode == "sync":
                 optimizer = tf.train.SyncReplicasOptimizer(optimizer,
                         replicas_to_aggregate=num_workers,
                         total_num_replicas=num_workers)
                 hooks.append(optimizer.make_session_run_hook(is_chief))
             saver = tf.train.Saver(max_to_keep=None)
-            log_dir = FLAGS.model_output_dir + '/model.ckpt'
+            log_dir = FLAGS.model_output_dir + '/' + FLAGS.dist_mode
             saver_hook = tf.train.CheckpointSaverHook(checkpoint_dir=log_dir,
                                                       save_steps=FLAGS.save_steps,
                                                       saver=saver)
             hooks.append(saver_hook)
             train_op = optimizer.minimize(loss, global_step=global_step)
-            saver = tf.train.Saver(max_to_keep=None)
             sess_config = tf.ConfigProto(allow_soft_placement=True,
                                          log_device_placement=False)
             with tf.train.MonitoredTrainingSession(master=server.target,
@@ -190,7 +176,5 @@ def main(_):
                         batch_id += 1
                     now = time.time()
                     print("epoch: %4d total time: %8d" % (epoch, now - start_time))
-                if not FLAGS.is_local:
-                    upload(trainer_id, log_dir)
 if __name__ == "__main__":
   tf.app.run()

@@ -18,6 +18,7 @@ from datetime import date, timedelta
 # import numpy as np
 import tensorflow as tf
 import six
+import re
 import numpy as np
 
 from net import infer_network
@@ -28,6 +29,8 @@ tf.app.flags.DEFINE_integer("embedding_size", 300, "Embedding size")
 tf.app.flags.DEFINE_string("test_data", 'test_data/questions-words.txt', "test data")
 tf.app.flags.DEFINE_string("checkpoint_path", '', "directory to save checkpoint file")
 tf.app.flags.DEFINE_string("dict_path", 'thirdparty/test_build_dict_word_to_id_', "dict path")
+tf.app.flags.DEFINE_string("task_mode", '', "task_mode")
+tf.app.flags.DEFINE_string("result_path", '', "directory to save evaluate result")
 
 def BuildWord_IdMap(dict_path):
     word_to_id = dict()
@@ -124,29 +127,51 @@ def eval(sess, questions, analogy_pred_idx, analogy_a, analogy_b, analogy_c):
                     break
     print("Eval %4d/%d accuracy = %4.1f%%" % (correct, total,
                                               correct * 100.0 / total))
-def main(checkpoint_path):
+    return correct * 100.0 / total
+
+def filter_checkpoint(checkpoint_path):
+    all_files = os.listdir(checkpoint_path)
+    all_files = filter(lambda x : re.match(".*\.index$", x), all_files)
+    all_files = [os.path.join(checkpoint_path, x[:-6]).decode('utf-8') for x in all_files]
+    return all_files
+
+def main(result_file_path, checkpoint_path):
     word_to_id, id_to_word = BuildWord_IdMap(FLAGS.dict_path)
     questions = read_analogies(word_to_id)
     vocab_size = len(id_to_word)
     pred_idx, analogy_a, analogy_b, analogy_c = infer_network(vocab_size, FLAGS.embedding_size)
 
+    res = {}
+    if os.path.exists(result_file_path):
+        with open(result_file_path) as f:
+            res = json.load(f)
+
     while True:
         with tf.Session() as sess:
             saver = tf.train.Saver()
             ckpt=tf.train.get_checkpoint_state(checkpoint_path)
-            print(ckpt)
-            if ckpt and ckpt.all_model_checkpoint_paths:
-                print(ckpt.all_model_checkpoint_paths)
-                for path in ckpt.all_model_checkpoint_paths:
+            all_models = filter_checkpoint(checkpoint_path)
+            if ckpt and all_models:
+                for path in all_models:
                     global_step=path.split('/')[-1].split('-')[-1]
+                    if global_step in res:
+                        continue
                     print("Start to inference ==> %s" % (path))
                     saver.restore(sess,path)
-                    eval(sess, questions, pred_idx, analogy_a, analogy_b, analogy_c)
+                    acc = eval(sess, questions, pred_idx, analogy_a, analogy_b, analogy_c)
+                    res[global_step] = acc
+                    with open(result_file_path, 'w') as f:
+                        json.dump(res, f)
             else:
                 print('No checkpoint file found')
         print("sleeping 300s")
         time.sleep(300)
 if __name__ == '__main__':
-    main(FLAGS.checkpoint_path)
+    print("task_mode: %s" % FLAGS.task_mode)
+    print("checkpoint path: %s" % FLAGS.checkpoint_path)
+    print("result path is: %s" % FLAGS.result_path)
+    print("evaluate %s" % FLAGS.checkpoint_path)
+    result_file_path = os.path.join(os.path.abspath(FLAGS.result_path), FLAGS.task_mode) + '.json'
+    main(result_file_path, FLAGS.checkpoint_path)
 
 
