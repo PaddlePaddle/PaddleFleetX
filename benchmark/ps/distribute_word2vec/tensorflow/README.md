@@ -58,6 +58,6 @@ python -u eval.py --task_mode=async --checkpoint_path=output/distribute/async --
 
 模式 | acc |  速度  
 -|-|-
-单机 | 0.615 | ~8小时 |
-分布式异步 | 0.595 | ~5.5小时 |
+单机 | 0.6146 | ~8小时 |
+分布式异步 | 0.615 | ~5.5小时 |
 分布式同步 | / | / |
