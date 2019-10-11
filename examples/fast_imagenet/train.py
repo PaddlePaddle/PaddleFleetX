@@ -1,4 +1,4 @@
-# Copyright (c) 2018 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2019 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import division
+from __future__ import absolute_import
+from __future__ import print_function
 
 import argparse
-import cProfile
 import time
 import os
 import traceback
@@ -26,38 +27,30 @@ import reader
 import paddle
 import paddle.fluid as fluid
 import paddle.fluid.profiler as profiler
-from paddle.fluid.transpiler.details import program_to_code
 
 from utility import add_arguments, print_arguments
 import functools
 from fast_imagenet import FastImageNet, lr_decay
 import utils
 from env import dist_env
-from dist_utils import nccl2_prepare
+
+from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
+import paddle.fluid.incubate.fleet.base.role_maker as role_maker
+from paddle.fluid.transpiler.details import program_to_code
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     add_arg = functools.partial(add_arguments, argparser=parser)
     # yapf: disable
-    add_arg('total_images',     int,   1281167,            "Number of training images.")
-    add_arg('num_epochs',       int,   120,                "Maximum number of epochs to run.")
-    add_arg('model_save_dir',   str,   "output",           "Directory to save models")
-    add_arg('lr',               float, 1.0,                "Initial learning rate.")
-    add_arg('data_dir',         str,   "dataset/",         "Directory for dataset.")
-    add_arg('fp16',             bool,  False,              "Enable half precision training with fp16.")
-    add_arg('scale_loss',       float, 64.0,               "Scale loss for fp16.")
-    add_arg('update_method',    str,   "nccl2",            "Variable update method. Can be local or nccl2.")
-    add_arg('start_test_pass',  int,   0,                  "At which pass to start test.")
-    add_arg('log_period',       int,   30,                 "How often to print a log, default is 30.")
-    add_arg('best_acc5',        float, 0.93,               "The best acc5, default is 93%.")
-    add_arg('nccl_comm_num',    int,   1,                  "Number of NCCL communicators.")
-    add_arg("use_hallreduce",   bool,  False,              "Use hierarchical allreduce or not.")
-    add_arg("enable_backward_op_deps", bool, True,         "Whether to use enable_backward_op_deps.")
-    add_arg("fuse",             bool,   False,             "Whether to use fusion.")
-    add_arg("profile",          bool,   False,             "Whether to profile performance.")
-    add_arg("start_profile_batch", int, 10,                "After which batch to start profiling.")
-    add_arg("stop_profile_batch",  int, 16,                "After which batch to stop profiling.")
+    add_arg('total_images',     int,   1281167,    "Number of training images.")
+    add_arg('num_epochs',       int,   120,        "Maximum number of epochs to run.")
+    add_arg('model_save_dir',   str,   "output",   "Directory to save models.")
+    add_arg('data_dir',         str,   "dataset/", "Directory for dataset.")
+    add_arg('start_test_pass',  int,   0,          "After which pass to start test.")
+    add_arg('log_period',       int,   30,         "How often to print a log, default is 30.")
+    add_arg('best_acc5',        float, 0.93,       "The best acc5, default is 93%.")
+    add_arg('nccl_comm_num',    int,   1,          "Number of NCCL communicators.")
     # yapf: enable
     args = parser.parse_args()
     return args
@@ -73,8 +66,8 @@ def test_single(exe, test_args, test_reader, feeder, bs, test_prog):
     num_samples = 0
     for batch_id, data in enumerate(test_reader()):
         weight = len(data)
-        #acc_results = exe.run(test_prog, fetch_list=to_fetch, feed=feeder.feed(data))
-        acc_results = exe.run(fetch_list=to_fetch, feed=feeder.feed(data))
+        acc_results = exe.run(test_prog, fetch_list=to_fetch,
+            feed=feeder.feed(data), use_program_cache=True)
         ret_result = [np.mean(np.array(ret)) for ret in acc_results]
         print("Test batch: [%d], acc_result: [%s]" % (batch_id, ret_result))
         for i, e in enumerate(acc_evaluators):
@@ -90,7 +83,10 @@ def build_program(args,
                   main_program,
                   startup_program,
                   sz,
-                  bs):
+                  bs,
+                  num_trainers=1,
+                  dist_strategy=None,
+                  fleet=None):
 
     img_shape = [3, sz, sz]
     class_num = 1000
@@ -102,8 +98,7 @@ def build_program(args,
                     capacity=bs,
                     shapes=([-1] + img_shape, (-1, 1)),
                     dtypes=('uint8', 'int64'),
-                    name="train_reader_" + str(sz)
-                    if is_train else "test_reader_" + str(sz),
+                    name="train_reader_" + str(sz),
                     use_double_buffer=True)
                 img, label = fluid.layers.read_file(pyreader)
             else:
@@ -111,12 +106,14 @@ def build_program(args,
                     name="image", shape=[3, 244, 244], dtype="uint8")
                 label = fluid.layers.data(
                     name="label", shape=[1], dtype="int64")
-            cast_img_type = "float16" if args.fp16 else "float32"
+            cast_img_type = "float32"
             cast = fluid.layers.cast(img, cast_img_type)
             img_mean = fluid.layers.create_global_var(
-                [3, 1, 1], 0.0, cast_img_type, name="img_mean", persistable=True)
+                [3, 1, 1], 0.0, cast_img_type, name="img_mean",
+                persistable=True)
             img_std = fluid.layers.create_global_var(
-                [3, 1, 1], 0.0, cast_img_type, name="img_std", persistable=True)
+                [3, 1, 1], 0.0, cast_img_type, name="img_std",
+                persistable=True)
             t1 = fluid.layers.elementwise_sub(cast, img_mean, axis=1)
             t2 = fluid.layers.elementwise_div(t1, img_std, axis=1)
 
@@ -124,32 +121,39 @@ def build_program(args,
             predict = model.net(t2, class_dim=class_num)
             cost, prob = fluid.layers.softmax_with_cross_entropy(
                 predict, label, return_softmax=True)
-            if args.scale_loss > 1.0:
-                avg_cost = fluid.layers.mean(x=cost) * args.scale_loss
-            else:
-                avg_cost = fluid.layers.mean(x=cost)
+            avg_cost = fluid.layers.mean(x=cost)
 
             batch_acc1 = fluid.layers.accuracy(input=prob, label=label, k=1)
             batch_acc5 = fluid.layers.accuracy(input=prob, label=label, k=5)
 
-            # configure optimize
             if is_train:
                 total_images = args.total_images
-                num_trainers = args.dist_env["num_trainers"]
                 num_nodes = num_trainers // 8
-                lr = args.lr
+                supported_nodes = [1, 2, 4, 8]
+                assert num_nodes in supported_nodes, \
+                    "We only support {} nodes now.".format(supported_nodes)
+                if num_nodes > 1:
+                    args.nccl_comm_num = 2
+                else:
+                    args.nccl_comm_num = 1
+                if num_nodes == 1:
+                    args.lr = 1.0
+                else:
+                    args.lr = 2.0
+                print("lr: {}".format(args.lr))
 
                 epochs = [(0, 7), (7, 13), (13, 22), (22, 25), (25, 28)]
                 if num_nodes == 1 or num_nodes == 2:
-                    bs_epoch = [bs * num_trainers for bs in [224, 224, 96, 96, 50]]
+                    bs_epoch = [bs * num_trainers 
+                                for bs in [224, 224, 96, 96, 50]]
                 elif num_nodes == 4:
-                    bs_epoch = [int(bs * num_trainers * 0.8) for bs in [224, 224, 96, 96, 50]]
+                    bs_epoch = [int(bs * num_trainers * 0.8) 
+                                for bs in [224, 224, 96, 96, 50]]
                 elif num_nodes == 8:
-                    bs_epoch = [int(bs * num_trainers * 0.8) for bs in [112, 112, 48, 48, 25]]
-                else:
-                    print("Only we support 1, 2, 4, 8 machines now.")
-                    exit()
-                bs_scale = [bs * 1.0 / bs_epoch[0] for bs in bs_epoch]
+                    bs_epoch = [int(bs * num_trainers * 0.8) 
+                                for bs in [112, 112, 48, 48, 25]]
+                bs_scale = [bs / bs_epoch[0] for bs in bs_epoch]
+                lr = args.lr
                 lrs = [(lr, lr * 2), (lr * 2, lr / 4),
                        (lr * bs_scale[2], lr / 10 * bs_scale[2]),
                        (lr / 10 * bs_scale[2], lr / 100 * bs_scale[2]),
@@ -157,30 +161,14 @@ def build_program(args,
                        lr / 1000 * bs_scale[4]]
 
                 boundaries, values = lr_decay(lrs, epochs, bs_epoch,
-                                              total_images)
+                                              total_images, num_trainers)
                 optimizer = fluid.optimizer.Momentum(
                     learning_rate=fluid.layers.piecewise_decay(
                         boundaries=boundaries, values=values),
                     momentum=0.9)
-                if args.fp16:
-                    params_grads = optimizer.backward(avg_cost)
-                    master_params_grads = utils.create_master_params_grads(
-                        params_grads, main_program, startup_program, args.scale_loss)
-                    optimizer.apply_gradients(master_params_grads)
-                    utils.master_param_to_train_param(master_params_grads,
-                                                      params_grads, main_program)
-                    # optimizer = decorate(optimizer, init_loss_scaling=args.scale_loss, use_dynamic_loss_scaling=True)
-                    # optimizer.minimize(avg_cost)
-                else:
-                    optimizer.minimize(avg_cost)
-
-    # print("py_reader_startup_program:")
-    # program_to_code(py_reader_startup_program)
-    # print("startup_program:")
-    # program_to_code(startup_program)
-    # print("main_program:")
-    # program_to_code(main_program)
-    # exit()
+                dist_optimizer = fleet.distributed_optimizer(optimizer, 
+                    strategy=dist_strategy)
+                dist_optimizer.minimize(avg_cost)
 
     return avg_cost, [batch_acc1, batch_acc5], pyreader
 
@@ -190,14 +178,27 @@ def refresh_program(args, sz, bs, val_bs):
     test_program = fluid.Program()
     startup_program = fluid.Program()
 
+    dist_strategy = DistributedStrategy()
+    dist_strategy.fuse_all_reduce_ops = 1
+    dist_strategy.nccl_comm_num = args.nccl_comm_num
+    role = role_maker.UserDefinedCollectiveRoleMaker(
+        current_id=args.dist_env["trainer_id"],
+        worker_endpoints=args.dist_env["trainer_endpoints"])
+    fleet.init(role)
     train_args = build_program(
         args,
         True,
         train_program,
         startup_program,
         sz,
-        bs)
-
+        bs,
+        num_trainers=fleet.worker_num(),
+        dist_strategy=dist_strategy,
+        fleet=fleet)
+    train_program = fleet.main_program
+    args.fleet = fleet
+    args.orig_train_program = fleet._origin_program
+    
     test_args = build_program(
         args,
         False,
@@ -211,9 +212,6 @@ def refresh_program(args, sz, bs, val_bs):
         gpu_id = int(os.getenv("FLAGS_selected_gpus"))
     place = fluid.CUDAPlace(gpu_id)
     startup_exe = fluid.Executor(place)
-
-    if args.update_method == "nccl2":
-        nccl2_prepare(args, startup_program, main_program=train_program)
 
     startup_exe.run(startup_program)
     conv2d_w_vars = [
@@ -233,80 +231,29 @@ def refresh_program(args, sz, bs, val_bs):
         std = math.sqrt(2.0 / fan_out)
         kaiming_np = np.random.normal(0, std, var.shape)
         tensor = fluid.global_scope().find_var(var.name).get_tensor()
-        if args.fp16 and ".master" not in var.name:
-            tensor.set(np.array(
-                kaiming_np, dtype="float16").view(np.uint16),
-                       place)
-        else:
-            tensor.set(np.array(kaiming_np, dtype="float32"), place)
+        tensor.set(np.array(kaiming_np, dtype="float32"), place)
+        tensor.set(np.array(kaiming_np, dtype="float32"), place)
 
     np_tensors = dict()
     np_tensors["img_mean"] = np.array(
         [0.485 * 255.0, 0.456 * 255.0, 0.406 * 255.0]).astype(
-            "float16" if args.fp16 else "float32").reshape((3, 1, 1))
+            "float32").reshape((3, 1, 1))
     np_tensors["img_std"] = np.array(
         [0.229 * 255.0, 0.224 * 255.0, 0.225 * 255.0]).astype(
-            "float16" if args.fp16 else "float32").reshape((3, 1, 1))
+            "float32").reshape((3, 1, 1))
     for var_name, np_tensor in np_tensors.items():
         var = fluid.global_scope().find_var(var_name)
-        if args.fp16:
-            var.get_tensor().set(np_tensor.view(np.uint16), place)
-        else:
-            var.get_tensor().set(np_tensor, place)
-
-    strategy = fluid.ExecutionStrategy()
-    strategy.num_threads = args.nccl_comm_num + 1
-    strategy.num_iteration_per_drop_scope = 30
-    strategy.use_experimental_executor = True
-    build_strategy = fluid.BuildStrategy()
-    build_strategy.enable_inplace = False
-    build_strategy.enable_backward_optimizer_op_deps = args.enable_backward_op_deps
-    build_strategy.reduce_strategy = fluid.BuildStrategy(
-    ).ReduceStrategy.AllReduce
-    if args.fuse:
-        build_strategy.fuse_all_reduce_ops = True
-    
-    num_trainers = args.dist_env["num_trainers"]
-    trainer_id = args.dist_env["trainer_id"]
-    build_strategy.num_trainers = num_trainers
-    build_strategy.trainer_id = trainer_id
+        var.get_tensor().set(np_tensor, place)
 
     avg_loss = train_args[0]
-    train_exe = fluid.ParallelExecutor(
-        True,
-        avg_loss.name,
-        main_program=train_program,
-        exec_strategy=strategy,
-        build_strategy=build_strategy,
-        num_trainers=num_trainers,
-        trainer_id=trainer_id)
-    test_exe = None
-    if trainer_id == 0:
-        #build_strategy = fluid.BuildStrategy()
-        #build_strategy.enable_inplace = False
-        #build_strategy.num_trainers = 1
-        #build_strategy.trainer_id = 0
-        #build_strategy.reduce_strategy = fluid.BuildStrategy(
-        #).ReduceStrategy.AllReduce
-        test_exe = fluid.ParallelExecutor(
-            True,
-            main_program=test_program,
-            share_vars_from=train_exe,
-            #exec_strategy=strategy,
-            #build_strategy=build_strategy,
-            exec_strategy=None,
-            build_strategy=None,
-            num_trainers=1,
-            trainer_id=0)
-    # test_exe = startup_exe
 
-    return train_args, test_args, test_program, train_exe, test_exe
+    return train_args, test_args, test_program, startup_exe, train_program
 
 
 def prepare_reader(epoch_id, train_py_reader, train_bs, val_bs, trn_dir,
                    img_dim, min_scale, rect_val, args):
-    num_trainers = args.dist_env["num_trainers"]
-    trainer_id = args.dist_env["trainer_id"]
+    num_trainers = args.fleet.worker_num()
+    trainer_id = args.fleet.worker_index()
     train_reader = reader.train(
         traindir="%s/%strain" % (args.data_dir, trn_dir),
         sz=img_dim,
@@ -335,7 +282,7 @@ def train_parallel(args):
     train_args = None
     test_args = None
 
-    train_args, test_args, test_program, exe, test_exe = refresh_program(
+    train_args, test_args, test_program, exe, train_program = refresh_program(
         args, sz=224, bs=224, val_bs=96)
 
     over_all_start = time.time()
@@ -345,14 +292,14 @@ def train_parallel(args):
         train_start_time = time.time()
         if epoch_id == 0:
             bs = 112 if args.num_nodes == 8 else 224
-            val_bs = 64
+            val_bs = 128
             trn_dir = "160/"
             img_dim = 128
             min_scale = 0.08
             rect_val = False
         elif epoch_id == 13:
             bs = 48 if args.num_nodes == 8 else 96
-            val_bs = 64
+            val_bs = 128
             trn_dir = "352/"
             img_dim = 224
             min_scale = 0.087
@@ -388,7 +335,6 @@ def train_parallel(args):
             fetch_list = [avg_loss.name]
             acc_name_list = [v.name for v in train_args[1]]
             fetch_list.extend(acc_name_list)
-            fetch_list.append("learning_rate")
             if iters % args.log_period == 0:
                 should_print = True
             else:
@@ -397,14 +343,10 @@ def train_parallel(args):
             fetch_ret = []
             gpu_id = int(os.getenv("FLAGS_selected_gpus"))
             try:
-                if args.profile and gpu_id == 0 and iters == args.start_profile_batch and epoch_id in [0, 13, 25]:
-                    profiler.start_profiler("All")
-                elif args.profile and gpu_id == 0 and iters == args.stop_profile_batch and epoch_id in [0, 13, 25]:
-                    profiler.stop_profiler("total", "./profile_lilong_%d" % epoch_id)
                 if should_print:
-                    fetch_ret = exe.run(fetch_list)
+                    fetch_ret = exe.run(train_program, fetch_list=fetch_list)
                 else:
-                    exe.run([])
+                    exe.run(train_program, fetch_list=[])
             except fluid.core.EOFException as eof:
                 print("Finish current epoch, will reset pyreader...")
                 train_py_reader.reset()
@@ -418,7 +360,9 @@ def train_parallel(args):
             if should_print:
                 fetched_data = [np.mean(np.array(d)) for d in fetch_ret]
                 print(
-                    "Epoch %d, batch %d, loss %s, accucacys: %s, learning_rate %s, py_reader queue_size: %d, avg batch time: %0.4f secs"
+                    "Epoch %d, batch %d, loss %s, accucacys: %s, "
+                    "learning_rate %s, py_reader queue_size: %d, "
+                    "avg batch time: %0.4f secs"
                     % (epoch_id, iters, fetched_data[0], fetched_data[1:-1],
                        fetched_data[-1], train_py_reader.queue.size(),
                        (time.time() - batch_start_time) * 1.0 /
@@ -434,7 +378,8 @@ def train_parallel(args):
         print("Epoch: %d, Spend %.5f hours (training only)\n" %
               (epoch_id, total_train_time / 3600))
         
-        if args.dist_env["trainer_id"] == 0:
+        trainer_id == args.dist_env["trainer_id"]
+        if trainer_id == 0 and epoch_id >= args.start_test_pass:
             feed_list = [
                 test_program.global_block().var(var_name)
                 for var_name in ("image", "label")
@@ -444,14 +389,21 @@ def train_parallel(args):
                 gpu_id = int(os.getenv("FLAGS_selected_gpus"))
             test_feeder = fluid.DataFeeder(
                 feed_list=feed_list, place=fluid.CUDAPlace(gpu_id))
-            test_ret = test_single(test_exe, test_args, test_reader, test_feeder, val_bs, test_program)
+            test_ret = test_single(test_exe, test_args, test_reader, 
+                test_feeder, val_bs, test_program)
             test_acc1, test_acc5 = [np.mean(np.array(v)) for v in test_ret]
             print("Epoch: %d, Test Accuracy: %s, Spend %.2f hours\n" %
-                  (epoch_id, [test_acc1, test_acc5], (time.time() - over_all_start) / 3600))
+                  (epoch_id, [test_acc1, test_acc5], 
+                   (time.time() - over_all_start) / 3600))
             if np.mean(np.array(test_ret[1])) > args.best_acc5:
-                print("Achieve the best top-1 acc %f, top-5 acc: %f" % (test_acc1, test_acc5))
+                print("Achieve the best top-1 acc %f, top-5 acc: %f" % (
+                       test_acc1, test_acc5))
                 break
 
+    if trainer_id == 0 and args.model_save_dir:
+        if not os.path.isdir(model_path):
+            os.makedirs(args.model_save_dir)
+            fluid.io.save_persistables(startup_exe, model_path)
     print("total train time: ", total_train_time)
     print("total run time: ", time.time() - over_all_start)
 
@@ -473,18 +425,9 @@ def print_paddle_environments():
 
 def main():
     args = parse_args()
-    if args.update_method != 'local':
-        args.dist_env = dist_env()
-    num_nodes = args.dist_env["num_trainers"] // 8
-    args.num_nodes = num_nodes
-    if num_nodes > 1:
-        args.nccl_comm_num = 2
-    if num_nodes == 1:
-        args.lr = 1.0
-    else:
-        args.lr = 2.0
     print_arguments(args)
     print_paddle_environments()
+    args.dist_env = dist_env()
     train_parallel(args)
 
 

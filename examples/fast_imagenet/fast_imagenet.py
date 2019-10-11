@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -27,7 +26,7 @@ import paddle.fluid as fluid
 import paddle.fluid.profiler as profiler
 import utils
 
-__all__ = ["FastImageNet"]
+__all__ = ["FastImageNet", "lr_decay"]
 
 class FastImageNet():
     def __init__(self, layers=50, is_train=True):
@@ -36,7 +35,7 @@ class FastImageNet():
 
     def net(self, input, class_dim=1000):
         layers = self.layers
-        assert layers == 50, "Only supported layer is 50."
+        assert layers ==50, "Only support ResNet50 now."
 
         depth = [3, 4, 6, 3]
         num_filters = [64, 128, 256, 512]
@@ -57,15 +56,16 @@ class FastImageNet():
                     num_filters=num_filters[block],
                     stride=2 if i == 0 and block != 0 else 1)
         pool = fluid.layers.pool2d(
-            input=conv, pool_type='avg', global_pooling=True)
-        out = fluid.layers.fc(input=pool,
-                              size=class_dim,
-                              act=None,
-                              param_attr=fluid.param_attr.ParamAttr(
-                                  initializer=fluid.initializer.NormalInitializer(0.0, 0.01),
-                                  regularizer=fluid.regularizer.L2Decay(1e-4)),
-                              bias_attr=fluid.ParamAttr(
-                                  regularizer=fluid.regularizer.L2Decay(1e-4)))
+            input=conv, pool_size=1, pool_type='avg', global_pooling=True)
+        out = fluid.layers.fc(
+            input=pool,
+            size=class_dim,
+            act=None,
+            param_attr=fluid.param_attr.ParamAttr(
+                initializer=fluid.initializer.NormalInitializer(0.0, 0.01),
+                regularizer=fluid.regularizer.L2Decay(1e-4)),
+            bias_attr=fluid.ParamAttr(
+                regularizer=fluid.regularizer.L2Decay(1e-4)))
         return out
 
     def conv_bn_layer(self,
@@ -85,8 +85,10 @@ class FastImageNet():
             groups=groups,
             act=None,
             bias_attr=False,
-            param_attr=fluid.ParamAttr(regularizer=fluid.regularizer.L2Decay(1e-4)))
-        return fluid.layers.batch_norm(input=conv, act=act, is_test=not self.is_train,
+            param_attr=fluid.ParamAttr(
+                regularizer=fluid.regularizer.L2Decay(1e-4)))
+        return fluid.layers.batch_norm(
+            input=conv, act=act, is_test=not self.is_train,
             param_attr=fluid.param_attr.ParamAttr(
                 initializer=fluid.initializer.Constant(bn_init_value),
                 regularizer=None))
@@ -110,7 +112,7 @@ class FastImageNet():
         # init bn-weight0
         conv2 = self.conv_bn_layer(
             input=conv1,
-            num_filters=num_filters * 4,
+            num_filters=num_filters*4,
             filter_size=1,
             act=None,
             bn_init_value=0.0)
@@ -135,8 +137,9 @@ def lr_decay(lrs, epochs, bs, total_image, num_trainers=1):
                 boundaries = [step]
             lr = lr_base + ratio * (s - epoch[0])
             values.append(lr)
-            print("epoch: [%d], steps: [%d], lr: [%f]" % (s, boundaries[-1], values[-1])) 
+            print("epoch: [%d], steps: [%d], lr: [%f]" % (
+                  s, boundaries[-1], values[-1])) 
     values.append(lrs[-1])
-    print("epoch: [%d:], steps: [%d:], lr:[%f]" % (epochs[-1][-1], boundaries[-1], values[-1]))
+    print("epoch: [%d:], steps: [%d:], lr:[%f]" % (
+          epochs[-1][-1], boundaries[-1], values[-1]))
     return boundaries, values
-

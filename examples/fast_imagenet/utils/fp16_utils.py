@@ -1,3 +1,16 @@
+#copyright (c) 2019 PaddlePaddle Authors. All Rights Reserve.
+#
+#Licensed under the Apache License, Version 2.0 (the "License");
+#you may not use this file except in compliance with the License.
+#You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+#Unless required by applicable law or agreed to in writing, software
+#distributed under the License is distributed on an "AS IS" BASIS,
+#WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#See the License for the specific language governing permissions and
+#limitations under the License.
 from __future__ import print_function
 import paddle
 import paddle.fluid as fluid
@@ -48,41 +61,18 @@ def copy_to_master_param(p, block):
     return new_p
 
 
-def _update_role_var_grad(prog, params_grads):
-    BACKWARD = core.op_proto_and_checker_maker.OpRole.Backward
-    gradname_to_paramname = dict()
-    for p, g in params_grads:
-        gradname_to_paramname[g.name] = p.name
-    for op in prog.global_block().ops:
-        role = op.attr("op_role")
-        if role & int(BACKWARD) and op.has_attr("op_role_var"):
-            # have backward bits then remove all op_role_var
-            op.desc.remove_attr("op_role_var")
-    for op in prog.global_block().ops:
-        if op.type == "allreduce":
-            allreduce_role_var = []
-            for input_varname in op.input_arg_names:
-                if input_varname in gradname_to_paramname:
-                    allreduce_role_var.append(gradname_to_paramname[input_varname])
-                    allreduce_role_var.append(input_varname)
-            print("updating role var: ", allreduce_role_var)
-            op._set_attr("op_role_var", allreduce_role_var)
-
-
-#def create_master_params_grads(params_grads, main_prog, startup_prog, scale_loss, reduce_master_grad=True):
-def create_master_params_grads(params_grads, main_prog, startup_prog, scale_loss, reduce_master_grad=False):
+def create_master_params_grads(params_grads, 
+                               main_prog, 
+                               startup_prog, 
+                               scale_loss):
     master_params_grads = []      # master p, g on local device
-    #params_grads_to_apply = []    # master p, g after allreduced, if reduce_master_grad is enabled
-    #tmp_role = main_prog._current_role
-    #OpRole = fluid.core.op_proto_and_checker_maker.OpRole
-    #main_prog._current_role = OpRole.Backward
     with main_prog._backward_role_guard():
         for p, g in params_grads:
             # create master parameters
             master_param = copy_to_master_param(p, main_prog.global_block())
-            startup_master_param = startup_prog.global_block()._clone_variable(master_param)
+            startup_master_param = \
+                startup_prog.global_block()._clone_variable(master_param)
             startup_p = startup_prog.global_block().var(p.name)
-            # fp16 -> fp32
             cast_fp16_to_fp32(startup_p, startup_master_param, startup_prog)
             # cast fp16 gradients to fp32 before apply gradients
             if g.name.find("batch_norm") > -1:
@@ -103,5 +93,4 @@ def master_param_to_train_param(master_params_grads, params_grads, main_prog):
         if train_p.name.find('batch_norm') > -1:
             continue
         with main_prog._optimized_guard([m_p_g[0], m_p_g[1]]):
-            # fp32 -> fp16
             cast_fp32_to_fp16(m_p_g[0], train_p, main_prog)
