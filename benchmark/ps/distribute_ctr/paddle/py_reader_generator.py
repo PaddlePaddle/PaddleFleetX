@@ -13,7 +13,6 @@
 # limitations under the License.
 
 # There are 13 integer features and 26 categorical features
-import paddle
 continous_features = range(1, 14)
 categorial_features = range(14, 40)
 continous_clip = [20, 600, 100, 50, 64000, 500, 100, 50, 500, 10, 10, 10, 50]
@@ -42,8 +41,6 @@ class CriteoDataset(Dataset):
                     line_idx = 0
                     for line in f:
                         line_idx += 1
-                        if trainer_num != 1 and trainer_id == line_idx % trainer_num:
-                            continue
                         features = line.rstrip('\n').split('\t')
                         dense_feature = []
                         sparse_feature = []
@@ -57,9 +54,6 @@ class CriteoDataset(Dataset):
                             sparse_feature.append([hash(str(idx) + features[idx]) % self.hash_dim_])
 
                         label = [int(features[0])]
-
-#                        print([dense_feature] + sparse_feature + [label])
-
                         yield [dense_feature] + sparse_feature + [label]
 
         return reader
@@ -72,22 +66,3 @@ class CriteoDataset(Dataset):
 
     def infer(self, file_list):
         return self._reader_creator(file_list, False, 1, 0)
-
-if __name__ == '__main__':
-    filelist = ['./train_data_mini/part-1']
-    a = CriteoDataset(1000001)
-    idx = 0
-    for item in paddle.batch(a.train(filelist, 1, 0), batch_size=4)():
-        print(idx)
-    #    print(item)
-        idx += 1
-    idx = 0
-    for item in paddle.batch(a.train(filelist, 2, 0), batch_size=2)():
-        print(idx)
-     #   print(item)
-        idx += 1
-    idx = 0
-    for item in paddle.batch(a.train(filelist, 2, 1), batch_size=2)():
-        print(idx)
-      #  print(item)
-        idx += 1

@@ -16,8 +16,7 @@ import paddle.fluid.incubate.data_generator as dg
 cont_min_ = [0, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 cont_max_ = [20, 600, 100, 50, 64000, 500, 100, 50, 500, 10, 10, 10, 50]
 cont_diff_ = [20, 603, 100, 50, 64000, 500, 100, 50, 500, 10, 10, 10, 50]
-hash_dim_ = 1001
-#hash_dim_ = 1000001
+hash_dim_ = 1000001
 continuous_range_ = range(1, 14)
 categorical_range_ = range(14, 40)
 
