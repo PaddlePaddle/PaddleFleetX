@@ -12,5 +12,7 @@ python -m paddle.distributed.launch \
   --selected_gpus="0,1,2,3,4,5,6,7" \
   --log_dir=${LOGDIR} \
   train.py --data_dir=./fast_resnet_data/ \
-  --num_epochs=28 \
+  --use_fp16=True \
+  --scale_loss=64.0 \
+  --num_epochs=30 \
   --start_test_pass=0 --log_period=100 

@@ -27,12 +27,14 @@ import reader
 import paddle
 import paddle.fluid as fluid
 import paddle.fluid.profiler as profiler
+from paddle.fluid.optimizer import Optimizer
 
 from utility import add_arguments, print_arguments
 import functools
 from fast_imagenet import FastImageNet, lr_decay
 import utils
 from env import dist_env
+from utils import fp16_utils
 
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
@@ -50,6 +52,8 @@ def parse_args():
     add_arg('start_test_pass',  int,   0,          "After which pass to start test.")
     add_arg('log_period',       int,   30,         "How often to print a log, default is 30.")
     add_arg('best_acc5',        float, 0.93,       "The best acc5, default is 93%.")
+    add_arg('use_fp16',             bool,  False,  "Whether to use fp16.")
+    add_arg('scale_loss',       float, 1.0,        "Scale loss for fp16.")
     add_arg('nccl_comm_num',    int,   1,          "Number of NCCL communicators.")
     # yapf: enable
     args = parser.parse_args()
@@ -106,7 +110,7 @@ def build_program(args,
                     name="image", shape=[3, 244, 244], dtype="uint8")
                 label = fluid.layers.data(
                     name="label", shape=[1], dtype="int64")
-            cast_img_type = "float32"
+            cast_img_type = "float16" if args.use_fp16 else "float32"
             cast = fluid.layers.cast(img, cast_img_type)
             img_mean = fluid.layers.create_global_var(
                 [3, 1, 1], 0.0, cast_img_type, name="img_mean",
@@ -122,6 +126,8 @@ def build_program(args,
             cost, prob = fluid.layers.softmax_with_cross_entropy(
                 predict, label, return_softmax=True)
             avg_cost = fluid.layers.mean(x=cost)
+            if args.scale_loss > 1.0:
+                avg_cost = avg_cost * args.scale_loss
 
             batch_acc1 = fluid.layers.accuracy(input=prob, label=label, k=1)
             batch_acc5 = fluid.layers.accuracy(input=prob, label=label, k=5)
@@ -155,6 +161,8 @@ def build_program(args,
                     learning_rate=fluid.layers.piecewise_decay(
                         boundaries=boundaries, values=values),
                     momentum=0.9)
+                if args.use_fp16:
+                    optimizer = OptimizerWrapper(optimizer, args.scale_loss)
                 dist_optimizer = fleet.distributed_optimizer(optimizer, 
                     strategy=dist_strategy)
                 dist_optimizer.minimize(avg_cost)
@@ -220,20 +228,26 @@ def refresh_program(args, sz, bs, val_bs):
         std = math.sqrt(2.0 / fan_out)
         kaiming_np = np.random.normal(0, std, var.shape)
         tensor = fluid.global_scope().find_var(var.name).get_tensor()
-        tensor.set(np.array(kaiming_np, dtype="float32"), place)
-        tensor.set(np.array(kaiming_np, dtype="float32"), place)
+        if args.use_fp16 and ".master" not in var.name:
+            tensor.set(np.array(
+                kaiming_np, dtype="float16").view(np.uint16),
+                       place)
+        else:
+            tensor.set(np.array(kaiming_np, dtype="float32"), place)
 
     np_tensors = dict()
     np_tensors["img_mean"] = np.array(
         [0.485 * 255.0, 0.456 * 255.0, 0.406 * 255.0]).astype(
-            "float32").reshape((3, 1, 1))
+            "float16" if args.use_fp16 else "float32").reshape((3, 1, 1))
     np_tensors["img_std"] = np.array(
         [0.229 * 255.0, 0.224 * 255.0, 0.225 * 255.0]).astype(
-            "float32").reshape((3, 1, 1))
+            "float16" if args.use_fp16 else "float32").reshape((3, 1, 1))
     for var_name, np_tensor in np_tensors.items():
         var = fluid.global_scope().find_var(var_name)
-        var.get_tensor().set(np_tensor, place)
-
+        if args.use_fp16:
+            var.get_tensor().set(np_tensor.view(np.uint16), place)
+        else:
+            var.get_tensor().set(np_tensor, place)
     avg_loss = train_args[0]
 
     return train_args, test_args, test_program, startup_exe, train_program
@@ -390,7 +404,7 @@ def train_parallel(args):
     if trainer_id == 0 and args.model_save_dir:
         if not os.path.isdir(args.model_save_dir):
             os.makedirs(args.model_save_dir)
-            fluid.io.save_persistables(startup_exe, args.model_save_dir,
+            fluid.io.save_persistables(exe, args.model_save_dir,
                 args.orig_train_program)
     print("total train time: ", total_train_time)
     print("total run time: ", time.time() - over_all_start)
@@ -429,6 +443,33 @@ def main():
         args.nccl_comm_num = 1
         args.lr = 1.0
     train_parallel(args)
+
+
+class OptimizerWrapper(Optimizer):
+    def __init__(self, optimizer, scale_loss):
+        super(OptimizerWrapper, self).__init__(
+            learning_rate=1.0,
+            regularization=None,
+            name=None)
+        self._optimizer = optimizer
+        self._scale_loss = scale_loss
+
+    def minimize(self,
+                 loss,
+                 startup_program=None,
+                 parameter_list=None,
+                 no_grad_set=None):
+        params_grads = self._optimizer.backward(loss)
+        main_program = loss.block.program
+        master_params_grads = fp16_utils.create_master_params_grads(
+            params_grads,
+            main_program,
+            startup_program,
+            self._scale_loss)
+        self._optimizer.apply_gradients(master_params_grads)
+        fp16_utils.master_param_to_train_param(
+            master_params_grads, params_grads, main_program)
+        return None, params_grads
 
 
 if __name__ == "__main__":
