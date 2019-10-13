@@ -129,17 +129,6 @@ def build_program(args,
             if is_train:
                 total_images = args.total_images
                 num_nodes = num_trainers // 8
-                supported_nodes = [1, 2, 4, 8]
-                assert num_nodes in supported_nodes, \
-                    "We only support {} nodes now.".format(supported_nodes)
-                if num_nodes > 1:
-                    args.nccl_comm_num = 2
-                else:
-                    args.nccl_comm_num = 1
-                if num_nodes == 1:
-                    args.lr = 1.0
-                else:
-                    args.lr = 2.0
                 print("lr: {}".format(args.lr))
 
                 epochs = [(0, 7), (7, 13), (13, 22), (22, 25), (25, 28)]
@@ -378,7 +367,7 @@ def train_parallel(args):
         print("Epoch: %d, Spend %.5f hours (training only)\n" %
               (epoch_id, total_train_time / 3600))
         
-        trainer_id == args.dist_env["trainer_id"]
+        trainer_id = args.dist_env["trainer_id"]
         if trainer_id == 0 and epoch_id >= args.start_test_pass:
             feed_list = [
                 test_program.global_block().var(var_name)
@@ -401,9 +390,10 @@ def train_parallel(args):
                 break
 
     if trainer_id == 0 and args.model_save_dir:
-        if not os.path.isdir(model_path):
+        if not os.path.isdir(args.model_save_dir):
             os.makedirs(args.model_save_dir)
-            fluid.io.save_persistables(startup_exe, model_path)
+            fluid.io.save_persistables(startup_exe, args.model_save_dir,
+                args.orig_train_program)
     print("total train time: ", total_train_time)
     print("total run time: ", time.time() - over_all_start)
 
@@ -428,6 +418,18 @@ def main():
     print_arguments(args)
     print_paddle_environments()
     args.dist_env = dist_env()
+    num_trainers = args.dist_env['num_trainers']
+    num_nodes = num_trainers // 8
+    args.num_nodes = num_nodes
+    supported_nodes = [1, 2, 4, 8]
+    assert num_nodes in supported_nodes, \
+        "We only support {} nodes now.".format(supported_nodes)
+    if num_nodes > 1:
+        args.nccl_comm_num = 2
+        args.lr = 2.0
+    else:
+        args.nccl_comm_num = 1
+        args.lr = 1.0
     train_parallel(args)
 
 

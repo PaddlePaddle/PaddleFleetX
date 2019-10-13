@@ -1,4 +1,3 @@
-export PATH=/home/lilong12/python/bin:$PATH
 export FLAGS_sync_nccl_allreduce=1
 export FLAGS_fraction_of_gpu_memory_to_use=0.96
 export FLAGS_eager_delete_tensor_gb=0.0
@@ -12,7 +11,6 @@ LOGDIR="mylog"
 python -m paddle.distributed.launch ${config} \
   --selected_gpus="0,1,2,3,4,5,6,7" \
   --log_dir=${LOGDIR} \
-  train.py --data_dir=/ssd2/lilong/fast_resnet_data/ \
-  --num_epochs=28 --lr=${LR} \
-  --scale_loss=${SCALE_LOSS} \
+  train.py --data_dir=./fast_resnet_data/ \
+  --num_epochs=28 \
   --start_test_pass=0 --log_period=100 
