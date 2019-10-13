@@ -210,7 +210,7 @@ fleet.init(role)
 ```
 **command for running the example**：
 ```
-python -m paddle.distributed.launch trainer.py
+python -m paddle.distributed.launch --selected_gpus="0,1,2,3" trainer.py
 ```
 - **UserDefinedRoleMaker**
 
