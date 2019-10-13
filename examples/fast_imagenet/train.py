@@ -349,10 +349,9 @@ def train_parallel(args):
                 fetched_data = [np.mean(np.array(d)) for d in fetch_ret]
                 print(
                     "Epoch %d, batch %d, loss %s, accucacys: %s, "
-                    "learning_rate %s, py_reader queue_size: %d, "
-                    "avg batch time: %0.4f secs"
-                    % (epoch_id, iters, fetched_data[0], fetched_data[1:-1],
-                       fetched_data[-1], train_py_reader.queue.size(),
+                    "py_reader queue_size: %d, avg batch time: %0.4f secs"
+                    % (epoch_id, iters, fetched_data[0], fetched_data[1:],
+                       train_py_reader.queue.size(),
                        (time.time() - batch_start_time) * 1.0 /
                        args.log_period))
                 batch_start_time = time.time()
