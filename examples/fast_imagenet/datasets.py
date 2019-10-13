@@ -11,8 +11,9 @@
 #WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #See the License for the specific language governing permissions and
 #limitations under the License.
-from PIL import Image
+# adapted from torchvision.datasets.folder
 
+from PIL import Image
 import os
 import os.path
 import sys
@@ -123,7 +124,8 @@ class DatasetFolder(object):
             dir (string): Root directory path.
 
         Returns:
-            tuple: (classes, class_to_idx) where classes are relative to (dir), and class_to_idx is a dictionary.
+            tuple: (classes, class_to_idx) where classes are relative to 
+                (dir), and class_to_idx is a dictionary.
 
         Ensures:
             No class is a subdirectory of another.
@@ -146,7 +148,8 @@ class DatasetFolder(object):
             index (int): Index
 
         Returns:
-            tuple: (sample, target) where target is class_index of the target class.
+            tuple: (sample, target) where target is class_index of the target
+                class.
         """
         path, target = self.samples[index]
         sample = self.loader(path)
@@ -162,7 +165,8 @@ class DatasetFolder(object):
 
 
 def pil_loader(path):
-    # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
+    # open path as file to avoid ResourceWarning
+    # (https://github.com/python-pillow/Pillow/issues/835)
     with open(path, 'rb') as f:
         img = Image.open(f)
         return img.convert('RGB')
@@ -185,10 +189,11 @@ class ImageFolder(DatasetFolder):
 
     Args:
         root (string): Root directory path.
-        transform (callable, optional): A function/transform that  takes in an PIL image
-            and returns a transformed version. E.g, ``transforms.RandomCrop``
-        target_transform (callable, optional): A function/transform that takes in the
-            target and transforms it.
+        transform (callable, optional): A function/transform that  takes in
+            an PIL image and returns a transformed version.
+            E.g, ``transforms.RandomCrop``
+        target_transform (callable, optional): A function/transform that takes
+            in the target and transforms it.
         loader (callable, optional): A function to load an image given its path.
 
      Attributes:
