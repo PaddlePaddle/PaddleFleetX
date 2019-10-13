@@ -267,7 +267,6 @@ def prepare_reader(epoch_id, train_py_reader, train_bs, val_bs, trn_dir,
 
 def train_parallel(args):
     exe = None
-    test_exe = None
     train_args = None
     test_args = None
 
@@ -378,7 +377,7 @@ def train_parallel(args):
                 gpu_id = int(os.getenv("FLAGS_selected_gpus"))
             test_feeder = fluid.DataFeeder(
                 feed_list=feed_list, place=fluid.CUDAPlace(gpu_id))
-            test_ret = test_single(test_exe, test_args, test_reader, 
+            test_ret = test_single(exe, test_args, test_reader, 
                 test_feeder, val_bs, test_program)
             test_acc1, test_acc5 = [np.mean(np.array(v)) for v in test_ret]
             print("Epoch: %d, Test Accuracy: %s, Spend %.2f hours\n" %
