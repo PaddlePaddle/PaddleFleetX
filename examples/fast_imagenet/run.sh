@@ -8,7 +8,7 @@ export FLAGS_fuse_parameter_memory_size=16
 export FLAGS_fuse_parameter_groups_size=50
 
 LOGDIR="mylog"
-python -m paddle.distributed.launch ${config} \
+python -m paddle.distributed.launch \
   --selected_gpus="0,1,2,3,4,5,6,7" \
   --log_dir=${LOGDIR} \
   train.py --data_dir=./fast_resnet_data/ \
