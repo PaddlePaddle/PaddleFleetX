@@ -17,21 +17,20 @@ namespace dgc {
 bool dynloadNcclLib(void);
 
 /**
- * sparseAllGReduce
+ * sparseReduce
  *
- * Gather encode of sparse array from all devices by ncclAllGather, then decode and reduce with dense array.
+ * Decode and reduce the gather encode to dense array.
  *
- * @param encode - starting address of encode, data layout should be SOA {idx[@nnz], val[@nnz]}.
- * @param gatherbuff - starting address of gatherbuff, should have a size at least nranks*encode_size.
+ * @param gatherbuff - starting address of gather encode, gather encode should gather from encode use ncclAllGather, and have a size at least nranks*encode_size.
  * @param nnz - the count of non-zero elements in sparse array.
  * @param dense - starting address of dense array.
  * @param count - the count of dense array.
- * @param comm - nccl communicator
- * @param stream - cuda stream
+ * @param nranks - the count of ranks.
+ * @param stream - cuda stream.
  * @return
  */
-bool sparseAllGReduce(const void* encode, void* gatherbuff, const int nnz,
-                     float* dense, const int count, ncclComm_t comm, cudaStream_t stream);
+bool sparseReduce(void* gather_encode, const int nnz, float* dense,
+                  const int count, const int nranks, cudaStream_t stream);
 
 bool k_select(void* encode, int k, float* input, int count, void* buff, cudaStream_t stream, float* moment = NULL);
 
