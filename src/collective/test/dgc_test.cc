@@ -90,8 +90,12 @@ bool cal_com_test(float* data, int count, void* encode, void* buffer, int k,
     namespace pdgc = paddle::communication::dgc;
     if(pdgc::k_select(encode, k, data, count, buffer, stream, moment)) {
 //    k_select_bucket(data, count, encode , buffer, k, stream, moment);
-        pdgc::sparseAllGReduce((const void*)encode, gather_buff, k,
-                                data, count, comm, stream);
+      NCCLCHECK(ncclAllGather((const void*)encode, gather_buff,
+                              k * (sizeof(int) + sizeof(float)),
+                              ncclChar, comm, stream));
+      int nranks = -1;
+      NCCLCHECK(ncclCommCount(comm, &nranks));
+      pdgc::sparseReduce(gather_buff, k, data, count, nranks, stream);
       return true;
     } else {
       return false;
