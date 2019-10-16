@@ -162,7 +162,8 @@ def train(args):
             return has_var
         fluid.io.load_vars(exe, pretrained_model, predicate=if_exist)
 
-    train_reader = paddle.batch(reader.arc_train(), batch_size=args.train_batch_size)
+    train_reader = paddle.batch(reader.arc_train(args.class_dim),
+        batch_size=args.train_batch_size)
     if args.with_test:
         test_list, test_name_list = reader.test()
     feeder = fluid.DataFeeder(place=place, feed_list=[image, label])
@@ -181,9 +182,6 @@ def train(args):
         train_info = [[], [], [], []]
         local_train_info = [[], [], [], []]
         for batch_id, data in enumerate(train_reader()):
-            label = data[1]
-            assert label < args.class_dim, \
-                "number of classes of train dataset should be less than the class_dim user specified."
             nsamples += real_batch_size
             t1 = time.time()
             loss, lr, acc1, acc5 = exe.run(train_prog,

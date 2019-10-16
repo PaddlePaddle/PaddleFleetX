@@ -11,7 +11,7 @@ try:
 except ImportError:
     from io import StringIO
 
-#random.seed(0)
+random.seed(0)
 
 DATA_DIM = 112
 
@@ -170,7 +170,12 @@ def distort_color(img):
 
     return img
 
-def process_image_imagepath(sample, color_jitter, rotate, rand_mirror, normalize):
+def process_image_imagepath(sample,
+                            class_dim,
+                            color_jitter,
+                            rotate,
+                            rand_mirror,
+                            normalize):
     imgpath = sample[0]
     img = Image.open(imgpath)
 
@@ -194,10 +199,14 @@ def process_image_imagepath(sample, color_jitter, rotate, rand_mirror, normalize
         img -= img_mean
         img /= img_std
 
+    assert sample[1] < class_dim, \
+        "label of train dataset should be less than the class_dim."
+
     return img, sample[1]
 
 
 def arc_iterator(data,
+                 class_dim,
                  shuffle=False,
                  color_jitter=False,
                  rotate=False,
@@ -211,9 +220,11 @@ def arc_iterator(data,
             path = DATA_DIR + path
             yield path, label
 
-    mapper = functools.partial(process_image_imagepath, \
-        color_jitter=color_jitter, rotate=rotate, rand_mirror=rand_mirror, normalize=normalize)
-    return paddle.reader.xmap_readers(mapper, reader, THREAD, BUF_SIZE)
+    mapper = functools.partial(process_image_imagepath, class_dim=class_dim,
+        color_jitter=color_jitter, rotate=rotate,
+        rand_mirror=rand_mirror, normalize=normalize)
+    return paddle.reader.xmap_readers(mapper, reader,
+        THREAD, BUF_SIZE, order=True)
 
 def load_bin(path, image_size):
     bins, issame_list = pickle.load(open(path, 'rb'))
@@ -242,8 +253,8 @@ def load_bin(path, image_size):
     return (data_list, issame_list)
 
 
-def arc_train():
-    return arc_iterator(train_image_list, shuffle=True, \
+def arc_train(class_dim):
+    return arc_iterator(train_image_list, shuffle=True, class_dim=class_dim,
         color_jitter=False, rotate=False, rand_mirror=True, normalize=True)
 
 def test():
