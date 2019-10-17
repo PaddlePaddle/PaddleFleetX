@@ -1,8 +1,3 @@
-bert.png	add images	1 hour ago
-ctr.png	add images	1 hour ago
-resnet50.png	add images	1 hour ago
-transformer.png	add images	1 hour ago
-vgg16.png
 
 # Fleet
 
@@ -14,13 +9,13 @@ Deep neural networks training with Fleet API is highly efficient in PaddlePaddle
 
 ![Click Through Rate Estimation](images/ctr.png)
 
-![Resnet50](resnet50.png)
+![Resnet50](images/resnet50.png)
 
-![Bert](resnet50.png)
+![Bert](images/resnet50.png)
 
-![Transformer](resnet50.png)
+![Transformer](images/resnet50.png)
 
-![VGG16](resnet50.png)
+![VGG16](images/resnet50.png)
 
 ## Easy To Use
 
