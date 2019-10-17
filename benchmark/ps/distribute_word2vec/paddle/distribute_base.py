@@ -28,7 +28,7 @@ import paddle.fluid as fluid
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
 from paddle.fluid.transpiler.distribute_transpiler import DistributeTranspilerConfig
-import py_reader_generator as py_reader
+import reader_generator as py_reader
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("fluid")
@@ -211,12 +211,12 @@ class FleetDistRunnerBase(object):
         train_result = {}
         for epoch in range(params.epochs):
             dataset.set_filelist(file_list)
-            start_time = time.clock()
+            start_time = time.time()
             # Notice: function train_from_dataset does not return fetch value
             exe.train_from_dataset(program=fleet.main_program, dataset=dataset,
                                    fetch_list=[loss], fetch_info=['loss'],
-                                   print_period=100, debug=False)
-            end_time = time.clock()
+                                   print_period=1000, debug=False)
+            end_time = time.time()
             self.record_time(epoch, train_result, end_time - start_time)
             self.record_memory(epoch, train_result)
             if params.is_first_trainer and params.test:
@@ -325,7 +325,7 @@ class FleetDistRunnerBase(object):
         train_result = {}
         for epoch in range(params.epochs):
             reader.start()
-            start_time = time.clock()
+            start_time = time.time()
             batch_id = 0
             # py_reader need use "try & catch Exception" method to load data continuously
             try:
@@ -340,7 +340,7 @@ class FleetDistRunnerBase(object):
                     batch_id += 1
             except fluid.core.EOFException:
                 reader.reset()
-            end_time = time.clock()
+            end_time = time.time()
 
             train_result = self.record_time(epoch, train_result, end_time - start_time)
             train_result = self.record_memory(epoch, train_result)
@@ -408,6 +408,8 @@ class FleetDistRunnerBase(object):
         exe = fluid.Executor(place)
         exe.run(fluid.default_startup_program())
 
+        fluid.io.load_persistables(exe, 'model/trainer_0_epoch_9/')
+
         exec_strategy = fluid.ExecutionStrategy()
         exec_strategy.use_experimental_executor = True
 
@@ -427,7 +429,7 @@ class FleetDistRunnerBase(object):
 
         train_result = {}
         logger.info("--------begin------- ")
-        for epoch in range(params.epochs):
+        for epoch in range(10, 20):
             reader.start()
             start_time = time.time()
             epoch_loss = 0.0
