@@ -3,11 +3,17 @@
 
 **Fleet** is High-Level API for distributed training in PaddlePaddle. The name of **Fleet** means that a large crowd of ships working together to finish a large scale job. The design of **Fleet** makes a trade-off between easy-to-use and algorithmic extensibility. First, a user can shift from single machine paddle fluid code to distributed code within ten lines of code. Second, different algorithms can be easily defined through distributed strategy through **Fleet** API.
 
-## High Efficiency
+# Fleet is Highly Efficient
 
 Deep neural networks training with Fleet API is highly efficient in PaddlePaddle. We benchmark serveral standard models here.
 
+## Parameter Server Training
+
+Parameter server training benchmark is performed on click through rate estimation task on [Criteo Dataset](https://www.kaggle.com/c/criteo-display-ad-challenge/data). 
+
 <img src="images/ctr.png" height="250px" width="450px">
+
+## Collective Training
 
 <img src="images/resnet50.png" height="250px" width="450px">
 
