@@ -1,3 +1,8 @@
+bert.png	add images	1 hour ago
+ctr.png	add images	1 hour ago
+resnet50.png	add images	1 hour ago
+transformer.png	add images	1 hour ago
+vgg16.png
 
 # Fleet
 
@@ -7,12 +12,15 @@
 
 Deep neural networks training with Fleet API is highly efficient in PaddlePaddle. We benchmark serveral standard models here.
 
+![Click Through Rate Estimation](images/ctr.png)
 
+![Fleet API Overview](images/ctr.png)
 
 ## Easy To Use
 
 Fleet is easy to use for both collective training and parameter server training.
 
+![Fleet API Overview](fleet_design.png)
 
 # Fleet
 
