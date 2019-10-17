@@ -7,15 +7,15 @@
 
 Deep neural networks training with Fleet API is highly efficient in PaddlePaddle. We benchmark serveral standard models here.
 
-<img src="images/ctr.png" height="250px" width="500px">
+<img src="images/ctr.png" height="250px" width="450px">
 
-<img src="images/resnet50.png" height="250px" width="500px">
+<img src="images/resnet50.png" height="250px" width="450px">
 
-<img src="images/vgg16.png" height="250px" width="500px">
+<img src="images/vgg16.png" height="250px" width="450px">
 
-<img src="images/bert.png" height="250px" width="500px">
+<img src="images/bert.png" height="250px" width="450px">
 
-<img src="images/transformer.png" height="250px" width="500px">
+<img src="images/transformer.png" height="250px" width="450px">
 
 ## Easy To Use
 
