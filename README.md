@@ -14,7 +14,13 @@ Deep neural networks training with Fleet API is highly efficient in PaddlePaddle
 
 ![Click Through Rate Estimation](images/ctr.png)
 
-![Fleet API Overview](images/ctr.png)
+![Resnet50](resnet50.png)
+
+![Bert](resnet50.png)
+
+![Transformer](resnet50.png)
+
+![VGG16](resnet50.png)
 
 ## Easy To Use
 
