@@ -30,7 +30,7 @@ Collective Training is usually used in GPU training in PaddlePaddle. Benchmark o
 Fleet is easy to use for both collective training and parameter server training. Here is an example for collective training with Fleet.
 
 <p align="center">
-<img src="images/fleet_collective_training.png" height="400px" width="850px">
+<img src="images/fleet_collective_training.png" height="400px" width="880px">
 <p>
 
 ## More Examples
