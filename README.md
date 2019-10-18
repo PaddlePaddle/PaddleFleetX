@@ -3,6 +3,8 @@
 
 **Fleet** is High-Level API for distributed training in PaddlePaddle. The name of **Fleet** means that a large crowd of ships working together to finish a large scale job. The design of **Fleet** makes a trade-off between easy-to-use and algorithmic extensibility. First, a user can shift from single machine paddle fluid code to distributed code within ten lines of code. Second, different algorithms can be easily defined through distributed strategy through **Fleet** API.
 
+**Note: all the examples here should be replicated from develop branch of Paddle**
+
 ## Fleet is Highly Efficient
 
 Deep neural networks training with Fleet API is highly efficient in PaddlePaddle. We benchmark serveral standard models here.
@@ -28,134 +30,26 @@ Collective Training is usually used in GPU training in PaddlePaddle. Benchmark o
 Fleet is easy to use for both collective training and parameter server training. Here is an example for collective training with Fleet.
 
 <p align="center">
-<img src="images/fleet_collective_training.png" height="480px" width="850px">
+<img src="images/fleet_collective_training.png" height="400px" width="850px">
 <p>
 
-# Fleet
+## More Examples
 
-**Fleet** is High-Level API for distributed training in PaddlePaddle. The name of **Fleet** means that a large crowd of ships working together to finish a large scale job. The design of **Fleet** makes a trade-off between easy-to-use and algorithmic extensibility. First, a user can shift from single machine paddle fluid code to distributed code within ten lines of code. Second, different algorithms can be easily defined through distributed strategy through **Fleet** API.
+- [Click Through Estimation](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/ctr)
 
-## Quick Start
+- [Distribute CTR](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/distribute_ctr)
 
-**Note: all the examples here should be replicated from develop branch of Paddle**
+- [DeepFM](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/deepFM)
 
-We show quick-start examples for user to use **Collective** training with **Fleet API**. Multiple GPU training is frequently used in modern AI models that require high performance computing ability of deep learning framework. Sample codes can be found in examples/quick-start folder.
+- [Semantic Matching](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/simnet_bow)
 
-Suppose we define a simple neural nets in examples/quick-start/nets.py
-```python
-import paddle.fluid as fluid
+- [Word2Vec](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/word2vec)
 
-def mlp(input_x, input_y, hid_dim=128, label_dim=2):
-    fc_1 = fluid.layers.fc(input=input_x, size=hid_dim, act='tanh')
-    fc_2 = fluid.layers.fc(input=fc_1, size=hid_dim, act='tanh')
-    prediction = fluid.layers.fc(input=[fc_2], size=label_dim, act='softmax')
-    cost = fluid.layers.cross_entropy(input=prediction, label=input_y)
-    avg_cost = fluid.layers.mean(x=cost)
-    return avg_cost
-```
+- [Resnet50 on Imagenet](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/resnet50)
 
-Simple local training can be defined as in examples/quick-start/local_trainer.py
-```python
-import paddle.fluid as fluid
-from nets import mlp
-from utils import gen_data
+- [Transformer on En-De](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/transformer)
 
-input_x = fluid.layers.data(name="x", shape=[32], dtype='float32')
-input_y = fluid.layers.data(name="y", shape=[1], dtype='int64')
-
-cost = mlp(input_x, input_y)
-optimizer = fluid.optimizer.SGD(learning_rate=0.01)
-optimizer.minimize(cost)
-place = fluid.CUDAPlace(0)
-
-exe = fluid.Executor(place)
-exe.run(fluid.default_startup_program())
-step = 1001
-for i in range(step):
-    cost_val = exe.run(program=fluid.default_main_program(),
-                       feed=gen_data(),
-                       fetch_list=[cost.name])
-    print("step%d cost=%f" % (i, cost_val[0]))
-```
-
-
-Parameter server training is suitable for parallel training of large-scale data. Based on the definition of single-machine model, we give an example of training with parameter server, source code of this example is in examples/quick-start/distributed_train.py
-```python
-import paddle.fluid as fluid
-from nets import mlp
-from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
-from paddle.fluid.incubate.fleet.base import role_maker
-from utils import gen_data
-
-input_x = fluid.layers.data(name="x", shape=[32], dtype='float32')
-input_y = fluid.layers.data(name="y", shape=[1], dtype='int64')
-
-cost = mlp(input_x, input_y)
-optimizer = fluid.optimizer.SGD(learning_rate=0.01)
-
-role = role_maker.PaddleCloudRoleMaker()
-fleet.init(role)
-optimizer = fleet.distributed_optimizer(optimizer)
-optimizer.minimize(cost)
-
-if fleet.is_server():
-    fleet.init_server()
-    fleet.run_server()
-elif fleet.is_worker():
-    place = fluid.CPUPlace()
-    exe = fluid.Executor(place)
-    exe.run(fluid.default_startup_program())
-    step = 1001
-    for i in range(step):
-        cost_val = exe.run(
-            program=fluid.default_main_program(),
-            feed=gen_data(),
-            fetch_list=[cost.name])
-        print("worker_index: %d, step%d cost = %f" %
-            (fleet.worker_index(), i, cost_val[0]))
-```              
-
-Command for parameter server training with multiple process on CPU is as follows:
-```
-python -m paddle.distributed.launch_ps distributed_train.py
-```
-
-If you want to use high performance chip to do distributed training, such as distributed GPU training, **Fleet API** will help you by adding less than 10 lines of code, source code of this example is in examples/quick-start/collective_train.py
-
-```python
-import paddle.fluid as fluid
-from nets import mlp
-from paddle.fluid.incubate.fleet.collective import fleet
-from paddle.fluid.incubate.fleet.base import role_maker
-from utils import gen_data
-
-input_x = fluid.layers.data(name="x", shape=[32], dtype='float32')
-input_y = fluid.layers.data(name="y", shape=[1], dtype='int64')
-
-cost = mlp(input_x, input_y)
-optimizer = fluid.optimizer.SGD(learning_rate=0.01)
-role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-fleet.init(role)
-
-optimizer = fleet.distributed_optimizer(optimizer)
-optimizer.minimize(cost)
-place = fluid.CUDAPlace(0)
-
-exe = fluid.Executor(place)
-exe.run(fluid.default_startup_program())
-step = 1001
-for i in range(step):
-    cost_val = exe.run(program=fluid.main_program,
-                       feed=gen_data(),
-                       fetch_list=[cost.name])
-    print("worker_index: %d, step%d cost = %f" % 
-          (fleet.worker_index(), i, cost_val[0]))
-```
-
-Command for distributed training with multiple process on multiple GPU card is as follows:
-```
-python -m paddle.distributed.launch collective_train.py
-```
+- [Bert on English Wikipedia](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/bert)
 
 ## Design of Fleet
 
@@ -286,22 +180,6 @@ from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import f
 from paddle.fluid.incubate.fleet.collective import fleet
 ```
 
-## Examples
 
-- [Click Through Estimation](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/ctr)
-
-- [Distribute CTR](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/distribute_ctr)
-
-- [DeepFM](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/deepFM)
-
-- [Semantic Matching](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/simnet_bow)
-
-- [Word2Vec](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/word2vec)
-
-- [Resnet50 on Imagenet](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/resnet50)
-
-- [Transformer on En-De](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/transformer)
-
-- [Bert on English Wikipedia](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/bert)
 
 
