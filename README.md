@@ -9,7 +9,7 @@ Deep neural networks training with Fleet API is highly efficient in PaddlePaddle
 
 ### Parameter Server Training
 
-Parameter server training benchmark is performed on click through rate estimation task on [Criteo Dataset](https://www.kaggle.com/c/criteo-display-ad-challenge/data). 
+Parameter server training benchmark is performed on click through rate estimation task on [Criteo Dataset](https://www.kaggle.com/c/criteo-display-ad-challenge/data). Details of hardware and software information for this benchmark can be found in .
 
 <p align="center">
 <img align="center" src="images/ctr.png" height="250px" width="470px">
@@ -17,13 +17,16 @@ Parameter server training benchmark is performed on click through rate estimatio
     
 ### Collective Training
 
-Collective Training is usually used in GPU training in PaddlePaddle. Benchmark of collective training with Fleet is as follows.
+Collective Training is usually used in GPU training in PaddlePaddle. Benchmark of collective training with Fleet is as follows. Details of hardware and software information for this benchmark can be found in .
 
-<img src="images/joint_benchmark.png" height="250px" width="450px">
+<p align="center">
+<img src="images/joint_benchmark.png" height="480px" width="850px">
+<p>
 
 ## Easy To Use
 
-Fleet is easy to use for both collective training and parameter server training.
+Fleet is easy to use for both collective training and parameter server training. Here is an example for collective training with Fleet.
+
 
 ![Fleet API Overview](fleet_design.png)
 
@@ -71,6 +74,7 @@ for i in range(step):
     cost_val = exe.run(feed=gen_data(), fetch_list=[cost.name])
     print("step%d cost=%f" % (i, cost_val[0]))
 ```
+
 
 Parameter server training is suitable for parallel training of large-scale data. Based on the definition of single-machine model, we give an example of training with parameter server, source code of this example is in examples/quick-start/distributed_train.py
 ```python
@@ -138,12 +142,11 @@ exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
 step = 1001
 for i in range(step):
-    cost_val = exe.run(
-        program=fluid.default_main_program(),
-        feed=gen_data(),
-        fetch_list=[cost.name])
-    print("worker_index: %d, step%d cost = %f" %
-        (fleet.worker_index(), i, cost_val[0]))
+    cost_val = exe.run(program=fluid.main_program,
+                       feed=gen_data(),
+                       fetch_list=[cost.name])
+    print("worker_index: %d, step%d cost = %f" % 
+          (fleet.worker_index(), i, cost_val[0]))
 ```
 
 Command for distributed training with multiple process on multiple GPU card is as follows:
