@@ -49,9 +49,9 @@ python -m paddle.distributed.launch --selected_gpus="0,1,2,3" trainer.py
 
 - [Word2Vec](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/word2vec)
 
-- [Resnet50 on Imagenet](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/resnet50)
+- [Resnet50 on Imagenet](https://github.com/PaddlePaddle/Fleet/tree/develop/benchmark/collective/resnet)
 
-- [Transformer on En-De](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/transformer)
+- [Transformer on En-De](https://github.com/PaddlePaddle/Fleet/tree/develop/benchmark/collective/transformer)
 
-- [Bert on English Wikipedia](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/bert)
+- [Bert on English Wikipedia](https://github.com/PaddlePaddle/Fleet/tree/develop/benchmark/collective/bert)
 
