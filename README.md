@@ -14,7 +14,7 @@ Deep neural networks training with Fleet API is highly efficient in PaddlePaddle
 Parameter server training benchmark is performed on click through rate estimation task on [Criteo Dataset](https://www.kaggle.com/c/criteo-display-ad-challenge/data). Details of hardware and software information for this benchmark can be found in .
 
 <p align="center">
-<img align="center" src="images/fleet_ps_benchmark.png" height="250px" width="940px">
+<img align="center" src="images/fleet_ps_benchmark.png" height="270px" width="940px">
 <p>
     
 ### Collective Training
