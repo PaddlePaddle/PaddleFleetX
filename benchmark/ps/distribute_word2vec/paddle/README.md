@@ -32,26 +32,7 @@ python eval.py --test_model_dir=model/
 3. 分布式
 * 训练
 ```
-sh local_cluster.sh async
+sh local_cluster.sh pyreader async ps 
+sh local_cluster.sh pyreader async tr
 ```
 * 测试同单机
-
-# paddle benchmark 实验结果
-参数配置：
-* learning rate: 1.0
-* learning decay strategy: exponential_decay, decay_steps: 100000, decay_rate:0.999, staircase:True
-* batch_size: 100
-* embedding_size: 300
-* nce: 5
-* context window size: random[1, 5]
-* threads: 1
-* epochs: 5
-* 数据预处理中down_sampling: 0.001
-
-效果：
-
-模式 | acc |  速度  
--|-|-
-单机 | 0.595 | ~23小时 |
-分布式异步 | / | / |
-分布式同步 | / | / |
