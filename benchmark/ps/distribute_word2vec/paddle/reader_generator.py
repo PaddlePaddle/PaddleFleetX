@@ -48,13 +48,11 @@ class NumpyRandomInt(object):
 class Word2VecReader(object):
     def __init__(self,
                  dict_path,
-                 data_path,
                  filelist,
                  trainer_id,
                  trainer_num,
                  window_size=5):
         self.window_size_ = window_size
-        self.data_path_ = data_path
         self.filelist = filelist
         self.trainer_id = trainer_id
         self.trainer_num = trainer_num
@@ -102,11 +100,8 @@ class Word2VecReader(object):
     def train(self):
         def nce_reader():
             for file in self.filelist:
-                with io.open(
-                        self.data_path_ + "/" + file, 'r',
-                        encoding='utf-8') as f:
-                    logger.info("running data in {}".format(self.data_path_ +
-                                                            "/" + file))
+                with io.open(file, 'r', encoding='utf-8') as f:
+                    logger.info("running data in {}".format(file))
                     count = 1
                     for line in f:
                         if self.trainer_id == count % self.trainer_num:

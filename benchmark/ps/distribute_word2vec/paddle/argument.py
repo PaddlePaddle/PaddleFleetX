@@ -39,7 +39,6 @@ def params_args(args=None):
     # parameters of training
     params.add_argument("-l", "--learning_rate", type=float, default=1.0,
                         help="Initial learning rate for training.")
-
     params.add_argument("-b", "--batch_size", type=int, default=100,
                         help="Mini batch size for training.")
     params.add_argument("-e", "--epochs", type=int, default=5,
@@ -48,20 +47,11 @@ def params_args(args=None):
                         help="Decay the learning rate after every N epochs.")
     params.add_argument("--decay_rate", type=float, default=0.999,
                         help='Rate of decaying the learning rate.')
-
-
-    # customized parameters
     params.add_argument('--embedding_size', type=int, default=300,
                         help="The size for embedding layer")
     params.add_argument('--dict_size', type=int, default=0)
-    params.add_argument('--neg_num', type=int, default=5)
     params.add_argument('--nce_num', type=int, default=5)
-    params.add_argument('--vocab_size', type=int,default=0)
-    params.add_argument('--start_index',type=int,default=0)
-    params.add_argument('--last_index',type=int,default=10)
     params.add_argument('--infer_batch_size',type=int,default=20000)
-    params.add_argument('--start_batch',type=int,default=1)
-    params.add_argument('--end_batch',type=int,default=13)
 
     # parameters of train method
     params.add_argument("--is_pyreader_train", type=bool, default=False)
@@ -89,7 +79,7 @@ def params_args(args=None):
     params.add_argument("--pserver_endpoints", type=list, default=[])
     params.add_argument("--pserver_ports", type=str, default="36001")
     params.add_argument("--test_model_dir", type=str, default="")
-    params.add_argument("--sync_mode", type=str, required=False,choices=['sync','half_async','async'])
+    params.add_argument("--sync_mode", type=str, required=False,choices=['sync','async','geo_async'])
     params.add_argument("--cpu_num", type=int, default=1)
 
     params = params.parse_args()

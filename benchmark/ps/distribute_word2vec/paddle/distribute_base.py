@@ -29,6 +29,7 @@ import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
 from paddle.fluid.transpiler.distribute_transpiler import DistributeTranspilerConfig
 import reader_generator as py_reader
+from paddle.fluid.contrib.utils import HDFSClient
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("fluid")
@@ -110,12 +111,6 @@ class FleetDistRunnerBase(object):
 
         # step2: define the input data of network
         # define the model, build the pserver program
-        id_counts = []    
-        with io.open(params.dict_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                word, count = line.split()[0], int(line.split()[1])
-                id_counts.append(count)
-        params.dict_size = len(id_counts)
         inputs = self.input_data(params)
         if params.is_pyreader_train:
             reader = self.py_reader(params)
@@ -127,7 +122,6 @@ class FleetDistRunnerBase(object):
         loss = self.net(inputs, params)
 
         # step4: define the optimizer for your model
-        
         optimizer = fluid.optimizer.SGD(
             learning_rate=fluid.layers.exponential_decay(
                 learning_rate=params.learning_rate,
@@ -205,7 +199,9 @@ class FleetDistRunnerBase(object):
         if params.is_local_cluster:
             file_list = fleet.split_files(file_list)
         logger.info("file list: {}".format(file_list))
+        logger.info("there are a total of {} files.".format(len(file_list)))
         logger.info('----------------------NO.%s trainer ready----------------' % (params.current_id))
+        all_examples = self.get_example_num(file_list)
 
         # step7: begin to train your model, good luck
         train_result = {}
@@ -217,23 +213,23 @@ class FleetDistRunnerBase(object):
                                    fetch_list=[loss], fetch_info=['loss'],
                                    print_period=1000, debug=False)
             end_time = time.time()
-            self.record_time(epoch, train_result, end_time - start_time)
+            speed = float(all_examples) / float(end_time - start_time)
+            speed = speed * float(params.trainers)
+            logger.info("epoch: %d finished, speed: %f" % (epoch, speed))
+
+            self.record_speed(epoch, train_result, speed)
             self.record_memory(epoch, train_result)
             if params.is_first_trainer and params.test:
                 model_path = str(params.model_path) + '/trainer_' + str(params.current_id) + '_epoch_' + str(epoch)
                 fleet.save_persistables(executor=exe, dirname=model_path)
                 if not params.is_local_cluster:
-                    self.upload_files(model_path,params)
+                    self.upload_files(model_path, params, 'model')
 
-        if params.is_first_trainer:
-            train_method = '_dataset_train'
-            log_path = str(params.log_path + '/' + str(params.current_id) + train_method + '.log')
-            with open(log_path, 'w+') as f:
-                f.write(str(train_result))
-            model_path = str(params.model_path + '/final' + train_method)
-            fleet.save_persistables(executor=exe, dirname=model_path)
-            if not params.is_local_cluster:
-                self.upload_files(model_path,params)
+        log_path = str(params.log_path + '/' + str(params.current_id) + '_dataset_train.log')
+        with open(log_path, 'w+') as f:
+            f.write(str(train_result))
+        if not params.is_local_cluster:
+            self.upload_files(log_path, params, 'log')
 
         logger.info("Train Success!")
         fleet.stop_worker()
@@ -255,12 +251,13 @@ class FleetDistRunnerBase(object):
             server_endpoints=params.pserver_endpoints)
         fleet.init(role)
 
-        file_list = os.listdir(params.train_files_path)
+        file_list = [str(params.train_files_path) + "/%s" % x
+                     for x in os.listdir(params.train_files_path)]
         if params.is_local_cluster:
             file_list = fleet.split_files(file_list)
         logger.info("file list: {}".format(file_list))
-        word2vec_reader = py_reader.Word2VecReader(params.dict_path, params.train_files_path,
-                                                   file_list, 0, 1)
+        logger.info("there are a total of {} files.".format(len(file_list)))
+        word2vec_reader = py_reader.Word2VecReader(params.dict_path, file_list, 0, 1)
         params.dict_size = word2vec_reader.dict_size
 
         # step2: define the input data of network
@@ -323,6 +320,7 @@ class FleetDistRunnerBase(object):
 
         # step8: begin to train your model, good luck
         train_result = {}
+        all_examples = self.get_example_num(file_list)
         for epoch in range(params.epochs):
             reader.start()
             start_time = time.time()
@@ -341,38 +339,47 @@ class FleetDistRunnerBase(object):
             except fluid.core.EOFException:
                 reader.reset()
             end_time = time.time()
-
-            train_result = self.record_time(epoch, train_result, end_time - start_time)
-            train_result = self.record_memory(epoch, train_result)
-
+            speed = float(all_examples) / float(end_time - start_time)
+            speed = speed * float(params.trainers)
+            logger.info("epoch: %d finished, speed: %f" % (epoch, speed))
+ 
+            train_result = self.record_speed(epoch, train_result, speed)
+            train_result = self.record_memory(epoch, train_result) 
+            
             if params.is_first_trainer and params.test:
                 model_path = str(params.model_path) + '/trainer_' + str(params.current_id) + '_epoch_' + str(epoch)
                 fleet.save_persistables(executor=exe, dirname=model_path)
                 if not params.is_local_cluster:
-                    self.upload_files(model_path,params)
+                    self.upload_files(model_path, params, 'model')
 
-        if params.is_first_trainer:
-            train_method = '_pyreader_train'
-            log_path = str(params.log_path + '/' + str(params.current_id) + train_method + '.log')
-            with open(log_path, 'w+') as f:
-                f.write(str(train_result))
-            model_path = str(params.model_path + '/final' + train_method)
-            fleet.save_persistables(executor=exe, dirname=model_path)
-            if not params.is_local_cluster:
-                self.upload_files(model_path,params)
+        log_path = str(params.log_path + '/' + str(params.current_id) + '_pyreader_train.log')
+        with open(log_path, 'w+') as f:
+            f.write(str(train_result))
+        if not params.is_local_cluster:
+            self.upload_files(log_path, params, 'log')
 
         logger.info("Train Success!")
         fleet.stop_worker()
         return train_result
 
-    def upload_files(self, local_path, params):
+    def get_example_num(self,file_list):
+        count = 0
+        for f in file_list:
+            last_count = count
+            for index, line in enumerate(open(f, 'r')):
+                count += 1
+            logger.info("file: %s has %s examples"%(f,count-last_count))
+        logger.info("Total example: %s"%count)
+        return count
+
+    def upload_files(self, local_path, params, kind):
         """
         upload files to hdfs
         """
         import paddlecloud.upload_utils as upload_utils 
         sys_job_id = os.getenv("SYS_JOB_ID")
         output_path = os.getenv("OUTPUT_PATH")
-        remote_path = output_path + "/" + sys_job_id + "/"
+        remote_path = output_path + "/" + sys_job_id + "/" + kind + "/"
         if (not params.is_local_cluster) and params.test:
             upload_rst = upload_utils.upload_to_hdfs(local_file_path=local_path, remote_file_path=remote_path)
             logger.info("remote_path: {}, upload_rst: {}".format(remote_path, upload_rst))
@@ -383,10 +390,11 @@ class FleetDistRunnerBase(object):
         reader = self.py_reader(params)
         inputs = fluid.layers.read_file(reader)
         
-        file_list = os.listdir(params.train_files_path)
+        file_list = [str(params.train_files_path) + "/%s" % x
+                     for x in os.listdir(params.train_files_path)]
         logger.info("file list: {}".format(file_list))
-        word2vec_reader = py_reader.Word2VecReader(params.dict_path, params.train_files_path,
-                                                   file_list, 0, 1)
+        logger.info("there are a total of {} files.".format(len(file_list)))
+        word2vec_reader = py_reader.Word2VecReader(params.dict_path, file_list, 0, 1)
         params.dict_size = word2vec_reader.dict_size
       
         np_power = np.power(np.array(word2vec_reader.id_frequencys), 0.75)
@@ -408,8 +416,6 @@ class FleetDistRunnerBase(object):
         exe = fluid.Executor(place)
         exe.run(fluid.default_startup_program())
 
-        fluid.io.load_persistables(exe, 'model/trainer_0_epoch_9/')
-
         exec_strategy = fluid.ExecutionStrategy()
         exec_strategy.use_experimental_executor = True
 
@@ -428,8 +434,9 @@ class FleetDistRunnerBase(object):
             exec_strategy=exec_strategy)
 
         train_result = {}
+        all_examples = self.get_example_num(file_list)
         logger.info("--------begin------- ")
-        for epoch in range(10, 20):
+        for epoch in range(params.epochs):
             reader.start()
             start_time = time.time()
             epoch_loss = 0.0
@@ -448,11 +455,13 @@ class FleetDistRunnerBase(object):
             except fluid.core.EOFException:
                 reader.reset()
             end_time = time.time()
-            train_result = self.record_time(epoch, train_result, end_time - start_time)
+            speed = float(all_examples) / float(end_time - start_time)
+            logger.info("epoch: %d finished, speed: %f" % (epoch, speed))
+            train_result = self.record_speed(epoch, train_result, speed)
             train_result = self.record_memory(epoch, train_result)
             train_result[epoch]['loss'] = epoch_loss / float(batch_id)
-            sys.stderr.write("epoch %d finished, use time=%d, loss=%f\n"
-                       % ((epoch + 1), end_time - start_time, train_result[epoch]['loss']))
+            sys.stderr.write("epoch %d finished, speed=%f examples/s, loss=%f\n"
+                       % ((epoch + 1), speed, train_result[epoch]['loss']))
             model_path = str(params.model_path) +'/trainer_0_' + 'epoch_'+ str(epoch)
             fluid.io.save_persistables(executor=exe, dirname=model_path)
             
@@ -477,7 +486,7 @@ class FleetDistRunnerBase(object):
             :infer_result, type:dict, record the evalution parameter and program resource usage situation
         """
         if not os.path.isdir(model_path):
-            print("{} is not a dir".format(model_path))
+            logger.info("{} is not a dir".format(model_path))
             return
         epoch_id = os.path.basename(model_path)
         if not self.check_model_format(epoch_id):
@@ -485,7 +494,7 @@ class FleetDistRunnerBase(object):
         if os.path.exists(model_path + '.acc'):
             return
 
-        params.vocab_size, test_reader, id2word = py_reader.prepare_data(
+        params.dict_size, test_reader, id2word = py_reader.prepare_data(
             params.test_files_path, params.infer_dict_path, batch_size=params.infer_batch_size)
 
         place = fluid.CPUPlace()
@@ -496,7 +505,7 @@ class FleetDistRunnerBase(object):
 
         with fluid.framework.program_guard(test_program,startup_program):
             values, pred = self.infer_net(params)
-            print(model_path)
+            logger.info(model_path)
             fluid.io.load_persistables(
                 executor=exe, dirname=model_path, main_program=fluid.default_main_program())
 
@@ -516,8 +525,8 @@ class FleetDistRunnerBase(object):
                                feed={
                                    "analogy_a": wa, "analogy_b": wb, "analogy_c": wc,
                                    "all_label":
-                                       np.arange(params.vocab_size).reshape(
-                                           params.vocab_size, 1).astype("int64"),
+                                       np.arange(params.dict_size).reshape(
+                                           params.dict_size, 1).astype("int64"),
                                },
                                fetch_list=[pred.name, values],
                                return_numpy=False)
@@ -535,7 +544,7 @@ class FleetDistRunnerBase(object):
                 if step_id % 1 == 0:
                     logger.info("step:%d %d " % (step_id, accum_num))
             acc = 1.0 * accum_num / accum_num_sum
-            print("acc:%.3f " % acc)
+            logger.info("acc:%.3f " % acc)
             infer_result['acc'] = acc
         with open(model_path + '.acc', 'w') as fout:
             fout.write(str(infer_result) + '\n')
@@ -566,12 +575,12 @@ class FleetDistRunnerBase(object):
         raise NotImplementedError(
             "dataset_reader should be implemented by child classes.")
 
-    def record_time(self, epoch, train_result, time):
+    def record_speed(self, epoch, train_result, speed):
         """
-        record the operation time
+        record the operation speed
         """
         train_result[epoch] = {}
-        train_result[epoch]['time'] = time
+        train_result[epoch]['speed'] = speed
         return train_result
 
     def record_memory(self, epoch, train_result):
@@ -583,6 +592,40 @@ class FleetDistRunnerBase(object):
         train_result[epoch]['vsa'] = info['vsa']
         return train_result
 
+    def check_all_trainers_ready(self, epoch):
+        output = os.getenv("OUTPUT_PATH")
+        trainer_num = int(os.getenv("PADDLE_TRAINERS_NUM", "1"))
+        trainer_id = int(os.getenv("PADDLE_TRAINER_ID", "0"))
+        user_id = os.getenv("SYS_USER_ID")
+        job_id = os.getenv("SYS_JOB_ID")
+
+        hadoop_home = os.getenv("HADOOP_HOME")
+        configs = {
+            "fs.default.name": os.getenv("FS_NAME"),
+            "hadoop.job.ugi": os.getenv("FS_UGI")
+        }
+
+        node_ready = "ready.{}.{}.done".format(epoch, trainer_id)
+
+        with open(node_ready, "w") as node:
+            node.write("")
+
+        ready_path = "{}/{}/{}/ready".format(output, user_id, job_id)
+
+        client = HDFSClient(hadoop_home, configs)
+        client.makedirs(ready_path)
+        client.upload(hdfs_path=ready_path, local_path=node_ready, overwrite=True, retry_times=0)
+
+        print("PUT {} ON HDFS {} OK".format(node_ready, ready_path))
+
+        ready_num = len(client.ls(ready_path))
+        while ready_num % trainer_num != 0:
+            print("have {} trainers need to be ready".format(trainer_num - ready_num % trainer_num))
+            time.sleep(10)
+            ready_num = len(client.ls(ready_path))
+
+        print("All trainers are ready, continue training")
+ 
     def runtime_main(self, params):
         """
         Function runtime_main: the entry point for program running
@@ -599,7 +642,6 @@ class FleetDistRunnerBase(object):
                 for line in f:
                     word, count = line.split()[0], int(line.split()[1])
                     id_counts.append(count)
-            params.vocab_size = len(id_counts)
             params.dict_size = len(id_counts)
             # Step1: get the environment variable, mainly related to network communication parameters
             params.role = os.getenv("TRAINING_ROLE")
@@ -619,7 +661,7 @@ class FleetDistRunnerBase(object):
 
             params.current_endpoint = os.getenv("POD_IP", "localhost") + ":" + params.pserver_ports
 
-            params.cpu_num = os.getenv("CPU_NUM")
+            params.cpu_num = os.getenv("CPU_NUM", "1")
             logger.info("output path: {}".format(params.model_path))
 
             # Step2: decide communication mode between PSERVER & TRAINER
@@ -629,15 +671,17 @@ class FleetDistRunnerBase(object):
                 self.strategy.sync_mode = True
                 self.strategy.runtime_split_send_recv = False
                 self.async_mode = False
-                params.batch_size = int(params.batch_size / params.trainers)
-            elif params.sync_mode == 'half_async':
-                self.strategy.sync_mode = False
-                self.async_mode = False
-                self.strategy.runtime_split_send_recv = False
+                params.batch_size = int(params.batch_size / (params.trainers * int(params.cpu_num)))
             elif params.sync_mode == 'async':
                 self.strategy.sync_mode = False
                 self.async_mode = True
                 self.strategy.runtime_split_send_recv = True
+            elif params.sync_mode == "geo_async":
+                self.strategy.sync_mode = False
+                self.async_mode = True
+                self.strategy.runtime_split_send_recv = True
+                self.strategy.geo_sgd_mode = True
+                self.strategy.geo_sgd_need_push_nums = 400
 
             # Step3: Configure communication IP and ports
             if params.is_local_cluster:
@@ -662,23 +706,13 @@ class FleetDistRunnerBase(object):
             if params.role == "PSERVER":
                 self.run_pserver(params)
             elif params.role == "TRAINER":
+                self.check_all_trainers_ready(0)                
                 if params.is_dataset_train:
                     train_result = self.run_dataset_trainer(params)
                 elif params.is_pyreader_train:
                     train_result = self.run_pyreader_trainer(params)
             else:
                 raise ValueError("Please choice training role for current node : PSERVER / TRAINER")
-
-            # Step5: If the role is first trainer, after training, perform verification on the test data
-         #   if params.is_first_trainer:
-         #       infer_result = {}
-         #       infer_result = self.run_infer(params)
-         #       result = dict()
-         #       result[0] = dict()
-         #       result[0]['acc'] = infer_result['acc']
-         #       result[1] = train_result[0]['time']
-         #       result[7] = train_result[0]['cpu']
-         #       logger.info(result)
 
             logger.info("Distribute train success!")
 

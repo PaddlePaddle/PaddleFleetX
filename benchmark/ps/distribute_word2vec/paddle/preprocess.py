@@ -32,7 +32,7 @@ def parse_args():
     parser.add_argument(
         '--file_nums',
         type=int,
-        default=120,
+        default=1024,
         help="re-split input corpus file nums"
     )
     parser.add_argument(

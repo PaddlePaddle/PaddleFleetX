@@ -66,7 +66,7 @@ class word2vec(FleetDistRunnerBase):
                     name='emb_w', learning_rate=1.0))
 
             neg_emb_w_re = fluid.layers.reshape(
-                neg_emb_w, shape=[-1, params.neg_num, params.embedding_size])
+                neg_emb_w, shape=[-1, params.nce_num, params.embedding_size])
 
             neg_emb_b = fluid.layers.embedding(
                 input=neg_word_reshape,
@@ -75,7 +75,7 @@ class word2vec(FleetDistRunnerBase):
                 param_attr=fluid.ParamAttr(
                     name='emb_b', learning_rate=1.0))
 
-            neg_emb_b_vec = fluid.layers.reshape(neg_emb_b, shape=[-1, params.neg_num])
+            neg_emb_b_vec = fluid.layers.reshape(neg_emb_b, shape=[-1, params.nce_num])
 
             true_logits = fluid.layers.elementwise_add(
                 fluid.layers.reduce_sum(
@@ -89,14 +89,14 @@ class word2vec(FleetDistRunnerBase):
 
             neg_matmul = fluid.layers.matmul(
                 input_emb_re, neg_emb_w_re, transpose_y=True)
-            neg_matmul_re = fluid.layers.reshape(neg_matmul, shape=[-1, params.neg_num])
+            neg_matmul_re = fluid.layers.reshape(neg_matmul, shape=[-1, params.nce_num])
             neg_logits = fluid.layers.elementwise_add(neg_matmul_re, neg_emb_b_vec)
             # nce loss
 
             label_ones = fluid.layers.fill_constant_batch_size_like(
                 true_logits, shape=[-1, 1], value=1.0, dtype='float32')
             label_zeros = fluid.layers.fill_constant_batch_size_like(
-                true_logits, shape=[-1, params.neg_num], value=0.0, dtype='float32')
+                true_logits, shape=[-1, params.nce_num], value=0.0, dtype='float32')
 
             true_xent = fluid.layers.sigmoid_cross_entropy_with_logits(true_logits,
                                                                        label_ones)
@@ -112,7 +112,7 @@ class word2vec(FleetDistRunnerBase):
 
     def py_reader(self, params):
         reader = fluid.layers.create_py_reader_by_data(
-            capacity=64, feed_list=self.data, name='py_reader', use_double_buffer=True)
+            capacity=64, feed_list=self.data, name='py_reader', use_double_buffer=False)
 
         return reader
 
@@ -128,7 +128,7 @@ class word2vec(FleetDistRunnerBase):
 
     def infer_net(self,params):
         with fluid.unique_name.guard():
-            vocab_size = params.vocab_size
+            vocab_size = params.dict_size
             emb_size = params.embedding_size
             analogy_a = fluid.layers.data(name="analogy_a", shape=[1], dtype='int64')
             analogy_b = fluid.layers.data(name="analogy_b", shape=[1], dtype='int64')
