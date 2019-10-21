@@ -28,6 +28,7 @@ export OUTPUT_PATH="output"
 export SYS_JOB_ID="local_cluster"
 #export FLAGS_communicator_send_queue_size=1
 #export FLAGS_communicator_thread_pool_size=5
+export FLAGS_rpc_retry_times=3
 export FLAGS_communicator_max_merge_var_num=16
 export FLAGS_communicator_fake_rpc=0
 
