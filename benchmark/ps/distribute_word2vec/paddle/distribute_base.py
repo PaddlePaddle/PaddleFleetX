@@ -214,7 +214,6 @@ class FleetDistRunnerBase(object):
                                    print_period=1000, debug=False)
             end_time = time.time()
             speed = float(all_examples) / float(end_time - start_time)
-            speed = speed * float(params.trainers)
             logger.info("epoch: %d finished, speed: %f" % (epoch, speed))
 
             self.record_speed(epoch, train_result, speed)
@@ -340,7 +339,6 @@ class FleetDistRunnerBase(object):
                 reader.reset()
             end_time = time.time()
             speed = float(all_examples) / float(end_time - start_time)
-            speed = speed * float(params.trainers)
             logger.info("epoch: %d finished, speed: %f" % (epoch, speed))
  
             train_result = self.record_speed(epoch, train_result, speed)

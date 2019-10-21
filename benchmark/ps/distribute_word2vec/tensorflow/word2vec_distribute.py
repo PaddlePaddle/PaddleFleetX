@@ -61,6 +61,7 @@ flags.DEFINE_integer("batch_size", 100,
 flags.DEFINE_integer("window_size", 5,
                      "The number of words to predict to the left and right "
                      "of the target word.")
+flags.DEFINE_integer("num_threads", 16, "num threads")
 
 flags.DEFINE_string("dict_path", 'thirdparty/test_build_dict', "dict path")
 flags.DEFINE_integer("save_steps", 30000000,
@@ -195,6 +196,7 @@ def main(_):
                         batch_id += 1
                     now = time.time()
                     speed = float(all_examples) / float(now - start_time)
+                    speed = speed * float(num_workers)
                     logger.info("epoch: %4d total time: %8d speed: %6.2f examples/s" % (epoch, now - start_time, speed))
                     if not FLAGS.is_local:
                         upload(trainer_id, log_dir)
