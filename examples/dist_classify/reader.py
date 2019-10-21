@@ -14,7 +14,6 @@ except ImportError:
 random.seed(0)
 
 DATA_DIM = 112
-
 THREAD = 8
 BUF_SIZE = 10240
 
@@ -32,17 +31,16 @@ if os.getenv("PADDLE_TRAINER_ENDPOINTS"):
     trainer_count = int(os.getenv("PADDLE_TRAINERS_NUM", "1"))
     per_node_lines = len(train_list) // trainer_count
     lines = train_list[trainer_id * per_node_lines:(trainer_id + 1)
-                                    * per_node_lines]
-    print("read images from %d, length: %d, lines length: %d, total: %d"
-          % (trainer_id * per_node_lines, per_node_lines, len(lines),
-          len(train_list)))
+                        * per_node_lines]
+    print("read images from %d, length: %d, total: %d"
+          % (trainer_id * per_node_lines, per_node_lines, len(train_list)))
 
 for i, item in enumerate(lines):
     path, label = item.strip().split()
     label = int(label)
     train_image_list.append((path, label))
-
 print("train_data size:", len(train_image_list))
+
 
 img_mean = np.array([127.5, 127.5, 127.5]).reshape((3, 1, 1))
 img_std = np.array([128.0, 128.0, 128.0]).reshape((3, 1, 1))
@@ -54,6 +52,7 @@ def resize_short(img, target_size):
     resized_height = int(round(img.size[1] * percent))
     img = img.resize((resized_width, resized_height), Image.BILINEAR)
     return img
+
 
 def Scale(img, size):
     w, h = img.size
@@ -68,12 +67,14 @@ def Scale(img, size):
         ow = int(size * w / h)
         return img.resize((ow, oh), Image.BILINEAR)
 
+
 def CenterCrop(img, size):
     w, h = img.size
     th, tw = int(size), int(size)
     x1 = int(round((w - tw) / 2.))
     y1 = int(round((h - th) / 2.))
     return img.crop((x1, y1, x1 + tw, y1 + th))
+
 
 def crop_image(img, target_size, center):
     width, height = img.size
@@ -88,6 +89,7 @@ def crop_image(img, target_size, center):
     h_end = h_start + size
     img = img.crop((w_start, h_start, w_end, h_end))
     return img
+
 
 def RandomResizedCrop(img, size):
     for attempt in range(10):
@@ -170,6 +172,7 @@ def distort_color(img):
 
     return img
 
+
 def process_image_imagepath(sample,
                             class_dim,
                             color_jitter,
@@ -223,8 +226,8 @@ def arc_iterator(data,
     mapper = functools.partial(process_image_imagepath, class_dim=class_dim,
         color_jitter=color_jitter, rotate=rotate,
         rand_mirror=rand_mirror, normalize=normalize)
-    return paddle.reader.xmap_readers(mapper, reader,
-        THREAD, BUF_SIZE, order=True)
+    return paddle.reader.xmap_readers(mapper, reader, THREAD, BUF_SIZE)
+
 
 def load_bin(path, image_size):
     bins, issame_list = pickle.load(open(path, 'rb'))
@@ -256,6 +259,7 @@ def load_bin(path, image_size):
 def arc_train(class_dim):
     return arc_iterator(train_image_list, shuffle=True, class_dim=class_dim,
         color_jitter=False, rotate=False, rand_mirror=True, normalize=True)
+
 
 def test():
     test_list = []
