@@ -195,7 +195,6 @@ def main(_):
                         batch_id += 1
                     now = time.time()
                     speed = float(all_examples) / float(now - start_time)
-                    speed = speed * float(num_workers)
                     logger.info("epoch: %4d total time: %8d speed: %6.2f examples/s" % (epoch, now - start_time, speed))
                     if not FLAGS.is_local:
                         upload(trainer_id, log_dir)
