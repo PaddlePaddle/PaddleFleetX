@@ -68,7 +68,6 @@ flags.DEFINE_integer("save_steps", 30000000,
                      "The number of step to save (default: 30000000)")
 flags.DEFINE_string("dist_mode", "sync", "sync_mode or async_mode")
 flags.DEFINE_integer("is_local", 1, "local or mpi cluster")
-flags.DEFINE_integer("num_threads", 16, "num threads")
 FLAGS = flags.FLAGS
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s')
