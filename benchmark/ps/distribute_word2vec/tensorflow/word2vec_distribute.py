@@ -50,7 +50,7 @@ flags.DEFINE_string("model_output_dir", 'output/distribute', "Directory to write
                     "training summaries.")
 flags.DEFINE_string("train_data_dir", 'train_data', "Training text data directory.")
 flags.DEFINE_integer("embedding_size", 300, "The embedding dimension size.")
-flags.DEFINE_integer("epochs_to_train", 1, "Number of epochs to train." 
+flags.DEFINE_integer("epochs_to_train", 5, "Number of epochs to train."
                      "Each epoch processes the training data once completely.")
 flags.DEFINE_float("learning_rate", 1.0, "Initial learning rate.")
 flags.DEFINE_integer("num_neg_samples", 5,
