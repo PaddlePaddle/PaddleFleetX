@@ -680,6 +680,7 @@ class FleetDistRunnerBase(object):
                 self.strategy.runtime_split_send_recv = True
                 self.strategy.geo_sgd_mode = True
                 self.strategy.geo_sgd_need_push_nums = 400
+                params.decay_steps = int(int(params.decay_steps) / params.trainers)
 
             # Step3: Configure communication IP and ports
             if params.is_local_cluster:
