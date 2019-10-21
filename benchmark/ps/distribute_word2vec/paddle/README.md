@@ -12,27 +12,44 @@
 * py_reader_generator.py 数据读取
 * dataset_generator.py  数据读取
 
-## 使用方法
-1. 数据处理：运行prepare.sh之后会在当前目录下得到三个文件夹，train_data用于训练，test_data用于测试，thirdparty目录下包含训练所需的词典文件test_build_dict，以及test_build_dict_word_to_id_
+## 数据准备
+运行prepare.sh之后会在当前目录下得到三个文件夹，train_data用于训练，test_data用于测试，thirdparty目录下包含训练所需的词典文件test_build_dict，以及test_build_dict_word_to_id_
 ```
 sh prepare_data.sh
 ```
-2. 单机
-* 训练，运行命令如下，首先创建相关目录，然后运行model.py文件。
+
+## 单机训练
 ```
 mkdir -p model      ## 存放模型文件
 mkdir -p result  ## 存放训练日志
-mkdir -p log
-python -u model.py --is_local=1 &> log/local.log &
+python -u model.py --is_local=1
 ```
-* 测试
+
+## 分布式模式及运行方式
+1. dataset全异步模式
+```
+sh local_cluster dataset async
+```
+
+2. pyreader全异步模式
+```
+sh local_cluster.sh pyreader async
+```
+
+3. geo-sgd全异步模式
+```
+# 需先将loca_cluster.sh中FLAGS_communicator_thread_pool_size的注释去掉
+sh local_cluster.sh dataset geo_async
+```
+
+4. pyreader同步模式（速度特别慢，不推荐）
+```
+# 需要将model.py中use_doulbe_buffer设为True
+sh local_cluster.sh pyreader sync
+```
+
+## 测试
 ```
 python eval.py --test_model_dir=model/
 ```
-3. 分布式
-* 训练
-```
-sh local_cluster.sh pyreader async ps 
-sh local_cluster.sh pyreader async tr
-```
-* 测试同单机
+model/目录下应包含多个形如trainer_0_epoch_*的模型目录
