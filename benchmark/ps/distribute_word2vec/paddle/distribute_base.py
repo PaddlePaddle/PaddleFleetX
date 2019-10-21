@@ -214,7 +214,6 @@ class FleetDistRunnerBase(object):
                                    print_period=1000, debug=False)
             end_time = time.time()
             speed = float(all_examples) / float(end_time - start_time)
-            speed = speed * float(params.trainers)
             logger.info("epoch: %d finished, speed: %f" % (epoch, speed))
 
             self.record_speed(epoch, train_result, speed)
@@ -340,7 +339,6 @@ class FleetDistRunnerBase(object):
                 reader.reset()
             end_time = time.time()
             speed = float(all_examples) / float(end_time - start_time)
-            speed = speed * float(params.trainers)
             logger.info("epoch: %d finished, speed: %f" % (epoch, speed))
  
             train_result = self.record_speed(epoch, train_result, speed)
@@ -682,6 +680,7 @@ class FleetDistRunnerBase(object):
                 self.strategy.runtime_split_send_recv = True
                 self.strategy.geo_sgd_mode = True
                 self.strategy.geo_sgd_need_push_nums = 400
+                params.decay_steps = int(int(params.decay_steps) / params.trainers)
 
             # Step3: Configure communication IP and ports
             if params.is_local_cluster:

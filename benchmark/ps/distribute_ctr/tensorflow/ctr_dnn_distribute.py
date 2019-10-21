@@ -189,7 +189,9 @@ def main(_):
                                                       saver=saver)
             hooks.append(saver_hook)
             sess_config = tf.ConfigProto(allow_soft_placement=True,
-                                         log_device_placement=False)
+                                         log_device_placement=False,
+                                         inter_op_parallelism_threads=FLAGS.num_threads,
+                                         intra_op_parallelism_threads=FLAGS.num_threads)
             with tf.train.MonitoredTrainingSession(master=server.target,
                                                    is_chief=is_chief,
                                                    hooks=hooks,

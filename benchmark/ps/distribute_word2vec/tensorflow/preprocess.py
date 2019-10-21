@@ -30,6 +30,12 @@ def parse_args():
         help="If the word count is less then min_count, it will be removed from dict"
     )
     parser.add_argument(
+        '--file_nums',
+        type=int,
+        default=1024,
+        help="re-split input corpus file nums"
+    )
+    parser.add_argument(
         '--downsample',
         type=float,
         default=0.001,
@@ -44,6 +50,11 @@ def parse_args():
         action='store_true',
         default=False,
         help='Build dict from corpus')
+    parser.add_argument(
+        '--data_resplit',
+        action='store_true',
+        default=False,
+        help='re-split input corpus files')
     return parser.parse_args()
 
 
@@ -185,12 +196,38 @@ def build_dict(args):
             f.write(k + " " + str(v) + '\n')
 
 
+def data_split(args):
+    raw_data_dir = args.input_corpus_dir
+    new_data_dir = args.output_corpus_dir
+    if not os.path.exists(new_data_dir):
+        os.mkdir(new_data_dir)
+    files = os.listdir(raw_data_dir)
+    print(files)
+    index = 0
+    contents = []
+    for file_ in files:
+        with open(os.path.join(raw_data_dir, file_), 'r') as f:
+            contents.extend(f.readlines())
+    
+    num = int(args.file_nums)
+    lines_per_file = len(contents) / num
+    print("contents: ", str(len(contents)))
+    print("lines_per_file: ", str(lines_per_file))
+    
+    for i in range(1, num+1):
+        with open(os.path.join(new_data_dir, "part_" + str(i)), 'w') as fout:
+            data = contents[(i-1)*lines_per_file:min(i*lines_per_file,len(contents))]
+            for line in data:
+               fout.write(line)
+
 if __name__ == "__main__":
     args = parse_args()
     if args.build_dict:
         build_dict(args)
     elif args.filter_corpus:
         filter_corpus(args)
+    elif args.data_resplit:
+        data_split(args)
     else:
         print(
             "error command line, please choose --build_dict or --filter_corpus")

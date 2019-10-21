@@ -50,7 +50,7 @@ flags.DEFINE_string("model_output_dir", 'output/distribute', "Directory to write
                     "training summaries.")
 flags.DEFINE_string("train_data_dir", 'train_data', "Training text data directory.")
 flags.DEFINE_integer("embedding_size", 300, "The embedding dimension size.")
-flags.DEFINE_integer("epochs_to_train", 1, "Number of epochs to train." 
+flags.DEFINE_integer("epochs_to_train", 5, "Number of epochs to train."
                      "Each epoch processes the training data once completely.")
 flags.DEFINE_float("learning_rate", 1.0, "Initial learning rate.")
 flags.DEFINE_integer("num_neg_samples", 5,
@@ -61,6 +61,7 @@ flags.DEFINE_integer("batch_size", 100,
 flags.DEFINE_integer("window_size", 5,
                      "The number of words to predict to the left and right "
                      "of the target word.")
+flags.DEFINE_integer("num_threads", 16, "num threads")
 
 flags.DEFINE_string("dict_path", 'thirdparty/test_build_dict', "dict path")
 flags.DEFINE_integer("save_steps", 30000000,
@@ -174,7 +175,9 @@ def main(_):
             hooks.append(saver_hook)
             train_op = optimizer.minimize(loss, global_step=global_step)
             sess_config = tf.ConfigProto(allow_soft_placement=True,
-                                         log_device_placement=False)
+                                         log_device_placement=False,
+                                         inter_op_parallelism_threads=FLAGS.num_threads,
+                                         intra_op_parallelism_threads=FLAGS.num_threads)
             with tf.train.MonitoredTrainingSession(master=server.target,
                                                    is_chief=is_chief,
                                                    hooks=hooks,
