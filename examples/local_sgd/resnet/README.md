@@ -12,3 +12,8 @@ MODEL=ResNet50
 ```
 sh run.sh
 ```
+
+## How to use adaptive local step for local sgd
+```
+sh run_ada.sh
+```
