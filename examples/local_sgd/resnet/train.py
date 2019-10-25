@@ -1,4 +1,4 @@
-#copyright (c) 2019 PaddlePaddle Authors. All Rights Reserve.
+ #copyright (c) 2019 PaddlePaddle Authors. All Rights Reserve.
 #
 #Licensed under the Apache License, Version 2.0 (the "License");
 #you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import time
 import sys
 import functools
 import math
+from paddle.fluid import core
 
 def set_paddle_flags(flags):
     for key, value in flags.items():
@@ -77,7 +78,7 @@ add_arg('use_local_sgd',                bool,   True,                 "Whether t
 add_arg('local_sgd_steps',              int,    2,                    "The step number for local training before synchronizing parameters.")
 add_arg('local_sgd_is_warm_steps',      int,    30,                   "The warmup step of number for local sgd.")
 add_arg('lsgd_warmup_strategy',         int,    1,                    "Select strategy to warmup the lsgd,1:exp,2:const,3:linear")
-add_arg('is_Test',                       bool,   False,                "Whether to test on every epoch")
+add_arg('is_Test',                      bool,   False,                "Whether to test on every epoch")
 
 
 def optimizer_setting(params):
@@ -117,6 +118,29 @@ def net_config(image, model, args, is_train, label=0, y_a=0, y_b=0, lam=0.0):
     acc_top1 = fluid.layers.accuracy(input=softmax_out, label=label, k=1)
     acc_top5 = fluid.layers.accuracy(input=softmax_out, label=label, k=5)
     return avg_cost, acc_top1, acc_top5
+
+def build_allreduce_program(main_prog, startup_program):
+    ring_id = 0
+    with fluid.program_guard(main_prog, startup_program):
+        tindata = fluid.layers.data(
+            name="tindata", shape=[1], dtype='float32')
+        toutdata = main_prog.current_block().create_var(
+            name="outofallreduce",
+            dtype='float32',
+            type=core.VarDesc.VarType.LOD_TENSOR,
+            persistable=False,
+            stop_gradient=False)
+        main_prog.global_block().append_op(
+            type="c_allreduce_sum",
+            inputs={'X': tindata},
+            attrs={'ring_id': ring_id},
+            outputs={'Out': toutdata})
+        main_prog.global_block().append_op(
+            type="c_sync_comm_stream",
+            inputs={'X': toutdata},
+            outputs={'Out': toutdata},
+            attrs={'ring_id': ring_id})
+        return toutdata
 
 def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
     image_shape = [int(m) for m in args.image_shape.split(",")]
@@ -169,24 +193,21 @@ def get_device_num():
     device_num = fluid.core.get_cuda_device_count()
     return device_num
 
-def get_local_sgd_steps(passid, local_sgd_steps, local_sgd_warmup, lsgd_warmup_strategy):
-    offset = passid - local_sgd_warmup
-    if offset < 0:
-        return 1
-    if lsgd_warmup_strategy == 1:
-        warm_up = [2**i for i in range(local_sgd_steps) if 2**i <=local_sgd_steps]
-    elif lsgd_warmup_strategy == 2:
-        warm_up = [local_sgd_steps]
-    elif lsgd_warmup_strategy == 3:
-        warm_up = [2*i for i in range(local_sgd_steps) if 2*i <=local_sgd_steps]
-        warm_up[0] = 1
+def AdaCom(ini_loss, ini_lr, cur_loss, cur_lr, base_step, pre_step):
+    inf_loss = 0.6
+    fir = ini_lr * (cur_loss - inf_loss)
+    sec = cur_lr * max((ini_loss - inf_loss), 0.000001)
+    ratio = fir / sec
+    print("ratio {}".format(ratio))
+    step = int(base_step * math.sqrt(ratio))
+    print("ini_loss  {}  ini_lr  {}  cur_loss  {}  cur_lr  {}  base_step  {}  pre_step  {}  step  {}  sqrtstep  {}".format(ini_loss,
+         "%.5f"%ini_lr, "%.5f"%cur_loss, "%.5f"%cur_lr, base_step, pre_step, "%.5f"%step,"%.5f"% math.sqrt(ratio)))
+    if step < 1:
+        step = 1
+    if step > pre_step + 20:
+        step = pre_step
+    return int(step)
 
-    warm_size = len(warm_up)
-    if offset >= warm_size:
-        return local_sgd_steps
-    else:
-        return warm_up[offset]
-     
 def train(args):
     # parameters from arguments
     model_name = args.model
@@ -263,7 +284,7 @@ def train(args):
 
     train_reader = reader.train(settings=args, data_dir=args.data_dir, pass_id_as_seed=shuffle_seed,num_epoch=args.num_epochs+1)
     test_reader = reader.val(settings=args, data_dir=args.data_dir)
-    
+
     train_py_reader.decorate_paddle_reader(paddle.batch(train_reader,
                                                         batch_size=train_batch_size))
     test_py_reader.decorate_paddle_reader(paddle.batch(test_reader,
@@ -276,7 +297,14 @@ def train(args):
         test_fetch_list.append(var.name)
     train_exe = exe
 
-    assert args.local_sgd_steps > 0, "local_sgd_steps must greater than 0"
+    # construct all reduce program
+    all_train_prog = fluid.Program()
+    all_startup_prog = fluid.Program()
+    result = build_allreduce_program(all_train_prog, all_startup_prog)
+    all_place = fluid.CUDAPlace(gpu_id)
+    all_exe = fluid.Executor(all_place)
+    all_exe.run(all_startup_prog)
+
     step_cnt = 0
     params = models.__dict__[args.model]().params
     global_batch_size = args.batch_size * num_trainers
@@ -286,6 +314,13 @@ def train(args):
 
     pass_id = 0
     all_train_time = []
+
+    # ini all adaptive para
+    local_sgd_steps = 1
+    ini_loss, cur_loss = 7.0, 7.0
+    ini_lr, cur_lr = 0.1, 0.1
+    base_step, pre_step = 1, 1
+    all_ini_loss = []
     try :
         train_py_reader.start()
         train_info = [[], [], []]
@@ -300,19 +335,18 @@ def train(args):
                 train_py_reader.reset()
                 print("Train is over. Time is {}".format(all_train_time))
                 break
-            local_sgd_steps = get_local_sgd_steps(pass_id, args.local_sgd_steps, args.local_sgd_is_warm_steps,args.lsgd_warmup_strategy)
-            
+
             if step_cnt % local_sgd_steps == 0:
                 current_prog = dist_prog
             else:
                 current_prog = local_prog
             loss, acc1, acc5, lr = train_exe.run(current_prog, fetch_list=train_fetch_list, use_program_cache=True)
-       
+
             acc1 = np.mean(np.array(acc1))
             acc5 = np.mean(np.array(acc5))
             train_info[1].append(acc1)
             train_info[2].append(acc5)
-           
+
             t2 = time.time() 
             period = t2 - t1
             time_record.append(period)
@@ -338,10 +372,27 @@ def train(args):
                 train_end=time.time()
                 all_train_time.append(train_end - train_begin)
                 train_speed = (batch_id * train_batch_size) / (train_end - train_begin)
-                print("current local_sgd_steps {}".format(local_sgd_steps))
                 print("End pass {0}, train_loss {1}, train_acc1 {2}, train_acc5 {3}, "
                       "speed {4}".format(\
                       pass_id, "%.5f"%train_loss, "%.5f"%train_acc1, "%.5f"%train_acc5, "%.2f" % train_speed))
+                # parameters is setting
+                all_loss = all_exe.run(all_train_prog,
+                      feed={'tindata': train_loss},
+                      fetch_list=[result.name])
+                reduce_loss = float(all_loss[0]) / num_trainers
+                print("all reduce train loss: {}".format("%.5f"%reduce_loss))
+                cur_lr = lr
+                cur_loss = reduce_loss                
+
+                if pass_id < args.local_sgd_is_warm_steps:
+                    all_ini_loss.append(reduce_loss)
+                elif pass_id == args.local_sgd_is_warm_steps:
+                    ini_loss = np.mean(all_ini_loss) 
+                    ini_lr = args.lr * global_batch_size / 256.0
+                elif pass_id > args.local_sgd_is_warm_steps:
+                    local_sgd_steps = AdaCom(ini_loss, ini_lr, cur_loss, cur_lr, base_step, pre_step)
+                    pre_step = local_sgd_steps
+                print("next epoch local step is {}".format(local_sgd_steps))
                 sys.stdout.flush()
                 #init 
                 batch_id = 0

@@ -43,6 +43,3 @@ python -m paddle.distributed.launch ${config} \
        --l2_decay=1e-4 \
        --nccl_comm_num=2 \
        --use_local_sgd=True \
-       --local_sgd_is_warm_steps=30 \
-       --local_sgd_steps=2 \
-       --lsgd_warmup_strategy=1
