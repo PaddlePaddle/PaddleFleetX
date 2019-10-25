@@ -16,7 +16,8 @@ python -m paddle.distributed.launch \
     --batch_size 2048 \
     --sort_type pool \
     --pool_size 200000 \
-    --fuse True \
+    --use_local_sgd True \
+    --local_sgd_steps 2 \
     n_head 8 \
     d_model 512 \
     d_inner_hid 2048 \

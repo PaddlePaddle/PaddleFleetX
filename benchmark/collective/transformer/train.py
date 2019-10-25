@@ -128,10 +128,15 @@ def parse_args():
         default=2,
         help="How many threads to run paddle.")
     parser.add_argument(
-        "--fuse",
-        type=bool,
-        default=False,
-        help="Use tensor fusion or not.")
+        "--local_sgd_steps",
+        type=int,
+        default=2,
+        help="How many steps to run the comm.")
+    parser.add_argument(
+        "--use_local_sgd",
+        type=ast.literal_eval,
+        default=True,
+        help="Wether to use local sgd.")
 
     args = parser.parse_args()
     # Append args related to dict
@@ -500,6 +505,12 @@ def train_loop(exe,
             try:
                 feed_dict_list = prepare_feed_dict_list(data_generator,
                                                         init_flag, dev_count)
+
+                if step_idx % args.local_sgd_steps == 0:
+                    current_prog = train_program
+                else:
+                    current_prog = orig_train_program
+
                 outs = exe.run(program=train_program,
                                fetch_list=[sum_cost.name, token_num.name]
                                if step_idx % args.fetch_steps == 0 else [],
@@ -589,14 +600,11 @@ def train(args):
     args.num_trainers = fleet.worker_num()
 
     exec_strategy = fluid.ExecutionStrategy()
-    exec_strategy.num_threads = args.num_threads
     exec_strategy.num_iteration_per_drop_scope = 30
-
     dist_strategy = DistributedStrategy()
+    dist_strategy.use_local_sgd = args.use_local_sgd
+    dist_strategy.nccl_comm_num = 2
     dist_strategy.exec_strategy = exec_strategy
-    dist_strategy.fuse_memory_size = 64 #MB
-    if args.fuse:
-        dist_strategy.fuse_all_reduce_ops = 1
 
     with fluid.program_guard(train_program, startup_program):
         with fluid.unique_name.guard():
