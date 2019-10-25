@@ -1,4 +1,4 @@
- #copyright (c) 2019 PaddlePaddle Authors. All Rights Reserve.
+#copyright (c) 2019 PaddlePaddle Authors. All Rights Reserve.
 #
 #Licensed under the Apache License, Version 2.0 (the "License");
 #you may not use this file except in compliance with the License.
@@ -193,7 +193,9 @@ def get_device_num():
     device_num = fluid.core.get_cuda_device_count()
     return device_num
 
-def AdaCom(ini_loss, ini_lr, cur_loss, cur_lr, base_step, pre_step):
+def adaptive_local_step(ini_loss, ini_lr, cur_loss, cur_lr, base_step, pre_step):
+    # get adaptive local step according to lr and loss. 
+    # Reference: https://arxiv.org/pdf/1810.08313.pdf
     inf_loss = 0.6
     fir = ini_lr * (cur_loss - inf_loss)
     sec = cur_lr * max((ini_loss - inf_loss), 0.000001)
@@ -206,7 +208,7 @@ def AdaCom(ini_loss, ini_lr, cur_loss, cur_lr, base_step, pre_step):
         step = 1
     if step > pre_step + 20:
         step = pre_step
-    return int(step)
+    return step
 
 def train(args):
     # parameters from arguments
@@ -390,7 +392,7 @@ def train(args):
                     ini_loss = np.mean(all_ini_loss) 
                     ini_lr = args.lr * global_batch_size / 256.0
                 elif pass_id > args.local_sgd_is_warm_steps:
-                    local_sgd_steps = AdaCom(ini_loss, ini_lr, cur_loss, cur_lr, base_step, pre_step)
+                    local_sgd_steps = adaptive_local_step(ini_loss, ini_lr, cur_loss, cur_lr, base_step, pre_step)
                     pre_step = local_sgd_steps
                 print("next epoch local step is {}".format(local_sgd_steps))
                 sys.stdout.flush()
