@@ -72,9 +72,9 @@ def main_function(is_local):
             train_loop()
 
     if is_local:
-        local_train(optimizer)
+        local_train()
     else:
-        dist_train(optimizer)
+        dist_train()
 
 if __name__ == '__main__':
     main_function(args.is_local)
