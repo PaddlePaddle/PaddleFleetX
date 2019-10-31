@@ -20,8 +20,4 @@ PaddlePaddle Fast ImageNet using the dynmiac batch size, dynamic image size, rec
         `-validation
     ```
 1. Launch the training job: `python -m paddle.distributed.launch --selected_gpus="0,1" train.py --data_dir /data/imagenet`
-1. Learning curve, we launch the training job on V100 GPU card:
-<p align="center">
-<img src="src/acc_curve.png" hspace='10' /> <br />
-</p>
 
