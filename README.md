@@ -29,6 +29,61 @@ Collective Training is usually used in GPU training in PaddlePaddle. Benchmark o
 
 Fleet is easy to use for both collective training and parameter server training. Here is an example for collective training with Fleet.
 
+Local Single GPU Cards Training
+``` python
+import paddle.fluid as fluid
+from utils import gen_data
+from nets import mlp
+
+input_x = fluid.layers.data(name="x", shape=[32], dtype='float32')
+input_y = fluid.layers.data(name="y", shape=[1], dtype='int64')
+
+cost = mlp(input_x, input_y)
+optimizer = fluid.optimizer.SGD(learning_rate=0.01)
+optimizer.minimize(cost, fluid.default_startup_program())
+
+train_prog = fluid.default_main_program()
+place = fluid.CUDAPlace(0)
+
+exe = fluid.Executor(place)
+exe.run(fluid.default_startup_program())
+
+step = 1001
+for i in range(step):
+    cost_val = exe.run(program=train_prog, feed=gen_data(), fetch_list=[cost.name])
+```
+
+Local Multiple GPU Cards Training
+``` python
+import paddle.fluid as fluid
+from utils import gen_data
+from nets import mlp
+from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy  # new line 1 
+from paddle.fluid.incubate.fleet.base import role_maker # new line 2
+
+input_x = fluid.layers.data(name="x", shape=[32], dtype='float32')
+input_y = fluid.layers.data(name="y", shape=[1], dtype='int64')
+
+cost = mlp(input_x, input_y)
+optimizer = fluid.optimizer.SGD(learning_rate=0.01)
+
+role = role_maker.PaddleCloudRoleMaker(is_collective=True) # new line 3
+fleet.init(role) # new line 4
+
+optimizer = fleet.distributed_optimizer(optimizer, strategy=DistributedStrategy()) # new line 5
+optimizer.minimize(cost, fluid.default_startup_program())
+
+train_prog = fleet.main_program # change line 1
+place = fluid.CUDAPlace(0)
+
+exe = fluid.Executor(place)
+exe.run(fluid.default_startup_program())
+
+step = 1001
+for i in range(step):
+    cost_val = exe.run(program=train_prog, feed=gen_data(), fetch_list=[cost.name])
+```
+
 <p align="center">
 <img src="images/fleet_collective_training.png" height="400px" width="880px">
 <p>
