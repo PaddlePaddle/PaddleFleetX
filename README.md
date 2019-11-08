@@ -84,10 +84,7 @@ for i in range(step):
     cost_val = exe.run(program=train_prog, feed=gen_data(), fetch_list=[cost.name])
 ```
 
-<p align="center">
-<img src="images/fleet_collective_training.png" height="400px" width="880px">
-<p>
-
+Launch command:
 ```
 python -m paddle.distributed.launch --selected_gpus="0,1,2,3" trainer.py
 ```
