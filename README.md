@@ -14,7 +14,7 @@ Deep neural networks training with Fleet API is highly efficient in PaddlePaddle
 Parameter server training benchmark is performed on click through rate estimation task on [Criteo Dataset](https://www.kaggle.com/c/criteo-display-ad-challenge/data) and Semantic Representation Learning on [One-billion word Dataset](https://ai.google/research/pubs/pub41880). Details of hardware and software information for this benchmark can be found in [parameter server benchmark](https://github.com/PaddlePaddle/Fleet/tree/develop/benchmark/ps).
 
 <p align="center">
-<img align="center" src="images/fleet_ps_benchmark.png" height="270px" width="940px">
+<img align="center" src="images/fleet_ps_benchmark_refine.png" height="270px" width="940px">
 <p>
     
 ### Collective Training
@@ -22,7 +22,7 @@ Parameter server training benchmark is performed on click through rate estimatio
 Collective Training is usually used in GPU training in PaddlePaddle. Benchmark of collective training with Fleet is as follows. Details of hardware and software information for this benchmark can be found in [benchmark environment](https://github.com/PaddlePaddle/Fleet/tree/develop/benchmark/collective).
 
 <p align="center">
-<img src="images/fleet_collective_benchmark.png" height="480px" width="850px">
+<img src="images/fleet_collective_benchmark_refine.png" height="480px" width="850px">
 <p>
 
 ## Fleet is Easy To Use
