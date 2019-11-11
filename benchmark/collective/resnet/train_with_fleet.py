@@ -80,7 +80,7 @@ add_arg('fuse', bool, False,                      "Whether to use tensor fusion.
 add_arg('nccl_comm_num',        int,  1,                  "nccl comm num")
 add_arg("use_hierarchical_allreduce",     bool,   False,   "Use hierarchical allreduce or not.")
 add_arg('num_threads',        int,  1,                   "Use num_threads to run the fluid program.")
-add_arg('num_iteration_per_drop_scope', int,    30,      "Ihe iteration intervals to clean up temporary variables.")
+add_arg('num_iteration_per_drop_scope', int,    100,      "Ihe iteration intervals to clean up temporary variables.")
 add_arg('benchmark_test',          bool,  True,                 "Whether to use print benchmark logs or not.")
 
 def optimizer_setting(params):
@@ -218,8 +218,6 @@ def net_config(image, model, args, is_train, label=0, y_a=0, y_b=0, lam=0.0):
                 loss_b_mean = fluid.layers.mean(x = loss_b)
                 cost = lam * loss_a_mean + (1 - lam) * loss_b_mean
                 avg_cost = fluid.layers.mean(x=cost)
-                if args.scale_loss > 1:
-                    avg_cost = fluid.layers.mean(x=cost) * args.scale_loss
                 return avg_cost
             else:
                 print("Use fluid.layers.softmax_with_cross_entropy.")
@@ -234,8 +232,6 @@ def net_config(image, model, args, is_train, label=0, y_a=0, y_b=0, lam=0.0):
         cost = fluid.layers.cross_entropy(input=softmax_out, label=smooth_out1, soft_label=True)
 
     avg_cost = fluid.layers.mean(cost)
-    if args.scale_loss > 1:
-        avg_cost = fluid.layers.mean(x=cost) * args.scale_loss
     acc_top1 = fluid.layers.accuracy(input=softmax_out, label=label, k=1)
     acc_top5 = fluid.layers.accuracy(input=softmax_out, label=label, k=5)
     return avg_cost, acc_top1, acc_top5
@@ -291,7 +287,8 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
                 optimizer = optimizer_setting(params)
                 global_lr = optimizer._global_learning_rate()
                 if args.fp16:
-                    optimizer = fluid.contrib.mixed_precision.decorate(optimizer)
+                    optimizer = fluid.contrib.mixed_precision.decorate(optimizer,
+                            init_loss_scaling=args.scale_loss, use_dynamic_loss_scaling=True)
                 dist_optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
                 _, param_grads = dist_optimizer.minimize(avg_cost)
 
