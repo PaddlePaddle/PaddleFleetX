@@ -2,6 +2,7 @@
 
 export FLAGS_sync_nccl_allreduce=1
 export FLAGS_cudnn_exhaustive_search=1
+export FLAGS_conv_workspace_size_limit=7000 #MB
 
 export GLOG_v=1
 export GLOG_logtostderr=1
@@ -17,7 +18,7 @@ MODEL_SAVE_PATH="output/"
 
 # training params
 NUM_EPOCHS=90
-BATCH_SIZE=32
+BATCH_SIZE=128
 LR=0.1
 LR_STRATEGY=piecewise_decay
 
@@ -34,7 +35,7 @@ NCCL_COMM_NUM=1
 NUM_THREADS=2
 USE_HIERARCHICAL_ALLREDUCE=False
 NUM_CARDS=1
-FP16=False #whether to use float16 
+FP16=True #whether to use float16 
 
 if [[ ${FUSE} == "True" ]]; then
     export FLAGS_fuse_parameter_memory_size=16 #MB

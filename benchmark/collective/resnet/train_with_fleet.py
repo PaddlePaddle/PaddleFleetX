@@ -74,13 +74,14 @@ add_arg('use_mixup',      bool,      False,        "Whether to use mixup or not"
 add_arg('mixup_alpha',      float,     0.2,      "Set the mixup_alpha parameter")
 add_arg('is_distill',       bool,  False,        "is distill or not")
 add_arg('profile',             bool,  False,                "Enable profiler or not." )
+add_arg('fetch_steps',      int,  10,                "Enable profiler or not." )
 
 add_arg('use_gpu',          bool,  True,                 "Whether to use GPU or not.")
 add_arg('fuse', bool, False,                      "Whether to use tensor fusion.")
 add_arg('nccl_comm_num',        int,  1,                  "nccl comm num")
 add_arg("use_hierarchical_allreduce",     bool,   False,   "Use hierarchical allreduce or not.")
 add_arg('num_threads',        int,  1,                   "Use num_threads to run the fluid program.")
-add_arg('num_iteration_per_drop_scope', int,    30,      "Ihe iteration intervals to clean up temporary variables.")
+add_arg('num_iteration_per_drop_scope', int,    100,      "Ihe iteration intervals to clean up temporary variables.")
 add_arg('benchmark_test',          bool,  True,                 "Whether to use print benchmark logs or not.")
 
 def optimizer_setting(params):
@@ -291,7 +292,7 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
                 optimizer = optimizer_setting(params)
                 global_lr = optimizer._global_learning_rate()
                 if args.fp16:
-                    optimizer = fluid.contrib.mixed_precision.decorate(optimizer)
+                    optimizer = fluid.contrib.mixed_precision.decorate(optimizer, use_dynamic_loss_scaling=False, init_loss_scaling=128.0)
                 dist_optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
                 _, param_grads = dist_optimizer.minimize(avg_cost)
 
@@ -430,7 +431,7 @@ def train(args):
         try:
             while True:
                 t1 = time.time()
-                if batch_id % 30 != 0:
+                if batch_id % args.fetch_steps != 0:
                         train_exe.run(train_prog)
                 else:
                     if use_mixup:
@@ -457,7 +458,7 @@ def train(args):
                     print("end profiler break!")
                     args.profile=False
 
-                if batch_id % 30 == 0:
+                if batch_id % args.fetch_steps == 0:
                     loss = np.mean(np.array(loss))
                     train_info[0].append(loss)
                     lr = np.mean(np.array(lr))
@@ -466,12 +467,12 @@ def train(args):
                     time_record=[]
                     if use_mixup:
                         print("Pass {0}, trainbatch {1}, loss {2}, lr {3}, time {4}, speed {5}"
-                              .format(pass_id, batch_id, "%.5f"%loss, "%.5f" %lr, "%2.2f sec" % period, "%.2f" % speed))
+                              .format(pass_id, batch_id, "%.5f"%loss, "%.5f" %lr, "%2.4f sec" % period, "%.2f" % speed))
                     else:
                         print("Pass {0}, trainbatch {1}, loss {2}, \
                             acc1 {3}, acc5 {4}, lr {5}, time {6}, speed {7}"
                               .format(pass_id, batch_id, "%.5f"%loss, "%.5f"%acc1, "%.5f"%acc5, "%.5f" %
-                                      lr, "%2.2f sec" % period, "%.2f" % speed))
+                                      lr, "%2.4f sec" % period, "%.2f" % speed))
                     sys.stdout.flush()
                 batch_id += 1
         except fluid.core.EOFException:
