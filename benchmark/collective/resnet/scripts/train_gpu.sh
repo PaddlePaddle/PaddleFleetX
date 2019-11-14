@@ -36,6 +36,7 @@ NUM_THREADS=2
 USE_HIERARCHICAL_ALLREDUCE=False
 NUM_CARDS=1
 FP16=True #whether to use float16 
+export LD_LIBRARY_PATH=/root/go/soft/cuda10-cudnn7.6.1/lib64:${LD_LIBRARY_PATH}
 
 if [[ ${FUSE} == "True" ]]; then
     export FLAGS_fuse_parameter_memory_size=16 #MB
@@ -48,7 +49,7 @@ fi
 
 set -x
 
-python -m paddle.distributed.launch ${distributed_args} --log_dir log \
+python3 -m paddle.distributed.launch ${distributed_args} \
        ./train_with_fleet.py \
        --model=${MODEL} \
        --batch_size=${BATCH_SIZE} \
@@ -64,6 +65,7 @@ python -m paddle.distributed.launch ${distributed_args} --log_dir log \
        --l2_decay=1e-4 \
        --scale_loss=1.0 \
        --fuse=${FUSE} \
+       --profile=False \
        --num_threads=${NUM_THREADS} \
        --nccl_comm_num=${NCCL_COMM_NUM} \
        --use_hierarchical_allreduce=${USE_HIERARCHICAL_ALLREDUCE} \

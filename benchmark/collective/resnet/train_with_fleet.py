@@ -292,7 +292,7 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
                 optimizer = optimizer_setting(params)
                 global_lr = optimizer._global_learning_rate()
                 if args.fp16:
-                    optimizer = fluid.contrib.mixed_precision.decorate(optimizer, use_dynamic_loss_scaling=False, init_loss_scaling=128.0)
+                    optimizer = fluid.contrib.mixed_precision.decorate(optimizer,  init_loss_scaling=128.0)
                 dist_optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
                 _, param_grads = dist_optimizer.minimize(avg_cost)
 
