@@ -1,5 +1,7 @@
 # BERT on PaddlePaddle
 
+注意：Fleet代码库中bert从[Paddle models bert](https://github.com/PaddlePaddle/models/tree/v1.6/PaddleNLP/PaddleLARK/BERT)迁移而来，代码不定时更新，最新版本请参阅Paddle models develop分支。
+
 [BERT](https://arxiv.org/abs/1810.04805) 是一个迁移能力很强的通用语义表示模型， 以 [Transformer](https://arxiv.org/abs/1706.03762) 为网络基本组件，以双向 `Masked Language Model`  
 和 `Next Sentence Prediction` 为训练目标，通过预训练得到通用语义表示，再结合简单的输出层，应用到下游的 NLP 任务，在多个任务上取得了 SOTA 的结果。本项目是 BERT 在 Paddle Fluid 上的开源实现。
 
@@ -46,7 +48,7 @@
   - [inference 接口调用示例](#inference-接口调用示例)
 
 ## 安装
-本项目依赖于 Paddle Fluid **1.3.1**，请参考[安装指南](http://www.paddlepaddle.org/#quick-start)进行安装。如果需要进行 TensorFlow 模型到 Paddle Fluid 参数的转换，则需要同时安装 TensorFlow 1.12。
+本项目依赖于 Paddle Fluid **1.6.0**及以上版本，请参考[安装指南](http://www.paddlepaddle.org/#quick-start)进行安装。如果需要进行 TensorFlow 模型到 Paddle Fluid 参数的转换，则需要同时安装 TensorFlow 1.12。
 
 ## 预训练
 
@@ -110,6 +112,8 @@ epoch: 1, progress: 1/1, step: 100, loss: 10.132796, ppl: 12748.593750, next_sen
 ```shell
 ./train.sh -cluster_node_ips 192.168.0.16,192.168.0.17 -node_ip 192.168.0.17
 ```
+
+注意，现只对预训练脚本`train.py`添加了分布式fleet接口, Fine-tuning模型目前只支持单机多卡。
 
 ## NLP 任务的 Fine-tuning
 
