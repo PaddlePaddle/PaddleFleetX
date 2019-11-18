@@ -13,6 +13,7 @@
 # limitations under the License.
 import paddle.fluid as fluid
 from ..dataset import QueueDataset, MemoryDataset
+import paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler.fleet as fleet_ps
 import os
 
 class TrainerBase(object):
@@ -104,17 +105,30 @@ class DistOnlineTrainer(OnlineTrainer):
         pass
 
     def init(self, dataset=None, model=None, optimizer=None):
+        if model == None or optimizer = None:
+            print("Model and optimizer should be set before init")
+            exit(-1)
+        self.dataset = dataset
+        self.optimizer = optimizer
+        self.model = model
         role_maker = PaddleCloudRoleMaker()
-        fleet.init(role_maker)
-        self.dist_optimizer = fleet.distributed_optimizer(self.optimizer.inst)
+        fleet_ps.init(role_maker)
+        self.dist_optimizer = fleet_ps.distributed_optimizer(self.optimizer.inst)
         self.dist_optimizer.minimize(self.model.loss)
-        if fleet.is_server():
-            fleet.init_server()
-            fleet.run_server()
-        elif fleet.is_worker():
-            fleet.init_worker()
+        if fleet_ps.is_server():
+            fleet_ps.init_server()
+            fleet_ps.run_server()
+        elif fleet_ps.is_worker():
+            fleet_ps.init_worker()
+            if self.dataset:
+                self.dataset.inst.set_use_var(self.model.get_input_vars())
+                self.dataset.inst.set_thread(self.thread_num)
+                self.dataset.inst.set_batch_size(self.batch_size)
+                self.dataset.inst.set_pipe_command(self.model.get_pipe_command())
+            exe = fluid.Executor(fluid.CPUPlace())
+            exe.run(fleet_ps.startup_program)
 
     def train_pass(self, pass_folder, **kwargs):
-        exe = fluid.Executor(fluid.CPUPlace())
-
+        # global_shuffle, preload, prefix, is_debug
+        pass
     
