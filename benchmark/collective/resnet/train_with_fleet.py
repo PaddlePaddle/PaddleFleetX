@@ -84,10 +84,31 @@ add_arg('num_threads',        int,  1,                   "Use num_threads to run
 add_arg('num_iteration_per_drop_scope', int,    100,      "Ihe iteration intervals to clean up temporary variables.")
 add_arg('benchmark_test',          bool,  True,                 "Whether to use print benchmark logs or not.")
 
+add_arg('use_dgc',           bool,  False,          "Whether use DGCMomentum Optimizer or not")
+add_arg('rampup_begin_step', int,   5008,           "The beginning step from which dgc is implemented.")
+
+def get_momentum_optimizer(momentum_kwargs, use_dgc=False, dgc_kwargs={}):
+    if not use_dgc:
+        optimizer = fluid.optimizer.Momentum(**momentum_kwargs)
+    else:
+        dgc_kwargs.update(momentum_kwargs)
+        optimizer = fluid.optimizer.DGCMomentumOptimizer(**dgc_kwargs)
+    return optimizer
+
 def optimizer_setting(params):
     ls = params["learning_strategy"]
     l2_decay = params["l2_decay"]
     momentum_rate = params["momentum_rate"]
+    regularizer=fluid.regularizer.L2Decay(l2_decay)
+
+    momentum_kwargs = {'learning_rate': None,
+                       'momentum': momentum_rate,
+                       'regularization': regularizer}
+
+    use_dgc = params["use_dgc"]
+    rampup_begin_step = params['rampup_begin_step']
+    dgc_kwargs = {'rampup_begin_step': rampup_begin_step}
+
     if ls["name"] == "piecewise_decay":
         global_batch_size = ls["batch_size"] * num_trainers
         steps_per_pass = int(math.ceil(params["total_images"] * 1.0 / global_batch_size))
@@ -101,8 +122,9 @@ def optimizer_setting(params):
         lr = [base_lr * (0.1**i) for i in range(len(bd) + 1)]
         lr_var = lr_warmup(fluid.layers.piecewise_decay(boundaries=bd, values=lr),\
                            warmup_steps, start_lr, base_lr)
-        optimizer = fluid.optimizer.Momentum(learning_rate=lr_var,momentum=momentum_rate,\
-                                            regularization=fluid.regularizer.L2Decay(l2_decay))
+        momentum_kwargs['learning_rate'] = lr_var
+
+        optimizer = get_momentum_optimizer(momentum_kwargs, use_dgc, dgc_kwargs)
 
     elif ls["name"] == "cosine_decay":
         assert "total_images" in params
@@ -115,11 +137,10 @@ def optimizer_setting(params):
         lr = params["lr"]
         num_epochs = params["num_epochs"]
 
-        optimizer = fluid.optimizer.Momentum(
-            learning_rate=fluid.layers.cosine_decay(
-                learning_rate=lr, step_each_epoch=step, epochs=num_epochs),
-            momentum=momentum_rate,
-            regularization=fluid.regularizer.L2Decay(l2_decay))
+        momentum_kwargs['learning_rate'] = fluid.layers.cosine_decay(
+            learning_rate=lr, step_each_epoch=step, epochs=num_epochs)
+
+        optimizer = get_momentum_optimizer(momentum_kwargs, use_dgc, dgc_kwargs)
 
     elif ls["name"] == "cosine_warmup_decay":
         assert "total_images" in params
@@ -132,11 +153,10 @@ def optimizer_setting(params):
         lr = params["lr"]
         num_epochs = params["num_epochs"]
 
-        optimizer = fluid.optimizer.Momentum(
-            learning_rate=cosine_decay_with_warmup(
-                learning_rate=lr, step_each_epoch=step, epochs=num_epochs),
-            momentum=momentum_rate,
-            regularization=fluid.regularizer.L2Decay(l2_decay))
+        momentum_kwargs['learning_rate'] = cosine_decay_with_warmup(
+            learning_rate=lr, step_each_epoch=step, epochs=num_epochs)
+
+        optimizer = get_momentum_optimizer(momentum_kwargs, use_dgc, dgc_kwargs)
 
     elif ls["name"] == "linear_decay":
         assert "total_images" in params
@@ -152,14 +172,16 @@ def optimizer_setting(params):
         total_step = step * num_epochs
         lr = fluid.layers.polynomial_decay(
             start_lr, total_step, end_lr, power=1)
-        optimizer = fluid.optimizer.Momentum(
-            learning_rate=lr,
-            momentum=momentum_rate,
-            regularization=fluid.regularizer.L2Decay(l2_decay))
+        momentum_kwargs['learning_rate'] = lr
+        optimizer = get_momentum_optimizer(momentum_kwargs, use_dgc, dgc_kwargs)
     elif ls["name"] == "adam":
+        if use_dgc:
+            print("Warning: Adam is not support dgc. So will not use dgc")
         lr = params["lr"]
         optimizer = fluid.optimizer.Adam(learning_rate=lr)
     elif ls["name"] == "rmsprop_cosine":
+        if use_dgc:
+            print("Warning: Adam is not support dgc. So will not use dgc")
         assert "total_images" in params
         total_images = params["total_images"]
         images_per_trainer = int(math.ceil(float(total_images) / num_trainers))
@@ -178,12 +200,8 @@ def optimizer_setting(params):
             epsilon=1)
     else:
         lr = params["lr"]
-        l2_decay = params["l2_decay"]
-        momentum_rate = params["momentum_rate"]
-        optimizer = fluid.optimizer.Momentum(
-            learning_rate=lr,
-            momentum=momentum_rate,
-            regularization=fluid.regularizer.L2Decay(l2_decay))
+        momentum_kwargs['learning_rate'] = lr
+        optimizer = get_momentum_optimizer(momentum_kwargs, use_dgc, dgc_kwargs)
 
     return optimizer
 
@@ -288,6 +306,8 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
                 params["learning_strategy"]["name"] = args.lr_strategy
                 params["l2_decay"] = args.l2_decay
                 params["momentum_rate"] = args.momentum_rate
+                params["use_dgc"] = args.use_dgc
+                params["rampup_begin_step"] = args.rampup_begin_step
 
                 optimizer = optimizer_setting(params)
                 global_lr = optimizer._global_learning_rate()
@@ -334,8 +354,8 @@ def train(args):
     dist_strategy = DistributedStrategy()
     dist_strategy.exec_strategy = exec_strategy
     dist_strategy.enable_inplace = args.with_inplace
-    if args.fuse:
-        dist_strategy.fuse_all_reduce_ops = 1
+    if not args.fuse:
+        dist_strategy.fuse_all_reduce_ops = False
     dist_strategy.nccl_comm_num = args.nccl_comm_num
 
     role = role_maker.PaddleCloudRoleMaker(is_collective=True)
@@ -556,6 +576,13 @@ def main():
     args = parser.parse_args()
     # this distributed benchmark code can only support gpu environment.
     assert args.use_gpu, "only for gpu implementation."
+    if args.use_dgc:
+        if args.fuse:
+            print("Warning: Use dgc must close fuse for now, so code will set fuse=False")
+            args.fuse = False
+        if args.fp16:
+            print("Warning: DGC unsupport fp16 for now, so code will set fp16=False")
+            args.fp16 = False
     print_arguments(args)
     print_paddle_environments()
     check_gpu(args.use_gpu)

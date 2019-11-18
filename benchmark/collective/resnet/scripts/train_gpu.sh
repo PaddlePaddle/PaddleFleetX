@@ -35,7 +35,15 @@ NCCL_COMM_NUM=1
 NUM_THREADS=2
 USE_HIERARCHICAL_ALLREDUCE=False
 NUM_CARDS=1
-FP16=True #whether to use float16 
+FP16=True #whether to use float16
+
+# dgc params
+USE_DGC=False # whether to use dgc
+ALL_CARDS=8
+START_EPOCHS=4 # start dgc after 4 epochs
+# add 1 in let, let will not return 1 when set START_EPOCHS=0
+let '_tmp_ans=((TOTAL_IMAGES+BATCH_SIZE*ALL_CARDS-1)/(BATCH_SIZE*ALL_CARDS))*START_EPOCHS' 1
+DGC_RAMPUP_BEGIN_STEP=${_tmp_ans}
 
 if [[ ${FUSE} == "True" ]]; then
     export FLAGS_fuse_parameter_memory_size=16 #MB
@@ -67,4 +75,6 @@ python -m paddle.distributed.launch ${distributed_args} --log_dir log \
        --num_threads=${NUM_THREADS} \
        --nccl_comm_num=${NCCL_COMM_NUM} \
        --use_hierarchical_allreduce=${USE_HIERARCHICAL_ALLREDUCE} \
-       --fp16=${FP16}
+       --fp16=${FP16} \
+       --use_dgc=${USE_DGC} \
+       --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP}
