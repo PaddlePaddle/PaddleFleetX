@@ -13,7 +13,12 @@
 # limitations under the License.
 import paddle.fluid as fluid
 from ..dataset import QueueDataset, MemoryDataset
-import paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler.fleet as fleet_ps
+from ..utils import hdfs_ls
+import paddle.fluid.incubate.fleet.base.role_maker as role_maker
+import paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler as ps
+import logging
+logging.basicConfig()
+
 import os
 
 class TrainerBase(object):
@@ -22,12 +27,17 @@ class TrainerBase(object):
         self.dataset = None
         self.model = None
         self.optimizer = None
+        self.logger = logging.getLogger("TrainerBase")
 
     def set_batch_size(self, batch):
         self.batch_size = batch
 
     def set_thread(self, thread):
         self.thread_num = thread
+
+    def set_dfs_config(self, fs_name, ugi):
+        self.fs_name = fs_name
+        self.ugi = ugi
 
     def init(self, dataset=None, model=None, optimizer=None):
         if model == None or optimizer == None:
@@ -102,33 +112,48 @@ class OnlineTrainer(TrainerBase):
 
 class DistOnlineTrainer(OnlineTrainer):
     def __init__(self):
-        pass
+        super(DistOnlineTrainer, self).__init__()
 
     def init(self, dataset=None, model=None, optimizer=None):
-        if model == None or optimizer = None:
+        if model == None or optimizer == None:
             print("Model and optimizer should be set before init")
             exit(-1)
         self.dataset = dataset
         self.optimizer = optimizer
         self.model = model
-        role_maker = PaddleCloudRoleMaker()
-        fleet_ps.init(role_maker)
-        self.dist_optimizer = fleet_ps.distributed_optimizer(self.optimizer.inst)
+        role = role_maker.MPISymetricRoleMaker()
+        ps.fleet.init(role)
+        self.dist_optimizer = ps.fleet.distributed_optimizer(self.optimizer.inst)
         self.dist_optimizer.minimize(self.model.loss)
-        if fleet_ps.is_server():
-            fleet_ps.init_server()
-            fleet_ps.run_server()
-        elif fleet_ps.is_worker():
-            fleet_ps.init_worker()
+        if ps.fleet.is_server():
+            ps.fleet.init_server()
+            ps.fleet.run_server()
+        elif ps.fleet.is_worker():
+            self.logger.info("worker index {}".format(ps.fleet.worker_index()))
+            import time
+            time.sleep(15)
+            ps.fleet.init_worker()
             if self.dataset:
                 self.dataset.inst.set_use_var(self.model.get_input_vars())
                 self.dataset.inst.set_thread(self.thread_num)
                 self.dataset.inst.set_batch_size(self.batch_size)
                 self.dataset.inst.set_pipe_command(self.model.get_pipe_command())
+                self.dataset.inst.set_hdfs_config(self.fs_name, self.ugi)
             exe = fluid.Executor(fluid.CPUPlace())
-            exe.run(fleet_ps.startup_program)
+            exe.run(ps.fleet.startup_program)
 
     def train_pass(self, pass_folder, **kwargs):
         # global_shuffle, preload, prefix, is_debug
-        pass
+        prefix = kwargs.get("prefix", "part")
+        is_debug = kwargs.get("is_debug", False)
+        exe = fluid.Executor(fluid.CPUPlace())
+        filelist = hdfs_ls(pass_folder, self.fs_name, self.ugi)
+        my_filelist = ps.fleet.split_files(filelist)
+        self.dataset.inst.set_filelist(my_filelist)
+        #self.dataset.inst.load_into_memory()
+        #self.dataset.inst.global_shuffle()
+        exe.train_from_dataset(
+            program=ps.fleet.main_program,
+            dataset=self.dataset.inst,
+            debug=is_debug)
     

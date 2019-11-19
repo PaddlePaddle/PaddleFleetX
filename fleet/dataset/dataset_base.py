@@ -14,7 +14,15 @@
 
 import paddle.fluid as fluid
 
-class QueueDataset(object):
+class DatasetBase(object):
+    def __init__(self):
+        pass
+
+    def type(self):
+        return "Base"
+
+
+class QueueDataset(DatasetBase):
     def __init__(self):
         self.inst = \
             fluid.DatasetFactory().create_dataset()
@@ -22,7 +30,7 @@ class QueueDataset(object):
     def type(self):
         return "Queue"
 
-class MemoryDataset(object):
+class MemoryDataset(DatasetBase):
     def __init__(self):
         self.inst = \
             fluid.DatasetFactory().create_dataset("InMemoryDataset")
