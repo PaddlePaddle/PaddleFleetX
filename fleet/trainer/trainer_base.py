@@ -14,8 +14,10 @@
 import paddle.fluid as fluid
 from ..dataset import QueueDataset, MemoryDataset
 from ..utils import hdfs_ls
+import sys
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 import paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler as ps
+from paddle.fluid.transpiler.distribute_transpiler import DistributeTranspilerConfig
 import logging
 logging.basicConfig()
 
@@ -123,7 +125,10 @@ class DistOnlineTrainer(OnlineTrainer):
         self.model = model
         role = role_maker.MPISymetricRoleMaker()
         ps.fleet.init(role)
-        self.dist_optimizer = ps.fleet.distributed_optimizer(self.optimizer.inst)
+        strategy = DistributeTranspilerConfig()
+        strategy.sync_mode = False
+        self.dist_optimizer = ps.fleet.distributed_optimizer(
+            self.optimizer.inst, strategy)
         self.dist_optimizer.minimize(self.model.loss)
         if ps.fleet.is_server():
             ps.fleet.init_server()
@@ -131,7 +136,7 @@ class DistOnlineTrainer(OnlineTrainer):
         elif ps.fleet.is_worker():
             self.logger.info("worker index {}".format(ps.fleet.worker_index()))
             import time
-            time.sleep(15)
+            time.sleep(10)
             ps.fleet.init_worker()
             if self.dataset:
                 self.dataset.inst.set_use_var(self.model.get_input_vars())
@@ -147,11 +152,20 @@ class DistOnlineTrainer(OnlineTrainer):
         prefix = kwargs.get("prefix", "part")
         is_debug = kwargs.get("is_debug", False)
         exe = fluid.Executor(fluid.CPUPlace())
-        filelist = hdfs_ls(pass_folder, self.fs_name, self.ugi)
+        filelist = hdfs_ls([pass_folder], self.fs_name, self.ugi)
+        sys.stdout.write(" ".join(filelist))
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        def has_prefix(x):
+            return prefix in x
+        filelist = filter(has_prefix, filelist)
         my_filelist = ps.fleet.split_files(filelist)
+        sys.stdout.write(" ".join(my_filelist))
+        sys.stdout.write("\n")
+        sys.stdout.flush()
         self.dataset.inst.set_filelist(my_filelist)
-        #self.dataset.inst.load_into_memory()
-        #self.dataset.inst.global_shuffle()
+        self.dataset.inst.load_into_memory()
+        self.dataset.inst.local_shuffle()
         exe.train_from_dataset(
             program=ps.fleet.main_program,
             dataset=self.dataset.inst,
