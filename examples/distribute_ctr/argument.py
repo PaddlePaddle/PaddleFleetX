@@ -24,23 +24,50 @@ def params_args(args=None):
         dictionary of parameters with argparse class
     """
     # parameters of model and files
-    params = argparse.ArgumentParser(description='Run distribute model CTR DNN.')
-    params.add_argument("--name", type=str, default="ctr-dnn", help="The name of current model")
-    params.add_argument("--train_files_path", type=str, default="raw_data", help="Data file(s) for training.")
-    params.add_argument("--test_files_path", type=str, default="test_data",
+    params = argparse.ArgumentParser(
+        description='Run distribute model CTR DNN.')
+    params.add_argument("--name",
+                        type=str,
+                        default="ctr-dnn",
+                        help="The name of current model")
+    params.add_argument("--train_files_path",
+                        type=str,
+                        default="raw_data",
+                        help="Data file(s) for training.")
+    params.add_argument("--test_files_path",
+                        type=str,
+                        default="test_data",
                         help="Data file(s) for validation or evaluation.")
     params.add_argument("--log_path", type=str, default="result")
     params.add_argument("--model_path", type=str, default="model")
 
     # parameters of training
-    params.add_argument("-l", "--learning_rate", type=float, default=1e-4, help="Initial learning rate for training.")
-    params.add_argument("-b", "--batch_size", type=int, default=1000, help="Mini batch size for training.")
-    params.add_argument("-e", "--epochs", type=int, default=1, help="Number of epochs for training.")
+    params.add_argument("-l",
+                        "--learning_rate",
+                        type=float,
+                        default=1e-4,
+                        help="Initial learning rate for training.")
+    params.add_argument("-b",
+                        "--batch_size",
+                        type=int,
+                        default=1000,
+                        help="Mini batch size for training.")
+    params.add_argument("-e",
+                        "--epochs",
+                        type=int,
+                        default=1,
+                        help="Number of epochs for training.")
 
     # customized parameters
-    params.add_argument('--embedding_size', type=int, default=10, help="The size for embedding layer (default:10)")
-    params.add_argument('--sparse_feature_dim', type=int, default=1000001,
-                        help='sparse feature hashing space for index processing')
+    params.add_argument('--embedding_size',
+                        type=int,
+                        default=10,
+                        help="The size for embedding layer (default:10)")
+    params.add_argument(
+        '--sparse_feature_dim',
+        type=int,
+        default=1000001,
+        help='sparse feature hashing space for index processing')
     params.add_argument('--dense_feature_dim', type=int, default=13)
 
     # parameters of train method
@@ -48,21 +75,11 @@ def params_args(args=None):
     params.add_argument("--is_dataset_train", type=bool, default=False)
 
     # parameters of distribute
-    params.add_argument("--is_local_cluster", type=bool, default=False)
-    params.add_argument("--is_sparse", type=bool, default=False)
-    params.add_argument('-r', "--role", type=str, required=False, choices=['TRAINER', 'PSERVER'])
-    params.add_argument("--endpoints", type=str, default="",
-                        help='The pserver endpoints, like: 127.0.0.1:6000,127.0.0.1:6001')
-    params.add_argument('--current_endpoint', type=str, default='',
-                        help='The path for model to store (default: 127.0.0.1:6000)')
-    params.add_argument('-i', "--current_id", type=int, default=0, help="Specifies the number of the current role")
-    params.add_argument("--trainers", type=int, default=1,
-                        help="Specify the number of nodes participating in the training")
-    params.add_argument("--is_first_trainer", type=bool, default=False)
-    params.add_argument("--pserver_ip", type=str, default="127.0.0.1")
-    params.add_argument("--pserver_endpoints", type=list, default=[])
-    params.add_argument("--pserver_ports", type=str, default="36001")
-    params.add_argument("--sync_mode", type=str, required=False, choices=['sync','half_async','async'])
+    params.add_argument("--is_sparse", type=bool, default=True)
+    params.add_argument("--sync_mode",
+                        type=str,
+                        required=False,
+                        choices=['sync', 'half_async', 'async'])
     params.add_argument("--cpu_num", type=int, default=2)
 
     params = params.parse_args()

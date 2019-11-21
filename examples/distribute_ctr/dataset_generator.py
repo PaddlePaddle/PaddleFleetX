@@ -22,17 +22,15 @@ continuous_range_ = range(1, 14)
 categorical_range_ = range(14, 40)
 
 
-class DacDataset(dg.MultiSlotDataGenerator):
+class CriteoDataset(dg.MultiSlotDataGenerator):
     """
     DacDataset: inheritance MultiSlotDataGeneratior, Implement data reading
     Help document: http://wiki.baidu.com/pages/viewpage.action?pageId=728820675
     """
-
     def generate_sample(self, line):
         """
         Read the data line by line and process it as a dictionary
         """
-
         def reader():
             """
             This function needs to be implemented by the user, based on data format
@@ -62,5 +60,5 @@ class DacDataset(dg.MultiSlotDataGenerator):
         return reader
 
 
-d = DacDataset()
+d = CriteoDataset()
 d.run_from_stdin()
