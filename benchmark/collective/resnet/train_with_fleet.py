@@ -547,6 +547,9 @@ def train(args):
             test_acc1 = np.array(test_info[1]).mean()
             test_acc5 = np.array(test_info[2]).mean()
 
+            acc1_logs.append(test_acc1)
+            acc5_logs.append(test_acc5)
+
             if use_mixup:
                 print("End pass {0}, train_loss {1}, test_loss {2}, test_acc1 {3}, test_acc5 {4}, speed {5}".format(
                       pass_id, "%.5f"%train_loss, "%.5f"%test_loss, "%.5f"%test_acc1, "%.5f"%test_acc5,
@@ -566,28 +569,28 @@ def train(args):
 
         sys.stdout.flush()
 
-        # save in last epoch
-        if trainer_id == 0:
-                model_path = os.path.join(model_save_dir + '/' + model_name, str(pass_id))
-                if not os.path.isdir(model_path):
-                    os.makedirs(model_path)
+    # save in last epoch
+    if trainer_id == 0 and args.do_test:
+        model_path = os.path.join(model_save_dir + '/' + model_name, str(pass_id))
+        if not os.path.isdir(model_path):
+            os.makedirs(model_path)
 
-                fluid.io.save_persistables(exe, model_path, main_program=fleet._origin_program)
-                if args.benchmark_test:
-                    if not os.path.isdir("./benchmark_logs/"):
-                        os.makedirs("./benchmark_logs/")
-                    with open("./benchmark_logs/log_%d" % trainer_id, 'w') as f:
-                        result = dict()
-                        result['0'] = dict()
-                        result['0']['acc1'] = test_acc1
-                        result['0']['acc5'] = test_acc5
-                        result['0']['result_log'] = dict()
-                        result['0']['result_log']['acc1'] = acc1_logs
-                        result['0']['result_log']['acc5'] = acc5_logs
-                        # max speed of all epochs
-                        result['1'] = get_median(train_speed_list) * num_trainers
-                        print(str(result))
-                        f.writelines(str(result))
+        fluid.io.save_persistables(exe, model_path, main_program=fleet._origin_program)
+        if args.benchmark_test:
+            if not os.path.isdir("./benchmark_logs/"):
+                os.makedirs("./benchmark_logs/")
+            with open("./benchmark_logs/log_%d" % trainer_id, 'w') as f:
+                result = dict()
+                result['0'] = dict()
+                result['0']['acc1'] = test_acc1
+                result['0']['acc5'] = test_acc5
+                result['0']['result_log'] = dict()
+                result['0']['result_log']['acc1'] = acc1_logs
+                result['0']['result_log']['acc5'] = acc5_logs
+                # median speed of all epochs
+                result['1'] = get_median(train_speed_list) * num_trainers
+                print(str(result))
+                f.writelines(str(result))
 
 
 def print_paddle_environments():
