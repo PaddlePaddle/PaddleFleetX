@@ -22,9 +22,6 @@ import random
 from .img_tool import process_image
 DATA_DIR=""
 
-THREAD=4
-BUF_SIZE=4000
-
 def _reader_creator(settings,
                     file_list,
                     mode,
@@ -32,7 +29,9 @@ def _reader_creator(settings,
                     color_jitter=False,
                     rotate=False,
                     data_dir=DATA_DIR,
-                    pass_id_as_seed=0):
+                    pass_id_as_seed=0,
+                    threads=4,
+                    buf_size=4000):
     def reader():
         with open(file_list) as flist:
             full_lines = [line.strip() for line in flist]
@@ -82,10 +81,14 @@ def _reader_creator(settings,
         rotate=rotate,
         crop_size=224)
     reader = paddle.reader.xmap_readers(
-        image_mapper, reader, THREAD, BUF_SIZE, order=False)
+        image_mapper, reader, threads, buf_size, order=False)
     return reader
 
-def train(settings, data_dir=DATA_DIR, pass_id_as_seed=0):
+def train(settings,
+          data_dir=DATA_DIR,
+          pass_id_as_seed=0,
+          threads=4,
+          buf_size=4000):
     file_list = os.path.join(data_dir, 'train.txt')
     reader =  _reader_creator(
         settings,
@@ -96,16 +99,18 @@ def train(settings, data_dir=DATA_DIR, pass_id_as_seed=0):
         rotate=False,
         data_dir=data_dir,
         pass_id_as_seed=pass_id_as_seed,
+        threads=threads,
+        buf_size=buf_size,
         )
     return reader
 
-def val(settings,data_dir=DATA_DIR):
+def val(settings, data_dir=DATA_DIR, threads=16, buf_size=4000):
     file_list = os.path.join(data_dir, 'val.txt')
     return _reader_creator(settings ,file_list, 'val', shuffle=False, 
-            data_dir=data_dir)
+            data_dir=data_dir, threads=threads, buf_size=buf_size)
 
 
-def test(data_dir=DATA_DIR):
+def test(data_dir=DATA_DIR, threads=4, buf_size=4000):
     file_list = os.path.join(data_dir, 'val.txt')
     return _reader_creator(file_list, 'test', shuffle=False,
-            data_dir=data_dir)
+            data_dir=data_dir, threads=threads, buf_size=buf_size)

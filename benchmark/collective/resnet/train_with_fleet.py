@@ -230,9 +230,9 @@ def net_config(image, model, args, is_train, label=0, y_a=0, y_b=0, lam=0.0):
 
     if not args.is_distill:
         out = model.net(input=image, args=args, class_dim=class_dim)
-        softmax_out = fluid.layers.softmax(out, use_cudnn=False)
         if is_train:
             if use_mixup:
+                softmax_out = fluid.layers.softmax(out, use_cudnn=False)
                 loss_a = calc_loss(epsilon,y_a,class_dim,softmax_out,use_label_smoothing)
                 loss_b = calc_loss(epsilon,y_b,class_dim,softmax_out,use_label_smoothing)
                 loss_a_mean = fluid.layers.mean(x = loss_a)
@@ -242,10 +242,11 @@ def net_config(image, model, args, is_train, label=0, y_a=0, y_b=0, lam=0.0):
                 return avg_cost
             else:
                 print("Use fluid.layers.softmax_with_cross_entropy.")
-                cost, prob = fluid.layers.softmax_with_cross_entropy(
+                cost, softmax_out = fluid.layers.softmax_with_cross_entropy(
                     out, label, return_softmax=True)
         else:
-            cost = fluid.layers.cross_entropy(input=softmax_out, label=label)
+            cost, softmax_out = fluid.layers.softmax_with_cross_entropy(
+                out, label, return_softmax=True)
     else:
         out1, out2 = model.net(input=image, args=args, class_dim=args.class_dim)
         softmax_out1, softmax_out = fluid.layers.softmax(out1), fluid.layers.softmax(out2)
