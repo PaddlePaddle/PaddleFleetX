@@ -1,5 +1,5 @@
 # 从零开始的分布式CTR-DNN
-`CTR(Click Through Rate)`，即点击率，是“推荐系统/计算广告”等领域的重要指标，对其进行预估是支持进一步地“商品推送/广告投放”等决策的基础。 简单来说，CTR预估是对每次广告的点击情况做出预测，预测用户是点击还是不点击。CTR预估模型就是综合考虑各种因素、特征，在大量历史数据上训练得到的模型。
+`CTR(Click Through Rate)`，即点击率，是“推荐系统/计算广告”等领域的重要指标，对其进行预估是商品推送/广告投放等决策的基础。简单来说，CTR预估是对每次广告的点击情况做出预测，预测用户是点击还是不点击。CTR预估模型综合考虑各种因素、特征，在大量历史数据上训练，最终对商业决策提供帮助。
 
 跟随这篇文档，将从零开始，一步步教您如何利用PaddlePaddle Fluid高效且易用的Api，搭建单机ctr-dnn深度学习模型，并利用高阶分布式Api Fleet将其升级为可以在CPU集群中运行的`参数服务器`式分布式深度学习模型。在学习本篇文档后，您可以入门Paddle组网，Paddle分布式模型的搭建，了解CPU多线程全异步模式的启用方法。
 
@@ -29,6 +29,7 @@
       ├── py_reader_generator.py    # pyreader数据读取示例代码
       ├── README.md                 # 使用说明
    ```
+#
 ## 数据准备
 ### 数据来源
 训练及测试数据集选用[Display Advertising Challenge](https://www.kaggle.com/c/criteo-display-ad-challenge/)所用的Criteo数据集。该数据集包括两部分：训练集和测试集。训练集包含一段时间内Criteo的部分流量，测试集则对应训练数据后一天的广告点击流量。
@@ -51,6 +52,7 @@ sh get_data.sh
 
 至此，我们已完成数据准备的全部工作。
 
+#
 ## 模型组网
 
 ### 数据输入声明
@@ -150,19 +152,22 @@ auc_var, batch_auc_var, auc_states = fluid.layers.auc(
 
 完成上述组网后，我们最终可以通过训练拿到`avg_cost`与`auc`两个重要指标。
 
-## 数据高速读取
+#
+## 数据读取
 为了能高速运行CTR模型的训练，我们使用`dataset`API进行高性能的IO，dataset是为多线程及全异步方式量身打造的数据读取方式，每个数据读取线程会与一个训练线程耦合，形成了多生产者-多消费者的模式，会极大的加速我们的模型训练。
 
 如何在我们的训练中引入dataset读取方式呢？无需变更数据格式，只需在我们的训练代码中加入以下内容，便可达到媲美二进制读取的高效率，以下是一个比较完整的流程：
 
 ### 引入dataset
 
-- 通过工厂类`fluid.DatasetFactory()`创建一个dataset对象。
-- 将我们定义好的数据输入格式传给dataset，通过`dataset.set_use_var(inputs)`实现。
-- 指定我们的数据读取方式，由`dataset_generator.py`实现数据读取的规则，后面将会介绍读取规则的实现。
-- 指定数据读取的batchsize。
-- 指定数据读取的线程数，该线程数和训练线程应保持一致，两者为耦合的关系。
-- 指定dataset读取的训练文件的列表。
+1. 通过工厂类`fluid.DatasetFactory()`创建一个dataset对象。
+2. 将我们定义好的数据输入格式传给dataset，通过`dataset.set_use_var(inputs)`实现。
+3. 指定我们的数据读取方式，由`dataset_generator.py`实现数据读取的规则，后面将会介绍读取规则的实现。
+4. 指定数据读取的batch_size。
+5. 指定数据读取的线程数，该线程数和训练线程应保持一致，两者为耦合的关系。
+6. 指定dataset读取的训练文件的列表。
+
+
 ```python
 def get_dataset(inputs, params)
     dataset = fluid.DatasetFactory().create_dataset()
@@ -183,13 +188,13 @@ def get_dataset(inputs, params)
 
 在上文我们提到了由`dataset_generator.py`实现具体的数据读取规则，那么，怎样为dataset创建数据读取的规则呢？
 以下是`dataset_generator.py`的全部代码，具体流程如下：
-- 首先我们需要引入dataset的库，位于`paddle.fluid.incubate.data_generator`。
-- 声明一些在数据读取中会用到的变量，如示例代码中的`cont_min_`、`categorical_range_`等。
-- 创建一个子类，继承dataset的基类，基类有多种选择，如果是多种数据类型混合，并且需要转化为数值进行预处理的，建议使用`MultiSlotDataGenerator`；若已经完成了预处理并保存为数据文件，可以直接以`string`的方式进行读取，使用`MultiSlotStringDataGenerator`，能够进一步加速。在示例代码，我们继承并实现了名为`CriteoDataset`的dataset子类，使用`MultiSlotDataGenerator`方法。
-- 继承并实现基类中的`generate_sample`函数，逐行读取数据。该函数应返回一个可以迭代的reader方法(带有yield的函数不再是一个普通的函数，而是一个生成器generator，成为了可以迭代的对象，等价于一个数组、链表、文件、字符串etc.)
-- 在这个可以迭代的函数中，如示例代码中的`def reader()`，我们定义数据读取的逻辑。例如对以行为单位的数据进行截取，转换及预处理。
-- 最后，我们需要将数据整理为特定的格式，才能够被dataset正确读取，并灌入的训练的网络中。简单来说，数据的输出顺序与我们在网络中创建的`inputs`必须是严格一一对应的，并转换为类似字典的形式。在示例代码中，我们使用`zip`的方法将参数名与数值构成的元组组成了一个list，并将其yield输出。如果展开来看，我们输出的数据形如`[('dense_feature',[value]),('C1',[value]),('C2',[value]),...,('C26',[value]),('label',[value])]`
-- dataset的基本原理：将数据print到缓存，再由C++端的代码实现读取，因此，我们不能在dataset的代码中，加入与数据读取无关的print信息，会导致C++端拿到错误的数据信息。
+1. 首先我们需要引入dataset的库，位于`paddle.fluid.incubate.data_generator`。
+2. 声明一些在数据读取中会用到的变量，如示例代码中的`cont_min_`、`categorical_range_`等。
+3. 创建一个子类，继承dataset的基类，基类有多种选择，如果是多种数据类型混合，并且需要转化为数值进行预处理的，建议使用`MultiSlotDataGenerator`；若已经完成了预处理并保存为数据文件，可以直接以`string`的方式进行读取，使用`MultiSlotStringDataGenerator`，能够进一步加速。在示例代码，我们继承并实现了名为`CriteoDataset`的dataset子类，使用`MultiSlotDataGenerator`方法。
+4. 继承并实现基类中的`generate_sample`函数，逐行读取数据。该函数应返回一个可以迭代的reader方法(带有yield的函数不再是一个普通的函数，而是一个生成器generator，成为了可以迭代的对象，等价于一个数组、链表、文件、字符串etc.)
+5. 在这个可以迭代的函数中，如示例代码中的`def reader()`，我们定义数据读取的逻辑。例如对以行为单位的数据进行截取，转换及预处理。
+6. 最后，我们需要将数据整理为特定的格式，才能够被dataset正确读取，并灌入的训练的网络中。简单来说，数据的输出顺序与我们在网络中创建的`inputs`必须是严格一一对应的，并转换为类似字典的形式。在示例代码中，我们使用`zip`的方法将参数名与数值构成的元组组成了一个list，并将其yield输出。如果展开来看，我们输出的数据形如`[('dense_feature',[value]),('C1',[value]),('C2',[value]),...,('C26',[value]),('label',[value])]`
+
 
 ```python
 import paddle.fluid.incubate.data_generator as dg
@@ -233,9 +238,255 @@ class CriteoDataset(dg.MultiSlotDataGenerator):
 d = CriteoDataset()
 d.run_from_stdin()
 ```
+### 快速调试Dataset
+我们可以脱离组网架构，单独验证Dataset的输出是否符合我们预期。使用命令
+`cat 数据文件 | python dataset读取python文件`进行dataset代码的调试：
+```bash
+cat train_data/part-0 | python dataset_generator.py
+```
+输出的数据格式如下：
+` dense_input:size ; dense_input:value ; sparse_input:size ; sparse_input:value ; ... ; sparse_input:size ; sparse_input:value ; label:size ; label:value `
+
+理想的输出为：
+```bash
+13 0.05 0.00663349917081 0.05 0.0 0.02159375 0.008 0.15 0.04 0.362 0.1 0.2 0.0 0.04 1 715353 1 817085 1 851010 1 833725 1 286835 1 948614 1 881652 1 507110 1 27346 1 646986 1 643076 1 200960 1 18464 1 202774 1 532679 1 729573 1 342789 1 562805 1 880474 1 984402 1 666449 1 26235 1 700326 1 452909 1 884722 1 787527 1 0
+```
+
+>使用Dataset的一些注意事项
+> - Dataset的基本原理：将数据print到缓存，再由C++端的代码实现读取，因此，我们不能在dataset的读取代码中，加入与数据读取无关的print信息，会导致C++端拿到错误的数据信息。
+> - dataset目前只支持在`unbuntu`及`CentOS`等标准Linux环境下使用，在`Windows`及`Mac`下使用时，会产生预料之外的错误，请知悉。
+
+#
+## 单机训练
+
+当我们完成`数据准备`、`模型组网`及`数据读取`上述三个步骤后，就可以开始进行单机的训练，单机训练代码见`local_train.py`文件。
+
+### 单机训练流程
+
+```python
+def train(params):
+    # 引入模型的组网
+    ctr_model = CTR()
+    inputs = ctr_model.input_data(params)
+    avg_cost, auc_var, batch_auc_var = ctr_model.net(inputs,params)
+    
+    # 选择反向更新优化策略
+    optimizer = fluid.optimizer.Adam(params.learning_rate)
+    optimizer.minimize(avg_cost)
+
+    # 创建训练的执行器
+    exe = fluid.Executor(fluid.CPUPlace())
+    exe.run(fluid.default_startup_program())
+    
+    # 引入数据读取
+    dataset = get_dataset(inputs,params)
+
+    # 开始训练
+    for epoch in range(params.epochs):
+        start_time = time.time()
+        # 使用train_from_dataset实现多线程并发训练
+        exe.train_from_dataset(program=fluid.default_main_porgram(),
+                               dataset=dataset, fetch_list=[auc_var],
+                               fetch_info=["Epoch {} auc ".format(epoch)],
+                               print_period=10, debug=False)
+        end_time = time.time()
+        logger.info("epoch %d finished, use time=%d\n" % ((epoch), end_time - start_time))
+
+        if params.test:
+            model_path = (str(params.model_path) + "/"+"epoch_" + str(epoch))
+            fluid.io.save_persistables(executor=exe, dirname=model_path)
+
+    logger.info("Train Success!")
+    return train_result
+```
+通过以上简洁的代码，即可以在单机上实现CTR模型的多线程并发训练。
+
+### 在dataset模式下获取训练中的变量
+dataset在提高了模型训练速度的同时，也会有其他的不便，比如不能像传统方式一样，在训练中，通过形如
+```
+auc = exe.run(fetch_list=[auc])
+```
+的方式实时获取每个mini_batch的参数变化。这会对我们的训练过程监控会造成一些不便。
+
+> 如何获取dataset模式训练中的参数变化？
+> 
+> 在paddle dataset模式中，由于dataset设计初衷是保证高速，运行于程序底层，与paddlepaddle传统的`feed={dict}`方法不一致，不支持直接通过`train_from_dataset`的函数返回值，得到当前训练中`fetch_list`的值。
+> 
+> 但我们可以通过`paddle/release/1.6`中新增的`fetch_handler`方法创建一个新的线程，监听训练过程，不影响训练的效率。该方法需要继承`fluid.executor.FetchHandler`类中的`handler`方法实现一个监听函数。`fetch_target_vars`是一个list，由我们自行指定哪些变量的值需要被监控。在`exe.train_from_dataset`方法中，指定`fetch_handler`为我们实现的监听函数。可以配置3个超参：
+> - 第一个是`fetch_var_list`，添加我们想要获取的变量的名称，示例中，我们指定为`[self.loss.name]`
+> - 第二个是监听函数的更新频率，单位是s，示例中我们设置为5s更新一次。
+> - 第三个是我们获取的变量的数据类型，若想获得常用的`numpy.ndarray`的格式，则设置为`True`；若想获得`Tensor`，则设置为`False`。
+
+改动后的训练代码如下
+```python
+for epoch in range(num_epochs):
+      start_time = time.time()
+      class fetch_vars(fluid.executor.FetchHandler):
+          def handler(self, fetch_target_vars):
+              auc_value = fetch_target_vars[0]
+              logger.info(
+                  "epoch -> {}, auc -> {}, at: {}".format(epoch, auc_value, time.ctime()))
+      # 开始训练
+      exe.train_from_dataset(program=fluid.default_main_program(),     
+                             dataset=dataset,
+                             fetch_handler=fetch_vars([auc_var.name], 5, True))
+      end_time = time.time()
+```
+如此，便可以在`def handler()`函数中实现训练过程的实时监控，但该监控值的打印频率，不是以mini_batch为单位，而是以时间s为单位，请知悉。
+
+### 运行单机训练
+在代码目录下，通过键入以下命令启动单机训练。
+```bash
+python -u local_train.py --test=True &> train.log &
+```
+训练过程的日志保存在`./train.log`文件中。使用默认配置运行的理想输出为：
+```bash
+```
+
+#
+## 分布式训练——异步模式（Async）
+PaddlePaddle在release/1.5.0之后新增了高级分布式API-`Fleet`，只需数行代码便可将单机模型转换为分布式模型。分布式训练代码见`distribute_train.py`，我们通过与单机训练的代码对比，来说明基于fleet将单机训练转换为分布式训练需要哪些步骤。
+
+### 区别一：数据需要分配到各个节点上
+单机训练中，我们没有对数据做过多的区分。但在分布式训练中，我们要确保每个节点都能拿到数据，并且希望每个节点的数据同时满足：1、各个节点数据无重复。2、各个节点数据均匀。Fleet提供了`split_files()`的接口，输入值是一个稳定的目录，随后该函数会根据节点自身的编号拿到相应的数据文件列表。示例代码中，我们假设您在进行分布式训练`params.cloud=True`时，已经将文件分到了各个节点上。所以仅需要进行本地模拟分布式时，使用该接口，给各个进程分配不同的数据文件。
+```python
+file_list = [
+        str(params.train_files_path) + "/%s" % x
+        for x in os.listdir(params.train_files_path)
+]
+# 请确保每一个训练节点都持有不同的训练文件
+# 当我们用本地多进程模拟分布式时，每个进程需要拿到不同的文件
+# 使用 fleet.split_files 可以便捷的以文件为单位分配训练样本
+if not param.cloud
+    file_list = fleet.split_files(file_list)
+dataset.set_filelist(file_list)
+```
+
+### 区别二：每个节点需要扮演不同的角色
+单机训练流程中，程序完成了从`数据读取->前向loss计算->反向梯度计算->参数更新`的完整流程，但在分布式训练中，单节点不一定需要完成全部步骤，比如在`同步(Sync)`及`异步(Async)`模式下，`Trainer`节点完成`数据读取->前向loss计算->反向梯度计算`的步骤，而`Pserver`节点完成`参数更新`的步骤，两者分工协作，解决了单机不能训练大数据的问题。
+
+因此，在分布式训练中，我们需要指定每个节点扮演的角色。使用Fleet下提供的`PaddleCloudRoleMaker()`接口可以很便捷的获取当前节点所扮演的角色。
+
+```python
+import paddle.fluid.incubate.fleet.base.role_maker as role_maker
+from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
+
+# 根据环境变量确定当前机器/进程在分布式训练中扮演的角色
+# 使用 fleet api的 init()方法初始化这个节点
+role = role_maker.PaddleCloudRoleMaker()
+fleet.init(role) #必不可少的步骤，初始化节点
+```
+> PaddleCloudRoleMaker()是怎样判断当前节点所扮演的角色的？
+> 
+> Paddle参数服务器模式中，使用各个节点机器的环境变量来确定当前节点的角色。为了能准确无误的分配角色，在每个节点上，我们都需要指定如下环境变量：
+> #### 共有的环境变量
+> - export PADDLE_TRAINERS_NUM=2 # 训练节点数
+> - export PADDLE_PSERVERS_IP_PORT_LIST="127.0.0.1:36011,127.0.0.1:36012" # 各个pserver的ip:port 组合构成的字符串
+> 
+> #### Pserver特有的环境变量
+> - export TRAINING_ROLE=PSERVER # 当前节点的角色是PSERVER
+> - export PADDLE_PORT=36011 # 当前PSERVER的通信端口
+> - export POD_IP=127.0.0.1 # 当前PSERVER的ip地址
+> #### Trainer特有的环境变量
+> - export TRAINING_ROLE=TRAINER # 当前节点的角色是TRAINER
+> - export PADDLE_TRAINER_ID=0 # 当前Trainer节点的编号,范围为[0，PADDLE_TRAINERS_NUM)
+> 
+> 完成上述环境变量指定后，`PaddleCloudRoleMaker()`便可以正常的运行，决定当前节点的角色。
+
+### 区别三 需要指定分布式训练的策略
+
+Paddle的`参数服务器`模式分布式训练有很多种类型，根据通信策略可以分为：`同步Sync`、`半异步Half-Async`、`异步Async`、`GEO-SGD`等。所以需要配置分布式的运行策略，并将该策略传入`Optimizer`，构建不同的运行`Program`：
+
+```python
+from paddle.fluid.transpiler.distribute_transpiler import DistributeTranspilerConfig
+
+# 进一步指定分布式的运行模式，通过 DistributeTranspilerConfig进行配置
+# 如下，设置分布式运行模式为异步(async)，同时设置参数需要切分，以分配到不同的节点
+strategy = DistributeTranspilerConfig()
+strategy.sync_mode = False
+strategy.runtime_split_send_recv = True
+
+ctr_model = CTR()
+inputs = ctr_model.input_data(params)
+avg_cost, auc_var, batch_auc_var = ctr_model.net(inputs,params)
+optimizer = fluid.optimizer.Adam(params.learning_rate)
+# 配置分布式的optimizer，传入我们指定的strategy，构建program
+optimizer = fleet.distributed_optimizer(optimizer,strategy)
+optimizer.minimize(avg_cost)
+```
+
+### 区别四 需要区分Pserver与Trainer的运行流程
+Fleet隐式的完成了Pserver与Trainer的Program切分逻辑，我们可以使用`fleet.main_program`与`fleet.startup_program`，替代`fluid.default_main_program()`与`fluid.default_startup_program()`，拿到当前节点的训练program与初始化program。如何让Pserver和Trainer运行起来呢？其逻辑略有区别，但也十分容易掌握：
+```python
+# 根据节点角色，分别运行不同的逻辑
+if fleet.is_server():
+    # 初始化参数服务器节点
+    fleet.init_server()
+    # 运行参数服务器节点
+    fleet.run_server()
+
+elif fleet.is_worker():
+    # 初始化工作节点
+    fleet.init_worker()
+    # 运行工作节点，与单机训练运行流程相同
+```
+
+了解了以上区别，便可以非常顺利的将单机模型升级为分布式训练模型。
+
+>### 同步与异步？你可能需要了解的知识
+>在`区别三 需要指定分布式运行策略`中，我们简要的提及了目前Paddle参数服务器模式支持的分布式运行策略：`同步Sync`、`半异步Half-Async`、`异步Async`与`GEO-SGD`。这些名词您可能有些陌生，具体介绍可以参考文档[Transpiler综述](www.baidu.com)(汤老师负责的文档)
 
 
+### 运行：本地模拟分布式
+如果暂时没有集群环境，或者想要快速调试代码，可以通过本地多进程模拟分布式来运行分布式训练的代码。
+有两种方法可以进行本地多进程模拟分布式。
+#### 方法一 运行`loc_cluster.sh`脚本
+示例代码中，给出了本地模拟分布式的一键启动脚本`loc_cluster.sh`，在代码目录，通过命令
+```bash
+# 根据自己的运行环境，选择sh或bash
+sh loc_cluster.sh
+```
+便可以开启分布式模拟训练，默认启用2x2的训练模式。Trainer与Pserver的运行日志，存放于`./log/`文件夹，保存的模型位于`./model/`，使用默认配置运行后，理想输出为：
+> pserver.0.log
+```bash
+```
+
+> trainer.0.log
+```bash
+
+```
+#### 方法二 通过`paddle.distributed.launch_ps`运行模拟分布式
+该方法更通用，不需要写特别的脚本即可运行，在代码目录，键入命令：
+```bash
+nohup python -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 distribute_train.py &
+```
+日志位于`./logs/`，理想输出与方法一相同。
+运行该命令时：
+1. 首先需要注意修改python的PATH，例如将`python`修改为`/home/work/python27-gcc482/bin/python`以确保运行在正确的python环境下。
+2. 设置`--worker_num`与`--server_num`，以运行不同分布式配置。
+
+#
+## 分布式训练——模型保存及增量训练
+### 单机训练中模型的保存
+单机训练，使用`fluid.io.save_inference_model()`或其他接口保存模型，各个接口的联系与区别，可以参考API文档：[模型/变量的保存、载入与增量训练](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/user_guides/howto/training/save_load_variables.html)
 
 
+### 分布式训练中模型的保存
+分布式训练，推荐使用`fleet.save_persisitables(exe,path)`进行模型的保存，`save_persisitables`不会保存网络的结构，仅保存网络中的长期变量。
+
+推荐的仅保存长期变量的原因是：
+1. 分布式训练的program中，有许多仅在分布式训练中才会用到的参数与流程，保存这些步骤，是冗余的，耗费带宽的，且会产生不可预知的风险。
+2. 在很多应用场景中，分布式训练出的模型与实际上线的模型不一致，仅使用分布式训练出的参数值，参与其他网络的预测，在这样的场景中，就更无必要保存模型结构了。
+
+> 什么是长期变量？
+> 
+> 在Paddle Fluid中，模型变量可以分为以下几种类型：
+> 
+> 1. 模型参数：是深度学习模型中被训练和学习的量。由`fluid.framwork.Parameter()`产生，是`fluid.framework.Variable()`的派生类。
+> 2. 长期变量 ：是在整个训练过程中持续存在，不会因为一个迭代结束而销毁的变量，所有的模型参数都是长期变量，但并非所有的长期变量都是模型参数。长期变量通过将`fluid.framework.Varibale()`中的`psersistable`属性设置为`True`来声明。长期变量是模型的核心参数。
+> 3. 临时变量：不属于上述两种类别的所有变量都是临时变量，只在一个训练迭代中存在，在每一个迭代结束后，所有的临时变量都会被销毁，然后在下一个迭代开始时，创建新的临时变量。例如输入的训练数据，中间层layer的输出等等。
 
 
+### 分布式增量训练
+#
+## 预测——本地预测

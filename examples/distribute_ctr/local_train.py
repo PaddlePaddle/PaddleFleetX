@@ -51,7 +51,6 @@ def train(params):
 
     for epoch in range(params.epochs):
         start_time = time.time()
-        # Notice: function train_from_dataset does not return fetch value
         exe.train_from_dataset(program=fluid.default_main_porgram(),
                                dataset=dataset, fetch_list=[auc_var],
                                fetch_info=["Epoch {} auc ".format(epoch)],

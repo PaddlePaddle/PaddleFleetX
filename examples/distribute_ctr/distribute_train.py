@@ -58,9 +58,12 @@ def train(params):
 
     # 我们还可以进一步指定分布式的运行模式，通过 DistributeTranspilerConfig进行配置
     # 如下，我们设置分布式运行模式为异步(async)，同时将参数进行切分，以分配到不同的节点
-    strategy = DistributeStrategy()
-    strategy.sync_mode = False
-    strategy.runtime_split_send_recv = True
+    strategy = DistributeTranspilerConfig()
+    if params.sync_mode == "sync":
+        strategy.sync_mode = True
+    elif params.sync_mode == "async":
+        strategy.sync_mode = False
+        strategy.runtime_split_send_recv = True
 
     ctr_model = CTR()
     inputs = ctr_model.input_data(params)

@@ -32,7 +32,7 @@ def params_args(args=None):
                         help="The name of current model")
     params.add_argument("--train_files_path",
                         type=str,
-                        default="raw_data",
+                        default="train_data",
                         help="Data file(s) for training.")
     params.add_argument("--test_files_path",
                         type=str,
