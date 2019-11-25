@@ -548,7 +548,6 @@ def train(args):
             test_acc1 = np.array(test_info[1]).mean()
             test_acc5 = np.array(test_info[2]).mean()
 
-
             acc1_logs.append(test_acc1)
             acc5_logs.append(test_acc5)
 
