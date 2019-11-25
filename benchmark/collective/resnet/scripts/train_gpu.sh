@@ -3,6 +3,7 @@
 export FLAGS_sync_nccl_allreduce=1
 export FLAGS_cudnn_exhaustive_search=1
 export FLAGS_conv_workspace_size_limit=7000 #MB
+export FLAGS_cudnn_batchnorm_spatial_persistent=1
 
 export GLOG_v=1
 export GLOG_logtostderr=1
@@ -27,6 +28,7 @@ DATA_PATH="./ImageNet"
 TOTAL_IMAGES=1281167
 CLASS_DIM=1000
 IMAGE_SHAPE=3,224,224
+DATA_FORMAT="NCHW"
 
 
 #gpu params
@@ -64,6 +66,7 @@ python -m paddle.distributed.launch ${distributed_args} --log_dir log \
        --data_dir=${DATA_PATH} \
        --class_dim=${CLASS_DIM} \
        --image_shape=${IMAGE_SHAPE} \
+       --data_format=${DATA_FORMAT} \
        --model_save_dir=${MODEL_SAVE_PATH} \
        --with_mem_opt=False \
        --lr_strategy=${LR_STRATEGY} \
