@@ -24,6 +24,9 @@ import os
 import six
 import sys
 import time
+import json
+
+os.environ['FLAGS_sync_nccl_allreduce'] = "1"
 
 import numpy as np
 import paddle.fluid as fluid
@@ -35,7 +38,7 @@ from model import transformer, position_encoding_init
 
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
-
+from paddle.fluid.contrib.mixed_precision.decorator import decorate
 
 def parse_args():
     parser = argparse.ArgumentParser("Training for Transformer.")
@@ -67,7 +70,7 @@ def parse_args():
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=4096,
+        default=2048,
         help="The number of sequences contained in a mini-batch, or the maximum "
         "number of tokens (include paddings) contained in a mini-batch. Note "
         "that this represents the number on single device and the actual batch "
@@ -118,20 +121,30 @@ def parse_args():
         default=True,
         help="The flag indicating whether to use py_reader.")
     parser.add_argument(
+        "--use_fp16",
+        type=ast.literal_eval,
+        default=False,
+        help="The flag indicating whether to use fp16.")
+    parser.add_argument(
+        "--run_benchmark",
+        type=ast.literal_eval,
+        default=True,
+        help="The flag indicating whether to run as benchmark.")
+    parser.add_argument(
+        "--loss_scaling",
+        type=float,
+        default=64.0,
+        help="The initial value for loss scaling.")
+    parser.add_argument(
         "--fetch_steps",
         type=int,
         default=100,
         help="The frequency to fetch and print output.")
     parser.add_argument(
-        "--num_threads",
+        "--num_epochs",
         type=int,
-        default=2,
-        help="How many threads to run paddle.")
-    parser.add_argument(
-        "--fuse",
-        type=bool,
-        default=False,
-        help="Use tensor fusion or not.")
+        default=1,
+        help="How many epochs to run.")
 
     args = parser.parse_args()
     # Append args related to dict
@@ -251,7 +264,6 @@ def prepare_data_generator(args,
     Data generator wrapper for DataReader. If use py_reader, set the data
     provider for py_reader
     """
-    shuffle_seed = 1 if args.num_trainers > 1 else None
     data_reader = reader.DataReader(
         fpattern=args.val_file_pattern if is_test else args.train_file_pattern,
         src_vocab_fpath=args.src_vocab_fpath,
@@ -262,7 +274,6 @@ def prepare_data_generator(args,
         pool_size=args.pool_size,
         sort_type=args.sort_type,
         shuffle=args.shuffle,
-        shuffle_seed=shuffle_seed,
         shuffle_batch=args.shuffle_batch,
         start_mark=args.special_token[0],
         end_mark=args.special_token[1],
@@ -308,12 +319,10 @@ def prepare_data_generator(args,
         # to make data on each device have similar token number
         data_reader = split(data_reader, count)
     if args.use_py_reader:
-        train_reader = py_reader_provider_wrapper(data_reader, place)
         if args.num_trainers > 1:
-            assert shuffle_seed is not None
-            train_reader = fluid.contrib.reader.distributed_batch_reader(
-                train_reader)
-        pyreader.decorate_tensor_provider(train_reader)
+            data_reader = fluid.contrib.reader.distributed_batch_reader(data_reader)
+        pyreader.decorate_tensor_provider(
+            py_reader_provider_wrapper(data_reader, place))
         data_reader = None
     else:  # Data generator for multi-devices
         data_reader = stack(data_reader, count)
@@ -440,7 +449,8 @@ def test_context(exe, dev_count):
     return test
 
 
-def train_loop(exe,
+def train_loop(args,
+               exe,
                train_program,
                orig_train_program,
                startup_program,
@@ -486,7 +496,9 @@ def train_loop(exe,
     init_flag = True
 
     logging.info("begin train")
-    for pass_id in six.moves.xrange(TrainTaskConfig.pass_num):
+    result_loss = []
+    result_ppl = []
+    for pass_id in six.moves.xrange(args.num_epochs):
         pass_start_time = time.time()
 
         if args.use_py_reader:
@@ -496,14 +508,17 @@ def train_loop(exe,
             data_generator = train_data()
 
         batch_id = 0
+        train_time = []
         while True:
             try:
                 feed_dict_list = prepare_feed_dict_list(data_generator,
                                                         init_flag, dev_count)
+                t1 = time.time()
                 outs = exe.run(program=train_program,
                                fetch_list=[sum_cost.name, token_num.name]
                                if step_idx % args.fetch_steps == 0 else [],
                                feed=feed_dict_list)
+                train_time.append(time.time() - t1)
 
                 if step_idx % args.fetch_steps == 0:
                     sum_cost_val, token_num_val = np.array(outs[0]), np.array(
@@ -512,6 +527,8 @@ def train_loop(exe,
                     total_sum_cost = sum_cost_val.sum()
                     total_token_num = token_num_val.sum()
                     total_avg_cost = total_sum_cost / total_token_num
+                    result_loss.append(total_avg_cost - loss_normalizer)
+                    result_ppl.append(np.exp([min(total_avg_cost, 100)]).item(0))
 
                     if step_idx == 0:
                         logging.info(
@@ -563,11 +580,28 @@ def train_loop(exe,
         else:
             logging.info("epoch: %d, consumed %fs" % (pass_id, time_consumed))
 
+    avg_time_per_batch = np.mean(train_time)
+    global_step_per_second = 1.0 / avg_time_per_batch * args.num_trainers
+    if args.trainer_id == 0 and args.run_benchmark:
+        if not os.path.isdir("./benchmark_logs/"):
+            os.makedirs("./benchmark_logs/")
+        with open("./benchmark_logs/log_%d" % args.trainer_id, 'w') as f:
+            result = dict()
+            result['0'] = dict()
+            result['0']['result_log'] = dict()
+            result['0']['result_log']['normalized_loss'] = result_loss
+            result['0']['result_log']['ppl'] = result_ppl
+            result['0']['normalized_loss'] = min(result_loss)
+            result['0']['ppl'] = min(result_ppl)
+            result['1'] = str(global_step_per_second)
+            print(result)
+            f.writelines(json.dumps(result) + '\n')
+
         fluid.io.save_persistables(
             exe,
             os.path.join(TrainTaskConfig.ckpt_dir,
                          "pass_" + str(pass_id) + ".checkpoint"),
-            train_program)
+            orig_train_program)
 
 
 def train(args):
@@ -587,16 +621,8 @@ def train(args):
     role = role_maker.PaddleCloudRoleMaker(is_collective=True)
     fleet.init(role)
     args.num_trainers = fleet.worker_num()
-
-    exec_strategy = fluid.ExecutionStrategy()
-    exec_strategy.num_threads = args.num_threads
-    exec_strategy.num_iteration_per_drop_scope = 30
-
+    args.trainer_id = fleet.worker_index()
     dist_strategy = DistributedStrategy()
-    dist_strategy.exec_strategy = exec_strategy
-    dist_strategy.fuse_memory_size = 64 #MB
-    if args.fuse:
-        dist_strategy.fuse_all_reduce_ops = 1
 
     with fluid.program_guard(train_program, startup_program):
         with fluid.unique_name.guard():
@@ -636,12 +662,14 @@ def train(args):
                     epsilon=TrainTaskConfig.eps)
             else:
                 optimizer = fluid.optimizer.SGD(0.003)
+            if args.use_fp16:
+                optimizer = decorate(optimizer, init_loss_scaling=args.loss_scaling)
             optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
             optimizer.minimize(avg_cost, startup_program)
 
     train_program = fleet.main_program
     orig_train_program = fleet._origin_program
-    train_loop(exe, train_program, orig_train_program, startup_program, 
+    train_loop(args, exe, train_program, orig_train_program, startup_program, 
                dev_count, sum_cost, avg_cost, token_num, predict, pyreader)
 
 

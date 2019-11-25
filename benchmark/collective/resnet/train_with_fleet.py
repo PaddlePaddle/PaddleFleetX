@@ -231,9 +231,9 @@ def net_config(image, model, args, is_train, label=0, y_a=0, y_b=0, lam=0.0):
 
     if not args.is_distill:
         out = model.net(input=image, args=args, class_dim=class_dim)
-        softmax_out = fluid.layers.softmax(out, use_cudnn=False)
         if is_train:
             if use_mixup:
+                softmax_out = fluid.layers.softmax(out, use_cudnn=False)
                 loss_a = calc_loss(epsilon,y_a,class_dim,softmax_out,use_label_smoothing)
                 loss_b = calc_loss(epsilon,y_b,class_dim,softmax_out,use_label_smoothing)
                 loss_a_mean = fluid.layers.mean(x = loss_a)
@@ -243,10 +243,11 @@ def net_config(image, model, args, is_train, label=0, y_a=0, y_b=0, lam=0.0):
                 return avg_cost
             else:
                 print("Use fluid.layers.softmax_with_cross_entropy.")
-                cost, prob = fluid.layers.softmax_with_cross_entropy(
+                cost, softmax_out = fluid.layers.softmax_with_cross_entropy(
                     out, label, return_softmax=True)
         else:
-            cost = fluid.layers.cross_entropy(input=softmax_out, label=label)
+            cost, softmax_out = fluid.layers.softmax_with_cross_entropy(
+                out, label, return_softmax=True)
     else:
         out1, out2 = model.net(input=image, args=args, class_dim=args.class_dim)
         softmax_out1, softmax_out = fluid.layers.softmax(out1), fluid.layers.softmax(out2)
@@ -547,6 +548,7 @@ def train(args):
             test_acc1 = np.array(test_info[1]).mean()
             test_acc5 = np.array(test_info[2]).mean()
 
+
             acc1_logs.append(test_acc1)
             acc5_logs.append(test_acc5)
 
@@ -568,7 +570,7 @@ def train(args):
                     pass_id, "%.5f"%train_loss, "%.5f"%train_acc1, "%.5f"%train_acc5, "%.2f" % train_speed))
 
         sys.stdout.flush()
-
+ 
     # save in last epoch
     if trainer_id == 0 and args.do_test:
         model_path = os.path.join(model_save_dir + '/' + model_name, str(pass_id))
