@@ -32,7 +32,7 @@ import utils
 import models
 from paddle.fluid.contrib.mixed_precision.decorator import decorate
 import utils.reader_cv2 as reader
-from utils.utility import add_arguments, print_arguments, check_gpu
+from utils.utility import add_arguments, print_arguments, check_gpu, get_median
 from utils.learning_rate import cosine_decay_with_warmup, lr_warmup
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
@@ -78,6 +78,7 @@ add_arg('is_distill',       bool,  False,        "is distill or not")
 add_arg('profile',             bool,  False,                "Enable profiler or not." )
 add_arg('fetch_steps',      int,  10,                "Enable profiler or not." )
 
+add_arg('do_test',          bool,  True,                 "Whether to use GPU or not.")
 add_arg('use_gpu',          bool,  True,                 "Whether to use GPU or not.")
 add_arg('fuse', bool, False,                      "Whether to use tensor fusion.")
 add_arg('nccl_comm_num',        int,  1,                  "nccl comm num")
@@ -514,46 +515,54 @@ def train(args):
         train_speed = (batch_id * train_batch_size) / (train_end - train_begin)
         train_speed_list.append(train_speed)
 
-        test_py_reader.start()
-        test_batch_id = 0
-        try:
-            while True:
-                t1 = time.time()
-                loss, acc1, acc5 = exe.run(program=test_prog,
-                                        fetch_list=test_fetch_list)
-                t2 = time.time()
-                period = t2 - t1
-                loss = np.mean(loss)
-                acc1 = np.mean(acc1)
-                acc5 = np.mean(acc5)
-                test_info[0].append(loss)
-                test_info[1].append(acc1)
-                test_info[2].append(acc5)
+        if args.do_test:
+            test_py_reader.start()
+            test_batch_id = 0
+            try:
+                while True:
+                    t1 = time.time()
+                    loss, acc1, acc5 = exe.run(program=test_prog,
+                                            fetch_list=test_fetch_list)
+                    t2 = time.time()
+                    period = t2 - t1
+                    loss = np.mean(loss)
+                    acc1 = np.mean(acc1)
+                    acc5 = np.mean(acc5)
+                    test_info[0].append(loss)
+                    test_info[1].append(acc1)
+                    test_info[2].append(acc5)
 
-                if test_batch_id % 10 == 0:
-                    test_speed = test_batch_size * 1.0 / period
-                    print("Pass {0},testbatch {1},loss {2}, \
-                        acc1 {3},acc5 {4},time {5},speed {6}"
-                        .format(pass_id, test_batch_id, "%.5f"%loss,"%.5f"%acc1, "%.5f"%acc5,
-                                "%2.2f sec" % period, "%.2f" % test_speed))
-                    sys.stdout.flush()
-                test_batch_id += 1
-        except fluid.core.EOFException:
-            test_py_reader.reset()
+                    if test_batch_id % 10 == 0:
+                        test_speed = test_batch_size * 1.0 / period
+                        print("Pass {0},testbatch {1},loss {2}, \
+                            acc1 {3},acc5 {4},time {5},speed {6}"
+                            .format(pass_id, test_batch_id, "%.5f"%loss,"%.5f"%acc1, "%.5f"%acc5,
+                                    "%2.2f sec" % period, "%.2f" % test_speed))
+                        sys.stdout.flush()
+                    test_batch_id += 1
+            except fluid.core.EOFException:
+                test_py_reader.reset()
 
-        test_loss = np.array(test_info[0]).mean()
-        test_acc1 = np.array(test_info[1]).mean()
-        test_acc5 = np.array(test_info[2]).mean()
+            test_loss = np.array(test_info[0]).mean()
+            test_acc1 = np.array(test_info[1]).mean()
+            test_acc5 = np.array(test_info[2]).mean()
 
-        if use_mixup:
-            print("End pass {0}, train_loss {1}, test_loss {2}, test_acc1 {3}, test_acc5 {4}, speed {5}".format(
-                  pass_id, "%.5f"%train_loss, "%.5f"%test_loss, "%.5f"%test_acc1, "%.5f"%test_acc5,
-                  "%.2f" % train_speed))
+            if use_mixup:
+                print("End pass {0}, train_loss {1}, test_loss {2}, test_acc1 {3}, test_acc5 {4}, speed {5}".format(
+                      pass_id, "%.5f"%train_loss, "%.5f"%test_loss, "%.5f"%test_acc1, "%.5f"%test_acc5,
+                      "%.2f" % train_speed))
+            else:
+                print("End pass {0}, train_loss {1}, train_acc1 {2}, train_acc5 {3}, "
+                  "test_loss {4}, test_acc1 {5}, test_acc5 {6}, speed {7}".format(
+                      pass_id, "%.5f"%train_loss, "%.5f"%train_acc1, "%.5f"%train_acc5, "%.5f"%test_loss,
+                      "%.5f"%test_acc1, "%.5f"%test_acc5, "%.2f" % train_speed))
+
         else:
-            print("End pass {0}, train_loss {1}, train_acc1 {2}, train_acc5 {3}, "
-              "test_loss {4}, test_acc1 {5}, test_acc5 {6}, speed {7}".format(
-                  pass_id, "%.5f"%train_loss, "%.5f"%train_acc1, "%.5f"%train_acc5, "%.5f"%test_loss,
-                  "%.5f"%test_acc1, "%.5f"%test_acc5, "%.2f" % train_speed))
+            if use_mixup:
+                print("End pass {0}, train_loss {1}, speed {2}".format(pass_id, "%.5f"%train_loss, "%.2f" % train_speed))
+            else:
+                print("End pass {0}, train_loss {1}, train_acc1 {2}, train_acc5 {3}, ""speed {4}".format(
+                    pass_id, "%.5f"%train_loss, "%.5f"%train_acc1, "%.5f"%train_acc5, "%.2f" % train_speed))
 
         sys.stdout.flush()
 
@@ -576,7 +585,7 @@ def train(args):
                         result['0']['result_log']['acc1'] = acc1_logs
                         result['0']['result_log']['acc5'] = acc5_logs
                         # max speed of all epochs
-                        result['1'] = max(train_speed_list) * num_trainers
+                        result['1'] = get_median(train_speed_list) * num_trainers
                         print(str(result))
                         f.writelines(str(result))
 
@@ -605,7 +614,6 @@ def main():
     print_paddle_environments()
     check_gpu(args.use_gpu)
     train(args)
-
 
 if __name__ == '__main__':
     main()
