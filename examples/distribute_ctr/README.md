@@ -185,11 +185,11 @@ def get_dataset(inputs, params)
 以下是`dataset_generator.py`的全部代码，具体流程如下：
 - 首先我们需要引入dataset的库，位于`paddle.fluid.incubate.data_generator`。
 - 声明一些在数据读取中会用到的变量，如示例代码中的`cont_min_`、`categorical_range_`等。
-- 创建一个子类，继承dataset的基类，基类有多种选择，如果是多种数据类型混合，并且需要转化为数值进行预处理的，建议使用`MultiSlotDataGenerator`；若已经完成了预处理，可以直接以`string`的方式进行读取，则可以使用`MultiSlotStringDataGenerator`，能够进一步加速。如示例代码，我们继承并实现了名为`CriteoDataset`的dataset子类。
-- 继承并实现基类中的`generate_sample`函数,逐行读取数据。该函数应返回一个可以迭代的reader方法(带有yield的函数不再是一个普通的函数，而是一个生成器generator，成为了可以迭代的对象，等价于一个数组、链表、文件、字符串etc.)
+- 创建一个子类，继承dataset的基类，基类有多种选择，如果是多种数据类型混合，并且需要转化为数值进行预处理的，建议使用`MultiSlotDataGenerator`；若已经完成了预处理并保存为数据文件，可以直接以`string`的方式进行读取，使用`MultiSlotStringDataGenerator`，能够进一步加速。在示例代码，我们继承并实现了名为`CriteoDataset`的dataset子类，使用`MultiSlotDataGenerator`方法。
+- 继承并实现基类中的`generate_sample`函数，逐行读取数据。该函数应返回一个可以迭代的reader方法(带有yield的函数不再是一个普通的函数，而是一个生成器generator，成为了可以迭代的对象，等价于一个数组、链表、文件、字符串etc.)
 - 在这个可以迭代的函数中，如示例代码中的`def reader()`，我们定义数据读取的逻辑。例如对以行为单位的数据进行截取，转换及预处理。
 - 最后，我们需要将数据整理为特定的格式，才能够被dataset正确读取，并灌入的训练的网络中。简单来说，数据的输出顺序与我们在网络中创建的`inputs`必须是严格一一对应的，并转换为类似字典的形式。在示例代码中，我们使用`zip`的方法将参数名与数值构成的元组组成了一个list，并将其yield输出。如果展开来看，我们输出的数据形如`[('dense_feature',[value]),('C1',[value]),('C2',[value]),...,('C26',[value]),('label',[value])]`
-
+- dataset的基本原理：将数据print到缓存，再由C++端的代码实现读取，因此，我们不能在dataset的代码中，加入与数据读取无关的print信息，会导致C++端拿到错误的数据信息。
 
 ```python
 import paddle.fluid.incubate.data_generator as dg
