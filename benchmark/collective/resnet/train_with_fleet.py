@@ -445,6 +445,10 @@ def train(args):
     train_exe = exe
 
     params = models.__dict__[args.model]().params
+
+    train_speed_list = []
+    acc1_logs = []
+    acc5_logs = []
     for pass_id in range(params["num_epochs"]):
         train_py_reader.start()
         train_info = [[], [], []]
@@ -508,40 +512,53 @@ def train(args):
             train_acc5 = np.array(train_info[2]).mean()
         train_end=time.time()
         train_speed = (batch_id * train_batch_size) / (train_end - train_begin)
+        train_speed_list.append(train_speed)
 
-        # test only run in last epoch
-        if (pass_id + 1) == params["num_epochs"]:
-            test_py_reader.start()
-            test_batch_id = 0
-            try:
-                while True:
-                    t1 = time.time()
-                    loss, acc1, acc5 = exe.run(program=test_prog,
-                                            fetch_list=test_fetch_list)
-                    t2 = time.time()
-                    period = t2 - t1
-                    loss = np.mean(loss)
-                    acc1 = np.mean(acc1)
-                    acc5 = np.mean(acc5)
-                    test_info[0].append(loss)
-                    test_info[1].append(acc1)
-                    test_info[2].append(acc5)
+        test_py_reader.start()
+        test_batch_id = 0
+        try:
+            while True:
+                t1 = time.time()
+                loss, acc1, acc5 = exe.run(program=test_prog,
+                                        fetch_list=test_fetch_list)
+                t2 = time.time()
+                period = t2 - t1
+                loss = np.mean(loss)
+                acc1 = np.mean(acc1)
+                acc5 = np.mean(acc5)
+                test_info[0].append(loss)
+                test_info[1].append(acc1)
+                test_info[2].append(acc5)
 
-                    if test_batch_id % 10 == 0:
-                        test_speed = test_batch_size * 1.0 / period
-                        print("Pass {0},testbatch {1},loss {2}, \
-                            acc1 {3},acc5 {4},time {5},speed {6}"
-                            .format(pass_id, test_batch_id, "%.5f"%loss,"%.5f"%acc1, "%.5f"%acc5,
-                                    "%2.2f sec" % period, "%.2f" % test_speed))
-                        sys.stdout.flush()
-                    test_batch_id += 1
-            except fluid.core.EOFException:
-                test_py_reader.reset()
+                if test_batch_id % 10 == 0:
+                    test_speed = test_batch_size * 1.0 / period
+                    print("Pass {0},testbatch {1},loss {2}, \
+                        acc1 {3},acc5 {4},time {5},speed {6}"
+                        .format(pass_id, test_batch_id, "%.5f"%loss,"%.5f"%acc1, "%.5f"%acc5,
+                                "%2.2f sec" % period, "%.2f" % test_speed))
+                    sys.stdout.flush()
+                test_batch_id += 1
+        except fluid.core.EOFException:
+            test_py_reader.reset()
 
-            test_loss = np.array(test_info[0]).mean()
-            test_acc1 = np.array(test_info[1]).mean()
-            test_acc5 = np.array(test_info[2]).mean()
-            if trainer_id == 0:
+        test_loss = np.array(test_info[0]).mean()
+        test_acc1 = np.array(test_info[1]).mean()
+        test_acc5 = np.array(test_info[2]).mean()
+
+        if use_mixup:
+            print("End pass {0}, train_loss {1}, test_loss {2}, test_acc1 {3}, test_acc5 {4}, speed {5}".format(
+                  pass_id, "%.5f"%train_loss, "%.5f"%test_loss, "%.5f"%test_acc1, "%.5f"%test_acc5,
+                  "%.2f" % train_speed))
+        else:
+            print("End pass {0}, train_loss {1}, train_acc1 {2}, train_acc5 {3}, "
+              "test_loss {4}, test_acc1 {5}, test_acc5 {6}, speed {7}".format(
+                  pass_id, "%.5f"%train_loss, "%.5f"%train_acc1, "%.5f"%train_acc5, "%.5f"%test_loss,
+                  "%.5f"%test_acc1, "%.5f"%test_acc5, "%.2f" % train_speed))
+
+        sys.stdout.flush()
+
+        # save in last epoch
+        if trainer_id == 0:
                 model_path = os.path.join(model_save_dir + '/' + model_name, str(pass_id))
                 if not os.path.isdir(model_path):
                     os.makedirs(model_path)
@@ -553,18 +570,15 @@ def train(args):
                     with open("./benchmark_logs/log_%d" % trainer_id, 'w') as f:
                         result = dict()
                         result['0'] = dict()
-                        result['0']['acc1'] = str(test_acc1)
-                        result['0']['acc5'] = str(test_acc5)
-                        result['1'] = str(train_speed * num_trainers)
-                        print(result)
-                        f.writelines(json.dumps(result) + '\n')
-        if use_mixup:
-            print("End pass {0}, train_loss {1}, speed {2}".format(pass_id, "%.5f"%train_loss, "%.2f" % train_speed))
-        else:
-            print("End pass {0}, train_loss {1}, train_acc1 {2}, train_acc5 {3}, ""speed {4}".format(
-                    pass_id, "%.5f"%train_loss, "%.5f"%train_acc1, "%.5f"%train_acc5, "%.2f" % train_speed))
-
-        sys.stdout.flush()
+                        result['0']['acc1'] = test_acc1
+                        result['0']['acc5'] = test_acc5
+                        result['0']['result_log'] = dict()
+                        result['0']['result_log']['acc1'] = acc1_logs
+                        result['0']['result_log']['acc5'] = acc5_logs
+                        # max speed of all epochs
+                        result['1'] = max(train_speed_list) * num_trainers
+                        print(str(result))
+                        f.writelines(str(result))
 
 
 def print_paddle_environments():
