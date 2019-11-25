@@ -32,7 +32,8 @@ def _reader_creator(settings,
                     color_jitter=False,
                     rotate=False,
                     data_dir=DATA_DIR,
-                    pass_id_as_seed=0):
+                    pass_id_as_seed=0,
+                    threads=4):
     def reader():
         with open(file_list) as flist:
             full_lines = [line.strip() for line in flist]
@@ -82,10 +83,10 @@ def _reader_creator(settings,
         rotate=rotate,
         crop_size=224)
     reader = paddle.reader.xmap_readers(
-        image_mapper, reader, THREAD, BUF_SIZE, order=False)
+        image_mapper, reader, threads, BUF_SIZE, order=False)
     return reader
 
-def train(settings, data_dir=DATA_DIR, pass_id_as_seed=0):
+def train(settings, data_dir=DATA_DIR, pass_id_as_seed=0, threads=4):
     file_list = os.path.join(data_dir, 'train.txt')
     reader =  _reader_creator(
         settings,
@@ -96,16 +97,17 @@ def train(settings, data_dir=DATA_DIR, pass_id_as_seed=0):
         rotate=False,
         data_dir=data_dir,
         pass_id_as_seed=pass_id_as_seed,
+        threads=threads,
         )
     return reader
 
-def val(settings,data_dir=DATA_DIR):
+def val(settings, data_dir=DATA_DIR, threads=16):
     file_list = os.path.join(data_dir, 'val.txt')
     return _reader_creator(settings ,file_list, 'val', shuffle=False, 
-            data_dir=data_dir)
+            data_dir=data_dir, threads=threads)
 
 
-def test(data_dir=DATA_DIR):
+def test(data_dir=DATA_DIR, threads=4):
     file_list = os.path.join(data_dir, 'val.txt')
     return _reader_creator(file_list, 'test', shuffle=False,
-            data_dir=data_dir)
+            data_dir=data_dir, threads=threads)
