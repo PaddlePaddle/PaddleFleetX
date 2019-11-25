@@ -45,7 +45,7 @@ class TrainTaskConfig(object):
     # include the training step counter currently.
     start_step = 0
     # the frequency to save trained models.
-    save_freq = 10000
+    save_freq = 1000000
 
 
 class InferTaskConfig(object):

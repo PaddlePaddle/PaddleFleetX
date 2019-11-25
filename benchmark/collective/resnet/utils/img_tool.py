@@ -105,9 +105,6 @@ def process_image(sample, mode, color_jitter, rotate, settings,
 
     raw_img = sample[0]
         
-    #img_data = np.fromstring(raw_img, dtype='uint8')
-    #img_data = np.frombuffer(raw_img, dtype='uint8')
-    #img = cv2.imdecode(img_data, 1) # BGR mode, but need RGB mode
     img = cv2.imread(raw_img, cv2.IMREAD_COLOR)
 
     if mode == 'train':

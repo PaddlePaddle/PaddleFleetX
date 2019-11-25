@@ -3,6 +3,10 @@
 export FLAGS_sync_nccl_allreduce=1
 export FLAGS_cudnn_exhaustive_search=1
 export FLAGS_conv_workspace_size_limit=7000 #MB
+<<<<<<< HEAD
+=======
+export FLAGS_cudnn_batchnorm_spatial_persistent=1
+>>>>>>> a744b624aefef0976b2bc8161745ae5ebd5a882a
 
 export GLOG_v=1
 export GLOG_logtostderr=1
@@ -27,6 +31,7 @@ DATA_PATH="./ImageNet"
 TOTAL_IMAGES=1281167
 CLASS_DIM=1000
 IMAGE_SHAPE=3,224,224
+DATA_FORMAT="NCHW"
 
 
 #gpu params
@@ -37,6 +42,15 @@ USE_HIERARCHICAL_ALLREDUCE=False
 NUM_CARDS=1
 FP16=True #whether to use float16 
 export LD_LIBRARY_PATH=/root/go/soft/cuda10-cudnn7.6.1/lib64:${LD_LIBRARY_PATH}
+
+# dgc params
+USE_DGC=False # whether to use dgc
+ALL_CARDS=8
+START_EPOCHS=4 # start dgc after 4 epochs
+# add 1 in let, let will not return 1 when set START_EPOCHS=0
+let '_tmp_ans=((TOTAL_IMAGES+BATCH_SIZE*ALL_CARDS-1)/(BATCH_SIZE*ALL_CARDS))*START_EPOCHS' 1
+DGC_RAMPUP_BEGIN_STEP=${_tmp_ans}
+>>>>>>> a744b624aefef0976b2bc8161745ae5ebd5a882a
 
 if [[ ${FUSE} == "True" ]]; then
     export FLAGS_fuse_parameter_memory_size=16 #MB
@@ -57,6 +71,7 @@ python3 -m paddle.distributed.launch ${distributed_args} \
        --data_dir=${DATA_PATH} \
        --class_dim=${CLASS_DIM} \
        --image_shape=${IMAGE_SHAPE} \
+       --data_format=${DATA_FORMAT} \
        --model_save_dir=${MODEL_SAVE_PATH} \
        --with_mem_opt=False \
        --lr_strategy=${LR_STRATEGY} \
@@ -69,4 +84,6 @@ python3 -m paddle.distributed.launch ${distributed_args} \
        --num_threads=${NUM_THREADS} \
        --nccl_comm_num=${NCCL_COMM_NUM} \
        --use_hierarchical_allreduce=${USE_HIERARCHICAL_ALLREDUCE} \
-       --fp16=${FP16}
+       --fp16=${FP16} \
+       --use_dgc=${USE_DGC} \
+       --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP}

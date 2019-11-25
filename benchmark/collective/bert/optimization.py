@@ -57,10 +57,10 @@ def optimization(loss,
                  train_program,
                  startup_prog,
                  weight_decay,
-                 dist_strategy,
                  scheduler='linear_warmup_decay',
                  use_fp16=False,
-                 loss_scaling=1.0):
+                 loss_scaling=1.0,
+                 dist_strategy=None):
     if warmup_steps > 0:
         if scheduler == 'noam_decay':
             scheduled_lr = fluid.layers.learning_rate_scheduler\
@@ -125,8 +125,10 @@ def optimization(loss,
             param_list[param.name] = param * 1.0
             param_list[param.name].stop_gradient = True
 
-        dist_optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
-        _, param_grads = dist_optimizer.minimize(loss)
+        if dist_strategy is not None:
+            # use fleet api
+            optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
+        _, param_grads = optimizer.minimize(loss)
 
         if weight_decay > 0:
             for param, grad in param_grads:
