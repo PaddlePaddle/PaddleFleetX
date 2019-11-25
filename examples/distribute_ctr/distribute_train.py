@@ -103,7 +103,7 @@ def train(params):
             if params.test and fleet.is_first_worker():
                 model_path = (str(params.model_path) + "/"+"epoch_" + str(epoch))
                 fluid.io.save_persistables(executor=exe, dirname=model_path)
-
+        fleet.stop_worker() 
         logger.info("Distribute Train Success!")
         return train_result
 

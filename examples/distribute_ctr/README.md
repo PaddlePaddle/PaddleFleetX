@@ -1,11 +1,11 @@
 # 从零开始的分布式CTR-DNN
 `CTR(Click Through Rate)`，即点击率，是“推荐系统/计算广告”等领域的重要指标，对其进行预估是商品推送/广告投放等决策的基础。简单来说，CTR预估是对每次广告的点击情况做出预测，预测用户是点击还是不点击。CTR预估模型综合考虑各种因素、特征，在大量历史数据上训练，最终对商业决策提供帮助。
 
-跟随这篇文档，将从零开始，一步步教您如何利用PaddlePaddle Fluid高效且易用的Api，搭建单机ctr-dnn深度学习模型，并利用高阶分布式Api Fleet将其升级为可以在CPU集群中运行的`参数服务器`式分布式深度学习模型。在学习本篇文档后，您可以入门Paddle组网，Paddle分布式模型的搭建，了解CPU多线程全异步模式的启用方法。
+跟随这篇文档，将从零开始，一步步教您如何利用PaddlePaddle Fluid高效且易用的Api，搭建单机ctr-dnn深度学习模型，并利用高阶分布式Api-Fleet将其升级为可以在CPU集群中运行的`参数服务器`式分布式深度学习模型。在学习本篇文档后，您可以入门Paddle组网，Paddle分布式模型的搭建，了解CPU多线程全异步模式的启用方法。
 
 ## 运行环境检查
 
-- 请确保您的运行环境基于Linux，示例代码同时支持`unbuntu`及`CentOS`
+- 请确保您的运行环境基于Linux，示例代码支持`unbuntu`及`CentOS`
 - 请确保您的paddle版本高于`1.6.1`，可以利用pip升级您的paddle版本
 - 请确保您的本地模拟分布式运行环境中没有设置`http/https`代理，可以在终端键入`env`查看环境变量
 
@@ -348,7 +348,8 @@ python -u local_train.py --test=True &> train.log &
 PaddlePaddle在release/1.5.0之后新增了高级分布式API-`Fleet`，只需数行代码便可将单机模型转换为分布式模型。分布式训练代码见`distribute_train.py`，我们通过与单机训练的代码对比，来说明基于fleet将单机训练转换为分布式训练需要哪些步骤。
 
 ### 区别一：数据需要分配到各个节点上
-单机训练中，我们没有对数据做过多的区分。但在分布式训练中，我们要确保每个节点都能拿到数据，并且希望每个节点的数据同时满足：1、各个节点数据无重复。2、各个节点数据均匀。Fleet提供了`split_files()`的接口，输入值是一个稳定的目录，随后该函数会根据节点自身的编号拿到相应的数据文件列表。示例代码中，我们假设您在进行分布式训练`params.cloud=True`时，已经将文件分到了各个节点上。所以仅需要进行本地模拟分布式时，使用该接口，给各个进程分配不同的数据文件。
+单机训练中，我们没有对数据做过多的区分。但在分布式训练中，我们要确保每个节点都能拿到数据，并且希望每个节点的数据同时满足：1、各个节点数据无重复。2、各个节点数据均匀。Fleet提供了`split_files()`的接口，输入值是一个稳定的目录List，随后该函数会根据节点自身的编号拿到相应的数据文件列表。示例代码中，我们假设您在集群进行分布式训练，且设置`params.cloud=True`时，已经将文件分到了各个节点上。所以仅需要进行本地模拟分布式时，使用该接口，给各个进程分配不同的数据文件。
+
 ```python
 file_list = [
         str(params.train_files_path) + "/%s" % x
@@ -374,7 +375,7 @@ from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import f
 # 根据环境变量确定当前机器/进程在分布式训练中扮演的角色
 # 使用 fleet api的 init()方法初始化这个节点
 role = role_maker.PaddleCloudRoleMaker()
-fleet.init(role) #必不可少的步骤，初始化节点
+fleet.init(role) #必不可少的步骤，初始化节点！
 ```
 > PaddleCloudRoleMaker()是怎样判断当前节点所扮演的角色的？
 > 
@@ -414,9 +415,14 @@ optimizer = fluid.optimizer.Adam(params.learning_rate)
 optimizer = fleet.distributed_optimizer(optimizer,strategy)
 optimizer.minimize(avg_cost)
 ```
+`sync_mode`表示是同步训练，还是异步训练。同步训练会给网络中增加`barrier op`来保证各个节点之间的训练速度是一致的，异步训练则没有。于此同时，相较于单机网络，分布式训练中trainer节点的网络会增加`send op`来发送参数梯度信息给pserver。在Fleet API中，为了提高代码的可读性以及简洁性，我们将分布式训练中参数通信的工作都封装到了`padddle.fluid.communicator.Communicator`中，`send op`仅在分布式组网阶段获取通信相关的信息，然后调用`Communicator`中的参数发送单元来实现真正的参数收发。`runtime_split_send_recv`就是用`Communicator`来完成分布式通信的过渡阶段中的一个配置参数，如果设置为True，则代码启用`Communicator`，反之则不启用，依旧通过`send op`来发送参数梯度。此处推荐启用，该参数在将来可能会被废弃。
 
 ### 区别四 需要区分Pserver与Trainer的运行流程
 Fleet隐式的完成了Pserver与Trainer的Program切分逻辑，我们可以使用`fleet.main_program`与`fleet.startup_program`，替代`fluid.default_main_program()`与`fluid.default_startup_program()`，拿到当前节点的训练program与初始化program。如何让Pserver和Trainer运行起来呢？其逻辑略有区别，但也十分容易掌握：
+> 启动Pserver
+
+
+启动参数服务器端，如果需要从某个模型热启，在训练开始之前加载某次训练得到的参数，则只需将初始化模型路径传入`init_server()`函数即可
 ```python
 # 根据节点角色，分别运行不同的逻辑
 if fleet.is_server():
@@ -424,11 +430,39 @@ if fleet.is_server():
     fleet.init_server()
     # 运行参数服务器节点
     fleet.run_server()
-
+```
+启动训练节点，训练节点首先调用`init_worker()`来完成节点初始化，然后执行`fleet.startup_program`，从服务器端同步参数的初始化值。接着，和本地训练完全一致，通过执行`fleet.main_program`来完成整个训练过程，并保存模型。最后调用`fleet.stop_worker()`关闭训练节点。
+```python
 elif fleet.is_worker():
-    # 初始化工作节点
+    # 必不可少的步骤，初始化工作节点！
     fleet.init_worker()
-    # 运行工作节点，与单机训练运行流程相同
+    exe = fluid.Executor(fluid.CPUPlace())
+
+    # 初始化含有分布式流程的fleet.startup_program
+    exe.run(fleet.startup_program))
+    
+    # 引入数据读取dataset
+    dataset = get_dataset(inputs,params)
+
+    for epoch in range(params.epochs):
+        start_time = time.time()
+        # 训练节点运行的是经过分布式配置的fleet.mian_program
+        exe.train_from_dataset(program=fleet.main_program,
+                            dataset=dataset, fetch_list=[auc_var],
+                            fetch_info=["Epoch {} auc ".format(epoch)],
+                            print_period=10, debug=False)
+        end_time = time.time()
+        logger.info("epoch %d finished, use time=%d\n" % ((epoch), end_time - start_time))
+
+        # 默认使用0号节点保存模型
+        if params.test and fleet.is_first_worker():
+            model_path = (str(params.model_path) + "/"+"epoch_" + str(epoch))
+            fluid.io.save_persistables(executor=exe, dirname=model_path)
+    
+    # 训练结束，调用stop_worker()通知pserver
+    fleet.stop_worker() 
+    logger.info("Distribute Train Success!")
+    return train_result
 ```
 
 了解了以上区别，便可以非常顺利的将单机模型升级为分布式训练模型。
@@ -462,7 +496,7 @@ nohup python -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 distr
 ```
 日志位于`./logs/`，理想输出与方法一相同。
 运行该命令时：
-1. 首先需要注意修改python的PATH，例如将`python`修改为`/home/work/python27-gcc482/bin/python`以确保运行在正确的python环境下。
+1. 首先需要注意修改python的PATH，例如将`python`修改为`/home/work/python27-gcc482/bin/python`以确保运行在您的正确的python环境下。
 2. 设置`--worker_num`与`--server_num`，以运行不同分布式配置。
 
 #
@@ -472,7 +506,7 @@ nohup python -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 distr
 
 
 ### 分布式训练中模型的保存
-分布式训练，推荐使用`fleet.save_persisitables(exe,path)`进行模型的保存，`save_persisitables`不会保存网络的结构，仅保存网络中的长期变量。
+分布式训练，推荐使用`fleet.save_persisitables(exe,path)`进行模型的保存，`save_persisitables`不会保存网络的结构，仅保存网络中的长期变量。并且通常而言，仅在0号训练节点上进行模型的保存工作。
 
 推荐的仅保存长期变量的原因是：
 1. 分布式训练的program中，有许多仅在分布式训练中才会用到的参数与流程，保存这些步骤，是冗余的，耗费带宽的，且会产生不可预知的风险。
@@ -488,5 +522,78 @@ nohup python -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 distr
 
 
 ### 分布式增量训练
+Paddle的分布式增量训练也十分易用，代码与上述分布式训练代码保持一致，仅需在Pserver初始化时传入初始化模型的地址，该地址可以位于节点硬盘，亦可传入hadoop集群的存储地址。在训练节点，无需代码改动，在运行`fleet.startup_program`时，会从各个pserver上拉取加载好的参数，覆盖本地参数，实现增量训练。
+```python
+# 增量训练
+if fleet.is_server():
+    # 初始化参数服务器节点时，传入模型保存的地址
+    fleet.init_server(model_path)
+    # 运行参数服务器节点
+    fleet.run_server()
+elif fleet.is_worker():
+    # 训练节点的代码无需更改
+    # 在运行fleet.startup_program时，训练节点会从pserver上拉取最新参数
+```
+
 #
-## 预测——本地预测
+## 预测——离线单机预测
+
+在我们训练完成后，必然需要在测试集上进行验证模型的泛化性能。单机训练得到的模型必然是可以进行单机预测的，那多机训练得到的模型可以在单机上进行预测吗？答案是肯定的。参考示例代码中的`infer.py`实现CTR-DNN的infer流程，得到离线预测的结果。
+
+### 构建预测网络及加载模型参数
+在CTR-DNN的应用中，预测网络与训练网络一致，无需更改，我们使用相同的方式构建`inputs`、`loss`、`auc`。加载参数使用`fluid.io.load_persistables()`接口，从保存好的模型文件夹中加载同名参数。
+```python
+with fluid.framework.program_guard(test_program, startup_program):
+    with fluid.unique_name.guard():
+        inputs = ctr_model.input_data(params)
+        loss, auc_var, batch_auc_var = ctr_model.net(inputs, params)
+
+        exe = fluid.Executor(place)
+        feeder = fluid.DataFeeder(feed_list=inputs, place=place)
+
+        fluid.io.load_persistables(
+            executor=exe,
+            dirname=model_path,
+            main_program=fluid.default_main_program())
+```
+在进行上述流程时，有一些需要关注的细节：
+- 传入的program既不是`default_main_program()`，也不是`fleet.main_program`，而是新建的空的program:
+   > startup_program = fluid.framework.Program()
+
+   > test_program = fluid.framework.Program()
+   
+   这是容易理解的，因为在测试时，我们要从零开始，保证预测program的干净，没有其他的影响因素。
+-  在创建预测网络时，我们加入了`with fluid.unique_name.guard():`，它的作用是让所有新建的参数的自动编号再次从零开始。Paddle的参数`Variable`以变量名作为区分手段，保证变量名相同，就可以从保存的模型中找到对应参数。
+  
+    特别是在一个进程中创建多个网络时，一定要关注这点，paddle创建的临时变量，都会让编号自动顺延，如果没有指定变量名，自动命名时，可以观察到这一现象，比如：`fc_1.w_0`->`fc_2.w_0`，想要共享相同的参数，要保证编号可以对应。
+
+### 测试数据的读取
+
+测试数据的读取我们使用`pyreader`方法，具体使用方法可以查阅[PyReader](https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/io_cn/PyReader_cn.html#pyreader)
+
+### AUC的额外置零操作
+在训练过程中，为了获得全局auc，我们将auc保存为模型参数，参与长期更新，并在保存模型的过程中被一并保存了下来。在预测时，paddle为了计算预测的全局auc，使用相同的规则创建了同名的auc参数。而我们又在加载模型参数的时候，将训练中的auc加载了进来，如果不在预测前将该值清零，会影响我们的预测值的计算。
+
+以下是将auc中间变量置零操作，`_generated_var_0~3`即为paddle自动创建的auc全局参数。
+```python
+def set_zero(var_name):
+    param = fluid.global_scope().var(var_name).get_tensor()
+    param_array = np.zeros(param._get_dims()).astype("int64")
+    param.set(param_array, place)
+
+auc_states_names = [
+    '_generated_var_0', '_generated_var_1', '_generated_var_2',
+    '_generated_var_3'
+]
+for name in auc_states_names:
+    set_zero(name)
+```
+
+### 运行Infer
+在代码目录下，键入以下命令，传入模型地址，进行预测：
+```python
+python -u infer.py ./model_path/trainer_0_epoch_0 &> test.log &
+```
+仅训练一个epoch后的理想输出为：
+```bash
+```
