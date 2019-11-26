@@ -32,7 +32,7 @@ import utils
 import models
 from paddle.fluid.contrib.mixed_precision.decorator import decorate
 import utils.reader_cv2 as reader
-from utils.utility import add_arguments, print_arguments, check_gpu, get_median
+from utils.utility import add_arguments, print_arguments, check_gpu
 from utils.learning_rate import cosine_decay_with_warmup, lr_warmup
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
@@ -589,7 +589,7 @@ def train(args):
                 result['0']['result_log']['acc1'] = acc1_logs
                 result['0']['result_log']['acc5'] = acc5_logs
                 # median speed of all epochs
-                result['1'] = get_median(train_speed_list) * num_trainers
+                result['1'] = max(train_speed_list) * num_trainers
                 print(str(result))
                 f.writelines(str(result))
 
