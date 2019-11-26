@@ -98,7 +98,7 @@ def train(params):
                                    dataset=dataset,
                                    fetch_list=[auc_var],
                                    fetch_info=["Epoch {} auc ".format(epoch)],
-                                   print_period=10,
+                                   print_period=100,
                                    debug=False)
             end_time = time.time()
             logger.info("epoch %d finished, use time=%d\n" %

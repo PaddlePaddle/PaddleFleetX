@@ -24,7 +24,8 @@ export CPU_NUM=2
 export OUTPUT_PATH="output"
 
 export FLAGS_communicator_thread_pool_size=5
-export LAGS_communicator_fake_rpc=0
+export FLAGS_communicator_fake_rpc=0
+export FLAGS_communicator_is_sgd_optimizer=0
 export FLAGS_rpc_retry_times=3
 export PADDLE_PSERVERS_IP_PORT_LIST="127.0.0.1:36011,127.0.0.1:36012"
 export PADDLE_PSERVER_PORT_ARRAY=(36011 36012)
@@ -43,7 +44,7 @@ do
     echo "PADDLE WILL START PSERVER "$cur_port
     export PADDLE_PORT=${cur_port}
     export POD_IP=127.0.0.1
-    python -u model.py --is_dataset_train=True --sync_mode=async --cloud=0 &> ./log/pserver.$i.log &
+    python -u distribute_train.py --is_dataset_train=True --sync_mode=async --cloud=0 &> ./log/pserver.$i.log &
 done
 
 export TRAINING_ROLE=TRAINER
@@ -54,5 +55,5 @@ for((i=0;i<$PADDLE_TRAINERS;i++))
 do
     echo "PADDLE WILL START Trainer "$i
     PADDLE_TRAINER_ID=$i
-    python -u model.py --is_dataset_train=True --sync_mode=async --cloud=0 &> ./log/trainer.$i.log &
+    python -u distribute_train.py --is_dataset_train=True --sync_mode=async --cloud=0 &> ./log/trainer.$i.log &
 done
