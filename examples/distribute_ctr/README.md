@@ -11,7 +11,7 @@
 
 ## 代码地址
 
-- 示例代码位于：https://github.com/PaddlePaddle/Fleet/tree/develop/examples/distribute_ctr
+- 示例代码位于：https://github.com/MrChengmo/Fleet/tree/re_ctr/examples/distribute_ctr
   
   在工作环境安装git后，在工作目录克隆Fleet代码仓库，示例代码位于`Fleet/example/distribute_ctr`
 - 示例代码结构为：
@@ -71,8 +71,10 @@ raw_data/part-113
 test_data/part-227
 test_data/part-222
 Complete data download.
-Train data stored in ./train_data folder.
-Test data stored in ./test_data folder.
+Full Train data stored in ./train_data_full
+Full Test data stored in ./test_data_full
+Rapid Verification train data stored in ./train_data
+Rapid Verification test data stored in ./test_data
 ```
 至此，我们已完成数据准备的全部工作。
 
@@ -271,9 +273,11 @@ cat train_data/part-0 | python dataset_generator.py
 输出的数据格式如下：
 ` dense_input:size ; dense_input:value ; sparse_input:size ; sparse_input:value ; ... ; sparse_input:size ; sparse_input:value ; label:size ; label:value `
 
-理想的输出为：
+理想的输出为(截取了一个片段)：
 ```bash
+...
 13 0.05 0.00663349917081 0.05 0.0 0.02159375 0.008 0.15 0.04 0.362 0.1 0.2 0.0 0.04 1 715353 1 817085 1 851010 1 833725 1 286835 1 948614 1 881652 1 507110 1 27346 1 646986 1 643076 1 200960 1 18464 1 202774 1 532679 1 729573 1 342789 1 562805 1 880474 1 984402 1 666449 1 26235 1 700326 1 452909 1 884722 1 787527 1 0
+...
 ```
 
 >使用Dataset的一些注意事项
@@ -521,7 +525,7 @@ elif fleet.is_worker():
 示例代码中，给出了本地模拟分布式的一键启动脚本`loc_cluster.sh`，在代码目录，通过命令
 ```bash
 # 根据自己的运行环境，选择sh或bash
-sh loc_cluster.sh
+sh local_cluster.sh
 ```
 便可以开启分布式模拟训练，默认启用2x2的训练模式。Trainer与Pserver的运行日志，存放于`./log/`文件夹，保存的模型位于`./model/`，使用默认配置运行后，理想输出为：
 > pserver.0.log
@@ -568,7 +572,7 @@ I1126 07:38:28.947571 14715 communicator.cc:363] Communicator stop done
 #### 方法二 通过`paddle.distributed.launch_ps`运行模拟分布式
 该方法更通用，不需要写特别的脚本即可运行，在代码目录，键入命令：
 ```bash
-python -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 distribute_train.py --is_dataset_train=True --sync_mode=async --cloud=0  &
+python -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 distribute_train.py --is_dataset_train=True --sync_mode=async --test=True --cloud=0  &
 ```
 日志位于`./logs/`，理想输出与方法一相同。
 运行该命令时：
@@ -673,10 +677,23 @@ python -u infer.py &> test.log &
 ```
 测试结果的日志位于`test.log`，仅训练一个epoch后，在`part-220`上的的理想测试结果为：
 ```bash
-2019-11-26 08:28:14,638 - INFO - Test model model/epoch_0
+2019-11-26 08:56:19,985 - INFO - Test model model/epoch_0
 open file success
-2019-11-26 08:28:14,975 - INFO - TEST --> batch: 0 loss: [0.5411858] auc: [0.67146545]
-2019-11-26 08:28:33,081 - INFO - TEST --> batch: 100 loss: [0.5021557] auc: [0.70148159]
-2019-11-26 08:28:50,373 - INFO - {'loss': 0.52460104, 'auc': array([0.70271783])}
-2019-11-26 08:28:50,374 - INFO - Inference complete
+2019-11-26 08:56:20,323 - INFO - TEST --> batch: 0 loss: [0.5577456] auc: [0.61541704]
+2019-11-26 08:56:37,839 - INFO - TEST --> batch: 100 loss: [0.5395161] auc: [0.6346397]
+2019-11-26 08:56:55,189 - INFO - {'loss': 0.5571399, 'auc': array([0.6349838])}
+2019-11-26 08:56:55,189 - INFO - Inference complete
 ```
+
+因为快速验证的训练数据与测试数据极少，同时只训练了一轮，所以远远没有达到收敛，且初始化带有随机性，在您的环境下出现测试结果与示例输出不一致是正常情况。
+
+同时，我们对CTR-DNN模型进行了benchmark的测试。
+
+## benchmark效果
+在benchmark中，我们对比了tensorflow和paddlepaddle现有的几种分布式模式在CTR-DNN模型上的效果和速度，其中参与对比的paddle分布式模式有同步、pyreader全异步、dataset全异步，这里pyreader和dataset是paddle支持的两种不同的并行数据读取器，本示例中用到的reader为dataset，pyreader的使用方法可以参考[pyreader使用文档](https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/io_cn/PyReader_cn.html#pyreader)。
+
+benchmark效果：
+
+benchmark速度：
+
+benchmark相关代码及复现方式见[Fleet Repo](https://github.com/PaddlePaddle/Fleet.git)，路径为Fleet/benchmark/distribute_word2vec/paddle/。
