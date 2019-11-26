@@ -13,14 +13,29 @@
 # limitations under the License.
 import numpy as np
 import io
+from conf import *
 import paddle.fluid.incubate.data_generator as dg
 
+class NumpyRandomInt(object):
+    def __init__(self, a, b, buf_size=1000):
+        self.idx = 0
+        self.buffer = np.random.random_integers(a, b, buf_size)
+        self.a = a
+        self.b = b
 
-neg_num=5
-dict_path = "./test_build_dict"
+    def __call__(self):
+        if self.idx == len(self.buffer):
+            self.buffer = np.random.random_integers(self.a, self.b,
+                                                    len(self.buffer))
+            self.idx = 0
+
+        result = self.buffer[self.idx]
+        self.idx += 1
+        return result
 
 class MyDataset(dg.MultiSlotDataGenerator):
-    def load_resource(self, dict_path):
+    def load_resource(self, dict_path, window_size, batch_size):
+        self.batch_size = batch_size
         self.id_counts = []
         word_all_count = 0
         with io.open(dict_path, 'r', encoding='utf-8') as f:
@@ -34,18 +49,11 @@ class MyDataset(dg.MultiSlotDataGenerator):
         np_power = np.power(np.array(self.id_frequencys), 0.75)
         self.id_frequencys_pow = np_power / np_power.sum()
         self.dict_size = len(self.id_counts)
-        
+        self.random_generator = NumpyRandomInt(1, window_size + 1)
 
     def get_context_words(self, words, idx):
-        """
-        Get the context word list of target word.
-        words: the words of the current line
-        idx: input word index
-        window_size: window size
-        """
-        #target_window = self.random_generator()
-        target_window = 2
-        start_point = idx - target_window  # if (idx - target_window) > 0 else 0
+        target_window = self.random_generator()
+        start_point = idx - target_window
         if start_point < 0:
             start_point = 0
         end_point = idx + target_window
@@ -55,18 +63,22 @@ class MyDataset(dg.MultiSlotDataGenerator):
     def generate_sample(self, line):
         def data_iter():
             cs = np.array(self.id_frequencys_pow).cumsum()
+            neg_array = cs.searchsorted(np.random.sample(neg_num))
+            id_ = 0
             word_ids = [w for w in line.split()]
             for idx, target_id in enumerate(word_ids):
                 context_word_ids = self.get_context_words(
                     word_ids, idx)
                 for context_id in context_word_ids:
-                    neg_array = cs.searchsorted(np.random.sample(neg_num))
                     neg_id = [ int(str(i)) for i in neg_array ]
                     output = [('input_word', [int(target_id)]), ('true_label', [int(context_id)]), ('neg_label', neg_id)]
                     yield output
+                    id_ += 1
+                    if id_ % self.batch_size == 0:
+                        neg_array = cs.searchsorted(np.random.sample(neg_num)) 
         return data_iter
 
 if __name__ == "__main__":
     d = MyDataset()
-    d.load_resource(dict_path)
+    d.load_resource(dict_path, window_size, batch_size)
     d.run_from_stdin()
