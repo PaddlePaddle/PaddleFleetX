@@ -1,11 +1,11 @@
 from fleet.dataset import QueueDataset, MemoryDataset
-from fleet.models import MultiSlotCTR
+from fleet.models import MultiSlotDNNCTR
 from fleet.trainer import OnlineTrainer
 from fleet.optimizer import SGD
 
 # step1: define the model, we prepare lots of predefined models
 slot_filename = "slot.txt"
-model = MultiSlotCTR()
+model = MultiSlotDNNCTR()
 model.set_data_generator_file("asq_reader.py") # default is reader.py
 model.build_train_net(slot_filename=slot_filename)
 

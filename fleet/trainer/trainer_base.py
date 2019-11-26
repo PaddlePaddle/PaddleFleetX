@@ -13,8 +13,7 @@
 # limitations under the License.
 import paddle.fluid as fluid
 from ..dataset import QueueDataset, MemoryDataset
-from ..utils import hdfs_ls, hdfs_rmr, hdfs_put, launch_system_monitor, get_system_info
-from ..utils import get_monitor_result
+from ..utils import hdfs_ls, hdfs_rmr, hdfs_put
 import sys
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 import paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler as ps
@@ -156,9 +155,6 @@ class DistOnlineTrainer(OnlineTrainer):
         prefix = kwargs.get("prefix", "part")
         is_debug = kwargs.get("is_debug", False)
         handler = kwargs.get("handler", None)
-        open_monitor = kwargs.get("open_monitor", False)
-        if open_monitor:
-            threads = launch_system_monitor(5, 5)
         exe = fluid.Executor(fluid.CPUPlace())
         filelist = hdfs_ls([pass_folder], self.fs_name, self.ugi)
         def has_prefix(x):
@@ -181,11 +177,6 @@ class DistOnlineTrainer(OnlineTrainer):
         ps.fleet._role_maker._barrier_worker()
         sys.stdout.write("barrier worker done.\n")
         sys.stdout.flush()
-        if open_monitor:
-            monitor_results = get_monitor_result(threads)
-            for key in monitor_results:
-                print(key)
-                print(monitor_results[key])
 
     def save_inference_model(self, local_path, remote_path=None):
         exe = fluid.Executor(fluid.CPUPlace())

@@ -71,12 +71,15 @@ def get_system_info():
     # total memory
     # total cpu num
     # kernel version
-    res_dict = {}
-    meminfo = linux.get_meminfo()
-    res_dict["total_memory(GB)"] = meminfo.total / 1024 / 1024 / 1024
-    res_dict["cpu_num"] = linux.get_cpu_nums()
-    res_dict["kernel_version"] = "-".join(linux.get_kernel_version())
-    return res_dict
+    sys_info = {}
+    linux_info = linux.get_meminfo()
+    sys_info["total_memory"] = linux_info.total
+    sys_info["cpu_num"] = linux.get_cpu_nums()
+    sys_info["kernel"] = " ".join(linux.get_kernel_version())
+    from cup import net
+    sys_info["ip_addr"] = net.getip_byinterface('eth0')
+
+    return sys_info
 
 def launch_system_monitor(interval, count_num):
     task_info = [[get_cpu_usage, interval, count_num],
