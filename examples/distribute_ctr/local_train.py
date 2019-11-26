@@ -19,6 +19,7 @@ import numpy as np
 import logging
 import paddle.fluid as fluid
 from network import CTR
+from argument import params_args
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("fluid")
@@ -46,11 +47,12 @@ def train(params):
     avg_cost, auc_var, batch_auc_var = ctr_model.net(inputs, params)
     optimizer = fluid.optimizer.Adam(params.learning_rate)
     optimizer.minimize(avg_cost)
-
+    fluid.default_main_program()
     exe = fluid.Executor(fluid.CPUPlace())
     exe.run(fluid.default_startup_program())
     dataset = get_dataset(inputs, params)
 
+    logger.info("Training Begin")
     for epoch in range(params.epochs):
         start_time = time.time()
         exe.train_from_dataset(program=fluid.default_main_porgram(),

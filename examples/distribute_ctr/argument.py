@@ -63,16 +63,20 @@ def params_args(args=None):
                         type=int,
                         default=10,
                         help="The size for embedding layer (default:10)")
-    params.add_argument(
-        '--sparse_feature_dim',
-        type=int,
-        default=1000001,
-        help='sparse feature hashing space for index processing')
+    params.add_argument('--sparse_feature_dim', type=int, default=1000001)
     params.add_argument('--dense_feature_dim', type=int, default=13)
 
     # parameters of train method
     params.add_argument("--is_pyreader_train", type=bool, default=False)
     params.add_argument("--is_dataset_train", type=bool, default=False)
+    params.add_argument("--test",
+                        type=bool,
+                        default=False,
+                        help="Decide whether to save the model")
+    params.add_argument("--cloud",
+                        type=bool,
+                        default=False,
+                        help="Training on cloud or local")
 
     # parameters of distribute
     params.add_argument("--is_sparse", type=bool, default=True)
