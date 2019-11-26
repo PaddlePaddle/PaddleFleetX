@@ -55,11 +55,11 @@ def train(params):
     logger.info("Training Begin")
     for epoch in range(params.epochs):
         start_time = time.time()
-        exe.train_from_dataset(program=fluid.default_main_porgram(),
+        exe.train_from_dataset(program=fluid.default_main_program(),
                                dataset=dataset,
                                fetch_list=[auc_var],
                                fetch_info=["Epoch {} auc ".format(epoch)],
-                               print_period=10,
+                               print_period=100,
                                debug=False)
         end_time = time.time()
         logger.info("epoch %d finished, use time=%d\n" %
@@ -70,7 +70,6 @@ def train(params):
             fluid.io.save_persistables(executor=exe, dirname=model_path)
 
     logger.info("Train Success!")
-    return train_result
 
 
 if __name__ == "__main__":

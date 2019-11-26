@@ -12,7 +12,7 @@ if [ ! -d "./log" ]; then
 fi
 
 if [ ! -d "./output" ]; then
-  mkdir ./log
+  mkdir ./output
   echo "Create output floder"
 fi
 

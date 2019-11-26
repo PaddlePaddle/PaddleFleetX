@@ -74,8 +74,8 @@ def params_args(args=None):
                         default=False,
                         help="Decide whether to save the model")
     params.add_argument("--cloud",
-                        type=bool,
-                        default=False,
+                        type=int,
+                        default=0,
                         help="Training on cloud or local")
 
     # parameters of distribute

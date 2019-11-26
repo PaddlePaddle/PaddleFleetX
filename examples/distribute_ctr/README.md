@@ -359,12 +359,33 @@ for epoch in range(num_epochs):
 如此，便可以在`def handler()`函数中实现训练过程的实时监控，但该监控值的打印频率，不是以mini_batch为单位，而是以时间s为单位，请知悉。
 
 ### 运行单机训练
-在代码目录下，通过键入以下命令启动单机训练。
+为了快速验证效果，我们可以用小样本数据快速运行起来，只取前两个part的数据进行训练。在代码目录下，通过键入以下命令启动单机训练。
 ```bash
+mv train_data train_data_full
+mkdir train_data && cd train_data
+cp ../train_data_full/part-0 ../train_data_full/part-1 ./
+cd ..
 python -u local_train.py --test=True &> train.log &
 ```
 训练过程的日志保存在`./train.log`文件中。使用默认配置运行的理想输出为：
 ```bash
+2019-11-26 07:11:34,977 - INFO - file list: ['train_data/part-1', 'train_data/part-0']
+2019-11-26 07:11:34,978 - INFO - Training Begin
+Epoch 0 auc     auc_0.tmp_0             lod: {}
+        dim: 1
+        layout: NCHW
+        dtype: double
+        data: [0.626496]
+
+Epoch 0 auc     auc_0.tmp_0             lod: {}
+        dim: 1
+        layout: NCHW
+        dtype: double
+        data: [0.667014]
+
+2019-11-26 07:12:27,155 - INFO - epoch 0 finished, use time=52
+
+2019-11-26 07:12:27,549 - INFO - Train Success!
 ```
 
 #
@@ -445,7 +466,6 @@ optimizer.minimize(avg_cost)
 Fleet隐式的完成了Pserver与Trainer的Program切分逻辑，我们可以使用`fleet.main_program`与`fleet.startup_program`，替代`fluid.default_main_program()`与`fluid.default_startup_program()`，拿到当前节点的训练program与初始化program。如何让Pserver和Trainer运行起来呢？其逻辑略有区别，但也十分容易掌握：
 > 启动Pserver
 
-
 启动参数服务器端，如果需要从某个模型热启，在训练开始之前加载某次训练得到的参数，则只需将初始化模型路径传入`init_server()`函数即可
 ```python
 # 根据节点角色，分别运行不同的逻辑
@@ -455,6 +475,9 @@ if fleet.is_server():
     # 运行参数服务器节点
     fleet.run_server()
 ```
+> 启动Trainer
+
+
 启动训练节点，训练节点首先调用`init_worker()`来完成节点初始化，然后执行`fleet.startup_program`，从服务器端同步参数的初始化值。接着，和本地训练完全一致，通过执行`fleet.main_program`来完成整个训练过程，并保存模型。最后调用`fleet.stop_worker()`关闭训练节点。
 ```python
 elif fleet.is_worker():
