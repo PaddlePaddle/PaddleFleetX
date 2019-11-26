@@ -15,7 +15,6 @@
 
 import math
 import paddle.fluid as fluid
-from distribute_base import FleetRunnerBase
 from argument import params_args
 
 

@@ -1,7 +1,7 @@
 # 从零开始的分布式CTR-DNN
-`CTR(Click Through Rate)`，即点击率，是“推荐系统/计算广告”等领域的重要指标，对其进行预估是商品推送/广告投放等决策的基础。简单来说，CTR预估是对每次广告的点击情况做出预测，预测用户是点击还是不点击。CTR预估模型综合考虑各种因素、特征，在大量历史数据上训练，最终对商业决策提供帮助。
+`CTR(Click Through Rate)`，即点击率，是“推荐系统/计算广告”等领域的重要指标，对其进行预估是商品推送/广告投放等决策的基础。简单来说，CTR预估对每次广告的点击情况做出预测，预测用户是点击还是不点击。CTR预估模型综合考虑各种因素、特征，在大量历史数据上训练，最终对商业决策提供帮助。
 
-跟随这篇文档，将从零开始，一步步教您如何利用PaddlePaddle Fluid高效且易用的Api，搭建单机ctr-dnn深度学习模型，并利用高阶分布式Api-Fleet将其升级为可以在CPU集群中运行的`参数服务器`式分布式深度学习模型。在学习本篇文档后，您可以入门Paddle组网，Paddle分布式模型的搭建，了解CPU多线程全异步模式的启用方法。
+跟随这篇文档，将从零开始，一步步教您如何利用PaddlePaddle Fluid高效且易用的Api，搭建单机ctr-dnn深度学习模型，并利用高阶分布式Api-Fleet将其升级为可以在CPU集群中运行的`参数服务器`模式分布式深度学习模型。在学习本篇文档后，您可以入门Paddle组网，Paddle分布式模型的搭建，了解CPU多线程全异步模式的启用方法。
 
 ## 运行环境检查
 
@@ -48,8 +48,32 @@
 ```bash
 sh get_data.sh
 ```
-训练数据放置于`./train_data/`，测试数据放置于`./test_data/`。
+执行该脚本，会从国内源的服务器上下载Criteo数据集，并解压到指定文件夹。训练数据放置于`./train_data/`，测试数据放置于`./test_data/`。
 
+执行该脚本的理想输出为：
+```bash
+> sh get_data.sh
+--2019-11-26 06:31:33--  https://fleet.bj.bcebos.com/ctr_data.tar.gz
+Resolving fleet.bj.bcebos.com... 10.180.112.31
+Connecting to fleet.bj.bcebos.com|10.180.112.31|:443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 4041125592 (3.8G) [application/x-gzip]
+Saving to: “ctr_data.tar.gz”
+
+100%[==================================================================================================================>] 4,041,125,592  120M/s   in 32s
+
+2019-11-26 06:32:05 (120 MB/s) - “ctr_data.tar.gz” saved [4041125592/4041125592]
+
+raw_data/
+raw_data/part-55
+raw_data/part-113
+...
+test_data/part-227
+test_data/part-222
+Complete data download.
+Train data stored in ./train_data folder.
+Test data stored in ./test_data folder.
+```
 至此，我们已完成数据准备的全部工作。
 
 #

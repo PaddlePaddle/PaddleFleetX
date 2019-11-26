@@ -24,7 +24,8 @@ logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("fluid")
 logger.setLevel(logging.INFO)
 
-def get_dataset(inputs, params)
+
+def get_dataset(inputs, params):
     dataset = fluid.DatasetFactory().create_dataset()
     dataset.set_use_var(inputs)
     dataset.set_pipe_command("python dataset_generator.py")
@@ -38,29 +39,38 @@ def get_dataset(inputs, params)
     logger.info("file list: {}".format(file_list))
     return dataset
 
+
 def train(params):
     ctr_model = CTR()
     inputs = ctr_model.input_data(params)
-    avg_cost, auc_var, batch_auc_var = ctr_model.net(inputs,params)
+    avg_cost, auc_var, batch_auc_var = ctr_model.net(inputs, params)
     optimizer = fluid.optimizer.Adam(params.learning_rate)
     optimizer.minimize(avg_cost)
 
     exe = fluid.Executor(fluid.CPUPlace())
     exe.run(fluid.default_startup_program())
-    dataset = get_dataset(inputs,params)
+    dataset = get_dataset(inputs, params)
 
     for epoch in range(params.epochs):
         start_time = time.time()
         exe.train_from_dataset(program=fluid.default_main_porgram(),
-                               dataset=dataset, fetch_list=[auc_var],
+                               dataset=dataset,
+                               fetch_list=[auc_var],
                                fetch_info=["Epoch {} auc ".format(epoch)],
-                               print_period=10, debug=False)
+                               print_period=10,
+                               debug=False)
         end_time = time.time()
-        logger.info("epoch %d finished, use time=%d\n" % ((epoch), end_time - start_time))
+        logger.info("epoch %d finished, use time=%d\n" %
+                    ((epoch), end_time - start_time))
 
         if params.test:
-            model_path = (str(params.model_path) + "/"+"epoch_" + str(epoch))
+            model_path = (str(params.model_path) + "/" + "epoch_" + str(epoch))
             fluid.io.save_persistables(executor=exe, dirname=model_path)
 
     logger.info("Train Success!")
     return train_result
+
+
+if __name__ == "__main__":
+    params = params_args()
+    train(params)
