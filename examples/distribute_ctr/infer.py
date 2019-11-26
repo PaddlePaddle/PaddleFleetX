@@ -18,9 +18,10 @@ import time
 import numpy as np
 import logging
 from argument import params_args
+import paddle
 import paddle.fluid as fluid
 from network import CTR
-from py_reader_generator import py_reader
+import py_reader_generator as py_reader
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("fluid")
@@ -75,7 +76,7 @@ def run_infer(params, model_path):
                 run_index += 1
                 infer_auc = auc_val
                 L.append(loss_val / params.batch_size)
-                if batch_id % 1000 == 0:
+                if batch_id % 100 == 0:
                     logger.info("TEST --> batch: {} loss: {} auc: {}".format(
                         batch_id, loss_val / params.batch_size, auc_val))
 
@@ -100,5 +101,5 @@ if __name__ == "__main__":
                 path = "/".join([params.model_path, model])
                 model_list.append(path)
     for model in model_list:
-        logger.info("Tese model {}".format(model))
+        logger.info("Test model {}".format(model))
         run_infer(params, model)
