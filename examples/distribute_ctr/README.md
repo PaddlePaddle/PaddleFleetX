@@ -48,7 +48,7 @@
 ```bash
 sh get_data.sh
 ```
-执行该脚本，会从国内源的服务器上下载Criteo数据集，并解压到指定文件夹。训练数据放置于`./train_data/`，测试数据放置于`./test_data/`。
+执行该脚本，会从国内源的服务器上下载Criteo数据集，并解压到指定文件夹。全量训练数据放置于`./train_data_full/`，全量测试数据放置于`./test_data_full/`，用于快速验证的训练数据与测试数据放置于`./train_data/`与`./test_data/`。
 
 执行该脚本的理想输出为：
 ```bash
@@ -361,10 +361,6 @@ for epoch in range(num_epochs):
 ### 运行单机训练
 为了快速验证效果，我们可以用小样本数据快速运行起来，只取前两个part的数据进行训练。在代码目录下，通过键入以下命令启动单机训练。
 ```bash
-mv train_data train_data_full
-mkdir train_data && cd train_data
-cp ../train_data_full/part-0 ../train_data_full/part-1 ./
-cd ..
 python -u local_train.py --test=True &> train.log &
 ```
 训练过程的日志保存在`./train.log`文件中。使用默认配置运行的理想输出为：
@@ -671,10 +667,16 @@ for name in auc_states_names:
 ```
 
 ### 运行Infer
-在代码目录下，键入以下命令，传入模型地址，进行预测：
+为了快速验证，我们仅取用测试数据集的一个part文件，进行测试。在代码目录下，键入以下命令，进行预测：
 ```python
 python -u infer.py &> test.log &
 ```
-仅训练一个epoch后的理想输出为：
+测试结果的日志位于`test.log`，仅训练一个epoch后，在`part-220`上的的理想测试结果为：
 ```bash
+2019-11-26 08:28:14,638 - INFO - Test model model/epoch_0
+open file success
+2019-11-26 08:28:14,975 - INFO - TEST --> batch: 0 loss: [0.5411858] auc: [0.67146545]
+2019-11-26 08:28:33,081 - INFO - TEST --> batch: 100 loss: [0.5021557] auc: [0.70148159]
+2019-11-26 08:28:50,373 - INFO - {'loss': 0.52460104, 'auc': array([0.70271783])}
+2019-11-26 08:28:50,374 - INFO - Inference complete
 ```
