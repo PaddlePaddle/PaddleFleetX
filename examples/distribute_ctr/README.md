@@ -530,21 +530,55 @@ sh loc_cluster.sh
 便可以开启分布式模拟训练，默认启用2x2的训练模式。Trainer与Pserver的运行日志，存放于`./log/`文件夹，保存的模型位于`./model/`，使用默认配置运行后，理想输出为：
 > pserver.0.log
 ```bash
+get_pserver_program() is deprecated, call get_pserver_programs() to get pserver main and startup in a single call.
+I1126 07:37:49.952580 15056 grpc_server.cc:477] Server listening on 127.0.0.1:36011 successful, selected port: 36011
 ```
 
 > trainer.0.log
 ```bash
+I1126 07:37:52.812678 14715 communicator_py.cc:43] using communicator
+I1126 07:37:52.814765 14715 communicator.cc:77] communicator_independent_recv_thread: 1
+I1126 07:37:52.814792 14715 communicator.cc:79] communicator_send_queue_size: 20
+I1126 07:37:52.814805 14715 communicator.cc:81] communicator_min_send_grad_num_before_recv: 20
+I1126 07:37:52.814818 14715 communicator.cc:83] communicator_thread_pool_size: 5
+I1126 07:37:52.814831 14715 communicator.cc:85] communicator_send_wait_times: 5
+I1126 07:37:52.814843 14715 communicator.cc:87] communicator_max_merge_var_num: 20
+I1126 07:37:52.814855 14715 communicator.cc:89] communicator_fake_rpc: 0
+I1126 07:37:52.814868 14715 communicator.cc:90] communicator_merge_sparse_grad: 1
+I1126 07:37:52.814882 14715 communicator.cc:92] communicator_is_sgd_optimizer: 0
+I1126 07:37:52.816067 14715 communicator.cc:330] Communicator start
+I1126 07:37:53.000705 14715 rpc_client.h:107] init rpc client with trainer_id 0
+2019-11-26 07:37:53,110 - INFO - file list: ['train_data/part-1']
+Epoch 0 auc     auc_0.tmp_0             lod: {}
+        dim: 1
+        layout: NCHW
+        dtype: double
+        data: [0.493614]
 
+Epoch 0 auc     auc_0.tmp_0             lod: {}
+        dim: 1
+        layout: NCHW
+        dtype: double
+        data: [0.511984]
+
+2019-11-26 07:38:28,846 - INFO - epoch 0 finished, use time=35
+
+I1126 07:38:28.847295 14715 communicator.cc:347] Communicator stop
+I1126 07:38:28.853050 15143 communicator.cc:266] communicator stopped, recv thread exit
+I1126 07:38:28.947477 15142 communicator.cc:251] communicator stopped, send thread exit
+I1126 07:38:28.947571 14715 communicator.cc:363] Communicator stop done
+2019-11-26 07:38:28,948 - INFO - Distribute Train Success!
 ```
 #### 方法二 通过`paddle.distributed.launch_ps`运行模拟分布式
 该方法更通用，不需要写特别的脚本即可运行，在代码目录，键入命令：
 ```bash
-nohup python -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 distribute_train.py &
+python -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 distribute_train.py --is_dataset_train=True --sync_mode=async --cloud=0  &
 ```
 日志位于`./logs/`，理想输出与方法一相同。
 运行该命令时：
 1. 首先需要注意修改python的PATH，例如将`python`修改为`/home/work/python27-gcc482/bin/python`以确保运行在您的正确的python环境下。
 2. 设置`--worker_num`与`--server_num`，以运行不同分布式配置。
+3. 运行该方法，使用的是默认配置与默认环境变量，如果需要调优，则需自行修改超参与环境变量。
 
 #
 ## 分布式训练——模型保存及增量训练
@@ -612,13 +646,13 @@ with fluid.framework.program_guard(test_program, startup_program):
    这是容易理解的，因为在测试时，我们要从零开始，保证预测program的干净，没有其他的影响因素。
 -  在创建预测网络时，我们加入了`with fluid.unique_name.guard():`，它的作用是让所有新建的参数的自动编号再次从零开始。Paddle的参数`Variable`以变量名作为区分手段，保证变量名相同，就可以从保存的模型中找到对应参数。
   
-    特别是在一个进程中创建多个网络时，一定要关注这点，paddle创建的临时变量，都会让编号自动顺延，如果没有指定变量名，自动命名时，可以观察到这一现象，比如：`fc_1.w_0`->`fc_2.w_0`，想要共享相同的参数，要保证编号可以对应。
+    paddle创建的临时变量，编号会自动顺延，如果没有指定变量名，可以观察到这一现象，比如：`fc_1.w_0`->`fc_2.w_0`，想要共享相同的参数，必需要保证编号可以对应。
 
 ### 测试数据的读取
 
 测试数据的读取我们使用`pyreader`方法，具体使用方法可以查阅[PyReader](https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/io_cn/PyReader_cn.html#pyreader)
 
-### AUC的额外置零操作
+### AUC的清零步骤
 在训练过程中，为了获得全局auc，我们将auc保存为模型参数，参与长期更新，并在保存模型的过程中被一并保存了下来。在预测时，paddle为了计算预测的全局auc，使用相同的规则创建了同名的auc参数。而我们又在加载模型参数的时候，将训练中的auc加载了进来，如果不在预测前将该值清零，会影响我们的预测值的计算。
 
 以下是将auc中间变量置零操作，`_generated_var_0~3`即为paddle自动创建的auc全局参数。
@@ -639,7 +673,7 @@ for name in auc_states_names:
 ### 运行Infer
 在代码目录下，键入以下命令，传入模型地址，进行预测：
 ```python
-python -u infer.py ./model_path/trainer_0_epoch_0 &> test.log &
+python -u infer.py &> test.log &
 ```
 仅训练一个epoch后的理想输出为：
 ```bash

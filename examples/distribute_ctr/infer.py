@@ -16,8 +16,11 @@ from __future__ import print_function
 import os
 import time
 import numpy as np
+import logging
+from argument import params_args
 import paddle.fluid as fluid
 from network import CTR
+from py_reader_generator import py_reader
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("fluid")
@@ -92,9 +95,10 @@ if __name__ == "__main__":
     params = params_args()
     model_list = []
     for _, dir, _ in os.walk(params.model_path):
-        if "epoch" in dir:
-            os.path.join(params.model_path, dir)
-            model_list.append(os.path.join(params.model_path, dir))
+        for model in dir:
+            if "epoch" in model:
+                path = "/".join([params.model_path, model])
+                model_list.append(path)
     for model in model_list:
         logger.info("Tese model {}".format(model))
         run_infer(params, model)
