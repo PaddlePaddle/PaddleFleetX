@@ -696,4 +696,4 @@ benchmark效果：
 
 benchmark速度：
 
-benchmark相关代码及复现方式见[Fleet Repo](https://github.com/PaddlePaddle/Fleet.git)，路径为Fleet/benchmark/distribute_word2vec/paddle/。
+benchmark相关代码及复现方式见[Fleet Repo](https://github.com/PaddlePaddle/Fleet.git)，路径为Fleet/benchmark/ps/distribute_ctr/paddle/。
