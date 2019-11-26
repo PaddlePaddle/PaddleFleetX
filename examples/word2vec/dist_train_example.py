@@ -57,7 +57,7 @@ def train(strategy):
                                    fetch_list=[loss], fetch_info=['loss'],
                                    print_period=100, debug=False)
             end_time = time.time()
-            if role.is_first_worker() == 0:
+            if role.is_first_worker():
                 model_path = str(model_path) + '/trainer_' + str(role.worker_index()) + '_epoch_' + str(epoch)
                 fleet.save_persistables(executor=exe, dirname=model_path)
         logger.info("Train Success!")
