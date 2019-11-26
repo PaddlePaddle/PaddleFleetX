@@ -89,3 +89,4 @@ def get_median(data):
     elif size % 2 == 1:
         median = data[(size-1)//2]
     return median
+
