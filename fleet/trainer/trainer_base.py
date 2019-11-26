@@ -13,7 +13,8 @@
 # limitations under the License.
 import paddle.fluid as fluid
 from ..dataset import QueueDataset, MemoryDataset
-from ..utils import hdfs_ls
+from ..utils import hdfs_ls, hdfs_rmr, hdfs_put, launch_system_monitor, get_system_info
+from ..utils import get_monitor_result
 import sys
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 import paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler as ps
@@ -30,6 +31,11 @@ class TrainerBase(object):
         self.model = None
         self.optimizer = None
         self.logger = logging.getLogger("TrainerBase")
+
+    def print_system_info(self):
+        sys_info = get_system_info()
+        for key in sys_info:
+            print("{}: {}".format(key, sys_info[key]))
 
     def set_batch_size(self, batch):
         self.batch_size = batch
@@ -60,26 +66,21 @@ class TrainerBase(object):
     def train_pass(self, pass_folder, **kwargs):
         raise NotImplemented("You should implement this")
 
-    def save_inference_model(self, path):
-        exe = fluid.Executor(fluid.CPUPlace())
-        fluid.io.save_inference_model(
-            path, [x.name for x in self.model.get_input_vars()],
-            self.model.metrics.values(), exe)
+    def save_inference_model(self, local_path, remote_path=None):
+        if remote_path == None:
+            exe = fluid.Executor(fluid.CPUPlace())
+            fluid.io.save_inference_model(
+                local_path, [x.name for x in self.model.get_input_vars()],
+                self.model.metrics.values(), exe)
 
 
 class BatchTrainer(TrainerBase):
     def __init__(self):
         pass
 
-    def run(self, data_folder):
-        pass
-
 
 class DistBatchTrainer(TrainerBase):
     def __init__(self):
-        pass
-
-    def run(self, data_folder):
         pass
 
 
@@ -90,6 +91,7 @@ class OnlineTrainer(TrainerBase):
     def train_pass(self, pass_folder, **kwargs):
         prefix = kwargs.get("prefix", "part")
         is_debug = kwargs.get("is_debug", False)
+        handler = kwargs.get("handler", None)
         exe = fluid.Executor(fluid.CPUPlace())
         files = ["{}/{}".format(pass_folder, x)
                  for x in os.listdir(pass_folder) if prefix in x]
@@ -100,14 +102,16 @@ class OnlineTrainer(TrainerBase):
                 exe.train_from_dataset(
                     program=self.model.main_program,
                     dataset=self.dataset.inst,
-                    debug=is_debug)
+                    debug=is_debug,
+                    fetch_handler=handler)
             elif isinstance(self.dataset, MemoryDataset):
                 self.dataset.inst.load_into_memory()
                 self.dataset.inst.local_shuffle()
                 exe.train_from_dataset(
                     program=self.model.main_program,
                     dataset=self.dataset.inst,
-                    debug=is_debug)
+                    debug=is_debug,
+                    fetch_handler=handler)
         else:
             raise NotImplemented("Training with reader has"
                                  "not been implemented yet")
@@ -136,7 +140,7 @@ class DistOnlineTrainer(OnlineTrainer):
         elif ps.fleet.is_worker():
             self.logger.info("worker index {}".format(ps.fleet.worker_index()))
             import time
-            time.sleep(10)
+            time.sleep(5)
             ps.fleet.init_worker()
             if self.dataset:
                 self.dataset.inst.set_use_var(self.model.get_input_vars())
@@ -151,23 +155,46 @@ class DistOnlineTrainer(OnlineTrainer):
         # global_shuffle, preload, prefix, is_debug
         prefix = kwargs.get("prefix", "part")
         is_debug = kwargs.get("is_debug", False)
+        handler = kwargs.get("handler", None)
+        open_monitor = kwargs.get("open_monitor", False)
+        if open_monitor:
+            threads = launch_system_monitor(5, 5)
         exe = fluid.Executor(fluid.CPUPlace())
         filelist = hdfs_ls([pass_folder], self.fs_name, self.ugi)
-        sys.stdout.write(" ".join(filelist))
-        sys.stdout.write("\n")
-        sys.stdout.flush()
         def has_prefix(x):
             return prefix in x
         filelist = filter(has_prefix, filelist)
         my_filelist = ps.fleet.split_files(filelist)
-        sys.stdout.write(" ".join(my_filelist))
-        sys.stdout.write("\n")
-        sys.stdout.flush()
         self.dataset.inst.set_filelist(my_filelist)
         self.dataset.inst.load_into_memory()
         self.dataset.inst.local_shuffle()
         exe.train_from_dataset(
             program=ps.fleet.main_program,
             dataset=self.dataset.inst,
-            debug=is_debug)
-    
+            debug=is_debug,
+            fetch_handler=handler)
+        sys.stdout.write("current pass has {} files".format(len(filelist)))
+        sys.stdout.write("worker index {} has {} files\n".format(
+            ps.fleet.worker_index(), len(my_filelist)))
+        sys.stdout.write("going to barrier worker current current pass\n")
+        sys.stdout.flush()
+        ps.fleet._role_maker._barrier_worker()
+        sys.stdout.write("barrier worker done.\n")
+        sys.stdout.flush()
+        if open_monitor:
+            monitor_results = get_monitor_result(threads)
+            for key in monitor_results:
+                print(key)
+                print(monitor_results[key])
+
+    def save_inference_model(self, local_path, remote_path=None):
+        exe = fluid.Executor(fluid.CPUPlace())
+        fluid.io.save_inference_model(
+            local_path, [x.name for x in self.model.get_input_vars()],
+            self.model.metrics.values(), exe)
+        if remote_path == None:
+            sys.stdout.write("WARNING: You should assign hdfs path to save model")
+        else:
+            if ps.fleet.worker_index() == 0:
+                hdfs_rmr(remote_path, self.fs_name, self.ugi)
+                hdfs_put(local_path, remote_path, self.fs_name, self.ugi)

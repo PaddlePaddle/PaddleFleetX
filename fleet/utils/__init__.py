@@ -12,4 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import hdfs
+import system_info
 hdfs_ls=hdfs.hdfs_ls
+hdfs_rmr=hdfs.hdfs_rmr
+hdfs_put=hdfs.hdfs_put
+launch_system_monitor=system_info.launch_system_monitor
+get_system_info=system_info.get_system_info
+get_monitor_result=system_info.get_monitor_result
+

@@ -11,5 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import model_base
-MultiSlotDNNCTR=model_base.MultiSlotDNNCTR
+import trainer_base
+OnlineInfer=infer_base.OnlineInfer
+DistOnlineInfer=infer_base.DistOnlineInfer
+BatchInfer=trainer_base.BatchInfer
+DistBatchInfer=trainer_base.DistBatchInfer
