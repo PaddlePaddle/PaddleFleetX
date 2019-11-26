@@ -22,6 +22,7 @@ import time
 import argparse
 import numpy as np
 import multiprocessing
+import json
 
 import paddle
 import paddle.fluid as fluid
@@ -34,6 +35,8 @@ from utils.init import init_checkpoint, init_pretraining_params
 
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
+
+trainer_id = int(os.environ.get('PADDLE_TRAINER_ID'))
 
 # yapf: disable
 parser = argparse.ArgumentParser(__doc__)
@@ -347,9 +350,7 @@ def train(args):
                          np.mean(np.exp(np.array(lm_cost))),
                          np.mean(np.array(acc)), skip_steps / used_time,
                          current_file))
-                cost = []
-                lm_cost = []
-                acc = []
+
                 time_begin = time.time()
 
             if steps % args.save_steps == 0:
@@ -368,6 +369,22 @@ def train(args):
                        np.mean(np.exp(np.array(vali_lm_cost) / vali_steps)),
                        np.mean(np.array(vali_acc) / vali_steps), vali_speed))
 
+                train_speed = skip_steps / used_time
+                if trainer_id == 0:
+                    if not os.path.isdir("./benchmark_logs/"):
+                        os.makedirs("./benchmark_logs/")
+                    with open("./benchmark_logs/log_%d" % trainer_id, 'w') as f:
+                        result = dict()
+                        result['0'] = dict()
+                        result['0']['train_next_sent_acc'] = str(np.mean(np.array(acc)))
+                        result['0']['val_next_sent_acc'] = str(np.mean(np.array(vali_acc) / vali_steps))
+                        result['1'] = str(train_speed)
+                        print(result)
+                        f.writelines(json.dumps(result) + '\n')
+
+		cost = []
+		lm_cost = []
+		acc = []
         except fluid.core.EOFException:
             train_pyreader.reset()
             break
