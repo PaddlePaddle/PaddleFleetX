@@ -78,7 +78,7 @@ add_arg('is_distill',       bool,  False,        "is distill or not")
 add_arg('profile',             bool,  False,                "Enable profiler or not." )
 add_arg('fetch_steps',      int,  10,                "Enable profiler or not." )
 
-add_arg('do_test',          bool,  True,                 "Whether to use GPU or not.")
+add_arg('do_test',          bool,  False,                 "Whether do test every epoch.")
 add_arg('use_gpu',          bool,  True,                 "Whether to use GPU or not.")
 add_arg('fuse', bool, False,                      "Whether to use tensor fusion.")
 add_arg('nccl_comm_num',        int,  1,                  "nccl comm num")
@@ -516,7 +516,7 @@ def train(args):
         train_speed = (batch_id * train_batch_size) / (train_end - train_begin)
         train_speed_list.append(train_speed)
 
-        if args.do_test:
+        if trainer_id == 0 and (args.do_test or (pass_id + 1) == params["num_epochs"]):
             test_py_reader.start()
             test_batch_id = 0
             try:
@@ -571,7 +571,7 @@ def train(args):
         sys.stdout.flush()
  
     # save in last epoch
-    if trainer_id == 0 and args.do_test:
+    if trainer_id == 0:
         model_path = os.path.join(model_save_dir + '/' + model_name, str(pass_id))
         if not os.path.isdir(model_path):
             os.makedirs(model_path)
