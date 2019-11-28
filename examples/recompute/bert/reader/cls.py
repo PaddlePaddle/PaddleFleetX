@@ -36,8 +36,10 @@ class DataProcessor(object):
             vocab_file=vocab_path, do_lower_case=do_lower_case)
         self.vocab = self.tokenizer.vocab
         self.in_tokens = in_tokens
-
-        np.random.seed(random_seed)
+         
+        if random_seed != 0:
+            print("Setting random seed as: ", random_seed)
+            np.random.seed(random_seed)
 
         self.current_train_example = -1
         self.num_examples = {'train': -1, 'dev': -1, 'test': -1}
@@ -152,20 +154,21 @@ class DataProcessor(object):
             for epoch_index in range(epoch):
                 if shuffle:
                     if shuffle_seed is not None:
+                        print("set shuffle seed")
                         np.random.seed(shuffle_seed)
                     np.random.shuffle(examples)
                 if phase == 'train':
                     self.current_train_epoch = epoch_index
                 for (index, example) in enumerate(examples):
-                    if index % dev_count == dev_idx: 
-                        if phase == 'train':
-                            self.current_train_example = index + 1
-                        feature = self.convert_example(
-                            index, example,
-                            self.get_labels(), self.max_seq_len, self.tokenizer)
+                    #if index % dev_count == dev_idx: 
+                    if phase == 'train':
+                        self.current_train_example = index + 1
+                    feature = self.convert_example(
+                        index, example,
+                        self.get_labels(), self.max_seq_len, self.tokenizer)
 
-                        instance = self.generate_instance(feature)
-                        yield instance
+                    instance = self.generate_instance(feature)
+                    yield instance
 
         def batch_reader(reader, batch_size, in_tokens):
             batch, total_token_num, max_len = [], 0, 0
@@ -188,6 +191,7 @@ class DataProcessor(object):
                 yield batch, total_token_num
 
         def wrapper():
+            all_dev_batches = []
             for batch_data, total_token_num in batch_reader(
                     instance_reader, batch_size, self.in_tokens):
                 batch_data = self.generate_batch_data(
@@ -198,7 +202,13 @@ class DataProcessor(object):
                     return_input_mask=True,
                     return_max_len=False,
                     return_num_token=False)
-                yield batch_data
+                if len(all_dev_batches) < dev_count:
+                    all_dev_batches.append(batch_data)
+
+                if len(all_dev_batches) == dev_count:
+                    #print(all_dev_batches[dev_idx][-1])
+                    yield all_dev_batches[dev_idx]
+                    all_dev_batches = []
 
         return wrapper
 

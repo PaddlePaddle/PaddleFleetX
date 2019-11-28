@@ -62,6 +62,9 @@ def optimization(loss,
                  scheduler='linear_warmup_decay',
                  use_fp16=False,
                  loss_scaling=1.0):
+    if use_fp16:
+        print("fp16 is not supported for now, please contact the author")
+        exit()
     if warmup_steps > 0:
         if scheduler == 'noam_decay':
             scheduled_lr = fluid.layers.learning_rate_scheduler\

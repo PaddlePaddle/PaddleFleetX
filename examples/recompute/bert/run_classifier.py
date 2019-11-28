@@ -103,19 +103,15 @@ args = parser.parse_args()
 
 
 def evaluate(exe, test_program, test_pyreader, fetch_list, eval_phase):
-    test_pyreader.start()
     total_cost, total_acc, total_num_seqs = [], [], []
     time_begin = time.time()
-    while True:
-        try:
-            np_loss, np_acc, np_num_seqs = exe.run(program=test_program,
+    for data in test_pyreader():
+        np_loss, np_acc, np_num_seqs = exe.run(program=test_program,
+						   feed=data,
                                                    fetch_list=fetch_list)
-            total_cost.extend(np_loss * np_num_seqs)
-            total_acc.extend(np_acc * np_num_seqs)
-            total_num_seqs.extend(np_num_seqs)
-        except fluid.core.EOFException:
-            test_pyreader.reset()
-            break
+        total_cost.extend(np_loss * np_num_seqs)
+        total_acc.extend(np_acc * np_num_seqs)
+        total_num_seqs.extend(np_num_seqs)
     time_end = time.time()
     print("[%s evaluation] ave loss: %f, ave acc: %f, elapsed time: %f s" %
           (eval_phase, np.sum(total_cost) / np.sum(total_num_seqs),
@@ -164,7 +160,9 @@ def main(args):
     # init program
     train_program = fluid.Program()
     startup_prog = fluid.Program()
-    if args.random_seed is not None:
+    
+    if args.random_seed != 0:
+        print("set program random seed as: ", args.random_seed)
         startup_prog.random_seed = args.random_seed
         train_program.random_seed = args.random_seed
 
@@ -177,7 +175,7 @@ def main(args):
     }
     
     print("max_seq_len: ", args.max_seq_len)
-
+    print("random_seed: ", args.random_seed)
     processor = processors[task_name](data_dir=args.data_dir,
                                       vocab_path=args.vocab_path,
                                       max_seq_len=args.max_seq_len,
@@ -192,7 +190,8 @@ def main(args):
 
     if args.do_train:
         dev_count = len(worker_endpoints)
-        shuffle_seed = 1
+        shuffle_seed = None 
+        print("shuffle_seed: ", shuffle_seed)
         train_data_generator = processor.data_generator(
             batch_size=args.batch_size,
             phase='train',
@@ -250,6 +249,7 @@ def main(args):
                     use_fp16=args.use_fp16,
                     loss_scaling=args.loss_scaling,
                     dist_strategy = dist_strategy)
+
         if args.verbose:
             if args.in_tokens:
                 lower_mem, upper_mem, unit = fluid.contrib.memory_usage(
@@ -333,7 +333,7 @@ def main(args):
 
         
         #if args.use_cuda and num_trainers > 1:
-        #    assert shuffle_seed is not None
+       #    assert shuffle_seed is not None
         #    dist_utils.prepare_for_multi_process(exe, build_strategy, train_program)
         #    train_data_generator = fluid.contrib.reader.distributed_batch_reader(
         #          train_data_generator)
@@ -346,14 +346,17 @@ def main(args):
 
     if args.do_train:
         train_pyreader.decorate_batch_generator(train_data_generator, place)
-        train_pyreader.start()
+        
         steps = 0
         total_cost, total_acc, total_num_seqs = [], [], []
         time_begin = time.time()
         throughput = []
         ce_info = []
-        while True:
-            try:
+        #while True:
+        #    try:
+
+        if True:
+            for data in train_pyreader():
                 # steps += 1
                 if steps % args.skip_steps == 0:
                     if warmup_steps <= 0:
@@ -365,8 +368,8 @@ def main(args):
                         ]
                 else:
                     fetch_list = []
-
-                outputs = exe.run(fleet.main_program, fetch_list=fetch_list)
+                
+                outputs = exe.run(fleet.main_program, feed=data, fetch_list=fetch_list)
 
                 if steps % args.skip_steps == 0:
                     if warmup_steps <= 0:
@@ -424,11 +427,7 @@ def main(args):
                         evaluate(exe, test_prog, test_pyreader,
                                  [loss.name, accuracy.name, num_seqs.name],
                                  "test")
-            except fluid.core.EOFException:
-                save_path = os.path.join(args.checkpoints, "step_" + str(steps))
-                fluid.io.save_persistables(exe, save_path, train_program)
-                train_pyreader.reset()
-                break
+             
         if args.enable_ce:
             card_num = get_cards()
             ce_cost = 0

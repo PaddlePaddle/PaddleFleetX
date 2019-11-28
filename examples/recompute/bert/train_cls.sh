@@ -34,5 +34,4 @@ python -m paddle.distributed.launch --log_dir mylog \
                    --max_seq_len 128 \
                    --bert_config_path ${bert_config_path} \
                    --learning_rate 5e-5 \
-                   --skip_steps 10 \
-                   --random_seed 1
+                   --skip_steps 10

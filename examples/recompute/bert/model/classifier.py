@@ -42,8 +42,7 @@ def create_model(args, bert_config, num_labels, is_prediction=False):
     ]
     (src_ids, pos_ids, sent_ids, input_mask, labels) = inputs
 
-    pyreader = fluid.io.PyReader(feed_list=inputs, capacity=50, iterable=False)
-
+    pyreader = fluid.io.PyReader(feed_list=inputs, capacity=50, iterable=True)
     bert = BertModel(
         src_ids=src_ids,
         position_ids=pos_ids,
