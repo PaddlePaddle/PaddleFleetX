@@ -56,9 +56,9 @@ def get_pyreader(inputs, params):
                                                       feed_list=inputs,
                                                       name='py_reader',
                                                       use_double_buffer=False)
-    #reader = fluid.layers.read_file(py_reader)
+    inputs = fluid.layers.read_file(py_reader)
     py_reader.decorate_paddle_reader(train_reader)
-    return py_reader
+    return inputs, py_reader
 
 
 def train(params):
@@ -74,7 +74,7 @@ def train(params):
 
     ctr_model = CTR()
     inputs = ctr_model.input_data(params)
-    reader = get_pyreader(inputs, params)
+    inputs, reader = get_pyreader(inputs, params)
     avg_cost, auc_var, batch_auc_var = ctr_model.net(inputs, params)
     optimizer = fluid.optimizer.Adam(params.learning_rate)
     # 配置分布式的optimizer，传入我们指定的strategy，构建program
@@ -116,7 +116,7 @@ def train(params):
                     loss_val, auc_val, batch_auc_val = exe.run(
                         program=compiled_prog,
                         fetch_list=[
-                            loss.name, auc_var.name, batch_auc_var.name
+                            avg_cost.name, auc_var.name, batch_auc_var.name
                         ])
                     loss_val = np.mean(loss_val)
                     auc_val = np.mean(auc_val)
