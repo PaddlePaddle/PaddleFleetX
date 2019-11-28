@@ -522,10 +522,11 @@ elif fleet.is_worker():
 如果暂时没有集群环境，或者想要快速调试代码，可以通过本地多进程模拟分布式来运行分布式训练的代码。
 有两种方法可以进行本地多进程模拟分布式。
 #### 方法一 运行`loc_cluster.sh`脚本
-示例代码中，给出了本地模拟分布式的一键启动脚本`loc_cluster.sh`，在代码目录，通过命令
+示例代码中，给出了本地模拟分布式的一键启动脚本`loc_cluster.sh async`，在代码目录，通过命令
 ```bash
 # 根据自己的运行环境，选择sh或bash
-sh local_cluster.sh
+# 启动命令选择异步模式async
+sh local_cluster.sh async
 ```
 便可以开启分布式模拟训练，默认启用2x2的训练模式。Trainer与Pserver的运行日志，存放于`./log/`文件夹，保存的模型位于`./model/`，使用默认配置运行后，理想输出为：
 > pserver.0.log
@@ -572,7 +573,7 @@ I1126 07:38:28.947571 14715 communicator.cc:363] Communicator stop done
 #### 方法二 通过`paddle.distributed.launch_ps`运行模拟分布式
 该方法更通用，不需要写特别的脚本即可运行，在代码目录，键入命令：
 ```bash
-python -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 distribute_train.py --is_dataset_train=True --sync_mode=async --test=True --cloud=0  &
+python -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 async_train.py --test=True --cloud=0  &
 ```
 日志位于`./logs/`，理想输出与方法一相同。
 运行该命令时：
@@ -580,6 +581,167 @@ python -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 distribute_
 2. 设置`--worker_num`与`--server_num`，以运行不同分布式配置。
 3. 运行该方法，使用的是默认配置与默认环境变量，如果需要调优，则需自行修改超参与环境变量。
 
+#
+## 分布式训练——同步模式(Sync)
+同步模式是分布式训练的一种最基本的运行模式，所有节点保持高度同步，每一个batch的全局参数的更新流程，都需要等待所有节点运行完毕才向后进行，因此，运行的效率取决与全局最慢的节点。若有一个节点发生了故障，则全局训练宣告失败。本示例也提供了PaddlePaddle基于参数服务器模式，运行同步的分布式训练的示例。
+
+### 同步模式数据读取
+
+PaddlePaddle同步模式，目前不支持使用dataset的IO方式，只支持pyreader。pyreader具体使用方法可以查阅[PyReader](https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/io_cn/PyReader_cn.html#pyreader)，示例代码中，基于pyreader方式数据读取代码位于`py_reader_generator.py`。
+
+在代码中引入Pyreader的方式如下，该部分代码位于`sync_train.py`：
+```python
+from py_reader_generator import CriteoDataset
+
+def get_pyreader(inputs, params):
+    # 请确保每一个训练节点都持有不同的训练文件
+    # 当我们用本地多进程模拟分布式时，每个进程需要拿到不同的文件
+    # 使用 fleet.split_files 可以便捷的以文件为单位分配训练样本
+    file_list = [
+        str(params.train_files_path) + "/%s" % x
+        for x in os.listdir(params.train_files_path)
+    ]
+    if not int(params.cloud):
+        file_list = fleet.split_files(file_list)
+    logger.info("file list: {}".format(file_list))
+
+    # 引入pyreader的数据读取规则
+    train_generator = CriteoDataset(params.sparse_feature_dim)
+    
+    # 利用paddle.batch方法，将pyreader的输出构建为小批量样本，同时shuffle
+    train_reader = paddle.batch(paddle.reader.shuffle(
+        train_generator.train(file_list, fleet.worker_num(),
+                              fleet.worker_index()),
+        buf_size=params.batch_size * 100),
+                                batch_size=params.batch_size)
+    
+    # 基于网络的inputs创建py_reader对象
+    py_reader = fluid.layers.create_py_reader_by_data(capacity=64,
+                                                      feed_list=inputs,
+                                                      name='py_reader',
+                                                      use_double_buffer=False)
+    # 更新inputs，建立与pyreader的联系
+    inputs = fluid.layers.read_file(py_reader)
+
+    # 使用py_reader对象装饰IO抛出的数据，灌入网络
+    py_reader.decorate_paddle_reader(train_reader)
+    return inputs, py_reader
+```
+
+### 同步训练策略配置
+同步模式的其他分布式配置
+
+- 首先是分布式训练策略的配置，引入`DistributeTranspilerConfig`后，只需要将`sync_mode`设置为True即可。
+    ```python
+    strategy = DistributeTranspilerConfig()
+    strategy.sync_mode = True
+    ```
+
+- 然后是program执行策略`ExecutionStrategy`与program构造策略`BuildStrategy`。我们设置执行时使用多线程模式，线程数与我们指定的cpu核心数相等。同时，开启多线程会默认在本地执行`Reduce`操作，确保各个线程之间的同步。
+    ```python
+    exec_strategy = fluid.ExecutionStrategy()
+    exec_strategy.num_threads = int(params.cpu_num)
+    build_strategy = fluid.BuildStrategy()
+    if int(params.cpu_num) > 1:
+        build_strategy.reduce_strategy = fluid.BuildStrategy.ReduceStrategy.Reduce
+    ```
+
+- 最后是多线程的数据并行program的配置`CompiledProgram`，我们将刚才配置的执行与构造策略传入，将`fleet.main_program`转化为一个多线程的数据并行program。
+    ```python
+    compiled_prog = fluid.compiler.CompiledProgram(
+            fleet.main_program).with_data_parallel(
+                loss_name=avg_cost.name,
+                build_strategy=build_strategy,
+                exec_strategy=exec_strategy)
+    ```
+
+### 使用pyreader进行多轮训练
+使用pyreader进行多轮训练时，有一些固有的使用方法，如示例代码所示，我们使用`try & except`捕获异常的方式得到reader读取完数据的信号，使用reset重置reader，以进行下一轮训练的数据读取。
+```python
+for epoch in range(params.epochs):
+    start_time = time.time()
+
+    reader.start()
+    batch_id = 0
+    try:
+        while True:
+            loss_val, auc_val, batch_auc_val = exe.run(
+                program=compiled_prog,
+                fetch_list=[
+                    avg_cost.name, auc_var.name, batch_auc_var.name
+                ])
+            loss_val = np.mean(loss_val)
+            auc_val = np.mean(auc_val)
+            batch_auc_val = np.mean(batch_auc_val)
+            if batch_id % 10 == 0 and batch_id != 0:
+                logger.info(
+                    "TRAIN --> pass: {} batch: {} loss: {} auc: {}, batch_auc: {}"
+                    .format(epoch, batch_id,
+                            loss_val / params.batch_size, auc_val,
+                            batch_auc_val))
+            batch_id += 1
+    except fluid.core.EOFException:
+        reader.reset()
+
+    end_time = time.time()
+    logger.info("epoch %d finished, use time=%d\n" %
+                ((epoch), end_time - start_time))
+```
+执行`exe.run()`时，我们传入的是`CompiledProgram`，同时可以通过加入fetch_list来直接获取我们想要监控的变量。
+
+### 运行：本地模拟分布式
+同步模式的运行方式与异步方式相似，同样的有两种方式。
+
+#### 方法一 运行`loc_cluster.sh`脚本
+运行`local_cluster.sh`脚本，设置启动命令为`sync`：
+```bash
+sh local_cluster.sh sync
+```
+使用该脚本开启分布式模拟训练，默认启用2x2的训练模式。Trainer与Pserver的运行日志，存放于`./log/`文件夹，保存的模型位于`./model/`。
+
+#### 方法二 通过`paddle.distributed.launch_ps`运行模拟分布式
+使用`paddle.distributed.launch_ps`运行`sync_train.py`文件：
+```bash
+python -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 sync_train.py --test=True --cloud=0  &
+```
+日志位于`./logs/`。
+运行该命令时：
+1. 首先需要注意修改python的PATH，例如将`python`修改为`/home/work/python27-gcc482/bin/python`以确保运行在您的正确的python环境下。
+2. 设置`--worker_num`与`--server_num`，以运行不同分布式配置。
+3. 运行该方法，使用的是默认配置与默认环境变量，如果需要调优，则需自行修改超参与环境变量。
+
+使用快速验证数据集，本地模拟同步模式的分布式训练的理想输出为：
+> pserver.0.log
+```bash
+INFO:fluid:file list: ['train_data/part-1']
+WARNING:root:paddle.fluid.layers.create_py_reader_by_data() may be deprecated in the near future. Please use paddle.fluid.io.DataLoader.from_generator() instead.
+get_pserver_program() is deprecated, call get_pserver_programs() to get pserver main and startup in a single call.
+I1128 11:34:50.242866   459 grpc_server.cc:477] Server listening on 127.0.0.1:36011 successful, selected port: 36011
+```
+
+> trainer.0.log
+```bash
+INFO:fluid:file list: ['train_data/part-1']
+WARNING:root:paddle.fluid.layers.create_py_reader_by_data() may be deprecated in the near future. Please use paddle.fluid.io.DataLoader.from_generator() instead.
+server not ready, wait 3 sec to retry...
+not ready endpoints:['127.0.0.1:36012']
+I1128 11:34:53.424834 32649 rpc_client.h:107] init rpc client with trainer_id 0
+I1128 11:34:53.526729 32649 parallel_executor.cc:423] The Program will be executed on CPU using ParallelExecutor, 2 cards are used, so 2 programs are executed in parallel.
+I1128 11:34:53.537334 32649 parallel_executor.cc:287] Inplace strategy is enabled, when build_strategy.enable_inplace = True
+I1128 11:34:53.541473 32649 parallel_executor.cc:370] Garbage collection strategy is enabled, when FLAGS_eager_delete_tensor_gb = 0
+INFO:fluid:TRAIN --> pass: 0 batch: 10 loss: 0.588123535156 auc: 0.497622251208, batch_auc: 0.496669348982
+INFO:fluid:TRAIN --> pass: 0 batch: 20 loss: 0.601480102539 auc: 0.501770208439, batch_auc: 0.520060819177
+INFO:fluid:TRAIN --> pass: 0 batch: 30 loss: 0.581234985352 auc: 0.513533941098, batch_auc: 0.552742309157
+INFO:fluid:TRAIN --> pass: 0 batch: 40 loss: 0.551335083008 auc: 0.523242733864, batch_auc: 0.586762885637
+INFO:fluid:TRAIN --> pass: 0 batch: 50 loss: 0.532891052246 auc: 0.538684471661, batch_auc: 0.617389479234
+INFO:fluid:TRAIN --> pass: 0 batch: 60 loss: 0.564157531738 auc: 0.552346798675, batch_auc: 0.628245358534
+INFO:fluid:TRAIN --> pass: 0 batch: 70 loss: 0.547578674316 auc: 0.565243961316, batch_auc: 0.651260427476
+INFO:fluid:TRAIN --> pass: 0 batch: 80 loss: 0.554214599609 auc: 0.57554000345, batch_auc: 0.648544028986
+INFO:fluid:TRAIN --> pass: 0 batch: 90 loss: 0.549561889648 auc: 0.585579565556, batch_auc: 0.660180398731
+INFO:fluid:epoch 0 finished, use time=40
+
+INFO:fluid:Distribute Train Success!
+```
 #
 ## 分布式训练——模型保存及增量训练
 ### 单机训练中模型的保存
@@ -650,7 +812,7 @@ with fluid.framework.program_guard(test_program, startup_program):
 
 ### 测试数据的读取
 
-测试数据的读取我们使用`pyreader`方法，具体使用方法可以查阅[PyReader](https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/io_cn/PyReader_cn.html#pyreader)
+测试数据的读取我们使用同步模式中使用过的`pyreader`方法。
 
 ### AUC的清零步骤
 在训练过程中，为了获得全局auc，我们将auc保存为模型参数，参与长期更新，并在保存模型的过程中被一并保存了下来。在预测时，paddle为了计算预测的全局auc，使用相同的规则创建了同名的auc参数。而我们又在加载模型参数的时候，将训练中的auc加载了进来，如果不在预测前将该值清零，会影响我们的预测值的计算。

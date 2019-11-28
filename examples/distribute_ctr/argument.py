@@ -67,8 +67,6 @@ def params_args(args=None):
     params.add_argument('--dense_feature_dim', type=int, default=13)
 
     # parameters of train method
-    params.add_argument("--is_pyreader_train", type=bool, default=False)
-    params.add_argument("--is_dataset_train", type=bool, default=False)
     params.add_argument("--test",
                         type=bool,
                         default=False,
@@ -80,10 +78,6 @@ def params_args(args=None):
 
     # parameters of distribute
     params.add_argument("--is_sparse", type=bool, default=True)
-    params.add_argument("--sync_mode",
-                        type=str,
-                        required=False,
-                        choices=['sync', 'half_async', 'async'])
     params.add_argument("--cpu_num", type=int, default=2)
 
     params = params.parse_args()

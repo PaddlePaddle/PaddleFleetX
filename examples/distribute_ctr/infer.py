@@ -30,12 +30,12 @@ logger.setLevel(logging.INFO)
 
 def run_infer(params, model_path):
     place = fluid.CPUPlace()
-    dataset = py_reader.CriteoDataset(params.sparse_feature_dim)
+    train_generator = py_reader.CriteoDataset(params.sparse_feature_dim)
     file_list = [
         str(params.test_files_path) + "/%s" % x
         for x in os.listdir(params.test_files_path)
     ]
-    test_reader = paddle.batch(dataset.test(file_list),
+    test_reader = paddle.batch(train_generator.test(file_list),
                                batch_size=params.batch_size)
     startup_program = fluid.framework.Program()
     test_program = fluid.framework.Program()
