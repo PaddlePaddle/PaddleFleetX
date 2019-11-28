@@ -53,9 +53,11 @@ sh train_cls.sh $PRETRAINED_CKPT_PATH $bert_config_path $vocab_path $DATA_PATH
 ```
 ## Results
 
+Training context: 4 V100 GPU Cards
+
 Baseline: 
 
-- Max batch size
+- Max batch size +275%
 
 |Baseline|Recompute|
 |:---:|:---:|
@@ -65,10 +67,10 @@ Baseline:
 
 - Final test accuracy
 
-- Training speed
+- Training speed -22.5%
 
 |Baseline|Recompute|
 |:---:|:---:|
-|||
+|1.094 steps/s|0.848 steps/s|
 
 # Quich start: Pretraining
