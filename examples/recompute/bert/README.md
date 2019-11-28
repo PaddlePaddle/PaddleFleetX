@@ -51,4 +51,24 @@ bert_config_path=uncased_L-24_H-1024_A-16/bert_config.json
 vocab_path=uncased_L-24_H-1024_A-16/vocab.txt
 sh train_cls.sh $PRETRAINED_CKPT_PATH $bert_config_path $vocab_path $DATA_PATH
 ```
+## Results
+
+Baseline: 
+
+- Max batch size
+
+|Baseline|Recompute|
+|:---:|:---:|
+|12000|45000|
+
+- Loss curve:
+
+- Final test accuracy
+
+- Training speed
+
+|Baseline|Recompute|
+|:---:|:---:|
+|||
+
 # Quich start: Pretraining
