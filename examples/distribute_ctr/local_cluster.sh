@@ -59,3 +59,5 @@ do
     PADDLE_TRAINER_ID=$i
     python -u ${train_mode}_train.py --test=True --cloud=0 &> ./log/trainer.$i.log &
 done
+
+echo "Training log stored in ./log/"
