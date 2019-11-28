@@ -52,13 +52,11 @@ def get_pyreader(inputs, params):
         buf_size=params.batch_size * 100),
                                 batch_size=params.batch_size)
 
-    py_reader = fluid.layers.io.DataLoader.from_generator(
-        capacity=64,
-        feed_list=inputs,
-        name='py_reader',
-        use_double_buffer=False)
+    py_reader = fluid.layers.create_py_reader_by_data(capacity=64,
+                                                      feed_list=inputs,
+                                                      name='py_reader',
+                                                      use_double_buffer=False)
     inputs = fluid.layers.read_file(py_reader)
-    paddle.fluid.io.DataLoader.from_generator()
     py_reader.decorate_paddle_reader(train_reader)
     return inputs, py_reader
 
