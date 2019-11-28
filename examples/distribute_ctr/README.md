@@ -2,10 +2,24 @@
 `CTR(Click Through Rate)`，即点击率，是“推荐系统/计算广告”等领域的重要指标，对其进行预估是商品推送/广告投放等决策的基础。简单来说，CTR预估对每次广告的点击情况做出预测，预测用户是点击还是不点击。CTR预估模型综合考虑各种因素、特征，在大量历史数据上训练，最终对商业决策提供帮助。
 
 跟随这篇文档，将从零开始，一步步教您如何利用PaddlePaddle Fluid高效且易用的Api，搭建单机ctr-dnn深度学习模型，并利用高阶分布式Api-Fleet将其升级为可以在CPU集群中运行的`参数服务器`模式分布式深度学习模型。在学习本篇文档后，您可以入门Paddle组网，Paddle分布式模型的搭建，了解CPU多线程全异步模式的启用方法。
-
+#
+## 目录
+1. [运行环境检查](##运行环境检查)  
+2. [代码地址](##代码地址)  
+3. [数据准备](##数据准备)  
+4. [模型组网](##模型组网)  
+5. [dataset数据读取](##dataset数据读取)  
+6. [单机训练](##单机训练)  
+7. [分布式训练——异步模式(Async)](##分布式训练——异步模式(Async))
+8. [分布式训练——同步模式(Sync)](##分布式训练——同步模式(Sync))
+9. [分布式训练——模型保存及增量训练](##分布式训练——模型保存及增量训练)
+10. [预测——离线单机预测](##预测——离线单机预测)
+11. [benchmark](##benchmark)
+#
 ## 运行环境检查
 
 - 请确保您的运行环境基于Linux，示例代码支持`unbuntu`及`CentOS`
+- 运行环境中python版本高于`2.7`
 - 请确保您的paddle版本高于`1.6.1`，可以利用pip升级您的paddle版本
 - 请确保您的本地模拟分布式运行环境中没有设置`http/https`代理，可以在终端键入`env`查看环境变量
 
@@ -23,7 +37,8 @@
       ├── argument.py               # 超参数及环境变量配置
       ├── network.py                # CTR网络结构
       ├── local_train.py            # 单机训练示例代码
-      ├── distribute_train.py       # 分布式训练示例代码
+      ├── async_train.py            # 异步模式分布式训练示例代码
+      ├── sync_train.py             # 同步模式分布式训练示例代码
       ├── infer.py                  # 模型测试示例代码
       ├── dataset_generator.sh      # dataset数据读取示例代码
       ├── py_reader_generator.py    # pyreader数据读取示例代码
@@ -126,7 +141,7 @@ sparse_embed_seq = list(map(embedding_layer, inputs[1:-1])) # [C1~C26]
 ```
 
 #### FC层
-将离散数据通过embedding查表得到的值，与连续数据的输入进行`cancat`操作，合为一个整体输入，作为全链接层的原始输入。我们共设计了3层FC，每层FC的输出维度都为400，每层FC都后接一个`relu`激活函数，每层FC的初始化方式为符合正态分布的随机初始化，标准差与上一层的输出维度的平方根成反比。
+将离散数据通过embedding查表得到的值，与连续数据的输入进行`concat`操作，合为一个整体输入，作为全链接层的原始输入。我们共设计了3层FC，每层FC的输出维度都为400，每层FC都后接一个`relu`激活函数，每层FC的初始化方式为符合正态分布的随机初始化，标准差与上一层的输出维度的平方根成反比。
 ```python
 concated = fluid.layers.concat(sparse_embed_seq + inputs[0:1], axis=1)
         
@@ -179,7 +194,7 @@ auc_var, batch_auc_var, auc_states = fluid.layers.auc(
 完成上述组网后，我们最终可以通过训练拿到`avg_cost`与`auc`两个重要指标。
 
 #
-## 数据读取
+## dataset数据读取
 为了能高速运行CTR模型的训练，我们使用`dataset`API进行高性能的IO，dataset是为多线程及全异步方式量身打造的数据读取方式，每个数据读取线程会与一个训练线程耦合，形成了多生产者-多消费者的模式，会极大的加速我们的模型训练。
 
 如何在我们的训练中引入dataset读取方式呢？无需变更数据格式，只需在我们的训练代码中加入以下内容，便可达到媲美二进制读取的高效率，以下是一个比较完整的流程：
@@ -389,8 +404,8 @@ Epoch 0 auc     auc_0.tmp_0             lod: {}
 ```
 
 #
-## 分布式训练——异步模式（Async）
-PaddlePaddle在release/1.5.0之后新增了高级分布式API-`Fleet`，只需数行代码便可将单机模型转换为分布式模型。分布式训练代码见`distribute_train.py`，我们通过与单机训练的代码对比，来说明基于fleet将单机训练转换为分布式训练需要哪些步骤。
+## 分布式训练——异步模式(Async)
+PaddlePaddle在release/1.5.0之后新增了高级分布式API-`Fleet`，只需数行代码便可将单机模型转换为分布式模型。异步模式分布式训练代码见`async_train.py`，我们通过与单机训练的代码对比，来说明基于fleet将单机训练转换为分布式训练需要哪些步骤。
 
 ### 区别一：数据需要分配到各个节点上
 单机训练中，我们没有对数据做过多的区分。但在分布式训练中，我们要确保每个节点都能拿到数据，并且希望每个节点的数据同时满足：1、各个节点数据无重复。2、各个节点数据均匀。Fleet提供了`split_files()`的接口，输入值是一个稳定的目录List，随后该函数会根据节点自身的编号拿到相应的数据文件列表。示例代码中，我们假设您在集群进行分布式训练，且设置`params.cloud=True`时，已经将文件分到了各个节点上。所以仅需要进行本地模拟分布式时，使用该接口，给各个进程分配不同的数据文件。
@@ -476,8 +491,6 @@ if fleet.is_server():
     fleet.run_server()
 ```
 > 启动Trainer
-
-
 启动训练节点，训练节点首先调用`init_worker()`来完成节点初始化，然后执行`fleet.startup_program`，从服务器端同步参数的初始化值。接着，和本地训练完全一致，通过执行`fleet.main_program`来完成整个训练过程，并保存模型。最后调用`fleet.stop_worker()`关闭训练节点。
 ```python
 elif fleet.is_worker():
@@ -629,7 +642,7 @@ def get_pyreader(inputs, params):
 ```
 
 ### 同步训练策略配置
-同步模式的其他分布式配置
+同步模式的其他分布式启动方法与异步模式一致，不再赘述。下面介绍同步模式与异步模式有区别的地方。
 
 - 首先是分布式训练策略的配置，引入`DistributeTranspilerConfig`后，只需要将`sync_mode`设置为True即可。
     ```python
@@ -801,10 +814,10 @@ with fluid.framework.program_guard(test_program, startup_program):
 ```
 在进行上述流程时，有一些需要关注的细节：
 - 传入的program既不是`default_main_program()`，也不是`fleet.main_program`，而是新建的空的program:
-   > startup_program = fluid.framework.Program()
-
-   > test_program = fluid.framework.Program()
-   
+    ```python
+    startup_program = fluid.framework.Program()
+    test_program = fluid.framework.Program()
+   ```
    这是容易理解的，因为在测试时，我们要从零开始，保证预测program的干净，没有其他的影响因素。
 -  在创建预测网络时，我们加入了`with fluid.unique_name.guard():`，它的作用是让所有新建的参数的自动编号再次从零开始。Paddle的参数`Variable`以变量名作为区分手段，保证变量名相同，就可以从保存的模型中找到对应参数。
   
@@ -850,8 +863,8 @@ open file success
 因为快速验证的训练数据与测试数据极少，同时只训练了一轮，所以远远没有达到收敛，且初始化带有随机性，在您的环境下出现测试结果与示例输出不一致是正常情况。
 
 同时，我们对CTR-DNN模型进行了benchmark的测试。
-
-## benchmark效果
+#
+## benchmark
 在benchmark中，我们对比了tensorflow和paddlepaddle现有的几种分布式模式在CTR-DNN模型上的效果和速度，其中参与对比的paddle分布式模式有同步、pyreader全异步、dataset全异步，这里pyreader和dataset是paddle支持的两种不同的并行数据读取器，本示例中用到的reader为dataset，pyreader的使用方法可以参考[pyreader使用文档](https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/io_cn/PyReader_cn.html#pyreader)。
 
 benchmark效果：
