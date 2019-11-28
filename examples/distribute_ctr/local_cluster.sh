@@ -38,13 +38,15 @@ export GLOG_v=0
 export GLOG_logtostderr=1
 ps -ef|grep python|awk '{print $2}'|xargs kill -9
 
+train_mode=$1
+
 for((i=0;i<$PADDLE_PSERVER_NUMS;i++))
 do
     cur_port=${PADDLE_PSERVER_PORT_ARRAY[$i]}
     echo "PADDLE WILL START PSERVER "$cur_port
     export PADDLE_PORT=${cur_port}
     export POD_IP=127.0.0.1
-    python -u distribute_train.py --is_dataset_train=True --sync_mode=async --cloud=0 &> ./log/pserver.$i.log &
+    python -u ${train_mode}_train.py --is_dataset_train=True --sync_mode=async --cloud=0 &> ./log/pserver.$i.log &
 done
 
 export TRAINING_ROLE=TRAINER
@@ -55,5 +57,5 @@ for((i=0;i<$PADDLE_TRAINERS;i++))
 do
     echo "PADDLE WILL START Trainer "$i
     PADDLE_TRAINER_ID=$i
-    python -u distribute_train.py --is_dataset_train=True --sync_mode=async --cloud=0 &> ./log/trainer.$i.log &
+    python -u ${train_mode}_train.py --is_dataset_train=True --sync_mode=async --cloud=0 &> ./log/trainer.$i.log &
 done

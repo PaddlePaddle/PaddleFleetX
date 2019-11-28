@@ -19,12 +19,7 @@ categorial_features = range(14, 40)
 continous_clip = [20, 600, 100, 50, 64000, 500, 100, 50, 500, 10, 10, 10, 50]
 
 
-class Dataset:
-    def __init__(self):
-        pass
-
-
-class CriteoDataset(Dataset):
+class CriteoDataset(object):
     def __init__(self, sparse_feature_dim):
         self.cont_min_ = [0, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         self.cont_max_ = [
@@ -43,7 +38,6 @@ class CriteoDataset(Dataset):
         def reader():
             for file in file_list:
                 with open(file, 'r') as f:
-                    print("open file success")
                     line_idx = 0
                     for line in f:
                         line_idx += 1
@@ -54,9 +48,10 @@ class CriteoDataset(Dataset):
                             if features[idx] == '':
                                 dense_feature.append(0.0)
                             else:
-                                dense_feature.append((float(features[idx]) -
-                                                      self.cont_min_[idx - 1]) /
-                                                     self.cont_diff_[idx - 1])
+                                dense_feature.append(
+                                    (float(features[idx]) -
+                                     self.cont_min_[idx - 1]) /
+                                    self.cont_diff_[idx - 1])
                         for idx in self.categorical_range_:
                             sparse_feature.append([
                                 hash(str(idx) + features[idx]) % self.hash_dim_
@@ -71,7 +66,4 @@ class CriteoDataset(Dataset):
         return self._reader_creator(file_list, True, trainer_num, trainer_id)
 
     def test(self, file_list):
-        return self._reader_creator(file_list, False, 1, 0)
-
-    def infer(self, file_list):
         return self._reader_creator(file_list, False, 1, 0)
