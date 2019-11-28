@@ -56,9 +56,9 @@ def get_pyreader(inputs, params):
                                                       feed_list=inputs,
                                                       name='py_reader',
                                                       use_double_buffer=False)
-    reader = fluid.layers.read_file(py_reader)
-    reader.decorate_paddle_reader(train_reader)
-    return reader
+    #reader = fluid.layers.read_file(py_reader)
+    py_reader.decorate_paddle_reader(train_reader)
+    return py_reader
 
 
 def train(params):
