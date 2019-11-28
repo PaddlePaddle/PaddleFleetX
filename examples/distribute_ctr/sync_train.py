@@ -19,6 +19,7 @@ import os
 import time
 import numpy as np
 import logging
+import paddle
 import paddle.fluid as fluid
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
@@ -46,7 +47,8 @@ def get_pyreader(inputs, params):
 
     train_generator = CriteoDataset(params.sparse_feature_dim)
     train_reader = paddle.batch(paddle.reader.shuffle(
-        train_generator.train(file_list, params.trainers, params.current_id),
+        train_generator.train(file_list, fleet.worker_num(),
+                              fleet.worker_index()),
         buf_size=params.batch_size * 100),
                                 batch_size=params.batch_size)
 
