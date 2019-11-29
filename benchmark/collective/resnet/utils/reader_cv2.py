@@ -46,6 +46,7 @@ def _reader_creator(settings,
                     trainer_count = int(os.getenv("PADDLE_TRAINERS", "1"))
 
                 per_node_lines = len(full_lines) // trainer_count
+                #per_node_lines = 32
                 lines = full_lines[trainer_id * per_node_lines:(trainer_id + 1)
                                    * per_node_lines]
                 print("trainerid, trainer_count", trainer_id, trainer_count)
@@ -87,7 +88,7 @@ def _reader_creator(settings,
 def train(settings,
           data_dir=DATA_DIR,
           pass_id_as_seed=0,
-          threads=4,
+          threads=8,
           buf_size=4000):
     file_list = os.path.join(data_dir, 'train.txt')
     reader =  _reader_creator(

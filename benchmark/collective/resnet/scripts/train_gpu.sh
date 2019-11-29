@@ -3,12 +3,10 @@
 export FLAGS_sync_nccl_allreduce=1
 export FLAGS_cudnn_exhaustive_search=1
 export FLAGS_conv_workspace_size_limit=7000 #MB
-<<<<<<< HEAD
-=======
 export FLAGS_cudnn_batchnorm_spatial_persistent=1
->>>>>>> a744b624aefef0976b2bc8161745ae5ebd5a882a
 
 export GLOG_v=1
+export GLOG_vmodule=activation_op=10
 export GLOG_logtostderr=1
 export FLAGS_eager_delete_tensor_gb=0
 export NCCL_DEBUG=INFO
@@ -21,7 +19,7 @@ MODEL=ResNet50 #VGG16
 MODEL_SAVE_PATH="output/"
 
 # training params
-NUM_EPOCHS=90
+NUM_EPOCHS=1
 BATCH_SIZE=128
 LR=0.1
 LR_STRATEGY=piecewise_decay
@@ -50,7 +48,6 @@ START_EPOCHS=4 # start dgc after 4 epochs
 # add 1 in let, let will not return 1 when set START_EPOCHS=0
 let '_tmp_ans=((TOTAL_IMAGES+BATCH_SIZE*ALL_CARDS-1)/(BATCH_SIZE*ALL_CARDS))*START_EPOCHS' 1
 DGC_RAMPUP_BEGIN_STEP=${_tmp_ans}
->>>>>>> a744b624aefef0976b2bc8161745ae5ebd5a882a
 
 if [[ ${FUSE} == "True" ]]; then
     export FLAGS_fuse_parameter_memory_size=16 #MB
@@ -63,7 +60,7 @@ fi
 
 set -x
 
-python3 -m paddle.distributed.launch ${distributed_args} \
+python -m paddle.distributed.launch ${distributed_args} --log_dir log \
        ./train_with_fleet.py \
        --model=${MODEL} \
        --batch_size=${BATCH_SIZE} \
@@ -81,6 +78,7 @@ python3 -m paddle.distributed.launch ${distributed_args} \
        --scale_loss=1.0 \
        --fuse=${FUSE} \
        --profile=False \
+       --print_program_desc=True \
        --num_threads=${NUM_THREADS} \
        --nccl_comm_num=${NCCL_COMM_NUM} \
        --use_hierarchical_allreduce=${USE_HIERARCHICAL_ALLREDUCE} \

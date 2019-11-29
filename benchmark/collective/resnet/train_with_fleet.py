@@ -38,6 +38,7 @@ from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 from paddle.fluid import compiler
 import paddle.fluid.profiler as profiler
+from paddle.fluid.transpiler.details import program_to_code
 
 num_trainers = int(os.environ.get('PADDLE_TRAINERS_NUM', 1))
 trainer_id = int(os.environ.get('PADDLE_TRAINER_ID'))
@@ -76,6 +77,7 @@ add_arg('use_mixup',      bool,      False,        "Whether to use mixup or not"
 add_arg('mixup_alpha',      float,     0.2,      "Set the mixup_alpha parameter")
 add_arg('is_distill',       bool,  False,        "is distill or not")
 add_arg('profile',             bool,  False,                "Enable profiler or not." )
+add_arg('print_program_desc',             bool,  False,                "Enable print program desc or not." )
 add_arg('fetch_steps',      int,  10,                "Enable profiler or not." )
 
 add_arg('use_gpu',          bool,  True,                 "Whether to use GPU or not.")
@@ -357,6 +359,7 @@ def train(args):
     dist_strategy = DistributedStrategy()
     dist_strategy.exec_strategy = exec_strategy
     dist_strategy.enable_inplace = args.with_inplace
+    dist_strategy.fuse_all_optimizer_ops = True
     if not args.fuse:
         dist_strategy.fuse_all_reduce_ops = False
     dist_strategy.nccl_comm_num = args.nccl_comm_num
@@ -370,6 +373,10 @@ def train(args):
                      startup_prog=startup_prog,
                      args=args,
                      dist_strategy=dist_strategy)
+
+    if args.print_program_desc:
+        program_to_code(train_prog, skip_op_callstack=False)
+
     if use_mixup:
         train_py_reader, train_cost, global_lr = b_out[0], b_out[1], b_out[2]
         train_fetch_vars = [train_cost, global_lr]
@@ -501,6 +508,7 @@ def train(args):
         except fluid.core.EOFException:
             train_py_reader.reset()
 
+        """
         train_loss = np.array(train_info[0]).mean()
         if not use_mixup:
             train_acc1 = np.array(train_info[1]).mean()
@@ -564,6 +572,7 @@ def train(args):
                     pass_id, "%.5f"%train_loss, "%.5f"%train_acc1, "%.5f"%train_acc5, "%.2f" % train_speed))
 
         sys.stdout.flush()
+        """
 
 
 def print_paddle_environments():
