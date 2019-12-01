@@ -79,3 +79,14 @@ def check_gpu(use_gpu):
     except Exception as e:
         pass
 
+def get_median(data):
+    data = sorted(data)
+    size = len(data)
+    if size == 2:
+        median = data[size-1]
+    elif size % 2 == 0:
+        median = (data[size//2]+data[size//2-1])/2
+    elif size % 2 == 1:
+        median = data[(size-1)//2]
+    return median
+

@@ -1,18 +1,4 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*
-# Copyright (c) 2019 PaddlePaddle Authors. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 import os
 import random
 import re
@@ -20,7 +6,6 @@ import six
 import argparse
 import io
 import math
-
 prog = re.compile("[^a-z ]", flags=0)
 
 
@@ -45,6 +30,12 @@ def parse_args():
         help="If the word count is less then min_count, it will be removed from dict"
     )
     parser.add_argument(
+        '--file_nums',
+        type=int,
+        default=1024,
+        help="re-split input corpus file nums"
+    )
+    parser.add_argument(
         '--downsample',
         type=float,
         default=0.001,
@@ -59,11 +50,16 @@ def parse_args():
         action='store_true',
         default=False,
         help='Build dict from corpus')
+    parser.add_argument(
+        '--data_resplit',
+        action='store_true',
+        default=False,
+        help='re-split input corpus files')
     return parser.parse_args()
 
 
 def text_strip(text):
-    # English Preprocess Rule
+    #English Preprocess Rule
     return prog.sub("", text.lower())
 
 
@@ -105,7 +101,7 @@ def filter_corpus(args):
     word_all_count = 0
     id_counts = []
     word_id = 0
-    # read dict
+    #read dict
     with io.open(args.dict_path, 'r', encoding='utf-8') as f:
         for line in f:
             word, count = line.split()[0], int(line.split()[1])
@@ -115,56 +111,45 @@ def filter_corpus(args):
             id_counts.append(count)
             word_all_count += count
 
-    # write word2id file
+    #write word2id file
     print("write word2id file to : " + args.dict_path + "_word_to_id_")
     with io.open(
             args.dict_path + "_word_to_id_", 'w+', encoding='utf-8') as fid:
         for k, v in word_to_id_.items():
             fid.write(k + " " + str(v) + '\n')
-
-    # filter corpus and convert id
+    #filter corpus and convert id
     if not os.path.exists(args.output_corpus_dir):
         os.makedirs(args.output_corpus_dir)
     for file in os.listdir(args.input_corpus_dir):
-        with io.open(args.input_corpus_dir + '/' + file, encoding='utf-8') as rf:
-            print(args.input_corpus_dir + '/' + file)
-            for line in rf:
-                signal = False
-                line = text_strip(line)
-                words = line.split()
-                words_num = len(words)
-                file_part = 50
-                word_length = int(words_num / file_part)
-                remain_word = words_num % file_part
-                if file_part > words_num:
-                    raise ValueError("file_part should be <= words_num : "
-                                     "%s > %s" % (file_part, words_num))
-                start_index = 0
-                end_index = 0
-                for i in range(file_part):
-                    length = word_length + (i < remain_word)
-                    start_index = end_index
-                    end_index += length
-                    with io.open(args.output_corpus_dir + '/convert_' + file + '_' + str(i), "w") as wf:
-                        for item in words[start_index:end_index]:
-                            if item in word_count:
-                                idx = word_to_id_[item]
-                            else:
-                                idx = word_to_id_[native_to_unicode('<UNK>')]
-                            count_w = id_counts[idx]
-                            corpus_size = word_all_count
-                            keep_prob = (
-                                                math.sqrt(count_w /
-                                                          (args.downsample * corpus_size)) + 1
-                                        ) * (args.downsample * corpus_size) / count_w
-                            r_value = random.random()
-                            if r_value > keep_prob:
-                                continue
-                            wf.write(_to_unicode(str(idx) + " "))
-                            signal = True
-                        if signal:
-                            wf.write(_to_unicode("\n"))
-                    print("NO.%s file write success"%i)
+        with io.open(args.output_corpus_dir + '/convert_' + file + '.csv', "w") as wf:
+            with io.open(
+                    args.input_corpus_dir + '/' + file, encoding='utf-8') as rf:
+                print(args.input_corpus_dir + '/' + file)
+                for line in rf:
+                    signal = False
+                    line = text_strip(line)
+                    words = line.split()
+                    write_line = ""
+                    for item in words:
+                        if item in word_count:
+                            idx = word_to_id_[item]
+                        else:
+                            idx = word_to_id_[native_to_unicode('<UNK>')]
+                        count_w = id_counts[idx]
+                        corpus_size = word_all_count
+                        keep_prob = (
+                            math.sqrt(count_w /
+                                      (args.downsample * corpus_size)) + 1
+                        ) * (args.downsample * corpus_size) / count_w
+                        r_value = random.random()
+                        if r_value > keep_prob:
+                            continue
+                        write_line += str(idx)
+                        write_line += " "
+                        signal = True
+                    if signal:
+                        write_line = write_line[:-1] + "\n"
+                        wf.write(_to_unicode(write_line))
 
 
 def build_dict(args):
@@ -201,7 +186,7 @@ def build_dict(args):
     for item in item_to_remove:
         unk_sum += word_count[item]
         del word_count[item]
-    # sort by count
+    #sort by count
     word_count[native_to_unicode('<UNK>')] = unk_sum
     word_count = sorted(
         word_count.items(), key=lambda word_count: -word_count[1])
@@ -211,13 +196,38 @@ def build_dict(args):
             f.write(k + " " + str(v) + '\n')
 
 
+def data_split(args):
+    raw_data_dir = args.input_corpus_dir
+    new_data_dir = args.output_corpus_dir
+    if not os.path.exists(new_data_dir):
+        os.mkdir(new_data_dir)
+    files = os.listdir(raw_data_dir)
+    print(files)
+    index = 0
+    contents = []
+    for file_ in files:
+        with open(os.path.join(raw_data_dir, file_), 'r') as f:
+            contents.extend(f.readlines())
+    
+    num = int(args.file_nums)
+    lines_per_file = len(contents) / num
+    print("contents: ", str(len(contents)))
+    print("lines_per_file: ", str(lines_per_file))
+    
+    for i in range(1, num+1):
+        with open(os.path.join(new_data_dir, "part_" + str(i)), 'w') as fout:
+            data = contents[(i-1)*lines_per_file:min(i*lines_per_file,len(contents))]
+            for line in data:
+               fout.write(line)
+
 if __name__ == "__main__":
     args = parse_args()
     if args.build_dict:
         build_dict(args)
     elif args.filter_corpus:
         filter_corpus(args)
+    elif args.data_resplit:
+        data_split(args)
     else:
         print(
             "error command line, please choose --build_dict or --filter_corpus")
-

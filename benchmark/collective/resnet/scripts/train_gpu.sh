@@ -6,7 +6,7 @@ export FLAGS_conv_workspace_size_limit=7000 #MB
 export FLAGS_cudnn_batchnorm_spatial_persistent=1
 
 export GLOG_v=1
-export GLOG_vmodule=activation_op=10
+#export GLOG_vmodule=activation_op=10
 export GLOG_logtostderr=1
 export FLAGS_eager_delete_tensor_gb=0
 export NCCL_DEBUG=INFO

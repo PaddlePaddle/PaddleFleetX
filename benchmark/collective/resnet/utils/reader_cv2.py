@@ -88,7 +88,7 @@ def _reader_creator(settings,
 def train(settings,
           data_dir=DATA_DIR,
           pass_id_as_seed=0,
-          threads=8,
+          threads=10,
           buf_size=4000):
     file_list = os.path.join(data_dir, 'train.txt')
     reader =  _reader_creator(

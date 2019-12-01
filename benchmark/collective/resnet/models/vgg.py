@@ -39,7 +39,7 @@ class VGGNet():
         self.params = train_parameters
         self.layers = layers
 
-    def net(self, input, class_dim=1000):
+    def net(self, input, args, class_dim=1000):
         layers = self.layers
         vgg_spec = {
             11: ([1, 1, 2, 2, 2]),
