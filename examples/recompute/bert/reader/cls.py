@@ -37,7 +37,7 @@ class DataProcessor(object):
         self.vocab = self.tokenizer.vocab
         self.in_tokens = in_tokens
          
-        if random_seed != 0:
+        if random_seed != None and random_seed != 0:
             print("Setting random seed as: ", random_seed)
             np.random.seed(random_seed)
 
@@ -153,20 +153,20 @@ class DataProcessor(object):
         def instance_reader():
             for epoch_index in range(epoch):
                 if shuffle:
-                    if shuffle_seed is not None:
+                    if shuffle_seed is not None and shuffle_seed != 0:
                         print("set shuffle seed")
                         np.random.seed(shuffle_seed)
                     np.random.shuffle(examples)
                 if phase == 'train':
                     self.current_train_epoch = epoch_index
                 for (index, example) in enumerate(examples):
-                    #if index % dev_count == dev_idx: 
+                    #if index % dev_count == dev_idx:
                     if phase == 'train':
                         self.current_train_example = index + 1
                     feature = self.convert_example(
                         index, example,
                         self.get_labels(), self.max_seq_len, self.tokenizer)
-
+                    
                     instance = self.generate_instance(feature)
                     yield instance
 

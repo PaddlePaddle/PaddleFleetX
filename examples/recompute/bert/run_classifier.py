@@ -84,6 +84,7 @@ data_g.add_arg("in_tokens",     bool, False,
 data_g.add_arg("do_lower_case", bool, True,
                "Whether to lower case the input text. Should be True for uncased models and False for cased models.")
 data_g.add_arg("random_seed",   int,  0,     "Random seed.")
+data_g.add_arg("shuffle_seed",   int,  123,     "Shuffle seed.")
 
 run_type_g = ArgumentGroup(parser, "run_type", "running type options.")
 run_type_g.add_arg("use_cuda",                     bool,   True,  "If set, use GPU for training.")
@@ -190,8 +191,8 @@ def main(args):
 
     if args.do_train:
         dev_count = len(worker_endpoints)
-        shuffle_seed = None 
-        print("shuffle_seed: ", shuffle_seed)
+        # we need to keep every trainer of fleet the same shuffle_seed
+        print("shuffle_seed: ", args.shuffle_seed)
         train_data_generator = processor.data_generator(
             batch_size=args.batch_size,
             phase='train',
@@ -199,7 +200,7 @@ def main(args):
             dev_count=dev_count,
             dev_idx=trainer_id,
             shuffle=args.shuffle,
-            shuffle_seed=shuffle_seed)
+            shuffle_seed=args.shuffle_seed)
 
         num_train_examples = processor.get_num_examples(phase='train')
 

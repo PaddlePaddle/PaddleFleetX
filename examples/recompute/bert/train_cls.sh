@@ -14,7 +14,7 @@ bert_config_path=$2
 vocab_path=$3
 DATA_PATH=$4
 
-python -m paddle.distributed.launch --log_dir mylog \
+python -m paddle.distributed.launch --log_dir mylog_recom/times_0 \
            run_classifier.py --task_name ${TASK_NAME} \
                    --use_cuda true \
                    --do_train true \
@@ -35,3 +35,4 @@ python -m paddle.distributed.launch --log_dir mylog \
                    --bert_config_path ${bert_config_path} \
                    --learning_rate 5e-5 \
                    --skip_steps 10
+
