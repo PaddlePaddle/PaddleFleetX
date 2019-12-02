@@ -43,7 +43,8 @@ optimizer = fluid.optimizer.SGD(learning_rate=0.01)
 optimizer.minimize(cost, fluid.default_startup_program())
 
 train_prog = fluid.default_main_program()
-place = fluid.CUDAPlace(0)
+gpu_id = int(os.environ.get('FLAGS_selected_gpus', 0))
+place = fluid.CUDAPlace(gpu_id) if args.use_gpu else fluid.CPUPlace()
 
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
