@@ -63,8 +63,6 @@ Baseline:
 |:---:|:---:|
 |12000|45000|
 
-- Loss curve:
-
 - Final test accuracy
 
 |Baseline|Recompute|
