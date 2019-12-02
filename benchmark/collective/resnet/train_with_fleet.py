@@ -62,6 +62,7 @@ add_arg('lr_strategy',      str,   "piecewise_decay",    "Set the learning rate 
 add_arg('model',            str,   "SE_ResNeXt50_32x4d", "Set the network to use.")
 add_arg('data_dir',         str,   "./data/ILSVRC2012/",  "The ImageNet dataset root dir.")
 add_arg('fp16',             bool,  False,                "Enable half precision training with fp16." )
+add_arg('use_dali',             bool,  False,            "use DALI for preprocess or not." )
 add_arg('data_format',      str,   "NCHW",               "Tensor data format when training.")
 add_arg('scale_loss',       float, 1.0,                  "Scale loss for fp16." )
 add_arg('use_dynamic_loss_scaling',     bool,   True,    "Whether to use dynamic loss scaling.")
@@ -318,7 +319,7 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
                 optimizer = optimizer_setting(params)
                 global_lr = optimizer._global_learning_rate()
                 if args.fp16:
-                    optimizer = fluid.contrib.mixed_precision.decorate(optimizer,  init_loss_scaling=128.0)
+                    optimizer = fluid.contrib.mixed_precision.decorate(optimizer)
                 dist_optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
                 _, param_grads = dist_optimizer.minimize(avg_cost)
 
@@ -360,7 +361,7 @@ def train(args):
     dist_strategy = DistributedStrategy()
     dist_strategy.exec_strategy = exec_strategy
     dist_strategy.enable_inplace = args.with_inplace
-    dist_strategy.fuse_all_optimizer_ops = True
+    dist_strategy.fuse_all_optimizer_ops = False
     if not args.fuse:
         dist_strategy.fuse_all_reduce_ops = False
     dist_strategy.nccl_comm_num = args.nccl_comm_num
@@ -578,6 +579,7 @@ def train(args):
         """
  
     # save in last epoch
+    """
     if trainer_id == 0:
         model_path = os.path.join(model_save_dir + '/' + model_name, str(pass_id))
         if not os.path.isdir(model_path):
@@ -599,6 +601,7 @@ def train(args):
                 result['1'] = max(train_speed_list) * num_trainers
                 print(str(result))
                 f.writelines(str(result))
+    """
 
 
 def print_paddle_environments():

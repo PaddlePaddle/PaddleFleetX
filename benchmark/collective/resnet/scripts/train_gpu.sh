@@ -29,7 +29,7 @@ DATA_PATH="./ImageNet"
 TOTAL_IMAGES=1281167
 CLASS_DIM=1000
 IMAGE_SHAPE=3,224,224
-DATA_FORMAT="NCHW"
+DATA_FORMAT="NHWC"
 
 
 #gpu params
@@ -37,9 +37,9 @@ FUSE=True
 NCCL_COMM_NUM=1
 NUM_THREADS=2
 USE_HIERARCHICAL_ALLREDUCE=False
-NUM_CARDS=1
+NUM_CARDS=8
 FP16=True #whether to use float16 
-export LD_LIBRARY_PATH=/root/go/soft/cuda10-cudnn7.6.1/lib64:${LD_LIBRARY_PATH}
+export LD_LIBRARY_PATH=/root/go/soft/cuda10-cudnn7.6.5.32/lib64:${LD_LIBRARY_PATH}
 
 # dgc params
 USE_DGC=False # whether to use dgc
@@ -84,4 +84,5 @@ python -m paddle.distributed.launch ${distributed_args} --log_dir log \
        --use_hierarchical_allreduce=${USE_HIERARCHICAL_ALLREDUCE} \
        --fp16=${FP16} \
        --use_dgc=${USE_DGC} \
-       --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP}
+       --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP} \
+       --use_dali True
