@@ -14,7 +14,7 @@ bert_config_path=$2
 vocab_path=$3
 DATA_PATH=$4
 
-python -m paddle.distributed.launch --log_dir mylog_recom/times_0 \
+python -m paddle.distributed.launch --log_dir mylog \
            run_classifier.py --task_name ${TASK_NAME} \
                    --use_cuda true \
                    --do_train true \
