@@ -194,43 +194,6 @@ from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import f
 
 ## 运行流程及原理
 
-
-## TranspilerAPI
-TranspilerAPI是老版本的分布式训练API，在设计和实现上有诸多不足之处，如果是新用户，请尽可能选择FleetAPI。Transpiler API可以把单机可以执行的程序快速转变成可以分布式执行的程序。在不同的服务器节点 上，通过传给 transpiler 对应的参数，以获取当前节点需要执行的 Program。
-
-需要配置参数包括：
-
-| 参数     |  说明
-| ------------- | ------------- |
-| role     | 区分作为pserver启动还是trainer启动，不传给transpile，也可以用其他的变量名或环境变量
-| trainer_id   |  如果是trainer进程，用于指定当前trainer在任务中的唯一id，从0开始，在一个任务中需保证不重复
-| pservers   |   当前任务所有pserver的ip:port列表字符串，形式比如：127.0.0.1:6170,127.0.0.1:6171
-| trainers  |   trainer节点的个数
-| sync_mode |  True为同步模式，False为异步模式，说明(目前分布式的其他模型需要配置此参数联合其他配置完成)
-| startup_program | 如果startup_program不是默认的fluid.default_startup_program()，需要传入此参数
-| current_endpoint | NCCL2模式需要传这个参数，且在分布式训练增量训练是需要指定此参数
-
-
-一个例子，假设有两个节点，分别是 192.168.1.1 和 192.168.1.2 ，使用端口6170，启动4个trainer， 则代码可以写成：
-
-``` python
-role = "PSERVER"
-trainer_id = 0  # get actual trainer id from cluster
-pserver_endpoints = "192.168.1.1:6170,192.168.1.2:6170"
-current_endpoint = "192.168.1.1:6170" # get actual current endpoint
-trainers = 4
-t = fluid.DistributeTranspiler()
-t.transpile(trainer_id, pservers=pserver_endpoints, trainers=trainers)
-if role == "PSERVER":
-    pserver_prog = t.get_pserver_program(current_endpoint)
-    pserver_startup = t.get_startup_program(current_endpoint,
-                                            pserver_prog)
-    exe.run(pserver_startup)
-    exe.run(pserver_prog)
-elif role == "TRAINER":
-    train_loop(t.get_trainer_program())
-```
-
 ## Fleet API快速上手示例
 下面会针对Fleet API最常见的两种使用场景，用一个模型做示例，目的是让用户有快速上手体验的模板。快速上手的示例源代码可以在 [Fleet Quick Start] (https://github.com/PaddlePaddle/Fleet/tree/develop/examples/quick-start) 找到。
 
@@ -312,4 +275,40 @@ elif fleet.is_worker():
         fetch_list=[cost.name])
     print("worker_index: %d, step%d cost = %f" %
          (fleet.worker_index(), i, cost_val[0]))
+```
+
+## TranspilerAPI
+TranspilerAPI是老版本的分布式训练API，在设计和实现上有诸多不足之处，如果是新用户，请尽可能选择FleetAPI。Transpiler API可以把单机可以执行的程序快速转变成可以分布式执行的程序。在不同的服务器节点 上，通过传给 transpiler 对应的参数，以获取当前节点需要执行的 Program。
+
+需要配置参数包括：
+
+| 参数     |  说明
+| ------------- | ------------- |
+| role     | 区分作为pserver启动还是trainer启动，不传给transpile，也可以用其他的变量名或环境变量
+| trainer_id   |  如果是trainer进程，用于指定当前trainer在任务中的唯一id，从0开始，在一个任务中需保证不重复
+| pservers   |   当前任务所有pserver的ip:port列表字符串，形式比如：127.0.0.1:6170,127.0.0.1:6171
+| trainers  |   trainer节点的个数
+| sync_mode |  True为同步模式，False为异步模式，说明(目前分布式的其他模型需要配置此参数联合其他配置完成)
+| startup_program | 如果startup_program不是默认的fluid.default_startup_program()，需要传入此参数
+| current_endpoint | NCCL2模式需要传这个参数，且在分布式训练增量训练是需要指定此参数
+
+
+一个例子，假设有两个节点，分别是 192.168.1.1 和 192.168.1.2 ，使用端口6170，启动4个trainer， 则代码可以写成：
+
+``` python
+role = "PSERVER"
+trainer_id = 0  # get actual trainer id from cluster
+pserver_endpoints = "192.168.1.1:6170,192.168.1.2:6170"
+current_endpoint = "192.168.1.1:6170" # get actual current endpoint
+trainers = 4
+t = fluid.DistributeTranspiler()
+t.transpile(trainer_id, pservers=pserver_endpoints, trainers=trainers)
+if role == "PSERVER":
+    pserver_prog = t.get_pserver_program(current_endpoint)
+    pserver_startup = t.get_startup_program(current_endpoint,
+                                            pserver_prog)
+    exe.run(pserver_startup)
+    exe.run(pserver_prog)
+elif role == "TRAINER":
+    train_loop(t.get_trainer_program())
 ```
