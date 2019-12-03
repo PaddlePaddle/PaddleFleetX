@@ -11,6 +11,7 @@ Fleet是PaddlePaddle Fluid最新优化的多机High-Level API， 统一了多机
 --------
 
 fleet.init(role_maker=None)
+
 fleet初始化，需要在使用fleet其他接口前先调用，用于定义多机的环境配置。
 
 - 参数:
@@ -33,6 +34,7 @@ fleet.init(role_maker=role)
 
 fleet.distributed_optimizer(optimizer, strategy=None)
 
+
 - 参数：
     + optimizer (Optimizer) — 当前网络定义的优化器SGD/ADAM等。
     + strategy(Any|None) — 多机策略配置，根据fleet的实现自行配置，DistributedTranspiler和Collective模式指定为DistributeTranspilerConfig。
@@ -51,6 +53,7 @@ optimizer.minimize(cost)
 --------
 
 fleet.is_server()
+
 判断当前节点是否是Server节点， 是则返回True，否则返回False。在CPU分布式训练下， 节点类型分为trainer和pserver两类。
 
 - 参数： None
@@ -65,6 +68,7 @@ if fleet.is_server():
 --------
 
 fleet.init_server(model_dir=None)
+
 加载model_dir中保存的模型相关参数进行PServer的初始化
 
 - 参数:
@@ -82,6 +86,7 @@ if fleet.is_server():
 --------
 
 fleet.run_server()
+
 启动PServer的进程， 此进程为常驻进程， 会一直监听来自trainer端的消息。 当前版本不会主动退出。
 
 - 参数: None
@@ -96,6 +101,7 @@ if fleet.is_server():
 --------
 
 fleet.is_worker()
+
 判断当前节点是否是Worker节点， trainer会启动训练。
 - 参数: None
 - 返回类型: None
@@ -103,6 +109,7 @@ fleet.is_worker()
 --------
 
 fleet.init_worker()
+
 如果是worker节点，则会根据当前启动的模式进行针对性的初始化。
 - 参数: None
 - 返回类型: None
@@ -110,11 +117,13 @@ fleet.init_worker()
 --------
 
 fleet.save_inference_model
+
 CPU分布式专用的模型保存接口，在trainer端调用，根据用户配置保存模型参数及模型文件， 具体用法参考 https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/io_cn/save_inference_model_cn.html#save-inference-model。
 
 --------
 
 fleet.save_persistable
+
 CPU分布式专用的模型保存接口，在trainer端调用，根据网络保存完整的模型参数， 具体用法参考 https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/io_cn/save_persistables_cn.html#save-persistables。
 
 --------
