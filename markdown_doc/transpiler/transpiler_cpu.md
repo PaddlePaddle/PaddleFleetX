@@ -1,11 +1,11 @@
 # PaddlePaddle Fluid CPU分布式训练(Transplier)使用指南
-本章将完整介绍PaddlePaddle Fluid CPU分布式训练(Transplier)的原理及使用方法。
+
 通过此文档，希望读者能够了解：
-1. PaddlePaddle Fluid CPU分布式训练(Transplier)的基本原理及架构设计。
-2. Transplier目前支持的多种分布式训练的模型及使用异同。
-3. 不同业务在不同训练模式下的效果及配置。
-4. 分布式任务从准备到训练到上线的全流程。
-5. 分布式训练的性能的调试和优化。
+- PaddlePaddle Fluid CPU分布式训练(Transplier)的基本原理及架构设计。
+- Transplier目前支持的多种分布式训练的模型及使用异同。
+- 分布式任务从数据准备到模型训练到线上预估的全流程。
+- 不同业务在不同训练模式下的效果及配置。
+- 分布式训练的性能的调试和优化。
 
 ## 基本思想
 分布式深度学习训练通常分为两种并行化方法：数据并行，模型并行，参考下图：
@@ -17,11 +17,11 @@
 Fluid目前版本提供数据并行方式， 在基于CPU的数据并行模式的训练中，Fluid主要使用RPC的通信模式及ParameterServer架构用于应对训练任务对分布式训练的要求，并支持多种训练模式。
 
 基于RPC通信和ParameterServer架构的分布式训练的架构及基本思路是：
-1. 启动多个pserver进程和多个trainer进程，每个pserver进程会保存一部分模型参数，并负责接收从trainer发送的梯度并更新这些模型参数；每个trainer进程会保存一份完整的模型，并使用一部分数据进行训练，然后向pserver发送梯度，最后从pserver拉取更新后的参数。
+- 启动多个pserver进程和多个trainer进程，每个pserver进程会保存一部分模型参数，并负责接收从trainer发送的梯度并更新这些模型参数；每个trainer进程会保存一份完整的模型，并使用一部分数据进行训练，然后向pserver发送梯度，最后从pserver拉取更新后的参数。
 
-2. pserver进程可以在和trainer完全不同的计算节点上，也可以和trainer公用节点。一个分布式任务所需要的pserver进程个数通常需要根据实际情况调整，以达到最佳的性能，然而通常来说pserver的进程不会比trainer更多。
+- pserver进程可以在和trainer完全不同的计算节点上，也可以和trainer公用节点。一个分布式任务所需要的pserver进程个数通常需要根据实际情况调整，以达到最佳的性能，然而通常来说pserver的进程不会比trainer更多。
 
-3. RPC通信方式的结构，参考下图：
+- RPC通信方式的结构，参考下图：
 ![](./_image/2019-10-11/2019-10-15-17-24-06.jpg)
 
 
