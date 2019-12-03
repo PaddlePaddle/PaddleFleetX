@@ -32,10 +32,3 @@ Fleet is easy to use for both collective training and parameter server training.
 - [Semantic Matching](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/simnet_bow)
 
 - [Word2Vec](https://github.com/PaddlePaddle/Fleet/tree/develop/examples/word2vec)
-
-- [Resnet50 on Imagenet](https://github.com/PaddlePaddle/Fleet/tree/develop/benchmark/collective/resnet)
-
-- [Transformer on En-De](https://github.com/PaddlePaddle/Fleet/tree/develop/benchmark/collective/transformer)
-
-- [Bert on English Wikipedia](https://github.com/PaddlePaddle/Fleet/tree/develop/benchmark/collective/bert)
-
