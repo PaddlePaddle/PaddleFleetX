@@ -76,9 +76,7 @@ PaddlePaddle Fluid目前提供了多种数据读取方式，用于解决不同�
 
 PaddlePaddle Fluid的CPU分布式训练是基于ParameterServer架构设计和实现的，因此在分布式训练任务中，训练节点会被分为pserver节点和trainer节点，共同协作来完成训练任务。
 
-针对4种训练模式， 我们提供了FleetAPI及DistributeTranspiler两套接口用于支持分布式训练，为了最大的提高训练吞吐，不同的训练模式搭配不同的训练接口及Reader， 来获取最好的性能。
-
-目前全部的训练模式都支持FleetAPI， 推荐用户使用FleetAPI进行分布式训练。
+目前全部的训练模式都支持FleetAPI， 推荐用户使用FleetAPI进行分布式训练， 目前FleetAPI及Reader的兼容性如表：
 
 | 训练模式  | FleetAPI |   Feeder  | PyReader | Dataset
 | ------------- | ------------- | ------------- | ------------- | ------------- |
