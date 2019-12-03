@@ -57,7 +57,9 @@ PaddlePaddle Fluid目前提供了多种数据读取方式，用于解决不同�
 - 同步数据读取Feeder请参考：[同步数据读取](https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/prepare_data/feeding_data.html)
 - 异步数据读取PyReader请参考： [异步数据读取](https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/prepare_data/use_py_reader.html)
 - 异步数据读取Dataset请参考： [异步数据读取](https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/dataset_cn.html)
+
 <br>
+
 - 数据读取性能： Dataset >> PyReader >> Feeder
 - 数据接口易用性： Feeder > PyReader = Dataset
 - 训练模式支持： Dataset目前只支持全异步训练(train_from_dataset)模式， Feeder和Pyreader支持全部的训练模式
