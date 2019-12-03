@@ -144,7 +144,7 @@ from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import f
 TranspilerAPI是老版本的分布式训练API，在设计和实现上有诸多不足之处，如果是新用户，请尽可能选择FleetAPI。Transpiler API可以把单机可以执行的程序快速转变成可以分布式执行的程序。在不同的服务器节点 上，通过传给 transpiler 对应的参数，以获取当前节点需要执行的 Program。
 需要配置参数包括：
 ```
-参数     |  说明
+| 参数     |  说明
 | ------------- | ------------- |
 | role     | 区分作为pserver启动还是trainer启动，不传给transpile，也可以用其他的变量名或环境变量
 | trainer_id   |  如果是trainer进程，用于指定当前trainer在任务中的唯一id，从0开始，在一个任务中需保证不重复
