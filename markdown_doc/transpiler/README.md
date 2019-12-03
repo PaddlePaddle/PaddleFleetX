@@ -1,13 +1,16 @@
 
-# Fleet
+# 概述
 
 **Fleet** is High-Level API for distributed training in PaddlePaddle. The name of **Fleet** means that a large crowd of ships working together to finish a large scale job. The design of Fleet makes a trade-off between easy-to-use and algorithmic extensibility and is highly efficient. First, a user can shift from local machine paddlepaddle code to distributed code  **within ten lines of code**. Second, different algorithms can be easily defined through **distributed strategy**  through Fleet API. Finally, distributed training is **extremely fast** with Fleet and just enjoy it.
 
 **Note: all the examples here should be replicated from develop branch of Paddle**
 
-## Fleet is Highly Efficient
-
-Deep neural networks training with Fleet API is highly efficient in PaddlePaddle. We benchmark serveral standard models here.
+## 目录
+- [CPU分布式训练(Transplier)简介]()
+- [Fleet API 介绍及使用]()
+- [分布式CTR-DNN从零开始]()
+- [分布式WORD2VEC从零开始]()
+- [CPU分布式训练(Transplier)最佳实践]()
 
 ### Parameter Server Training
 
