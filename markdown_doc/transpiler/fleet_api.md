@@ -8,17 +8,16 @@ Fleet是PaddlePaddle Fluid最新优化的多机High-Level API， 统一了多机
 ## API介绍
 目前FleetAPI针对CPU分布训练相关的API有10个，这10个API涵盖了目前分布式训练的全部生命周期。 具体API说明如下：
 
-```
-fleet.init(role_maker=None)
-fleet初始化，需要在使用fleet其他接口前先调用，用于定义多机的环境配置。
+- fleet.init(role_maker=None)
+    - fleet初始化，需要在使用fleet其他接口前先调用，用于定义多机的环境配置。
 
-参数:
-    role_maker(RoleMakerBase|None) — 多机环境配置，目前有MPISymetricRoleMaker(默认)和UserDefinedRoleMaker、PaddleCloudRoleMaker等多种。
-    MPISymetricRoleMaker在MPI集群下使用，需要自定义环境变量可使用UserDefinedRoleMaker。
+    - 参数:
+        role_maker(RoleMakerBase|None) — 多机环境配置，目前有MPISymetricRoleMaker(默认)和UserDefinedRoleMaker、PaddleCloudRoleMaker等多种。
+        MPISymetricRoleMaker在MPI集群下使用，需要自定义环境变量可使用UserDefinedRoleMaker。
 
-返回类型: None
+    - 返回类型: None
 
-代码示例：
+    - 代码示例：
 ```
 exe = fluid.Executor(fluid.CPUPlace())
 role = UserDefinedRoleMaker(current_id=0,
@@ -26,7 +25,6 @@ role = UserDefinedRoleMaker(current_id=0,
                  worker_num=3,
                  server_endpoints=["127.0.0.1:6001","127.0.0.1:6002"])
 fleet.init(role_maker=role)
-```
 ```
 
 2. fleet.distributed_optimizer(optimizer, strategy=None)
