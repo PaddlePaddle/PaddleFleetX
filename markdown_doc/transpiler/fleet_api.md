@@ -1,4 +1,4 @@
-#FleetAPI
+# FleetAPI
 Fleet是PaddlePaddle Fluid最新优化的多机High-Level API， 统一了多机API的实现，兼容Transpiler/Collective两种模式。 可以在MPI、K8S、PaddleCloud以及用户自定义环境下进行多机训练，以及自定义分布式训练配置，Fleet的设计在易用性和算法可扩展性方面做出了权衡。
 使用FleetAPI， 用户可以从如下几个方面获得收益：
 - 添加少量代码即可从单机训练切换到大规模分布式训练
@@ -8,6 +8,7 @@ Fleet是PaddlePaddle Fluid最新优化的多机High-Level API， 统一了多机
 ## API介绍
 目前FleetAPI针对CPU分布训练相关的API有10个，这10个API涵盖了目前分布式训练的全部生命周期。 具体API说明如下：
 
+### Fleet
 --------
 
 fleet.init(role_maker=None)
@@ -34,6 +35,7 @@ fleet.init(role_maker=role)
 
 fleet.distributed_optimizer(optimizer, strategy=None)
 
+分布式优化算法装饰器，用户可带入单机optimizer，并配置分布式训练策略，返回一个分布式的optimizer
 
 - 参数：
     + optimizer (Optimizer) — 当前网络定义的优化器SGD/ADAM等。
@@ -130,6 +132,59 @@ CPU分布式专用的模型保存接口，在trainer端调用，根据网络保�
 
 --------
 
+### RoleMaker
+
+--------
+
+MPISymetricRoleMaker
+
+MPISymetricRoleMaker会假设每个节点启动两个进程，1worker+1pserver，这种RoleMaker要求用户的集群上有mpi环境。
+
+- 示例：
+```python
+from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
+from paddle.fluid.incubate.fleet.base import role_maker
+
+role = role_maker.MPISymetricRoleMaker()
+fleet.init(role)
+```
+
+--------
+
+PaddleCloudRoleMaker
+
+PaddleCloudRoleMaker是一个高级封装，支持使用paddle.distributed.launch_ps启动脚本
+
+- 示例：
+```python
+from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
+from paddle.fluid.incubate.fleet.base import role_maker
+
+role = role_maker.PaddleCloudRoleMaker()
+fleet.init(role)
+```
+
+--------
+
+UserDefinedRoleMaker
+
+用户自定义节点的角色信息，IP和端口信息
+
+- 示例：
+```python
+from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
+from paddle.fluid.incubate.fleet.base import role_maker
+
+role = role_maker.UserDefinedRoleMaker(
+            current_id=int(os.getenv("CURRENT_ID")),
+            role=role_maker.Role.WORKER if bool(int(os.getenv("IS_WORKER")))
+                                                                            else role_maker.Role.SERVER,
+            worker_num=int(os.getenv("WORKER_NUM")),
+            server_endpoints=pserver_endpoints)
+fleet.init(role)
+```
+--------
+
 
 ## 使用说明
 Fleet代码位于python/paddle/fluid/incubate/fleet下， 对外的实例名为fleet， 使用Transpiler模式， 请使用：
@@ -174,4 +229,87 @@ if role == "PSERVER":
     exe.run(pserver_prog)
 elif role == "TRAINER":
     train_loop(t.get_trainer_program())
+```
+
+## Fleet API快速上手示例
+下面会针对Fleet API最常见的两种使用场景，用一个模型做示例，目的是让用户有快速上手体验的模板。快速上手的示例源代码可以在 [Fleet Quick Start] (https://github.com/PaddlePaddle/Fleet/tree/develop/examples/quick-start) 找到。
+
+假设我们定义MLP网络如下：
+```python
+import paddle.fluid as fluid
+
+def mlp(input_x, input_y, hid_dim=128, label_dim=2):
+  fc_1 = fluid.layers.fc(input=input_x, size=hid_dim, act='tanh')
+  fc_2 = fluid.layers.fc(input=fc_1, size=hid_dim, act='tanh')
+  prediction = fluid.layers.fc(input=[fc_2], size=label_dim, act='softmax')
+  cost = fluid.layers.cross_entropy(input=prediction, label=input_y)
+  avg_cost = fluid.layers.mean(x=cost)
+  return avg_cost
+```
+
+定义一个在内存生成数据的Reader如下：
+```python
+import numpy as np
+
+def gen_data():
+    return {"x": np.random.random(size=(128, 32)).astype('float32'),
+            "y": np.random.randint(2, size=(128, 1)).astype('int64')}
+```
+
+单机Trainer定义:
+```python
+import paddle.fluid as fluid
+from nets import mlp
+from utils import gen_data
+
+input_x = fluid.layers.data(name="x", shape=[32], dtype='float32')
+input_y = fluid.layers.data(name="y", shape=[1], dtype='int64')
+
+cost = mlp(input_x, input_y)
+optimizer = fluid.optimizer.SGD(learning_rate=0.01)
+optimizer.minimize(cost)
+place = fluid.CUDAPlace(0)
+
+exe = fluid.Executor(place)
+exe.run(fluid.default_startup_program())
+step = 1001
+for i in range(step):
+  cost_val = exe.run(feed=gen_data(), fetch_list=[cost.name])
+  print("step%d cost=%f" % (i, cost_val[0]))
+```
+
+基于Parameter Server的CPU分布训练方法：
+```python
+import paddle.fluid as fluid
+from nets import mlp
+from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
+from paddle.fluid.incubate.fleet.base import role_maker
+from utils import gen_data
+
+input_x = fluid.layers.data(name="x", shape=[32], dtype='float32')
+input_y = fluid.layers.data(name="y", shape=[1], dtype='int64')
+
+cost = mlp(input_x, input_y)
+optimizer = fluid.optimizer.SGD(learning_rate=0.01)
+
+role = role_maker.PaddleCloudRoleMaker()
+fleet.init(role)
+optimizer = fleet.distributed_optimizer(optimizer)
+optimizer.minimize(cost)
+
+if fleet.is_server():
+  fleet.init_server()
+  fleet.run_server()
+elif fleet.is_worker():
+  place = fluid.CPUPlace()
+  exe = fluid.Executor(place)
+  exe.run(fluid.default_startup_program())
+  step = 1001
+  for i in range(step):
+    cost_val = exe.run(
+        program=fluid.default_main_program(),
+        feed=gen_data(),
+        fetch_list=[cost.name])
+    print("worker_index: %d, step%d cost = %f" %
+         (fleet.worker_index(), i, cost_val[0]))
 ```
