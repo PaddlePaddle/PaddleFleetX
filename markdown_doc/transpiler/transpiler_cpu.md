@@ -21,7 +21,7 @@ Fluid目前版本提供数据并行方式， 在基于CPU的数据并行模式�
 
 - pserver进程可以在和trainer完全不同的计算节点上，也可以和trainer公用节点。一个分布式任务所需要的pserver进程个数通常需要根据实际情况调整，以达到最佳的性能，然而通常来说pserver的进程不会比trainer更多。
 
-- RPC通信方式的结构，参考下图：<br><br>
+- RPC通信方式的结构，参考下图：<br>
 ![](./_image/2019-10-11/2019-10-15-17-24-06.jpg)
 
 ### 分布式训练模式
@@ -52,12 +52,18 @@ GeoSGD异步训练基本流程，参考下图：
 
 
 ## 数据准备
-PaddlePaddle Fluid分布式(CPU)训练支持多种数据读取的方式。支持[同步数据读取Feeder](https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/prepare_data/feeding_data.html)， [异步数据读取PyRreader](https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/prepare_data/use_py_reader.html)以及[异步数据读取Dataset](https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/dataset_cn.html)。
-数据读取性能上： Dataset > PyReader > Feeder。
-训练模式支持上： Dataset目前只支持全异步训练(train_from_dataset)模式， Feeder和Pyreadre支持全部的训练模式。
+PaddlePaddle Fluid目前提供了多种数据读取方式，用于解决不同用户的需求。
 
-## 定义模型
-分布式训练，定义网络和单机训练完全一致。 可直接参考[配置简单的网络](https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/configure_simple_model/index_cn.html)
+同步数据读取Feeder请参考：[同步数据读取](https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/prepare_data/feeding_data.html)
+异步数据读取PyReader请参考： [异步数据读取](https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/prepare_data/use_py_reader.html)
+异步数据读取Dataset请参考： [异步数据读取](https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/dataset_cn.html)
+
+数据读取性能： Dataset >> PyReader >> Feeder
+数据接口易用性： Feeder > PyReader = Dataset
+训练模式支持： Dataset目前只支持全异步训练(train_from_dataset)模式， Feeder和Pyreader支持全部的训练模式
+
+## 定义网络
+在定义网络阶段，Fluid分布式(CPU)训练和单机训练完全相同。可直接参考[配置简单的网络](https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/configure_simple_model/index_cn.html)
 
 ## API
  目前Transpiler模式支持Fleet API及TranspilerAPI两种， 详情参考。
