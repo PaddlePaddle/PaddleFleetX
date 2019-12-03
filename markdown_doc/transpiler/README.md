@@ -1,9 +1,7 @@
 
 # 概述
+PaddlePaddle Fluid CPU分布式训练(Transplier)能够提供大规模深度学习能力。
 
-**Fleet** is High-Level API for distributed training in PaddlePaddle. The name of **Fleet** means that a large crowd of ships working together to finish a large scale job. The design of Fleet makes a trade-off between easy-to-use and algorithmic extensibility and is highly efficient. First, a user can shift from local machine paddlepaddle code to distributed code  **within ten lines of code**. Second, different algorithms can be easily defined through **distributed strategy**  through Fleet API. Finally, distributed training is **extremely fast** with Fleet and just enjoy it.
-
-**Note: all the examples here should be replicated from develop branch of Paddle**
 
 ## 目录
 - [CPU分布式训练(Transplier)简介]()
