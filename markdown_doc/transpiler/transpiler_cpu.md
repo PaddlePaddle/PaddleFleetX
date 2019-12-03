@@ -62,13 +62,14 @@ PaddlePaddle Fluid目前提供了多种数据读取方式，用于解决不同�
 
 - 数据读取性能： Dataset >> PyReader >> Feeder
 - 数据接口易用性： Feeder > PyReader = Dataset
-- 训练模式支持： Dataset目前只支持全异步训练(train_from_dataset)模式， Feeder和Pyreader支持全部的训练模式
+
+训练模式支持： Dataset目前只支持全异步训练(train_from_dataset)模式， Feeder和Pyreader支持全部的训练模式
 
 ## 定义网络
-在定义网络阶段，Fluid分布式(CPU)训练和单机训练完全相同。可直接参考[配置简单的网络](https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/configure_simple_model/index_cn.html)
+在定义网络阶段，Fluid分布式(CPU)训练和单机训练相同。可参考[配置简单的网络](https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/configure_simple_model/index_cn.html)
 
-## API
- 目前Transpiler模式支持Fleet API及TranspilerAPI两种， 详情参考。
+## High-level API
+从Paddle Fluid Release 1.5.1 开始，官方推荐使用Fleet API进行分布式训练，关于Fleet API的介绍可以参考[FleetAPI](fleet_api.md)
 
 ## 分布式训练模型
 单机训练模式不在本章讲述范围内，请参考[单机训练](https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/training/single_node.html#id1)
