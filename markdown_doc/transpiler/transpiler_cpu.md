@@ -24,21 +24,7 @@ Fluid目前版本提供数据并行方式， 在基于CPU的数据并行模式�
 - RPC通信方式的结构，参考下图：<br><br>
 ![](./_image/2019-10-11/2019-10-15-17-24-06.jpg)
 
-
-## 数据准备
-PaddlePaddle Fluid分布式(CPU)训练支持多种数据读取的方式。支持[同步数据读取Feeder](https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/prepare_data/feeding_data.html)， [异步数据读取PyRreader](https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/prepare_data/use_py_reader.html)以及[异步数据读取Dataset](https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/dataset_cn.html)。
-数据读取性能上： Dataset > PyReader > Feeder。
-训练模式支持上： Dataset目前只支持全异步训练(train_from_dataset)模式， Feeder和Pyreadre支持全部的训练模式。
-
-## 定义模型
-分布式训练，定义网络和单机训练完全一致。 可直接参考[配置简单的网络](https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/configure_simple_model/index_cn.html)
-
-## 分布式训练模型
-单机训练模式不在本章讲述范围内，请参考[单机训练](https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/training/single_node.html#id1)
-
-PaddlePaddle Fluid的CPU分布式训练是基于ParameterServer架构设计和实现的，因此在分布式训练任务中，训练节点会被分为pserver节点和trainer节点，共同协作来完成训练任务。
-
-### 训练模式
+### 分布式训练模式
 PaddlePaddle Fluid分布式(CPU)训练可以支持同步训练、半异步训练、全异步训练、GeoSGD异步训练4种训练模式。 不同的训练模式适用于不同的场景， 可以跟进需求自行选择适合的训练模式， 我们在文章最后也提供了经典模型在不同模式下的效果和速度的benchmark供用户参考。
 
 #### 同步训练
@@ -65,6 +51,22 @@ GeoSGD异步训练基本流程，参考下图：
 ![](./_image/2019-10-11/2019-10-15-19-05-15.jpg)
 
 
+## 数据准备
+PaddlePaddle Fluid分布式(CPU)训练支持多种数据读取的方式。支持[同步数据读取Feeder](https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/prepare_data/feeding_data.html)， [异步数据读取PyRreader](https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/prepare_data/use_py_reader.html)以及[异步数据读取Dataset](https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/dataset_cn.html)。
+数据读取性能上： Dataset > PyReader > Feeder。
+训练模式支持上： Dataset目前只支持全异步训练(train_from_dataset)模式， Feeder和Pyreadre支持全部的训练模式。
+
+## 定义模型
+分布式训练，定义网络和单机训练完全一致。 可直接参考[配置简单的网络](https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/configure_simple_model/index_cn.html)
+
+## API
+ 目前Transpiler模式支持Fleet API及TranspilerAPI两种， 详情参考。
+
+## 分布式训练模型
+单机训练模式不在本章讲述范围内，请参考[单机训练](https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/training/single_node.html#id1)
+
+PaddlePaddle Fluid的CPU分布式训练是基于ParameterServer架构设计和实现的，因此在分布式训练任务中，训练节点会被分为pserver节点和trainer节点，共同协作来完成训练任务。
+
 针对4种训练模式， 我们提供了FleetAPI及DistributeTranspiler两套接口用于支持分布式训练，为了最大的提高训练吞吐，不同的训练模式搭配不同的训练接口及Reader， 来获取最好的性能。
 
 目前全部的训练模式都支持FleetAPI， 推荐用户使用FleetAPI进行分布式训练。
@@ -77,10 +79,6 @@ GeoSGD异步训练基本流程，参考下图：
 | GeoSGD模式  | 支持 | 支持    | 支持      | 支持
 
 **我们会在下一个版本(v1.7)中，将API全部统一至FleetAPI， 且会让Reader和训练模式实现任意适配。**
-
-### API
- 目前Transpiler模式支持Fleet API及TranspilerAPI两种， 详情参考。
-
 
 ### 模型保存
 在PaddlePaddle Fluid中，所有的模型变量都用 fluid.framework.Variable() 作为基类。 在该基类之下，模型变量主要可以分为以下几种类别：
