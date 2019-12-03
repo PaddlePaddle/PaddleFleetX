@@ -27,6 +27,8 @@ role = UserDefinedRoleMaker(current_id=0,
 fleet.init(role_maker=role)
 ```
 
+--------
+
 2. fleet.distributed_optimizer(optimizer, strategy=None)
 
 参数：
