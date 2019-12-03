@@ -63,11 +63,13 @@ Baseline:
 |:---:|:---:|
 |12000|45000|
 
-- Final test accuracy
+- Final test accuracy 
 
 |Baseline|Recompute|
 |:---:|:---:|
-|85.1%|85.5%|
+|85.24%|85.91%|
+
+注：以上结果为4次实验的平均准确率。
 
 - Training speed -22.5%
 
