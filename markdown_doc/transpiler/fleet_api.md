@@ -42,7 +42,7 @@ fleet.distributed_optimizer(optimizer, strategy=None)
 - 返回类型：DistributedOptimizer
 
 - 代码示例：
-```
+``` python
 optimizer = fluid.optimizer.SGD(learning_rate=0.1)
 config = DistributeTranspilerConfig()
 config.sync_mode = False
@@ -60,7 +60,7 @@ fleet.is_server()
 - 返回类型: bool
 
 - 代码示例：
-```
+``` python
 if fleet.is_server():
     fleet.run_server()
 ```
@@ -76,7 +76,7 @@ fleet.init_server(model_dir=None)
 
 - 返回类型: None
 
-```
+``` python
 if fleet.is_server():
     model_dir = "xxx"
     fleet.init_server(model_dir)
@@ -92,7 +92,7 @@ fleet.run_server()
 - 参数: None
 - 返回类型: None
 
-```
+``` python
 if fleet.is_server():
     fleet.init_server()
     fleet.run_server()
