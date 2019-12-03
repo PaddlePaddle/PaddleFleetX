@@ -18,7 +18,7 @@ Fleet是PaddlePaddle Fluid最新优化的多机High-Level API， 统一了多机
     - 返回类型: None
 
     - 代码示例：
-```
+``` python
 exe = fluid.Executor(fluid.CPUPlace())
 role = UserDefinedRoleMaker(current_id=0,
                  role=Role.WORKER,
