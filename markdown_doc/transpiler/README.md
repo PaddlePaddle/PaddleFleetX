@@ -13,7 +13,7 @@ PaddlePaddle Fluid CPU分布式训练(Transplier)能够提供大规模深度学�
 - [CPU分布式训练(Transplier)最佳实践]()
 - [CPU分布式训练(Transplier)常见问题]()
 
-### CPU分布式训练(Transplier)部分模型效果
+## CPU分布式训练(Transplier)部分模型效果
 
 <p align="center">
 <img align="center" src="../../images/fleet_ps_benchmark_refine.png" height="270px" width="940px">
