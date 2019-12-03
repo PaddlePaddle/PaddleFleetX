@@ -1,17 +1,15 @@
-#CPU分布式训练API
-## FleetAPI
-### Fleet是PaddlePaddle Fluid最新优化的多机API版本， 统一了多机API的实现，兼容Transpiler/Collective两种模式。 可以在MPI、K8S、PaddleCloud以及用户自定义环境下进行多机训练，以及自定义分布式训练配置。
+#FleetAPI
+Fleet是PaddlePaddle Fluid最新优化的多机High-Level API， 统一了多机API的实现，兼容Transpiler/Collective两种模式。 可以在MPI、K8S、PaddleCloud以及用户自定义环境下进行多机训练，以及自定义分布式训练配置，Fleet的设计在易用性和算法可扩展性方面做出了权衡。
+使用FleetAPI， 用户可以从如下几个方面获得收益：
+- 添加少量代码即可从单机训练切换到大规模分布式训练
+- 可以使用多种针对分布式训练的算法优化及图优化
+- 极大的性能提升及训练规模的提升
 
-#### API介绍
+## API介绍
+目前FleetAPI针对CPU分布训练相关的API有10个，这10个API涵盖了目前分布式训练的全部生命周期。 具体API说明如下：
 
-#### 使用说明
-Fleet代码位于python/paddle/fluid/incubate/fleet下， 对外的实例名为fleet， 使用Transpiler模式， 请使用：
 ```
-from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
-```
-
-#### 运行流程及原理
-1. fleet.init(role_maker=None)
+fleet.init(role_maker=None)
 fleet初始化，需要在使用fleet其他接口前先调用，用于定义多机的环境配置。
 
 参数:
@@ -28,6 +26,7 @@ role = UserDefinedRoleMaker(current_id=0,
                  worker_num=3,
                  server_endpoints=["127.0.0.1:6001","127.0.0.1:6002"])
 fleet.init(role_maker=role)
+```
 ```
 
 2. fleet.distributed_optimizer(optimizer, strategy=None)
@@ -101,6 +100,16 @@ CPU分布式专用的模型保存接口，在trainer端调用，根据用户配�
 
 10. fleet.save_persistable
 CPU分布式专用的模型保存接口，在trainer端调用，根据网络保存完整的模型参数， 具体用法参考 https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/io_cn/save_persistables_cn.html#save-persistables。
+
+
+
+## 使用说明
+Fleet代码位于python/paddle/fluid/incubate/fleet下， 对外的实例名为fleet， 使用Transpiler模式， 请使用：
+```
+from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
+```
+
+## 运行流程及原理
 
 
 ## TranspilerAPI
