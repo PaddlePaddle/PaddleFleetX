@@ -76,6 +76,7 @@ fleet.init_server(model_dir=None)
 
 - 返回类型: None
 
+- 代码示例：
 ``` python
 if fleet.is_server():
     model_dir = "xxx"
@@ -92,6 +93,7 @@ fleet.run_server()
 - 参数: None
 - 返回类型: None
 
+- 代码示例：
 ``` python
 if fleet.is_server():
     fleet.init_server()
@@ -118,13 +120,13 @@ fleet.init_worker()
 
 fleet.save_inference_model
 
-CPU分布式专用的模型保存接口，在trainer端调用，根据用户配置保存模型参数及模型文件， 具体用法参考 https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/io_cn/save_inference_model_cn.html#save-inference-model。
+CPU分布式专用的模型保存接口，在trainer端调用，根据用户配置保存模型参数及模型文件， 具体用法参考[save_inference_model](https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/io_cn/save_inference_model_cn.html#save-inference-model) 。
 
 --------
 
 fleet.save_persistable
 
-CPU分布式专用的模型保存接口，在trainer端调用，根据网络保存完整的模型参数， 具体用法参考 https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/io_cn/save_persistables_cn.html#save-persistables。
+CPU分布式专用的模型保存接口，在trainer端调用，根据网络保存完整的模型参数， 具体用法参考[save_persistables](https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/io_cn/save_persistables_cn.html#save-persistables)。
 
 --------
 
