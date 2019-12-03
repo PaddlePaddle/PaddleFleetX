@@ -87,6 +87,11 @@ PaddlePaddle Fluid的CPU分布式训练是基于ParameterServer架构设计和�
 
 **我们会在下一个版本(v1.7)中，将API全部统一至FleetAPI， 且会让Reader和训练模式实现任意适配。**
 
+### 同步训练
+### 半异步训练
+### 全异步训练
+### GEOSGD异步训练
+
 ### 模型保存
 在PaddlePaddle Fluid中，所有的模型变量都用 fluid.framework.Variable() 作为基类。 在该基类之下，模型变量主要可以分为以下几种类别：
 
@@ -151,17 +156,20 @@ if training_role == "TRAINER":
     exe.run(main_program)
 ```
 上面的例子中，每个PServer通过调用HDFS的命令获取到0号trainer保存的参数，通过配置获取到PServer的 fluid.Program ，PaddlePaddle Fluid会从此 fluid.Program 也就是 pserver_startup 的所有模型变量中找出长期变量，并通过指定的 path 目录下一一加载。
+
 ## 模型评估
 本地评估：
     本地模型评估方法参考：https://www.paddlepaddle.org.cn/documentation/docs/zh/user_guides/howto/training/test_while_training.html
 分布式评估：
     当前Fleet只提供了基于单机的模型评估方法， 分布式评估预计会在v1.7中提供。 
+
 ## 准备上线
 当我们线下效果测试符合预期并打通训练流程后，下一步就是要上线取得实际的线上收益了。
 上线一般需要准备从模型、参数、数据三个方面进行准备：
 1. 模型跟进线上需求进行裁剪。
 2. 通过save_persistables/save_inference_model保存下来的参数要跟模型文件中的参数名严格对应。
 3. 裁剪后的输入要和线上输入保持一致。
+
 ## 在线离线一致性校验
 在线离线一致性校验主要是为了解决模型在上线过程中，由于人为错误或者模型配置导致的在线预估值和离线预估值之间存在误差，最终导致线上效果不符合预期的检查手段， 主要目的是为了排除模型从模型加载、数据读取、预估等方面是否存在异常，保证模型上线的正确性。
 主要做的事情有以下几个方面：
@@ -170,7 +178,9 @@ if training_role == "TRAINER":
 3. 检查在线预测的其他配置是否符合预期，如是否开启FUSE。
 
 ## 调试及优化
+
 ## benchmark及效果复现
 目前Transpiler官方提供2个benchmark模型，分别是基于criteo数据的CTR-DNN和基于1-billion数据的word2vec。
+
 ## 其他资料
 略
