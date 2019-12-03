@@ -16,14 +16,6 @@ Parameter server training benchmark is performed on click through rate estimatio
 <p align="center">
 <img align="center" src="../../images/fleet_ps_benchmark_refine.png" height="270px" width="940px">
 <p>
-    
-### Collective Training
-
-Collective Training is usually used in GPU training in PaddlePaddle. Benchmark of collective training with Fleet is as follows. Details of hardware and software information for this benchmark can be found in [benchmark environment](https://github.com/PaddlePaddle/Fleet/tree/develop/benchmark/collective).
-
-<p align="center">
-<img src="../../images/fleet_collective_benchmark_refine3.png" height="480px" width="900px">
-<p>
 
 ## Fleet is Easy To Use
 
