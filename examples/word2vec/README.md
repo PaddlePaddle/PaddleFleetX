@@ -1,6 +1,8 @@
 # 从零开始的分布式Word2Vec
 这篇文档，将从零开始，一步步教您如何从搭建word2vec单机模型，升级为可以在集群中运行的CPU分布式模型。在完成该示例后，您可以入门PaddlePaddle参数服务器搭建，了解CPU多线程全异步模式的启用方法，并能够使用GEO-SGD模式加速分布式的训练。
 
+[toc]
+
 ## 运行环境检查
 
 - 请确保您的运行环境为`Unbuntu`或`CentOS`
@@ -13,7 +15,7 @@
 ，然后在工作目录Clone代码仓库，示例代码位于`Fleet/example/word2vec`：
 ```bash
 git clone https://github.com/PaddlePaddle/Fleet.git
-cd Fleet/example/word2vec
+cd Fleet/examples/word2vec
 ```
 
 ## 数据准备
