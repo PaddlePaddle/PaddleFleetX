@@ -10,7 +10,7 @@
 
 ## 代码下载
 本示例代码运行于Linux环境中，请先安装`git`：https://git-scm.com
-，然后在工作目录Clone代码仓库，示例代码位于`Fleet/example/word2vec`：
+，然后在工作目录Clone代码仓库，示例代码位于`Fleet/examples/word2vec`：
 ```bash
 git clone https://github.com/PaddlePaddle/Fleet.git
 cd Fleet/examples/word2vec
