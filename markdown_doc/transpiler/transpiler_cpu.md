@@ -92,9 +92,291 @@ PaddlePaddle Fluid的CPU分布式训练是基于ParameterServer架构设计和�
 ![](./_image/communicator.png)
 
 ### 同步训练
+同步训练过程中， 每个Trainer的训练的线程严格同步且Trainer之间也是严格同步的， 既每个mini-batch计算出的梯度会上传到Pserver端进行梯度聚合和参数优化， 每个Trainer都获取并更新为最新的参数后进行下一个mini-batch的训练， 同步训练目前可使用Executor进行训练。
+
+- 代码示例：
+``` python
+# Define train function.
+def train():
+    x = fluid.layers.data(name='x', shape=[13], dtype='float32')
+    y = fluid.layers.data(name='y', shape=[1], dtype='int64')
+    y_predict, avg_cost, auc, auc_batch = net(x, y)
+
+    place = fluid.CPUPlace()
+    exe = fluid.Executor(place)
+
+    role = role_maker.PaddleCloudRoleMaker()
+
+    # 同步训练需要配置 sync_mode = True
+    config = DistributeTranspilerConfig()
+    config.sync_mode = True
+
+     # 加入 fleet init 初始化环境
+    fleet.init(role)
+    optimizer = fluid.optimizer.Adam(learning_rate=0.001)
+    # 加入 fleet distributed_optimizer 加入分布式策略配置及多机优化
+    optimizer = fleet.distributed_optimizer(optimizer, config)
+    optimizer.minimize(avg_cost)
+
+    # 启动worker
+    if fleet.is_worker():
+	    # 初始化worker配置
+        fleet.init_worker()
+
+        feeder = fluid.DataFeeder(place=place, feed_list=[x, y])
+        train_reader = paddle.batch(fake_reader(), batch_size=24)
+
+        exe.run(fleet.startup_program)
+
+        exec_strategy = fluid.ExecutionStrategy()
+        exec_strategy.num_threads = int(params.cpu_num)
+        build_strategy = fluid.BuildStrategy()
+        build_strategy.async_mode = False
+
+        if CPU_NUM > 1:
+            build_strategy.reduce_strategy = fluid.BuildStrategy.ReduceStrategy.Reduce
+
+        compiled_prog = fluid.compiler.CompiledProgram(
+            fleet.main_program).with_data_parallel(
+            loss_name=loss.name, build_strategy=build_strategy, exec_strategy=exec_strategy)
+
+    	for pass_id in range(10):
+        	for batch_id, data in enumerate(train_reader()):
+            	avg_loss_value, auc_value = exe.run(program=compiled_prog, feed=feeder.feed(data), fetch_list=[avg_cost, auc])
+                print("Pass %d, total avg cost = %f, auc = %f" % (pass_id, avg_loss_value, auc_value))
+
+
+# 通知server，当前节点训练结束
+fleet.stop_worker()
+```
+
+
 ### 半异步训练
+半异步训练过程中， 每个Trainer的线程间是严格同步的， 但是Trainer间不再严格同步，既每个mini-batch计算出的梯度会上传到Pserver端， PServer端在接收到Trainer端发送的梯度后直接进行参数优化，每个Trainer对立从Pserver端获取最新参数后直接进行下一个mini-batch的训练， 半异步训练目前可使用Executor进行训练。
+
+- 代码示例：
+``` python
+# Define train function.
+def train():
+    x = fluid.layers.data(name='x', shape=[13], dtype='float32')
+    y = fluid.layers.data(name='y', shape=[1], dtype='int64')
+    y_predict, avg_cost, auc, auc_batch = net(x, y)
+
+    place = fluid.CPUPlace()
+    exe = fluid.Executor(place)
+
+    role = role_maker.PaddleCloudRoleMaker()
+
+    # 半异步训练需要配置 sync_mode = False
+    config = DistributeTranspilerConfig()
+    config.sync_mode = False
+
+     # 加入 fleet init 初始化环境
+    fleet.init(role)
+    optimizer = fluid.optimizer.Adam(learning_rate=0.001)
+    # 加入 fleet distributed_optimizer 加入分布式策略配置及多机优化
+    optimizer = fleet.distributed_optimizer(optimizer, config)
+    optimizer.minimize(avg_cost)
+
+    # 启动worker
+    if fleet.is_worker():
+	    # 初始化worker配置
+        fleet.init_worker()
+
+        feeder = fluid.DataFeeder(place=place, feed_list=[x, y])
+        train_reader = paddle.batch(fake_reader(), batch_size=24)
+
+        exe.run(fleet.startup_program)
+
+        exec_strategy = fluid.ExecutionStrategy()
+        exec_strategy.num_threads = int(params.cpu_num)
+        build_strategy = fluid.BuildStrategy()
+        build_strategy.async_mode = False
+
+        if CPU_NUM > 1:
+            build_strategy.reduce_strategy = fluid.BuildStrategy.ReduceStrategy.Reduce
+
+        compiled_prog = fluid.compiler.CompiledProgram(
+            fleet.main_program).with_data_parallel(
+            loss_name=loss.name, build_strategy=build_strategy, exec_strategy=exec_strategy)
+
+    	for pass_id in range(10):
+        	for batch_id, data in enumerate(train_reader()):
+            	avg_loss_value, auc_value = exe.run(program=compiled_prog, feed=feeder.feed(data), fetch_list=[avg_cost, auc])
+                print("Pass %d, total avg cost = %f, auc = %f" % (pass_id, avg_loss_value, auc_value))
+
+# 通知server，当前节点训练结束
+fleet.stop_worker()
+```
+
+
 ### 全异步训练
+全异步训练过程中， 每个Trainer的线程间也是不再同步的， 既每个训练线程的mini-batch计算出的梯度都会上传到Pserver端，不在等待其他训练线程进行同步， PServer端在接收到Trainer端发送的梯度后直接进行参数优化，每个Trainer对立从Pserver端获取最新参数后直接进行下一个mini-batch的训练， 半异步训练目前可使用Executor进行训练。全异步为了降低通信消耗会在Trainer端进行一系列的梯度聚合等操作, 全异步目前支持 `train_from_dataset` 及 `executor` 两种训练模式， 在训练速度上有极大的提升。
+
+- 使用`train_from_dataset`进行训练的代码示例：
+``` python
+# Define train function.
+def train():
+    x = fluid.layers.data(name='x', shape=[13], dtype='float32')
+    y = fluid.layers.data(name='y', shape=[1], dtype='int64')
+    y_predict, avg_cost, auc, auc_batch = net(x, y)
+
+    place = fluid.CPUPlace()
+    exe = fluid.Executor(place)
+
+    role = role_maker.PaddleCloudRoleMaker()
+
+    # 半异步训练需要配置 sync_mode = False
+    config = DistributeTranspilerConfig()
+    config.sync_mode = False
+    config.runtime_split_send_recv=True
+
+     # 加入 fleet init 初始化环境
+    fleet.init(role)
+    optimizer = fluid.optimizer.Adam(learning_rate=0.001)
+    # 加入 fleet distributed_optimizer 加入分布式策略配置及多机优化
+    optimizer = fleet.distributed_optimizer(optimizer, config)
+    optimizer.minimize(avg_cost)
+
+    # 启动worker
+    if fleet.is_worker():
+	    # 初始化worker配置
+        fleet.init_worker()
+        exe.run(fleet.startup_program)
+
+        dataset = fluid.DatasetFactory().create_dataset()
+        dataset.set_use_var([self.label] + self.sparse_input_ids)
+        pipe_command = "python asq_reader.py slot.txt"
+        dataset.set_pipe_command(pipe_command)
+        dataset.set_batch_size(batch_size)
+        thread_num = int(cpu_num)
+        dataset.set_thread(thread_num)
+        dataset.set_filelist("f1", "f2")
+
+    	for pass_id in range(10):
+            exe.train_from_dataset(program=fleet.main_program, dataset=dataset,
+                                   fetch_list=[auc_var], fetch_info=['auc'],
+                                   print_period=100, debug=False)
+
+
+# 通知server，当前节点训练结束
+fleet.stop_worker()
+```
+
+- 使用`executor`进行训练的代码示例：
+``` python
+# Define train function.
+def train():
+    x = fluid.layers.data(name='x', shape=[13], dtype='float32')
+    y = fluid.layers.data(name='y', shape=[1], dtype='int64')
+    y_predict, avg_cost, auc, auc_batch = net(x, y)
+
+    place = fluid.CPUPlace()
+    exe = fluid.Executor(place)
+
+    role = role_maker.PaddleCloudRoleMaker()
+
+    # 半异步训练需要配置 sync_mode = False
+    config = DistributeTranspilerConfig()
+    config.sync_mode = False
+    config.runtime_split_send_recv=True
+
+     # 加入 fleet init 初始化环境
+    fleet.init(role)
+    optimizer = fluid.optimizer.Adam(learning_rate=0.001)
+    # 加入 fleet distributed_optimizer 加入分布式策略配置及多机优化
+    optimizer = fleet.distributed_optimizer(optimizer, config)
+    optimizer.minimize(avg_cost)
+
+    # 启动worker
+    if fleet.is_worker():
+	    # 初始化worker配置
+        fleet.init_worker()
+
+        feeder = fluid.DataFeeder(place=place, feed_list=[x, y])
+        train_reader = paddle.batch(fake_reader(), batch_size=24)
+
+        exe.run(fleet.startup_program)
+
+        exec_strategy = fluid.ExecutionStrategy()
+        exec_strategy.num_threads = int(params.cpu_num)
+        build_strategy = fluid.BuildStrategy()
+        build_strategy.async_mode = True
+
+        if CPU_NUM > 1:
+            build_strategy.reduce_strategy = fluid.BuildStrategy.ReduceStrategy.Reduce
+
+        compiled_prog = fluid.compiler.CompiledProgram(
+            fleet.main_program).with_data_parallel(
+            loss_name=loss.name, build_strategy=build_strategy, exec_strategy=exec_strategy)
+
+    	for pass_id in range(10):
+        	for batch_id, data in enumerate(train_reader()):
+            	avg_loss_value, auc_value = exe.run(program=compiled_prog, feed=feeder.feed(data), fetch_list=[avg_cost, auc])
+                print("Pass %d, total avg cost = %f, auc = %f" % (pass_id, avg_loss_value, auc_value))
+
+# 通知server，当前节点训练结束
+fleet.stop_worker()
+```
+
+
 ### GEOSGD异步训练
+GEOSGD是PaddlePaddle分布式提供的特有的异步训练方式， 能够在保证训练效果的前提下，大幅度提升训练速度。
+
+- 使用`executor`进行训练的代码示例：
+``` python
+# Define train function.
+def train():
+    x = fluid.layers.data(name='x', shape=[13], dtype='float32')
+    y = fluid.layers.data(name='y', shape=[1], dtype='int64')
+    y_predict, avg_cost, auc, auc_batch = net(x, y)
+
+    place = fluid.CPUPlace()
+    exe = fluid.Executor(place)
+
+    role = role_maker.PaddleCloudRoleMaker()
+
+    # 半异步训练需要配置 sync_mode = False
+    config = DistributeTranspilerConfig()
+    config.sync_mode = False
+    config.runtime_split_send_recv=True
+    config.geo_sgd_mode = True
+    config.geo_sgd_need_push_nums = 400
+    
+     # 加入 fleet init 初始化环境
+    fleet.init(role)
+    optimizer = fluid.optimizer.Adam(learning_rate=0.001)
+    # 加入 fleet distributed_optimizer 加入分布式策略配置及多机优化
+    optimizer = fleet.distributed_optimizer(optimizer, config)
+    optimizer.minimize(avg_cost)
+
+    # 启动worker
+    if fleet.is_worker():
+	    # 初始化worker配置
+        fleet.init_worker()
+
+        feeder = fluid.DataFeeder(place=place, feed_list=[x, y])
+        train_reader = paddle.batch(fake_reader(), batch_size=24)
+
+        exe.run(fleet.startup_program)
+
+        dataset = fluid.DatasetFactory().create_dataset()
+        dataset.set_use_var([self.label] + self.sparse_input_ids)
+        pipe_command = "python asq_reader.py slot.txt"
+        dataset.set_pipe_command(pipe_command)
+        dataset.set_batch_size(batch_size)
+        thread_num = int(cpu_num)
+        dataset.set_thread(thread_num)
+        dataset.set_filelist("f1", "f2")
+
+    	for pass_id in range(10):
+            exe.train_from_dataset(program=fleet.main_program, dataset=dataset,
+                                   fetch_list=[auc_var], fetch_info=['auc'],
+                                   print_period=100, debug=False)
+
+# 通知server，当前节点训练结束
+fleet.stop_worker()
+```
 
 ### 模型保存
 在PaddlePaddle Fluid中，所有的模型变量都用 fluid.framework.Variable() 作为基类。 在该基类之下，模型变量主要可以分为以下几种类别：
