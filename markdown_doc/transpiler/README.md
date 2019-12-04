@@ -9,7 +9,7 @@ PaddlePaddle Fluid CPU分布式训练(Transplier)能够提供大规模深度学�
 
 - [分布式CTR-DNN从零开始](https://github.com/PaddlePaddle/Fleet/blob/develop/examples/distribute_ctr/README.md)
 - [分布式WORD2VEC从零开始](https://github.com/PaddlePaddle/Fleet/blob/develop/examples/word2vec/README.md)
-- [单机训练如何转换为Feelt分布式训练] (local_to_fleet.md)
+- [单机训练如何转换为Feelt分布式训练](local_to_fleet.md)
 
 - [CPU分布式训练(Transplier)最佳实践](best_practice.md)
 - [CPU分布式训练(Transplier)常见问题](faq.md)
