@@ -27,6 +27,12 @@ Fluid目前版本提供数据并行方式， 在基于CPU的数据并行模式�
 ### 分布式训练模式
 PaddlePaddle Fluid分布式(CPU)训练可以支持同步训练、半异步训练、全异步训练、GeoSGD异步训练4种训练模式。 不同的训练模式适用于不同的场景， 可以跟进需求自行选择适合的训练模式， 我们在文章最后也提供了经典模型在不同模式下的效果和速度的benchmark供用户参考。
 
+基于ParameterServer的分布式训练是由每个Trainer的mini-batch训练和Pserver端的参数优化共同完成的， PaddlePaddle Fluid分布式(CPU)训练在配置时由两部分组成，一部分是每个Trainer端的训练模式(基于Executor的训练配置)和多机的训练策略(DistributeTranspilerConfig)的配置共同组成。
+
+![](./_image/communicator.png)
+
+
+
 #### 同步训练
 同步训练方式下，所有的trainer节点，会在每个mini-batch 同步地合并所有节点的梯度数据并发送给parameter server完成更新。
 同步训练基本流程，参考下图：
