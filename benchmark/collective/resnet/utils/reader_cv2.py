@@ -14,6 +14,7 @@
 
 import os
 import functools
+import math
 import numpy as np
 import paddle
 import paddle.fluid as fluid
@@ -32,11 +33,15 @@ def _reader_creator(settings,
                     pass_id_as_seed=0,
                     threads=4,
                     buf_size=4000):
-    def reader():
+    def _reader():
         with open(file_list) as flist:
             full_lines = [line.strip() for line in flist]
-            if shuffle:
-                random.Random(pass_id_as_seed).shuffle(full_lines)
+            if shuffle and pass_id_as_seed is not None:
+                if (not hasattr(_reader, 'seed')):
+                    _reader.seed = pass_id_as_seed
+                random.Random(_reader.seed).shuffle(full_lines)
+                print("reader.seed", _reader.seed)
+                _reader.seed += 1
             
             if mode == 'train':
                 trainer_id = int(os.getenv("PADDLE_TRAINER_ID", "0"))
@@ -45,9 +50,17 @@ def _reader_creator(settings,
                 else:
                     trainer_count = int(os.getenv("PADDLE_TRAINERS", "1"))
 
-                per_node_lines = len(full_lines) // trainer_count
-                lines = full_lines[trainer_id * per_node_lines:(trainer_id + 1)
-                                   * per_node_lines]
+                per_node_lines = int(math.ceil(len(full_lines) * 1.0 / trainer_count))
+                total_lines = per_node_lines * trainer_count
+
+                # aligned full_lines so that it can evenly divisible
+                full_lines += full_lines[:(total_lines - len(full_lines))]
+                assert len(full_lines) == total_lines
+
+                # trainer get own sample
+                lines = full_lines[trainer_id:total_lines:trainer_count]
+                assert len(lines) == per_node_lines
+
                 print("trainerid, trainer_count", trainer_id, trainer_count)
                 print(
                     "read images from %d, length: %d, lines length: %d, total: %d"
@@ -81,7 +94,7 @@ def _reader_creator(settings,
         rotate=rotate,
         crop_size=224)
     reader = paddle.reader.xmap_readers(
-        image_mapper, reader, threads, buf_size, order=False)
+        image_mapper, _reader, threads, buf_size, order=False)
     return reader
 
 def train(settings,
