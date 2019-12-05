@@ -36,12 +36,13 @@ def _reader_creator(settings,
     def _reader():
         with open(file_list) as flist:
             full_lines = [line.strip() for line in flist]
-            if shuffle and pass_id_as_seed is not None:
+            if shuffle:
                 if (not hasattr(_reader, 'seed')):
                     _reader.seed = pass_id_as_seed
                 random.Random(_reader.seed).shuffle(full_lines)
-                print("reader.seed", _reader.seed)
-                _reader.seed += 1
+                print("reader shuffle seed", _reader.seed)
+                if _reader.seed is not None:
+                    _reader.seed += 1
             
             if mode == 'train':
                 trainer_id = int(os.getenv("PADDLE_TRAINER_ID", "0"))
