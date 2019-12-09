@@ -93,7 +93,7 @@ def get_median(data):
         median = data[(size-1)//2]
     return median
 
-def create_data_loader(is_train, args):
+def create_data_loader(is_train, args, data_layout='NCHW'):
     """create data_loader
     Usage:
         Using mixup process in training, it will return 5 results, include data_loader, image, y_a(label), y_b(label) and lamda, or it will return 3 results, include data_loader, image, and label.
@@ -104,7 +104,7 @@ def create_data_loader(is_train, args):
         data_loader and the input data of net,
     """
     image_shape = [int(m) for m in args.image_shape.split(",")]
-    if args.data_format == "NHWC" and args.use_dali:
+    if data_layout == "NHWC":
         image_shape=[image_shape[1], image_shape[2], image_shape[0]]
         feed_image = fluid.data(
             name="feed_image",

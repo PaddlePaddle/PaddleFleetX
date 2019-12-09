@@ -146,7 +146,7 @@ class HybridValPipe(Pipeline):
         return self.epoch_size("Reader")
 
 
-def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0):
+def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0, data_layout='NCHW'):
     env = os.environ
     assert settings.use_gpu, "gpu training is required for DALI"
     assert not settings.use_mixup, "mixup is not supported by DALI reader"
@@ -193,7 +193,7 @@ def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0):
             mean,
             std,
             device_id=gpu_id,
-            data_layout=settings.data_format)
+            data_layout=data_layout)
         pipe.build()
         return DALIGenericIterator(
             pipe, ['feed_image', 'feed_label'],
@@ -226,7 +226,7 @@ def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0):
             shard_id=shard_id,
             num_shards=num_shards,
             seed=42 + shard_id, 
-            data_layout=settings.data_format)
+            data_layout=data_layout)
         pipe.build()
         pipelines = [pipe]
         sample_per_shard = len(pipe) // num_shards
@@ -255,7 +255,7 @@ def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0):
                 idx,
                 num_shards,
                 seed=42 + idx,
-                data_layout=settings.data_format)
+                data_layout=data_layout)
             pipe.build()
             pipelines.append(pipe)
         sample_per_shard = len(pipelines[0])
@@ -264,9 +264,9 @@ def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0):
         pipelines, ['feed_image', 'feed_label'], size=sample_per_shard)
 
 
-def train(settings, trainer_id=None, trainers_num=None, gpu_id=0):
-    return build(settings, 'train', trainer_id=trainer_id, trainers_num=trainers_num, gpu_id=gpu_id)
+def train(settings, trainer_id=None, trainers_num=None, gpu_id=0, data_layout="NCHW"):
+    return build(settings, 'train', trainer_id=trainer_id, trainers_num=trainers_num, gpu_id=gpu_id, data_layout=data_layout)
 
 
-def val(settings, trainer_id=None, trainers_num=None, gpu_id=0):
-    return build(settings, 'val', trainer_id=trainer_id, trainers_num=trainers_num, gpu_id=gpu_id)
+def val(settings, trainer_id=None, trainers_num=None, gpu_id=0, data_layout="NCHW"):
+    return build(settings, 'val', trainer_id=trainer_id, trainers_num=trainers_num, gpu_id=gpu_id, data_layout=data_layout)

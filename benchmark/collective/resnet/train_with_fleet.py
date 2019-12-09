@@ -279,14 +279,14 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
         with fluid.unique_name.guard():
             if is_train and  use_mixup:
                 image, y_a, y_b, lam = data[0], data[1], data[2], data[3]
-                if args.data_format == 'NHWC' and not args.use_dali:
+                if args.data_format == 'NHWC':
                     image = fluid.layers.transpose(image, [0, 2, 3, 1])
                 avg_cost = net_config(image=image, y_a=y_a, y_b=y_b, lam=lam, model=model, args=args, label=0, is_train=True)
                 avg_cost.persistable = True
                 build_program_out = [data_loader, avg_cost]
             else:
                 image, label = data[0], data[1],
-                if args.data_format == 'NHWC'  and not args.use_dali:
+                if args.data_format == 'NHWC':
                     image = fluid.layers.transpose(image, [0, 2, 3, 1])
                 avg_cost, acc_top1, acc_top5 = net_config(image, model, args, label=label, is_train=is_train)
                 avg_cost.persistable = True
