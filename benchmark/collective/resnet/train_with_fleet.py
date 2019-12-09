@@ -306,10 +306,9 @@ def get_device_num():
 
 def train(args):
     # parameters from arguments
-    model_name = args.model
+    #model_name = args.model
     checkpoint = args.checkpoint
     pretrained_model = args.pretrained_model
-    model_save_dir = args.model_save_dir
     use_mixup = args.use_mixup
     use_ngraph = os.getenv('FLAGS_use_ngraph')
 
@@ -400,20 +399,24 @@ def train(args):
     # must be the same in the respective processes.
     shuffle_seed = 1 if num_trainers > 1 else None
 
-    train_reader = reader.train(settings=args, data_dir=args.data_dir, pass_id_as_seed=shuffle_seed)
-    test_reader = reader.val(settings=args, data_dir=args.data_dir)
+    if args.use_dali:
+        import dali
+        train_iter = dali.train(settings=args)
+        if trainer_id == 0:
+            test_iter = dali.val(settings=args)
+    else:
+        train_reader = reader.train(settings=args, data_dir=args.data_dir, pass_id_as_seed=shuffle_seed)
+        train_batch_reader=paddle.batch(train_reader, batch_size=train_batch_size)
 
-    """
-    train_py_reader.decorate_paddle_reader(paddle.batch(train_reader,
-                                                        batch_size=train_batch_size))
-    test_py_reader.decorate_paddle_reader(paddle.batch(test_reader,
-                                                       batch_size=test_batch_size))
-    """
-    train_data_loader.set_sample_list_generator(paddle.batch(train_reader,
-                                                        batch_size=train_batch_size))
+        test_reader = reader.val(settings=args, data_dir=args.data_dir)
+        test_batch_reader=paddle.batch(test_reader, batch_size=test_batch_size)
 
-    test_data_loader.set_sample_list_generator(paddle.batch(test_reader,
-                                                       batch_size=test_batch_size))
+        places = place
+        if num_trainers <= 1 and args.use_gpu:
+            places = fluid.framework.cuda_places()
+
+        train_data_loader.set_sample_list_generator(train_reader, places)
+        test_data_loader.set_sample_list_generator(test_reader, place)
 
     test_fetch_vars = [test_cost, test_acc1, test_acc5]
     test_fetch_list = []
@@ -434,7 +437,12 @@ def train(args):
         train_begin=time.time()
         batch_id = 0
         time_record=[]
-         for data in data_loader():
+
+        if not args.use_dali:
+            train_iter = train_data_loader()
+            test_iter = test_data_loader()
+
+        for data in train_iter():
             t1 = time.time()
 
             fetch_list = train_fetch_list if batch_id % args.fetch_steps == 0 else []
@@ -487,7 +495,9 @@ def train(args):
                 sys.stdout.flush()
             batch_id += 1
 
-        """
+        if args.use_dali:
+            train_iter.reset()
+
         train_loss = np.array(train_info[0]).mean()
         if not use_mixup:
             train_acc1 = np.array(train_info[1]).mean()
@@ -497,50 +507,7 @@ def train(args):
         train_speed_list.append(train_speed)
 
         if trainer_id == 0 and (args.do_test or (pass_id + 1) == params["num_epochs"]):
-            test_py_reader.start()
-            test_batch_id = 0
-            try:
-                while True:
-                    t1 = time.time()
-                    loss, acc1, acc5 = exe.run(program=test_prog,
-                                            fetch_list=test_fetch_list)
-                    t2 = time.time()
-                    period = t2 - t1
-                    loss = np.mean(loss)
-                    acc1 = np.mean(acc1)
-                    acc5 = np.mean(acc5)
-                    test_info[0].append(loss)
-                    test_info[1].append(acc1)
-                    test_info[2].append(acc5)
-
-                    if test_batch_id % 10 == 0:
-                        test_speed = test_batch_size * 1.0 / period
-                        print("Pass {0},testbatch {1},loss {2}, \
-                            acc1 {3},acc5 {4},time {5},speed {6}"
-                            .format(pass_id, test_batch_id, "%.5f"%loss,"%.5f"%acc1, "%.5f"%acc5,
-                                    "%2.2f sec" % period, "%.2f" % test_speed))
-                        sys.stdout.flush()
-                    test_batch_id += 1
-            except fluid.core.EOFException:
-                test_py_reader.reset()
-
-            test_loss = np.array(test_info[0]).mean()
-            test_acc1 = np.array(test_info[1]).mean()
-            test_acc5 = np.array(test_info[2]).mean()
-
-            acc1_logs.append(test_acc1)
-            acc5_logs.append(test_acc5)
-
-            if use_mixup:
-                print("End pass {0}, train_loss {1}, test_loss {2}, test_acc1 {3}, test_acc5 {4}, speed {5}".format(
-                      pass_id, "%.5f"%train_loss, "%.5f"%test_loss, "%.5f"%test_acc1, "%.5f"%test_acc5,
-                      "%.2f" % train_speed))
-            else:
-                print("End pass {0}, train_loss {1}, train_acc1 {2}, train_acc5 {3}, "
-                  "test_loss {4}, test_acc1 {5}, test_acc5 {6}, speed {7}".format(
-                      pass_id, "%.5f"%train_loss, "%.5f"%train_acc1, "%.5f"%train_acc5, "%.5f"%test_loss,
-                      "%.5f"%test_acc1, "%.5f"%test_acc5, "%.2f" % train_speed))
-
+            do_test()
         else:
             if use_mixup:
                 print("End pass {0}, train_loss {1}, speed {2}".format(pass_id, "%.5f"%train_loss, "%.2f" % train_speed))
@@ -549,12 +516,56 @@ def train(args):
                     pass_id, "%.5f"%train_loss, "%.5f"%train_acc1, "%.5f"%train_acc5, "%.2f" % train_speed))
 
         sys.stdout.flush()
-        """
  
     # save in last epoch
-    """
     if trainer_id == 0:
-        model_path = os.path.join(model_save_dir + '/' + model_name, str(pass_id))
+        save_models(exe, args, pass_id, test_acc1, test_acc5, acc1_logs, acc5_logs)
+
+def do_test():
+    test_batch_id = 0
+    try:
+    for data in test_iter()
+        t1 = time.time()
+        loss, acc1, acc5 = exe.run(program=test_prog,
+                                fetch_list=test_fetch_list)
+        t2 = time.time()
+        period = t2 - t1
+        loss = np.mean(loss)
+        acc1 = np.mean(acc1)
+        acc5 = np.mean(acc5)
+        test_info[0].append(loss)
+        test_info[1].append(acc1)
+        test_info[2].append(acc5)
+
+        if test_batch_id % 10 == 0:
+            test_speed = test_batch_size * 1.0 / period
+            print("Pass {0},testbatch {1},loss {2}, \
+                acc1 {3},acc5 {4},time {5},speed {6}"
+                .format(pass_id, test_batch_id, "%.5f"%loss,"%.5f"%acc1, "%.5f"%acc5,
+                        "%2.2f sec" % period, "%.2f" % test_speed))
+            sys.stdout.flush()
+        test_batch_id += 1
+
+    test_loss = np.array(test_info[0]).mean()
+    test_acc1 = np.array(test_info[1]).mean()
+    test_acc5 = np.array(test_info[2]).mean()
+
+    acc1_logs.append(test_acc1)
+    acc5_logs.append(test_acc5)
+
+    if use_mixup:
+        print("End pass {0}, train_loss {1}, test_loss {2}, test_acc1 {3}, test_acc5 {4}, speed {5}".format(
+              pass_id, "%.5f"%train_loss, "%.5f"%test_loss, "%.5f"%test_acc1, "%.5f"%test_acc5,
+              "%.2f" % train_speed))
+    else:
+        print("End pass {0}, train_loss {1}, train_acc1 {2}, train_acc5 {3}, "
+          "test_loss {4}, test_acc1 {5}, test_acc5 {6}, speed {7}".format(
+              pass_id, "%.5f"%train_loss, "%.5f"%train_acc1, "%.5f"%train_acc5, "%.5f"%test_loss,
+              "%.5f"%test_acc1, "%.5f"%test_acc5, "%.2f" % train_speed))
+
+
+def save_models():
+        model_path = os.path.join(args.model_save_dir + '/' + args.model, str(pass_id))
         if not os.path.isdir(model_path):
             os.makedirs(model_path)
 
@@ -574,7 +585,6 @@ def train(args):
                 result['1'] = max(train_speed_list) * num_trainers
                 print(str(result))
                 f.writelines(str(result))
-    """
 
 
 def print_paddle_environments():
