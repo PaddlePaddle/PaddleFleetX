@@ -230,7 +230,6 @@ def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0, 
         pipe.build()
         pipelines = [pipe]
         sample_per_shard = len(pipe) // num_shards
-        #print("sample_per_shard:", sample_per_shard)
     else:
         pipelines = []
         places = fluid.framework.cuda_places()

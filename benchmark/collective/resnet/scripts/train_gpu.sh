@@ -1,5 +1,5 @@
 #!/bin/bash
-
+export CUDA_VISIBLE_DEVICES=2,3,4,5,6,7
 export FLAGS_sync_nccl_allreduce=1
 export FLAGS_cudnn_exhaustive_search=1
 export FLAGS_conv_workspace_size_limit=7000 #MB
@@ -32,10 +32,10 @@ DATA_FORMAT="NHWC"
 
 #gpu params
 FUSE=True
-NCCL_COMM_NUM=1
-NUM_THREADS=2
+NCCL_COMM_NUM=2
+NUM_THREADS=3
 USE_HIERARCHICAL_ALLREDUCE=False
-NUM_CARDS=1
+NUM_CARDS=8
 FP16=True #whether to use float16
 use_dali=True
 if [[ ${use_dali} == "True" ]]; then
@@ -63,7 +63,7 @@ fi
 
 set -x
 
-python -m paddle.distributed.launch ${distributed_args}  \
+python -m paddle.distributed.launch ${distributed_args}  --log_dir log \
        ./train_with_fleet.py \
        --model=${MODEL} \
        --batch_size=${BATCH_SIZE} \
@@ -78,7 +78,8 @@ python -m paddle.distributed.launch ${distributed_args}  \
        --lr=${LR} \
        --num_epochs=${NUM_EPOCHS} \
        --l2_decay=1e-4 \
-       --scale_loss=1.0 \
+       --scale_loss=128.0 \
+       --use_dynamic_loss_scaling=True \
        --fuse=${FUSE} \
        --num_threads=${NUM_THREADS} \
        --nccl_comm_num=${NCCL_COMM_NUM} \
@@ -86,4 +87,5 @@ python -m paddle.distributed.launch ${distributed_args}  \
        --fp16=${FP16} \
        --use_dali=${use_dali} \
        --use_dgc=${USE_DGC} \
+       --fetch_steps=1 \
        --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP}
