@@ -4,6 +4,7 @@ export FLAGS_sync_nccl_allreduce=1
 export FLAGS_cudnn_exhaustive_search=1
 export FLAGS_conv_workspace_size_limit=7000 #MB
 export FLAGS_cudnn_batchnorm_spatial_persistent=1
+export FLAGS_fraction_of_gpu_memory_to_use=0.99
 
 export GLOG_v=1
 export GLOG_logtostderr=1
@@ -19,7 +20,7 @@ MODEL_SAVE_PATH="output/"
 
 # training params
 NUM_EPOCHS=90
-BATCH_SIZE=128
+BATCH_SIZE=$1
 LR=0.1
 LR_STRATEGY=piecewise_decay
 
@@ -37,12 +38,16 @@ NCCL_COMM_NUM=1
 NUM_THREADS=2
 USE_HIERARCHICAL_ALLREDUCE=False
 NUM_CARDS=1
-FP16=True #whether to use float16
+FP16=False #whether to use float16
 
 # dgc params
 USE_DGC=False # whether to use dgc
 ALL_CARDS=8
 START_EPOCHS=4 # start dgc after 4 epochs
+
+# recompute params
+USE_RECOMPUTE=False # whether to use recompute
+
 # add 1 in let, let will not return 1 when set START_EPOCHS=0
 let '_tmp_ans=((TOTAL_IMAGES+BATCH_SIZE*ALL_CARDS-1)/(BATCH_SIZE*ALL_CARDS))*START_EPOCHS' 1
 DGC_RAMPUP_BEGIN_STEP=${_tmp_ans}
@@ -58,8 +63,8 @@ fi
 
 set -x
 
-python -m paddle.distributed.launch ${distributed_args} --log_dir log \
-       ./train_with_fleet.py \
+/home/mapingshuo/paddle_release_home/python-dropout_with_seed_gpu/bin/python -m paddle.distributed.launch ${distributed_args} --log_dir log \
+       ./train_without_fleet.py \
        --model=${MODEL} \
        --batch_size=${BATCH_SIZE} \
        --total_images=${TOTAL_IMAGES} \
@@ -80,4 +85,6 @@ python -m paddle.distributed.launch ${distributed_args} --log_dir log \
        --use_hierarchical_allreduce=${USE_HIERARCHICAL_ALLREDUCE} \
        --fp16=${FP16} \
        --use_dgc=${USE_DGC} \
-       --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP}
+       --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP} \
+       --use_recompute=${USE_RECOMPUTE} \
+       --data_dir=/ssd2/lilong/ImageNet/

@@ -90,6 +90,8 @@ add_arg('benchmark_test',          bool,  True,                 "Whether to use 
 add_arg('use_dgc',           bool,  False,          "Whether use DGCMomentum Optimizer or not")
 add_arg('rampup_begin_step', int,   5008,           "The beginning step from which dgc is implemented.")
 
+add_arg('use_recompute',           bool,  False,          "Whether use Recompute Optimizer or not")
+
 def get_momentum_optimizer(momentum_kwargs, use_dgc=False, dgc_kwargs={}):
     if not use_dgc:
         optimizer = fluid.optimizer.Momentum(**momentum_kwargs)
@@ -230,7 +232,7 @@ def net_config(image, model, args, is_train, label=0, y_a=0, y_b=0, lam=0.0):
     epsilon = args.label_smoothing_epsilon
 
     if not args.is_distill:
-        out = model.net(input=image, args=args, class_dim=class_dim)
+        out = model.net(input=image, args=args, class_dim=class_dim) 
         if is_train:
             if use_mixup:
                 softmax_out = fluid.layers.softmax(out, use_cudnn=False)
@@ -315,6 +317,12 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
 
                 optimizer = optimizer_setting(params)
                 global_lr = optimizer._global_learning_rate()
+             
+                if args.use_recompute:
+		    print("Recompute!!!")
+                    dist_strategy.recompute_checkpoints = model.recompute_checkpoints
+                    print(model.recompute_checkpoints)
+
                 if args.fp16:
                     optimizer = fluid.contrib.mixed_precision.decorate(optimizer,
                                                                        init_loss_scaling=args.scale_loss,
@@ -364,6 +372,9 @@ def train(args):
         dist_strategy.fuse_all_reduce_ops = False
     dist_strategy.nccl_comm_num = args.nccl_comm_num
 
+    if args.use_recompute:
+        dist_strategy.forward_recompute = True
+        
     role = role_maker.PaddleCloudRoleMaker(is_collective=True)
     fleet.init(role)
 
@@ -390,6 +401,10 @@ def train(args):
             train_fetch_list.append(var.name)
 
     train_prog = fleet.main_program
+    
+    from paddle_debug_tools import memory_tool
+    tool = memory_tool.MemoryEstimate(train_prog._program, batch_size=256)
+    #tool.cal_memory(serve=True, port=8123)
 
     b_out_test = build_program(
                      is_train=False,
