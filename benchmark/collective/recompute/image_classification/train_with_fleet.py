@@ -24,6 +24,9 @@ import sys
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 
+num_trainers = int(os.environ.get('PADDLE_TRAINERS_NUM', 1))
+trainer_id = int(os.environ.get('PADDLE_TRAINER_ID'))
+
 def set_paddle_flags(flags):
     for key, value in flags.items():
         if os.environ.get(key, None) is None:
@@ -206,6 +209,10 @@ def train(args):
     #init model by checkpoint or pretrianed model.
     init_model(exe, args, train_prog)
 
+    # TODO(mapingshuo) for fleet training, the trainers in diff gpu cards
+    # runs in different process, same shuffle seed need to be set for each
+    # card. It is important if we want to run the models to converge.
+
     train_reader = reader.train(settings=args)
     train_reader = paddle.batch(
         train_reader,
@@ -261,23 +268,19 @@ def train(args):
         if pass_id % args.save_step == 0:
             save_model(args, exe, train_prog, pass_id)
         train_end=time.time()
-        train_speed = (train_batch_id * train_batch_size) / (train_end - train_begin)
+        train_speed = (train_batch_id * args.batch_size) / (train_end - train_begin)
         train_speed_list.append(train_speed) 
+
     # save train log
-    #if not os.path.isdir("./benchmark_logs/"):
-    #    os.makedirs("./benchmark_logs/")
-    #    with open("./benchmark_logs/log_%d" % trainer_id, 'w') as f:
-    #        result = dict()
-    #        result['0'] = dict()
-    #        result['0']['acc1'] = test_acc1
-    #        result['0']['acc5'] = test_acc5
-    #        result['0']['result_log'] = dict()
-    #        result['0']['result_log']['acc1'] = acc1_logs
-    #        result['0']['result_log']['acc5'] = acc5_logs
-    #        # median speed of all epochs
-    #        result['1'] = max(train_speed_list) * num_trainers
-    #        print(str(result))
-    #        f.writelines(str(result))
+    if trainer_id == 0: 
+        if not os.path.isdir("./benchmark_logs/"):
+            os.makedirs("./benchmark_logs/")
+            with open("./benchmark_logs/log_%d" % trainer_id, 'w') as f:
+                result = dict()
+                result['1'] = 1 #np.mean(train_speed_list) * num_trainers
+                result['14'] = 32 #args.batch_size
+                print(str(result))
+                f.writelines(str(result))
 
 
 def main():
