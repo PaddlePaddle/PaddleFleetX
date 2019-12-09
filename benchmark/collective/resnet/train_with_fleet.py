@@ -425,9 +425,11 @@ def train(args):
 
     if args.use_dali:
         import dali
-        train_iter = dali.train(settings=args)
+        train_iter = dali.train(settings=args, trainer_id=trainer_id, trainers_num=num_trainers,
+                                gpu_id=gpu_id)
         if trainer_id == 0:
-            test_iter = dali.val(settings=args)
+            test_iter = dali.val(settings=args, trainer_id=trainer_id, trainers_num=num_trainers,
+                                 gpu_id=gpu_id)
     else:
         train_reader = reader.train(settings=args, data_dir=args.data_dir, pass_id_as_seed=shuffle_seed)
         train_batch_reader=paddle.batch(train_reader, batch_size=train_batch_size)

@@ -38,7 +38,7 @@ NUM_THREADS=2
 USE_HIERARCHICAL_ALLREDUCE=False
 NUM_CARDS=1
 FP16=True #whether to use float16
-use_dali=False
+use_dali=True
 if [[ ${use_dali} == "True" ]]; then
     export FLAGS_fraction_of_gpu_memory_to_use=0.8
     export FLAGS_conv_workspace_size_limit=4000 #MB

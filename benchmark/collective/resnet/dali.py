@@ -145,7 +145,7 @@ class HybridValPipe(Pipeline):
         return self.epoch_size("Reader")
 
 
-def build(settings, mode='train'):
+def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0):
     env = os.environ
     assert settings.use_gpu, "gpu training is required for DALI"
     assert not settings.use_mixup, "mixup is not supported by DALI reader"
@@ -156,9 +156,7 @@ def build(settings, mode='train'):
 
     file_root = settings.data_dir
     batch_size = settings.batch_size
-    #assert bs % paddle.fluid.core.get_cuda_device_count() == 0, \
-    #    "batch size must be multiple of number of devices"
-    #batch_size = bs // paddle.fluid.core.get_cuda_device_count()
+    print("batch_size:", batch_size)
 
     mean = [v * 255 for v in settings.image_mean]
     std = [v * 255 for v in settings.image_std]
@@ -180,10 +178,6 @@ def build(settings, mode='train'):
     interp = interp_map[interp]
 
     if mode != 'train':
-        p = fluid.framework.cuda_places()[0]
-        place = fluid.core.Place()
-        place.set_place(p)
-        device_id = place.gpu_device_id()
         file_list = os.path.join(file_root, 'val_list.txt')
         if not os.path.exists(file_list):
             file_list = None
@@ -197,7 +191,7 @@ def build(settings, mode='train'):
             interp,
             mean,
             std,
-            device_id=device_id)
+            device_id=gpu_id)
         pipe.build()
         return DALIGenericIterator(
             pipe, ['feed_image', 'feed_label'],
@@ -211,10 +205,9 @@ def build(settings, mode='train'):
         file_list = None
         file_root = os.path.join(file_root, 'train')
 
-    if 'PADDLE_TRAINER_ID' in env and 'PADDLE_TRAINERS_NUM' in env:
-        shard_id = int(env['PADDLE_TRAINER_ID'])
-        num_shards = int(env['PADDLE_TRAINERS_NUM'])
-        device_id = int(env['FLAGS_selected_gpus'])
+    if trainer_id is not None and trainers_num is not None:
+        shard_id=trainer_id
+        num_shards=trainers_num
         pipe = HybridTrainPipe(
             file_root,
             file_list,
@@ -227,13 +220,15 @@ def build(settings, mode='train'):
             interp,
             mean,
             std,
-            device_id,
-            shard_id,
-            num_shards,
-            seed=42 + shard_id)
+            device_id=gpu_id,
+            shard_id=shard_id,
+            num_shards=num_shards,
+            seed=42 + shard_id, 
+            data_layout=args.data_format)
         pipe.build()
         pipelines = [pipe]
         sample_per_shard = len(pipe) // num_shards
+        #print("sample_per_shard:", sample_per_shard)
     else:
         pipelines = []
         places = fluid.framework.cuda_places()
@@ -257,7 +252,8 @@ def build(settings, mode='train'):
                 device_id,
                 idx,
                 num_shards,
-                seed=42 + idx)
+                seed=42 + idx,
+                data_layout=args.data_format)
             pipe.build()
             pipelines.append(pipe)
         sample_per_shard = len(pipelines[0])
@@ -266,9 +262,9 @@ def build(settings, mode='train'):
         pipelines, ['feed_image', 'feed_label'], size=sample_per_shard)
 
 
-def train(settings):
-    return build(settings, 'train')
+def train(settings, trainer_id=None, trainers_num=None, gpu_id=0):
+    return build(settings, 'train', trainer_id=trainer_id, trainers_num=trainers_num, gpu_id=gpu_id)
 
 
-def val(settings):
-    return build(settings, 'val')
+def val(settings, trainer_id=None, trainers_num=None, gpu_id=0):
+    return build(settings, 'val', trainer_id=trainer_id, trainers_num=trainers_num, gpu_id=gpu_id)
