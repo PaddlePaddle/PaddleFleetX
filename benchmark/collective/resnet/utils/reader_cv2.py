@@ -93,7 +93,7 @@ def _reader_creator(settings,
         mode=mode,
         color_jitter=color_jitter,
         rotate=rotate,
-        crop_size=224)
+        crop_size=224, mean=settings.image_mean, std=settings.image_std)
     reader = paddle.reader.xmap_readers(
         image_mapper, _reader, threads, buf_size, order=False)
     return reader

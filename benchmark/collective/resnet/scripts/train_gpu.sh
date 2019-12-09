@@ -28,7 +28,7 @@ DATA_PATH="./ImageNet"
 TOTAL_IMAGES=1281167
 CLASS_DIM=1000
 IMAGE_SHAPE=3,224,224
-DATA_FORMAT="NCHW"
+DATA_FORMAT="NHWC"
 
 
 #gpu params
@@ -38,10 +38,16 @@ NUM_THREADS=2
 USE_HIERARCHICAL_ALLREDUCE=False
 NUM_CARDS=1
 FP16=True #whether to use float16
+use_dali=False
+if [[ ${use_dali} == "True" ]]; then
+    export FLAGS_fraction_of_gpu_memory_to_use=0.8
+    export FLAGS_conv_workspace_size_limit=4000 #MB
+fi
+export LD_LIBRARY_PATH=/root/go/soft/cuda10-cudnn7.6.5.32/lib64:${LD_LIBRARY_PATH}
 
 # dgc params
 USE_DGC=False # whether to use dgc
-ALL_CARDS=8
+ALL_CARDS=1
 START_EPOCHS=4 # start dgc after 4 epochs
 # add 1 in let, let will not return 1 when set START_EPOCHS=0
 let '_tmp_ans=((TOTAL_IMAGES+BATCH_SIZE*ALL_CARDS-1)/(BATCH_SIZE*ALL_CARDS))*START_EPOCHS' 1
@@ -58,7 +64,7 @@ fi
 
 set -x
 
-python -m paddle.distributed.launch ${distributed_args} --log_dir log \
+python -m paddle.distributed.launch ${distributed_args}  \
        ./train_with_fleet.py \
        --model=${MODEL} \
        --batch_size=${BATCH_SIZE} \
@@ -79,5 +85,6 @@ python -m paddle.distributed.launch ${distributed_args} --log_dir log \
        --nccl_comm_num=${NCCL_COMM_NUM} \
        --use_hierarchical_allreduce=${USE_HIERARCHICAL_ALLREDUCE} \
        --fp16=${FP16} \
+       --use_dali=${use_dali} \
        --use_dgc=${USE_DGC} \
        --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP}

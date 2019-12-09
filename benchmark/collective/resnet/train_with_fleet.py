@@ -33,7 +33,7 @@ import models
 from paddle.fluid.contrib.mixed_precision.decorator import decorate
 import utils.reader_cv2 as reader
 from utils.utility import add_arguments, print_arguments, check_gpu
-import utils.utility
+import utils.utility as utility
 from utils.learning_rate import cosine_decay_with_warmup, lr_warmup
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
@@ -63,6 +63,7 @@ add_arg('model',            str,   "SE_ResNeXt50_32x4d", "Set the network to use
 add_arg('data_dir',         str,   "./data/ILSVRC2012/",  "The ImageNet dataset root dir.")
 add_arg('fp16',             bool,  False,                "Enable half precision training with fp16." )
 add_arg('use_dali',             bool,  False,            "use DALI for preprocess or not." )
+add_arg('use_aa',             bool,  False,            "use DALI for preprocess or not." )
 add_arg('data_format',      str,   "NCHW",               "Tensor data format when training.")
 add_arg('scale_loss',       float, 1.0,                  "Scale loss for fp16." )
 add_arg('use_dynamic_loss_scaling',     bool,   True,    "Whether to use dynamic loss scaling.")
@@ -91,6 +92,10 @@ add_arg('benchmark_test',          bool,  True,                 "Whether to use 
 
 add_arg('use_dgc',           bool,  False,          "Whether use DGCMomentum Optimizer or not")
 add_arg('rampup_begin_step', int,   5008,           "The beginning step from which dgc is implemented.")
+
+add_arg('image_mean', nargs='+', type=float, default=[0.485, 0.456, 0.406], help="The mean of input image data")
+add_arg('image_std', nargs='+', type=float, default=[0.229, 0.224, 0.225], help="The std of input image data")
+add_arg('interpolation',    int,  None,                 "The interpolation mode")
 
 def get_momentum_optimizer(momentum_kwargs, use_dgc=False, dgc_kwargs={}):
     if not use_dgc:
@@ -262,7 +267,6 @@ def net_config(image, model, args, is_train, label=0, y_a=0, y_b=0, lam=0.0):
     return avg_cost, acc_top1, acc_top5
 
 def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
-    image_shape = [int(m) for m in args.image_shape.split(",")]
     model_name = args.model
     model_list = [m for m in dir(models) if "__" not in m]
     assert model_name in model_list, "{} is not in lists: {}".format(args.model,
@@ -452,7 +456,6 @@ def train(args):
     acc1_logs = []
     acc5_logs = []
     for pass_id in range(params["num_epochs"]):
-        train_py_reader.start()
         train_info = [[], [], []]
         test_info = [[], [], []]
         train_begin=time.time()
@@ -460,7 +463,7 @@ def train(args):
         time_record=[]
 
         if not args.use_dali:
-            rain_iter = train_data_loader()
+            train_iter = train_data_loader()
             test_iter = test_data_loader()
 
         for data in train_iter:

@@ -21,6 +21,9 @@ import distutils.util
 import numpy as np
 import six
 
+import paddle
+import paddle.fluid as fluid
+
 def print_arguments(args):
     """Print argparse's arguments.
 
@@ -100,7 +103,7 @@ def create_data_loader(is_train, args):
     Returns:
         data_loader and the input data of net,
     """
-    image_shape = args.image_shape
+    image_shape = [int(m) for m in args.image_shape.split(",")]
     feed_image = fluid.data(
         name="feed_image",
         shape=[None] + image_shape,

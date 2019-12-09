@@ -67,9 +67,9 @@ class HybridTrainPipe(Pipeline):
             num_attempts=100)
         self.res = ops.Resize(
             device='gpu', resize_x=crop, resize_y=crop, interp_type=interp)
-        if data_layout='NCHW':
+        if data_layout=='NCHW':
             dali_data_layout=types.NCHW
-        elif data_layout='NHWC':
+        elif data_layout=='NHWC':
             dali_data_layout=types.NHWC
         else:
             assert False, "not supported data_layout:{}".format(data_layout)
@@ -149,20 +149,21 @@ def build(settings, mode='train'):
     env = os.environ
     assert settings.use_gpu, "gpu training is required for DALI"
     assert not settings.use_mixup, "mixup is not supported by DALI reader"
-    assert not settings.use_aa, "auto augment is not supported by DALI reader"
+    #assert not settings.use_aa, "auto augment is not supported by DALI reader"
     assert float(env.get('FLAGS_fraction_of_gpu_memory_to_use', 0.92)) < 0.9, \
         "Please leave enough GPU memory for DALI workspace, e.g., by setting" \
         " `export FLAGS_fraction_of_gpu_memory_to_use=0.8`"
 
     file_root = settings.data_dir
-    bs = settings.batch_size
-    assert bs % paddle.fluid.core.get_cuda_device_count() == 0, \
-        "batch size must be multiple of number of devices"
-    batch_size = bs // paddle.fluid.core.get_cuda_device_count()
+    batch_size = settings.batch_size
+    #assert bs % paddle.fluid.core.get_cuda_device_count() == 0, \
+    #    "batch size must be multiple of number of devices"
+    #batch_size = bs // paddle.fluid.core.get_cuda_device_count()
 
     mean = [v * 255 for v in settings.image_mean]
     std = [v * 255 for v in settings.image_std]
-    crop = settings.image_shape[1]
+    image_shape = [int(m) for m in settings.image_shape.split(",")]
+    crop = image_shape[1]
     resize_shorter = settings.resize_short_size
     min_area = settings.lower_scale
     lower = settings.lower_ratio
