@@ -32,7 +32,7 @@ import utils
 import models
 from paddle.fluid.contrib.mixed_precision.decorator import decorate
 import utils.reader_cv2 as reader
-from utils.utility import add_arguments, print_arguments, check_gpu
+from utils.utility import add_arguments, print_arguments, check_gpu, parse_args
 from utils.learning_rate import cosine_decay_with_warmup, lr_warmup
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
@@ -42,56 +42,6 @@ from paddle.fluid.transpiler.details import program_to_code
 
 num_trainers = int(os.environ.get('PADDLE_TRAINERS_NUM', 1))
 trainer_id = int(os.environ.get('PADDLE_TRAINER_ID'))
-
-parser = argparse.ArgumentParser(description=__doc__)
-add_arg = functools.partial(add_arguments, argparser=parser)
-
-# yapf: disable
-add_arg('batch_size',       int,   32,                   "Minibatch size per device.")
-add_arg('total_images',     int,   1281167,              "Training image number.")
-add_arg('num_epochs',       int,   120,                  "number of epochs.")
-add_arg('class_dim',        int,   1000,                 "Class number.")
-add_arg('image_shape',      str,   "3,224,224",          "input image size")
-add_arg('model_save_dir',   str,   "output",             "model save directory")
-add_arg('with_mem_opt',     bool,  False,                "Whether to use memory optimization or not.")
-add_arg('with_inplace',     bool,  False,                "Whether to use inplace memory optimization.")
-add_arg('pretrained_model', str,   None,                 "Whether to use pretrained model.")
-add_arg('checkpoint',       str,   None,                 "Whether to resume checkpoint.")
-add_arg('lr',               float, 0.1,                  "set learning rate.")
-add_arg('lr_strategy',      str,   "piecewise_decay",    "Set the learning rate decay strategy.")
-add_arg('model',            str,   "SE_ResNeXt50_32x4d", "Set the network to use.")
-add_arg('data_dir',         str,   "./data/ILSVRC2012/",  "The ImageNet dataset root dir.")
-add_arg('fp16',             bool,  False,                "Enable half precision training with fp16." )
-add_arg('use_dali',             bool,  False,            "use DALI for preprocess or not." )
-add_arg('data_format',      str,   "NCHW",               "Tensor data format when training.")
-add_arg('scale_loss',       float, 1.0,                  "Scale loss for fp16." )
-add_arg('use_dynamic_loss_scaling',     bool,   True,    "Whether to use dynamic loss scaling.")
-add_arg('l2_decay',         float, 1e-4,                 "L2_decay parameter.")
-add_arg('momentum_rate',    float, 0.9,                  "momentum_rate.")
-add_arg('use_label_smoothing',      bool,      False,        "Whether to use label_smoothing or not")
-add_arg('label_smoothing_epsilon',      float,     0.2,      "Set the label_smoothing_epsilon parameter")
-add_arg('lower_scale',      float,     0.08,      "Set the lower_scale in ramdom_crop")
-add_arg('lower_ratio',      float,     3./4.,      "Set the lower_ratio in ramdom_crop")
-add_arg('upper_ratio',      float,     4./3.,      "Set the upper_ratio in ramdom_crop")
-add_arg('resize_short_size',      int,     256,      "Set the resize_short_size")
-add_arg('use_mixup',      bool,      False,        "Whether to use mixup or not")
-add_arg('mixup_alpha',      float,     0.2,      "Set the mixup_alpha parameter")
-add_arg('is_distill',       bool,  False,        "is distill or not")
-add_arg('profile',             bool,  False,                "Enable profiler or not." )
-add_arg('print_program_desc',             bool,  False,                "Enable print program desc or not." )
-add_arg('fetch_steps',      int,  10,                "Enable profiler or not." )
-
-add_arg('do_test',          bool,  False,                 "Whether do test every epoch.")
-add_arg('use_gpu',          bool,  True,                 "Whether to use GPU or not.")
-add_arg('fuse', bool, False,                      "Whether to use tensor fusion.")
-add_arg('nccl_comm_num',        int,  1,                  "nccl comm num")
-add_arg("use_hierarchical_allreduce",     bool,   False,   "Use hierarchical allreduce or not.")
-add_arg('num_threads',        int,  1,                   "Use num_threads to run the fluid program.")
-add_arg('num_iteration_per_drop_scope', int,    100,      "Ihe iteration intervals to clean up temporary variables.")
-add_arg('benchmark_test',          bool,  True,                 "Whether to use print benchmark logs or not.")
-
-add_arg('use_dgc',           bool,  False,          "Whether use DGCMomentum Optimizer or not")
-add_arg('rampup_begin_step', int,   5008,           "The beginning step from which dgc is implemented.")
 
 def get_momentum_optimizer(momentum_kwargs, use_dgc=False, dgc_kwargs={}):
     if not use_dgc:
@@ -271,6 +221,7 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
     model = models.__dict__[model_name]()
     with fluid.program_guard(main_prog, startup_prog):
         use_mixup = args.use_mixup
+        """
         if is_train and use_mixup:
             py_reader = fluid.layers.py_reader(
                 capacity=16,
@@ -285,24 +236,36 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
                 lod_levels=[0, 0],
                 dtypes=["float32", "int64"],
                 use_double_buffer=True)
+        """
 
+        optimizer=None
         with fluid.unique_name.guard():
+            #data_loader, loss_out = create_model(model, args, is_train)
+            data_loader, data = utility.create_data_loader(is_train, args)
             if is_train and  use_mixup:
+                """
                 image, y_a, y_b, lam = fluid.layers.read_file(py_reader)
                 if args.data_format == 'NHWC':
                     image = fluid.layers.transpose(image, [0, 2, 3, 1])
+                """
+                image, y_a, y_b, lam = data
                 avg_cost = net_config(image=image, y_a=y_a, y_b=y_b, lam=lam, model=model, args=args, label=0, is_train=True)
                 avg_cost.persistable = True
-                build_program_out = [py_reader, avg_cost]
+                #build_program_out = [py_reader, avg_cost]
+                build_program_out = [data_loader, avg_cost]
             else:
+                """
                 image, label = fluid.layers.read_file(py_reader)
                 if args.data_format == 'NHWC':
                     image = fluid.layers.transpose(image, [0, 2, 3, 1])
+                """
+                image, label = data
                 avg_cost, acc_top1, acc_top5 = net_config(image, model, args, label=label, is_train=is_train)
                 avg_cost.persistable = True
                 acc_top1.persistable = True
                 acc_top5.persistable = True
-                build_program_out = [py_reader, avg_cost, acc_top1, acc_top5]
+                #build_program_out = [py_reader, avg_cost, acc_top1, acc_top5]
+                build_program_out = [data_loader, avg_cost, acc_top1, acc_top5]
 
             if is_train:
                 params = model.params
@@ -326,7 +289,7 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
                 global_lr.persistable=True
                 build_program_out.append(global_lr)
 
-    return build_program_out
+    return build_program_out, optimizer
 
 def get_device_num():
     """
@@ -369,7 +332,7 @@ def train(args):
     role = role_maker.PaddleCloudRoleMaker(is_collective=True)
     fleet.init(role)
 
-    b_out = build_program(
+    b_out, optimizer = build_program(
                      is_train=True,
                      main_prog=train_prog,
                      startup_prog=startup_prog,
@@ -379,31 +342,33 @@ def train(args):
     if args.print_program_desc:
         program_to_code(train_prog, skip_op_callstack=False)
 
+    train_fetch_list = []
     if use_mixup:
-        train_py_reader, train_cost, global_lr = b_out[0], b_out[1], b_out[2]
+        train_data_loader, train_cost, global_lr = b_out[0], b_out[1], b_out[2]
         train_fetch_vars = [train_cost, global_lr]
-        train_fetch_list = []
         for var in train_fetch_vars:
             var.persistable=True
             train_fetch_list.append(var.name)
 
     else:
-        train_py_reader, train_cost, train_acc1, train_acc5, global_lr = b_out[0],b_out[1],b_out[2],b_out[3],b_out[4]
+        train_data_loader, train_cost, train_acc1, train_acc5, global_lr = b_out[0],b_out[1],b_out[2],b_out[3],b_out[4]
         train_fetch_vars = [train_cost, train_acc1, train_acc5, global_lr]
-        train_fetch_list = []
         for var in train_fetch_vars:
             var.persistable=True
             train_fetch_list.append(var.name)
 
+        if args.fp16:
+            train_fetch_list.extend([optimizer._max_grad.name, optimizer._min_grad.name])
+
     train_prog = fleet.main_program
 
-    b_out_test = build_program(
+    b_out_test, _ = build_program(
                      is_train=False,
                      main_prog=test_prog,
                      startup_prog=startup_prog,
                      args=args,
                      dist_strategy=dist_strategy)
-    test_py_reader, test_cost, test_acc1, test_acc5 = b_out_test[0],b_out_test[1],b_out_test[2],b_out_test[3]
+    test_data_loader, test_cost, test_acc1, test_acc5 = b_out_test[0],b_out_test[1],b_out_test[2],b_out_test[3]
 
     test_prog = test_prog.clone(for_test=True)
     test_prog = compiler.CompiledProgram(test_prog).with_data_parallel(loss_name=test_cost.name, exec_strategy=exec_strategy)
@@ -423,10 +388,9 @@ def train(args):
         fluid.io.load_vars(
             exe, pretrained_model, main_program=train_prog, predicate=if_exist)
 
+    device_num = 1
     if args.use_gpu:
         device_num = get_device_num()
-    else:
-        device_num = 1
 
     train_batch_size = args.batch_size
     print("train_batch_size: %d device_num:%d" % (train_batch_size, device_num))
@@ -439,9 +403,16 @@ def train(args):
     train_reader = reader.train(settings=args, data_dir=args.data_dir, pass_id_as_seed=shuffle_seed)
     test_reader = reader.val(settings=args, data_dir=args.data_dir)
 
+    """
     train_py_reader.decorate_paddle_reader(paddle.batch(train_reader,
                                                         batch_size=train_batch_size))
     test_py_reader.decorate_paddle_reader(paddle.batch(test_reader,
+                                                       batch_size=test_batch_size))
+    """
+    train_data_loader.set_sample_list_generator(paddle.batch(train_reader,
+                                                        batch_size=train_batch_size))
+
+    test_data_loader.set_sample_list_generator(paddle.batch(test_reader,
                                                        batch_size=test_batch_size))
 
     test_fetch_vars = [test_cost, test_acc1, test_acc5]
@@ -458,61 +429,63 @@ def train(args):
     acc1_logs = []
     acc5_logs = []
     for pass_id in range(params["num_epochs"]):
-        train_py_reader.start()
         train_info = [[], [], []]
         test_info = [[], [], []]
         train_begin=time.time()
         batch_id = 0
         time_record=[]
-        try:
-            while True:
-                t1 = time.time()
-                if batch_id % args.fetch_steps != 0:
-                        train_exe.run(train_prog)
+         for data in data_loader():
+            t1 = time.time()
+
+            fetch_list = train_fetch_list if batch_id % args.fetch_steps == 0 else []
+            if use_mixup:
+                loss, lr = train_exe.run(train_prog, feed=data, fetch_list=fetch_list)
+            else:
+                outs = train_exe.run(train_prog, feed=data, fetch_list=fetch_list)
+                loss=outs[0]
+                acc1 = np.mean(np.array(outs[1]))
+                acc5 = np.mean(np.array(outs[2]))
+                lr=outs[3]
+                train_info[1].append(acc1)
+                train_info[2].append(acc5)
+
+            t2 = time.time()
+            period = t2 - t1
+            time_record.append(period)
+
+            if args.profile and batch_id == 50:
+                print("begin profiler")
+                if trainer_id == 0:
+                    profiler.start_profiler("All")
+            elif args.profile and batch_id == 55:
+                print("begin to end profiler")
+                if trainer_id == 0:
+                    profiler.stop_profiler("total", "./profile_%d" % (trainer_id))
+                print("end profiler break!")
+                args.profile=False
+
+            if batch_id % args.fetch_steps == 0:
+                loss = np.mean(np.array(loss))
+                train_info[0].append(loss)
+                lr = np.mean(np.array(lr))
+                period = np.mean(time_record)
+                speed = args.batch_size * 1.0 / period
+                time_record=[]
+                if use_mixup:
+                    print("Pass {0}, trainbatch {1}, loss {2}, lr {3}, time {4}, speed {5}"
+                          .format(pass_id, batch_id, "%.5f"%loss, "%.5f" %lr, "%2.4f sec" % period, "%.2f" % speed))
                 else:
-                    if use_mixup:
-                        loss, lr = train_exe.run(train_prog, fetch_list=train_fetch_list)
-                    else:
-                        loss, acc1, acc5, lr = train_exe.run(train_prog, fetch_list=train_fetch_list)
-                        acc1 = np.mean(np.array(acc1))
-                        acc5 = np.mean(np.array(acc5))
-                        train_info[1].append(acc1)
-                        train_info[2].append(acc5)
+                    print("Pass {0}, trainbatch {1}, loss {2}, \
+                        acc1 {3}, acc5 {4}, lr {5}, time {6}, speed {7}"
+                          .format(pass_id, batch_id, "%.5f"%loss, "%.5f"%acc1, "%.5f"%acc5, "%.5f" %
+                                  lr, "%2.4f sec" % period, "%.2f" % speed))
 
-                t2 = time.time()
-                period = t2 - t1
-                time_record.append(period)
-
-                if args.profile and batch_id == 50:
-                    print("begin profiler")
-                    if trainer_id == 0:
-                        profiler.start_profiler("All")
-                elif args.profile and batch_id == 55:
-                    print("begin to end profiler")
-                    if trainer_id == 0:
-                        profiler.stop_profiler("total", "./profile_%d" % (trainer_id))
-                    print("end profiler break!")
-                    args.profile=False
-
-                if batch_id % args.fetch_steps == 0:
-                    loss = np.mean(np.array(loss))
-                    train_info[0].append(loss)
-                    lr = np.mean(np.array(lr))
-                    period = np.mean(time_record)
-                    speed = args.batch_size * 1.0 / period
-                    time_record=[]
-                    if use_mixup:
-                        print("Pass {0}, trainbatch {1}, loss {2}, lr {3}, time {4}, speed {5}"
-                              .format(pass_id, batch_id, "%.5f"%loss, "%.5f" %lr, "%2.4f sec" % period, "%.2f" % speed))
-                    else:
-                        print("Pass {0}, trainbatch {1}, loss {2}, \
-                            acc1 {3}, acc5 {4}, lr {5}, time {6}, speed {7}"
-                              .format(pass_id, batch_id, "%.5f"%loss, "%.5f"%acc1, "%.5f"%acc5, "%.5f" %
-                                      lr, "%2.4f sec" % period, "%.2f" % speed))
-                    sys.stdout.flush()
-                batch_id += 1
-        except fluid.core.EOFException:
-            train_py_reader.reset()
+                    if args.fp16:
+                        max_grad = np.array(outs[4])
+                        min_grad = np.array(outs[5])
+                        print("max_grad:", max_grad, "min_grad:", min_grad)
+                sys.stdout.flush()
+            batch_id += 1
 
         """
         train_loss = np.array(train_info[0]).mean()
@@ -614,7 +587,7 @@ def print_paddle_environments():
 
 
 def main():
-    args = parser.parse_args()
+    args = parse_args()
     # this distributed benchmark code can only support gpu environment.
     assert args.use_gpu, "only for gpu implementation."
     if args.use_dgc:

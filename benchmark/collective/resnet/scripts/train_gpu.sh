@@ -37,7 +37,7 @@ FUSE=True
 NCCL_COMM_NUM=1
 NUM_THREADS=2
 USE_HIERARCHICAL_ALLREDUCE=False
-NUM_CARDS=8
+NUM_CARDS=1
 FP16=True #whether to use float16 
 export LD_LIBRARY_PATH=/root/go/soft/cuda10-cudnn7.6.5.32/lib64:${LD_LIBRARY_PATH}
 
