@@ -19,7 +19,7 @@ MODEL_SAVE_PATH="output/"
 
 # training params
 NUM_EPOCHS=90
-BATCH_SIZE=128
+BATCH_SIZE=256
 LR=0.1
 LR_STRATEGY=piecewise_decay
 
@@ -38,7 +38,7 @@ NUM_THREADS=2
 USE_HIERARCHICAL_ALLREDUCE=False
 NUM_CARDS=1
 FP16=True #whether to use float16
-use_dali=True
+use_dali=False
 if [[ ${use_dali} == "True" ]]; then
     export FLAGS_fraction_of_gpu_memory_to_use=0.8
     export FLAGS_conv_workspace_size_limit=4000 #MB
