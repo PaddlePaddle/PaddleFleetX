@@ -104,11 +104,20 @@ def create_data_loader(is_train, args):
         data_loader and the input data of net,
     """
     image_shape = [int(m) for m in args.image_shape.split(",")]
-    feed_image = fluid.data(
-        name="feed_image",
-        shape=[None] + image_shape,
-        dtype="float32",
-        lod_level=0)
+    if args.data_format == "NCHW":
+        feed_image = fluid.data(
+            name="feed_image",
+            shape=[None] + image_shape,
+            dtype="float32",
+            lod_level=0)
+    else:
+        # NHWC
+        image_shape=[image_shape[1], image_shape[2], image_shape[0]]
+        feed_image = fluid.data(
+            name="feed_image",
+            shape=[None] + image_shape,
+            dtype="float32",
+            lod_level=0)
 
     feed_label = fluid.data(
         name="feed_label", shape=[None, 1], dtype="int64", lod_level=0)

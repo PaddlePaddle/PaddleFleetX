@@ -24,6 +24,13 @@ from nvidia.dali.plugin.paddle import DALIGenericIterator
 import paddle
 from paddle import fluid
 
+def convert_data_layout(data_layout):
+    if data_layout=='NCHW':
+        return types.NCHW
+    elif data_layout=='NHWC':
+        return types.NHWC
+    else:
+        assert False, "not supported data_layout:{}".format(data_layout)
 
 class HybridTrainPipe(Pipeline):
     def __init__(self,
@@ -67,17 +74,10 @@ class HybridTrainPipe(Pipeline):
             num_attempts=100)
         self.res = ops.Resize(
             device='gpu', resize_x=crop, resize_y=crop, interp_type=interp)
-        if data_layout=='NCHW':
-            dali_data_layout=types.NCHW
-        elif data_layout=='NHWC':
-            dali_data_layout=types.NHWC
-        else:
-            assert False, "not supported data_layout:{}".format(data_layout)
-
         self.cmnp = ops.CropMirrorNormalize(
             device="gpu",
             output_dtype=types.FLOAT,
-            output_layout=dali_data_layout,
+            output_layout=convert_data_layout(data_layout),
             crop=(crop, crop),
             image_type=types.RGB,
             mean=mean,
@@ -112,7 +112,8 @@ class HybridValPipe(Pipeline):
                  num_shards=1,
                  random_shuffle=False,
                  num_threads=4,
-                 seed=42):
+                 seed=42,
+                 data_layout='NCHW'):
         super(HybridValPipe, self).__init__(
             batch_size, num_threads, device_id, seed=seed)
         self.input = ops.FileReader(
@@ -127,7 +128,7 @@ class HybridValPipe(Pipeline):
         self.cmnp = ops.CropMirrorNormalize(
             device="gpu",
             output_dtype=types.FLOAT,
-            output_layout=types.NCHW,
+            output_layout=convert_data_layout(data_layout),
             crop=(crop, crop),
             image_type=types.RGB,
             mean=mean,
@@ -191,7 +192,8 @@ def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0):
             interp,
             mean,
             std,
-            device_id=gpu_id)
+            device_id=gpu_id,
+            data_layout=settings.data_format)
         pipe.build()
         return DALIGenericIterator(
             pipe, ['feed_image', 'feed_label'],
@@ -224,7 +226,7 @@ def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0):
             shard_id=shard_id,
             num_shards=num_shards,
             seed=42 + shard_id, 
-            data_layout=args.data_format)
+            data_layout=settings.data_format)
         pipe.build()
         pipelines = [pipe]
         sample_per_shard = len(pipe) // num_shards
@@ -253,7 +255,7 @@ def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0):
                 idx,
                 num_shards,
                 seed=42 + idx,
-                data_layout=args.data_format)
+                data_layout=settings.data_format)
             pipe.build()
             pipelines.append(pipe)
         sample_per_shard = len(pipelines[0])
