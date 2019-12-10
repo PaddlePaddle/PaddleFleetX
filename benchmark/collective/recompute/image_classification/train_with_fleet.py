@@ -20,6 +20,7 @@ import os
 import numpy as np
 import time
 import sys
+import shutil
 
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
@@ -225,6 +226,9 @@ def train(args):
 
     train_py_reader.decorate_sample_list_generator(train_reader, place)
     test_py_reader.decorate_sample_list_generator(test_reader, place)
+  
+    if trainer_id == 0:
+        shutil.rmtree("./benchmark_logs/")
 
     #compiled_train_prog = best_strategy_compiled(args, train_prog, train_fetch_vars[0])
     train_speed_list = []
@@ -265,8 +269,8 @@ def train(args):
 
         #validate(args, test_py_reader, exe, test_prog, test_fetch_list, pass_id, train_batch_metrics_record)
         #For now, save model per epoch.
-        if pass_id % args.save_step == 0:
-            save_model(args, exe, train_prog, pass_id)
+        if trainer_id == 0 and pass_id % args.save_step == 0:
+            save_model(args, exe, fleet._origin_program, pass_id)
         train_end=time.time()
         train_speed = (train_batch_id * args.batch_size) / (train_end - train_begin)
         train_speed_list.append(train_speed) 
@@ -277,8 +281,8 @@ def train(args):
             os.makedirs("./benchmark_logs/")
             with open("./benchmark_logs/log_%d" % trainer_id, 'w') as f:
                 result = dict()
-                result['1'] = 1 #np.mean(train_speed_list) * num_trainers
-                result['14'] = 32 #args.batch_size
+                result['1'] = np.mean(train_speed_list) * num_trainers
+                result['14'] = args.batch_size
                 print(str(result))
                 f.writelines(str(result))
 
