@@ -84,7 +84,7 @@ class ResNet():
 
             pool = fluid.layers.pool2d(
                 input=conv, pool_size=7, pool_type='avg', global_pooling=True, data_format=args.data_format)
-            if data_format == "NCHW":
+            if args.data_format == "NCHW":
                 stdv = 1.0 / math.sqrt(pool.shape[1] * 1.0)
             else:
                 stdv = 1.0 / math.sqrt(pool.shape[-1] * 1.0)
@@ -106,7 +106,7 @@ class ResNet():
 
             pool = fluid.layers.pool2d(
                 input=conv, pool_size=7, pool_type='avg', global_pooling=True, data_format=args.data_format)
-            if data_format == "NCHW":
+            if args.data_format == "NCHW":
                 stdv = 1.0 / math.sqrt(pool.shape[1] * 1.0)
             else:
                 stdv = 1.0 / math.sqrt(pool.shape[-1] * 1.0)
