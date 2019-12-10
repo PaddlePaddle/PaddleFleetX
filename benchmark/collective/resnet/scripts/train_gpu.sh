@@ -1,6 +1,6 @@
 #!/bin/bash
-export CUDA_VISIBLE_DEVICES=2,3,4,5,6,7
-export FLAGS_sync_nccl_allreduce=1
+export CUDA_VISIBLE_DEVICES=4,5,6,7
+export FLAGS_sync_nccl_allreduce=0
 export FLAGS_cudnn_exhaustive_search=1
 export FLAGS_conv_workspace_size_limit=7000 #MB
 export FLAGS_cudnn_batchnorm_spatial_persistent=1
@@ -18,7 +18,7 @@ MODEL=ResNet50 #VGG16
 MODEL_SAVE_PATH="output/"
 
 # training params
-NUM_EPOCHS=90
+NUM_EPOCHS=120
 BATCH_SIZE=256
 LR=0.1
 LR_STRATEGY=piecewise_decay
@@ -37,7 +37,7 @@ NUM_THREADS=3
 USE_HIERARCHICAL_ALLREDUCE=False
 NUM_CARDS=8
 FP16=True #whether to use float16
-use_dali=True
+use_dali=False
 if [[ ${use_dali} == "True" ]]; then
     export FLAGS_fraction_of_gpu_memory_to_use=0.8
     export FLAGS_conv_workspace_size_limit=4000 #MB
@@ -88,4 +88,5 @@ python -m paddle.distributed.launch ${distributed_args}  --log_dir log \
        --use_dali=${use_dali} \
        --use_dgc=${USE_DGC} \
        --fetch_steps=1 \
+       --do_test=True \
        --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP}
