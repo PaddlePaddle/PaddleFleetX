@@ -27,20 +27,20 @@ sh prepare_data.sh
 在本示例中，Word2Vec模型使用[1 Billion Word Language Model Benchmark](http://www.statmt.org/lm-benchmark)的训练集，该训练集一共包含30294863个文本，在linux环境下可以执行以下命令进行数据的下载：
 ```bash
 mkdir data
-wget http://www.statmt.org/lm-benchmark/1-billion-word-language-modeling-benchmark-r13output.tar.gz
+wget --no-check-certificate http://www.statmt.org/lm-benchmark/1-billion-word-language-modeling-benchmark-r13output.tar.gz
 tar xzvf 1-billion-word-language-modeling-benchmark-r13output.tar.gz
 mv 1-billion-word-language-modeling-benchmark-r13output/training-monolingual.tokenized.shuffled/ data/
 ```
 您也可以从国内源上下载数据，速度更快更稳定。国内源上备用数据下载命令：
 ```bash
 mkdir data
-wget https://paddlerec.bj.bcebos.com/word2vec/1-billion-word-language-modeling-benchmark-r13output.tar
+wget --no-check-certificate https://paddlerec.bj.bcebos.com/word2vec/1-billion-word-language-modeling-benchmark-r13output.tar
 tar xvf 1-billion-word-language-modeling-benchmark-r13output.tar
 mv 1-billion-word-language-modeling-benchmark-r13output/training-monolingual.tokenized.shuffled/ data/
 ```
 ### 预测数据下载
 ```bash
-wget https://paddlerec.bj.bcebos.com/word2vec/test_dir.tar
+wget --no-check-certificate https://paddlerec.bj.bcebos.com/word2vec/test_dir.tar
 tar -xvf test_dir.tar
 mkdir test_data
 mv data/test_dir/* ./test_data
@@ -317,13 +317,13 @@ def get_dataset_reader(inputs):
       dataset.set_filelist(file_list)
       start_time = time.time()
       class fetch_vars(fluid.executor.FetchHandler):
-          def handler(self, fetch_target_vars):
-              loss_value = fetch_target_vars[0]
+          def handler(self, res_dict):
+              loss_value = res_dict['loss']
               logger.info(
                   "epoch -> {}, loss -> {}, at: {}".format(epoch, loss_value, time.ctime()))
       # 开始训练
       exe.train_from_dataset(program=fluid.default_main_program(), dataset=dataset,
-                             fetch_handler=fetch_vars([loss.name], 5, True))
+                             fetch_handler=fetch_vars(var_dict=var_dict))
       end_time = time.time()
       model_path = str(model_path) + '/trainer_' + str(role.worker_index()) + '_epoch_' + str(epoch)
       # 保存模型
