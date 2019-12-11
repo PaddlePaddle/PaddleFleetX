@@ -427,9 +427,6 @@ def train(args):
         import dali
         train_iter = dali.train(settings=args, trainer_id=trainer_id, trainers_num=num_trainers,
                                 gpu_id=gpu_id, data_layout=args.data_format)
-        if trainer_id == 0:
-            test_iter = dali.val(settings=args, trainer_id=trainer_id, trainers_num=num_trainers,
-                                 gpu_id=gpu_id, data_layout=args.data_format)
     else:
         train_reader = reader.train(settings=args, data_dir=args.data_dir,
                                     pass_id_as_seed=shuffle_seed, data_layout=args.data_format)
@@ -529,6 +526,8 @@ def train(args):
         train_speed_list.append(train_speed)
 
         if trainer_id == 0 and (args.do_test or (pass_id + 1) == params["num_epochs"]):
+            test_iter = dali.val(settings=args, trainer_id=trainer_id, trainers_num=num_trainers,
+                                 gpu_id=gpu_id, data_layout=args.data_format)
             test_batch_id = 0
             for data in test_iter:
                 t1 = time.time()
@@ -555,6 +554,7 @@ def train(args):
 
             if args.use_dali:
                 test_iter.reset()
+                del test_iter
 
             test_loss = np.array(test_info[0]).mean()
             test_acc1 = np.array(test_info[1]).mean()
@@ -572,7 +572,6 @@ def train(args):
                   "test_loss {4}, test_acc1 {5}, test_acc5 {6}, speed {7}".format(
                       pass_id, "%.5f"%train_loss, "%.5f"%train_acc1, "%.5f"%train_acc5, "%.5f"%test_loss,
                       "%.5f"%test_acc1, "%.5f"%test_acc5, "%.2f" % train_speed))
-
         else:
             if use_mixup:
                 print("End pass {0}, train_loss {1}, speed {2}".format(pass_id, "%.5f"%train_loss, "%.2f" % train_speed))
