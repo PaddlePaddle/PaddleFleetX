@@ -43,7 +43,6 @@ FP16=True #whether to use float16
 USE_DGC=False # whether to use dgc
 ALL_CARDS=8
 START_EPOCHS=4 # start dgc after 4 epochs
-
 # add 1 in let, let will not return 1 when set START_EPOCHS=0
 let '_tmp_ans=((TOTAL_IMAGES+BATCH_SIZE*ALL_CARDS-1)/(BATCH_SIZE*ALL_CARDS))*START_EPOCHS' 1
 DGC_RAMPUP_BEGIN_STEP=${_tmp_ans}
