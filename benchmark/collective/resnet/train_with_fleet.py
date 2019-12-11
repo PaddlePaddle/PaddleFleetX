@@ -429,10 +429,10 @@ def train(args):
                                 gpu_id=gpu_id, data_layout=args.data_format)
     else:
         train_reader = reader.train(settings=args, data_dir=args.data_dir,
-                                    pass_id_as_seed=shuffle_seed, data_layout=args.data_format)
+                                    pass_id_as_seed=shuffle_seed, data_layout=args.data_format, threads=10)
         train_batch_reader=paddle.batch(train_reader, batch_size=train_batch_size)
 
-        test_reader = reader.val(settings=args, data_dir=args.data_dir, data_layout=args.data_format)
+        test_reader = reader.val(settings=args, data_dir=args.data_dir, data_layout=args.data_format, threads=10)
         test_batch_reader=paddle.batch(test_reader, batch_size=test_batch_size)
 
         places = place
@@ -464,7 +464,6 @@ def train(args):
 
         if not args.use_dali:
             train_iter = train_data_loader()
-            test_iter = test_data_loader()
 
         for data in train_iter:
             t1 = time.time()
@@ -485,14 +484,14 @@ def train(args):
             period = t2 - t1
             time_record.append(period)
 
-            if args.profile and batch_id == 50:
+            if args.profile and batch_id == 100:
                 print("begin profiler")
                 if trainer_id == 0:
                     profiler.start_profiler("All")
-            elif args.profile and batch_id == 55:
+            elif args.profile and batch_id == 105:
                 print("begin to end profiler")
                 if trainer_id == 0:
-                    profiler.stop_profiler("total", "./profile_%d" % (trainer_id))
+                    profiler.stop_profiler("total", "./profile_pass_%d" % (pass_id))
                 print("end profiler break!")
                 args.profile=False
 
@@ -526,8 +525,12 @@ def train(args):
         train_speed_list.append(train_speed)
 
         if trainer_id == 0 and (args.do_test or (pass_id + 1) == params["num_epochs"]):
-            test_iter = dali.val(settings=args, trainer_id=trainer_id, trainers_num=num_trainers,
+            if args.use_dali:
+                test_iter = dali.val(settings=args, trainer_id=trainer_id, trainers_num=num_trainers,
                                  gpu_id=gpu_id, data_layout=args.data_format)
+            else:
+                test_iter = test_data_loader()
+
             test_batch_id = 0
             for data in test_iter:
                 t1 = time.time()

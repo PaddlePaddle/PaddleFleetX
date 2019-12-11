@@ -208,6 +208,7 @@ def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0, 
         file_root = os.path.join(file_root, 'train')
 
     if trainer_id is not None and trainers_num is not None:
+        print("dali gpu_id:", gpu_id, "shard_id:", trainer_id, "num_shard:", trainers_num)
         shard_id=trainer_id
         num_shards=trainers_num
         pipe = HybridTrainPipe(

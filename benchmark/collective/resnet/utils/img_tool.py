@@ -129,8 +129,9 @@ def process_image(sample, mode, color_jitter, rotate, settings,
     img -= img_mean
     img /= img_std
 
+    #print("image_shape:", img.shape)
     if data_layout == 'NHWC':
-        img = [img[1], img[2], img[0]]
+        img = img.transpose((1, 2, 0))
 
     if mode == 'train' or mode == 'val':
         return (img, sample[1])
