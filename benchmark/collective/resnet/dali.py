@@ -226,7 +226,8 @@ def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0, 
             shard_id=shard_id,
             num_shards=num_shards,
             seed=42 + shard_id, 
-            data_layout=data_layout)
+            data_layout=data_layout,
+            num_threads=1)
         pipe.build()
         pipelines = [pipe]
         sample_per_shard = len(pipe) // num_shards
@@ -254,7 +255,8 @@ def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0, 
                 idx,
                 num_shards,
                 seed=42 + idx,
-                data_layout=data_layout)
+                data_layout=data_layout,
+                num_threads=1)
             pipe.build()
             pipelines.append(pipe)
         sample_per_shard = len(pipelines[0])

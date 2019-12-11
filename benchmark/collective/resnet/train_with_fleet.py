@@ -274,20 +274,20 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
     model = models.__dict__[model_name]()
     with fluid.program_guard(main_prog, startup_prog):
         use_mixup = args.use_mixup
-        data_loader, data = utility.create_data_loader(is_train, args)
+        data_loader, data = utility.create_data_loader(is_train, args, data_layout=args.data_format)
 
         with fluid.unique_name.guard():
             if is_train and  use_mixup:
                 image, y_a, y_b, lam = data[0], data[1], data[2], data[3]
-                if args.data_format == 'NHWC':
-                    image = fluid.layers.transpose(image, [0, 2, 3, 1])
+                #if args.data_format == 'NHWC' and not args.use_dali:
+                #    image = fluid.layers.transpose(image, [0, 2, 3, 1])
                 avg_cost = net_config(image=image, y_a=y_a, y_b=y_b, lam=lam, model=model, args=args, label=0, is_train=True)
                 avg_cost.persistable = True
                 build_program_out = [data_loader, avg_cost]
             else:
                 image, label = data[0], data[1],
-                if args.data_format == 'NHWC':
-                    image = fluid.layers.transpose(image, [0, 2, 3, 1])
+                #if args.data_format == 'NHWC' and not args.use_dali:
+                #    image = fluid.layers.transpose(image, [0, 2, 3, 1])
                 avg_cost, acc_top1, acc_top5 = net_config(image, model, args, label=label, is_train=is_train)
                 avg_cost.persistable = True
                 acc_top1.persistable = True
@@ -426,15 +426,16 @@ def train(args):
     if args.use_dali:
         import dali
         train_iter = dali.train(settings=args, trainer_id=trainer_id, trainers_num=num_trainers,
-                                gpu_id=gpu_id)
+                                gpu_id=gpu_id, data_layout=args.data_format)
         if trainer_id == 0:
             test_iter = dali.val(settings=args, trainer_id=trainer_id, trainers_num=num_trainers,
-                                 gpu_id=gpu_id)
+                                 gpu_id=gpu_id, data_layout=args.data_format)
     else:
-        train_reader = reader.train(settings=args, data_dir=args.data_dir, pass_id_as_seed=shuffle_seed)
+        train_reader = reader.train(settings=args, data_dir=args.data_dir,
+                                    pass_id_as_seed=shuffle_seed, data_layout=args.data_format)
         train_batch_reader=paddle.batch(train_reader, batch_size=train_batch_size)
 
-        test_reader = reader.val(settings=args, data_dir=args.data_dir)
+        test_reader = reader.val(settings=args, data_dir=args.data_dir, data_layout=args.data_format)
         test_batch_reader=paddle.batch(test_reader, batch_size=test_batch_size)
 
         places = place
