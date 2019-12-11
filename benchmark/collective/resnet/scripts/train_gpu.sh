@@ -1,5 +1,6 @@
 #!/bin/bash
-#export CUDA_VISIBLE_DEVICES=4,5,6,7
+#export CUDA_VISIBLE_DEVICES=0
+#export FLAGS_reader_queue_speed_test_mode=1
 export FLAGS_sync_nccl_allreduce=1
 export FLAGS_cudnn_exhaustive_search=1
 export FLAGS_conv_workspace_size_limit=7000 #MB
@@ -89,4 +90,5 @@ python -m paddle.distributed.launch ${distributed_args}  --log_dir log \
        --use_dgc=${USE_DGC} \
        --fetch_steps=10 \
        --do_test=True \
+       --profile=False \
        --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP}

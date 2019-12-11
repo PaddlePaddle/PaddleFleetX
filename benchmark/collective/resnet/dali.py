@@ -53,7 +53,7 @@ class HybridTrainPipe(Pipeline):
                  seed=42,
                  data_layout="NCHW"):
         super(HybridTrainPipe, self).__init__(
-            batch_size, num_threads, device_id, seed=seed)
+            batch_size, num_threads, device_id, seed=seed, prefetch_queue_depth=8)
         self.input = ops.FileReader(
             file_root=file_root,
             file_list=file_list,
@@ -227,7 +227,7 @@ def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0, 
             num_shards=num_shards,
             seed=42 + shard_id, 
             data_layout=data_layout,
-            num_threads=1)
+            num_threads=4)
         pipe.build()
         pipelines = [pipe]
         sample_per_shard = len(pipe) // num_shards
@@ -256,7 +256,7 @@ def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0, 
                 num_shards,
                 seed=42 + idx,
                 data_layout=data_layout,
-                num_threads=1)
+                num_threads=4)
             pipe.build()
             pipelines.append(pipe)
         sample_per_shard = len(pipelines[0])
