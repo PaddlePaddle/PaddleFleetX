@@ -1,6 +1,6 @@
 #!/bin/bash
 #export CUDA_VISIBLE_DEVICES=2,3,4,5,6,7
-#export CUDA_VISIBLE_DEVICES=7
+#export CUDA_VISIBLE_DEVICES=0
 #export FLAGS_reader_queue_speed_test_mode=1
 export FLAGS_sync_nccl_allreduce=1
 export FLAGS_cudnn_exhaustive_search=1
@@ -21,7 +21,7 @@ MODEL_SAVE_PATH="output/"
 
 # training params
 NUM_EPOCHS=120
-BATCH_SIZE=160
+BATCH_SIZE=256
 LR=0.1
 LR_STRATEGY=piecewise_decay
 
@@ -42,7 +42,7 @@ FP16=True #whether to use float16
 use_dali=True
 if [[ ${use_dali} == "True" ]]; then
     export FLAGS_fraction_of_gpu_memory_to_use=0.8
-    export FLAGS_conv_workspace_size_limit=8000 #MB
+    #export FLAGS_conv_workspace_size_limit=8000 #MB
 fi
 export LD_LIBRARY_PATH=/root/go/soft/cuda10-cudnn7.6.5.32/lib64:${LD_LIBRARY_PATH}
 
@@ -89,7 +89,7 @@ python -m paddle.distributed.launch ${distributed_args}  --log_dir log \
        --fp16=${FP16} \
        --use_dali=${use_dali} \
        --use_dgc=${USE_DGC} \
-       --fetch_steps=30 \
+       --fetch_steps=10 \
        --do_test=True \
-       --profile=True \
+       --profile=False \
        --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP}
