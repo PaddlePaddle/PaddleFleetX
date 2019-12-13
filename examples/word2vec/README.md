@@ -27,20 +27,20 @@ sh prepare_data.sh
 在本示例中，Word2Vec模型使用[1 Billion Word Language Model Benchmark](http://www.statmt.org/lm-benchmark)的训练集，该训练集一共包含30294863个文本，在linux环境下可以执行以下命令进行数据的下载：
 ```bash
 mkdir data
-wget http://www.statmt.org/lm-benchmark/1-billion-word-language-modeling-benchmark-r13output.tar.gz
+wget --no-check-certificate http://www.statmt.org/lm-benchmark/1-billion-word-language-modeling-benchmark-r13output.tar.gz
 tar xzvf 1-billion-word-language-modeling-benchmark-r13output.tar.gz
 mv 1-billion-word-language-modeling-benchmark-r13output/training-monolingual.tokenized.shuffled/ data/
 ```
 您也可以从国内源上下载数据，速度更快更稳定。国内源上备用数据下载命令：
 ```bash
 mkdir data
-wget https://paddlerec.bj.bcebos.com/word2vec/1-billion-word-language-modeling-benchmark-r13output.tar
+wget --no-check-certificate https://paddlerec.bj.bcebos.com/word2vec/1-billion-word-language-modeling-benchmark-r13output.tar
 tar xvf 1-billion-word-language-modeling-benchmark-r13output.tar
 mv 1-billion-word-language-modeling-benchmark-r13output/training-monolingual.tokenized.shuffled/ data/
 ```
 ### 预测数据下载
 ```bash
-wget https://paddlerec.bj.bcebos.com/word2vec/test_dir.tar
+wget --no-check-certificate https://paddlerec.bj.bcebos.com/word2vec/test_dir.tar
 tar -xvf test_dir.tar
 mkdir test_data
 mv data/test_dir/* ./test_data
@@ -317,25 +317,21 @@ def get_dataset_reader(inputs):
       dataset.set_filelist(file_list)
       start_time = time.time()
       class fetch_vars(fluid.executor.FetchHandler):
-          def handler(self, fetch_target_vars):
-              loss_value = fetch_target_vars[0]
+          def handler(self, res_dict):
+              loss_value = res_dict['loss']
               logger.info(
                   "epoch -> {}, loss -> {}, at: {}".format(epoch, loss_value, time.ctime()))
       # 开始训练
       exe.train_from_dataset(program=fluid.default_main_program(), dataset=dataset,
-                             fetch_handler=fetch_vars([loss.name], 5, True))
+                             fetch_handler=fetch_vars(var_dict=var_dict))
       end_time = time.time()
       model_path = str(model_path) + '/trainer_' + str(role.worker_index()) + '_epoch_' + str(epoch)
       # 保存模型
       fluid.io.save_persistables(executor=exe, dirname=model_path)
   logger.info("Train Success!")
   ```
-在paddlepaddle中，dataset数据读取是和`train_from_dataset()`训练一一对应的。但是因为dataset设计初衷是保证高速，所以运行于程序底层，与paddlepaddle传统的`feed={dict}`方法不一致，不支持直接通过`train_from_dataset`的返回值监控当前训练的细节，比如loss的变化，但我们可以通过`release/1.6`中新增的`fetch_handler`方法创建一个新的线程，监听训练过程，不影响训练的效率。该方法需要继承`fluid.executor.FetchHandler`类中的`handler`方法实现一个监听函数。`fetch_target_vars`是一个list，由我们自行指定哪些变量的值需要被监控。在`exe.train_from_dataset`方法中，指定`fetch_handler`为我们实现的监听函数。可以配置3个超参：
-  
-    - 第一个是`fetch_var_list`，添加我们想要获取的变量的名称，示例中，我们指定为`[self.loss.name]`
-    - 第二个是监听函数的更新频率，单位是s，示例中我们设置为5s更新一次。
-    - 第三个是我们获取的变量的数据类型，若想获得常用的`numpy.ndarray`的格式，则设置为`True`；若想获得`Tensor`，则设置为`False`。
-   
+在paddlepaddle中，dataset数据读取是和`train_from_dataset()`训练一一对应的。但是因为dataset设计初衷是保证高速，所以运行于程序底层，与paddlepaddle传统的`feed={dict}`方法不一致，不支持直接通过`train_from_dataset`的返回值监控当前训练的细节，比如loss的变化，但我们可以通过`release/1.6`中新增的`FetchHandler`方法创建一个新的线程，监听训练过程，不影响训练的效率。首先我们需要继承`fluid.executor.FetchHandler`类，获得一个`handler`实例，并用需捕获的变量信息`var_dict`去初始化它。`var_dict`顾名思义，是一个存储待捕获变量的词典，其`key`为字符串类型，主要用来对不同的变量进行区分，可以自由指定，`value`为`Variable`类型。然后，重写`fluid.executor.FetchHandler.handler`函数，监控训练过程。
+
 完成以上步骤，便可以开始进行单机的训练。
 
 ## 分布式训练
