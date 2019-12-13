@@ -29,14 +29,14 @@ SAVE_STEPS=10000
 BATCH_SIZE=4096
 LR_RATE=1e-4
 WEIGHT_DECAY=0.01
-MAX_LEN=512
+MAX_LEN=128
 TRAIN_DATA_DIR=data/train
 VALIDATION_DATA_DIR=data/validation
 CONFIG_PATH=data/demo_config/bert_config.json
 VOCAB_PATH=data/demo_config/vocab.txt
 
 # Change your train arguments:
-nohup python -m paddle.distributed.launch ${distributed_args}  --log_dir log \
+python -m paddle.distributed.launch --selected_gpus='0'  --log_dir log \
         ./train.py \
         --use_cuda true\
         --weight_sharing true\
@@ -54,6 +54,6 @@ nohup python -m paddle.distributed.launch ${distributed_args}  --log_dir log \
         --skip_steps 20 \
         --validation_steps 1000 \
         --num_iteration_per_drop_scope 10 \
-        --use_fp16 false \
+        --use_fp16 true \
         --loss_scaling 8.0 &
        
