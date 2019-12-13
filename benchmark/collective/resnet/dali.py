@@ -33,6 +33,11 @@ def convert_data_layout(data_layout):
         assert False, "not supported data_layout:{}".format(data_layout)
 
 class HybridTrainPipe(Pipeline):
+    """
+    Create train pipe line.  You can find document here: 
+    https://docs.nvidia.com/deeplearning/sdk/dali-master-branch-user-guide/docs/plugins/paddle_tutorials.html
+    Note: You may need to find the newest DALI version.
+    """
     def __init__(self,
                  file_root,
                  file_list,
@@ -98,6 +103,9 @@ class HybridTrainPipe(Pipeline):
 
 
 class HybridValPipe(Pipeline):
+    """
+    Create validate pipe line.
+    """
     def __init__(self,
                  file_root,
                  file_list,

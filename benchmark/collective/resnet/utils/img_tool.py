@@ -129,7 +129,6 @@ def process_image(sample, mode, color_jitter, rotate, settings,
     img -= img_mean
     img /= img_std
 
-    #print("image_shape:", img.shape)
     if data_layout == 'NHWC':
         img = img.transpose((1, 2, 0))
 

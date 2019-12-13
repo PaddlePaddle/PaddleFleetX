@@ -1,6 +1,6 @@
 #!/bin/bash
 #export CUDA_VISIBLE_DEVICES=2,3,4,5,6,7
-#export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=0
 #export FLAGS_reader_queue_speed_test_mode=1
 export FLAGS_sync_nccl_allreduce=1
 export FLAGS_cudnn_exhaustive_search=1
@@ -20,8 +20,8 @@ MODEL=ResNet50 #VGG16
 MODEL_SAVE_PATH="output/"
 
 # training params
-NUM_EPOCHS=120
-BATCH_SIZE=256
+NUM_EPOCHS=90
+BATCH_SIZE=128
 LR=0.1
 LR_STRATEGY=piecewise_decay
 
@@ -30,25 +30,23 @@ DATA_PATH="./ImageNet"
 TOTAL_IMAGES=1281167
 CLASS_DIM=1000
 IMAGE_SHAPE=3,224,224
-DATA_FORMAT="NHWC"
+DATA_FORMAT="NCHW"
 
 #gpu params
 FUSE=True
 NCCL_COMM_NUM=1
-NUM_THREADS=3
+NUM_THREADS=2
 USE_HIERARCHICAL_ALLREDUCE=False
-NUM_CARDS=8
+NUM_CARDS=1
 FP16=True #whether to use float16
 use_dali=True
 if [[ ${use_dali} == "True" ]]; then
     export FLAGS_fraction_of_gpu_memory_to_use=0.8
-    #export FLAGS_conv_workspace_size_limit=8000 #MB
 fi
-export LD_LIBRARY_PATH=/root/go/soft/cuda10-cudnn7.6.5.32/lib64:${LD_LIBRARY_PATH}
 
 # dgc params
 USE_DGC=False # whether to use dgc
-ALL_CARDS=1
+ALL_CARDS=8
 START_EPOCHS=4 # start dgc after 4 epochs
 # add 1 in let, let will not return 1 when set START_EPOCHS=0
 let '_tmp_ans=((TOTAL_IMAGES+BATCH_SIZE*ALL_CARDS-1)/(BATCH_SIZE*ALL_CARDS))*START_EPOCHS' 1
