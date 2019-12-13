@@ -129,11 +129,9 @@ def optimization(loss,
     if dist_strategy is not None:
         # use fleet api
         if use_fp16:
-            amp_list = AutoMixedPrecisionLists(
-                custom_black_list=['reduce_sum'])
             optimizer = fluid.contrib.mixed_precision.decorate(
                 optimizer=optimizer, init_loss_scaling=loss_scaling,
-                amp_lists=amp_list, use_dynamic_loss_scaling=False)
+                use_dynamic_loss_scaling=False)
         optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
     _, param_grads = optimizer.minimize(loss)
 
