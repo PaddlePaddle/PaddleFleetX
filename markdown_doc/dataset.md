@@ -11,7 +11,7 @@ Profile方法：只读数据不训练，读完即消费完。这种方法得到�
 以下是IMDB数据不同线程数下的throughputs：
 
 <p align="center">
-<img align="center" src="images/dataset_throughputs.png" height="270px" width="940px">
+<img align="center" src="../images/dataset_throughputs.png" height="270px" width="940px">
 <p>
 
 # 2. 快速开始
