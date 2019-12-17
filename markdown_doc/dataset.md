@@ -1,12 +1,18 @@
-
-
 # 1. 简介
 
 Dataset是Paddle的高性能IO模块。有两种模式InMemory和Queue，并且支持用户通过pipe command自定义数据处理逻辑。
 
-性能参考：Dataset与Pyreader的加速能力对比、Dataset性能评测
+对于计算量较小的网络结构，QueueDataset的时间难以被计算Overlap，小数据下Offline多Epoch训练推荐采用InMemory模式。对于计算复杂型网络结构，推荐使用QueueDataset。
 
-更多示例见：Dataset模式本地训练示例
+## 1.1 Dataset与Pyreader的加速能力对比
+
+Profile方法：只读数据不训练，读完即消费完。这种方法得到的吞吐数据是IO的极限能力。
+
+以下是IMDB数据不同线程数下的throughputs：
+
+<p align="center">
+<img align="center" src="images/dataset_throughputs.png" height="270px" width="940px">
+<p>
 
 # 2. 快速开始
 下面介绍单机示例，用户可以直接跑通。
