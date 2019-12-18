@@ -87,4 +87,5 @@ python -m paddle.distributed.launch ${distributed_args}  --log_dir log \
        --fetch_steps=10 \
        --do_test=True \
        --profile=False \
-       --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP}
+       --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP} \
+       --use_recompute=False
