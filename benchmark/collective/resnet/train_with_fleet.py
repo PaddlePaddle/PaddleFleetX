@@ -96,6 +96,7 @@ add_arg('rampup_begin_step', int,   5008,           "The beginning step from whi
 add_arg('image_mean', nargs='+', type=float, default=[0.485, 0.456, 0.406], help="The mean of input image data")
 add_arg('image_std', nargs='+', type=float, default=[0.229, 0.224, 0.225], help="The std of input image data")
 add_arg('interpolation',    int,  None,                 "The interpolation mode")
+add_arg('use_recompute',           bool,  False,          "Whether use Recompute Optimizer or not")
 
 def get_momentum_optimizer(momentum_kwargs, use_dgc=False, dgc_kwargs={}):
     if not use_dgc:
@@ -308,6 +309,10 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
                     optimizer = fluid.contrib.mixed_precision.decorate(optimizer,
                                                                        init_loss_scaling=args.scale_loss,
                                                                        use_dynamic_loss_scaling=args.use_dynamic_loss_scaling)
+                if args.use_recompute:
+                   dist_strategy.forward_recompute = True
+                   dist_strategy.enable_sequential_execution=True
+                   dist_strategy.recompute_checkpoints = model.checkpoints
                 dist_optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
                 _, param_grads = dist_optimizer.minimize(avg_cost)
 
@@ -598,8 +603,10 @@ def train(args):
                 result['0']['result_log'] = dict()
                 result['0']['result_log']['acc1'] = acc1_logs
                 result['0']['result_log']['acc5'] = acc5_logs
-                # median speed of all epochs
+                # maximum speed of all epochs
                 result['1'] = max(train_speed_list) * num_trainers
+                result['14'] = args.batch_size
+
                 print(str(result))
                 f.writelines(str(result))
 
