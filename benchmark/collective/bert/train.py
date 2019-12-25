@@ -109,8 +109,7 @@ def create_model(pyreader_name, bert_config):
         sentence_ids=sent_ids,
         input_mask=input_mask,
         config=bert_config,
-        weight_sharing=args.weight_sharing,
-        use_fp16=args.use_fp16)
+        weight_sharing=args.weight_sharing)
 
     next_sent_acc, mask_lm_loss, total_loss = bert.get_pretraining_output(
         mask_label, mask_pos, labels)

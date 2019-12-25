@@ -26,7 +26,7 @@ export FLAGS_fuse_parameter_memory_size=64 #MB
 
 # pretrain config
 SAVE_STEPS=10000
-BATCH_SIZE=4096
+BATCH_SIZE=2048
 LR_RATE=1e-4
 WEIGHT_DECAY=0.01
 MAX_LEN=512
