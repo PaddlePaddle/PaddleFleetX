@@ -54,8 +54,7 @@ class BertModel(object):
                  sentence_ids,
                  input_mask,
                  config,
-                 weight_sharing=True,
-                 use_fp16=False):
+                 weight_sharing=True):
 
         self._emb_size = config['hidden_size']
         self._n_layer = config['num_hidden_layers']
@@ -71,7 +70,8 @@ class BertModel(object):
         self._word_emb_name = "word_embedding"
         self._pos_emb_name = "pos_embedding"
         self._sent_emb_name = "sent_embedding"
-        self._dtype = "float16" if use_fp16 else "float32"
+        #self._dtype = "float16" if use_fp16 else "float32"
+        self._dtype = "float32"
 
         # Initialize all weigths by truncated normal initializer, and all biases 
         # will be initialized by constant zero by default.

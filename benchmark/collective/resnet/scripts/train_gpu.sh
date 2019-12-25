@@ -1,8 +1,9 @@
 #!/bin/bash
 export FLAGS_sync_nccl_allreduce=1
 export FLAGS_cudnn_exhaustive_search=1
-export FLAGS_conv_workspace_size_limit=7000 #MB
+export FLAGS_conv_workspace_size_limit=4000 #MB
 export FLAGS_cudnn_batchnorm_spatial_persistent=1
+export CUDA_VISIBLE_DEVICES=4
 
 export GLOG_v=1
 export GLOG_logtostderr=1
@@ -36,7 +37,7 @@ NUM_THREADS=2
 USE_HIERARCHICAL_ALLREDUCE=False
 NUM_CARDS=1
 FP16=True #whether to use float16
-use_dali=True
+use_dali=False
 if [[ ${use_dali} == "True" ]]; then
     export FLAGS_fraction_of_gpu_memory_to_use=0.8
 fi
@@ -60,7 +61,9 @@ fi
 
 set -x
 
-python -m paddle.distributed.launch ${distributed_args}  --log_dir log \
+export LD_LIBRARY_PATH=/root/go/soft/cuda10-cudnn7.6.5.32/lib64:${LD_LIBRARY_PATH}
+
+python -m paddle.distributed.launch ${distributed_args} \
        ./train_with_fleet.py \
        --model=${MODEL} \
        --batch_size=${BATCH_SIZE} \
@@ -86,6 +89,6 @@ python -m paddle.distributed.launch ${distributed_args}  --log_dir log \
        --use_dgc=${USE_DGC} \
        --fetch_steps=10 \
        --do_test=True \
-       --profile=False \
+       --profile=True \
        --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP} \
        --use_recompute=False

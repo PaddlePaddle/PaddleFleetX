@@ -485,11 +485,11 @@ def train(args):
             period = t2 - t1
             time_record.append(period)
 
-            if args.profile and batch_id == 100:
+            if args.profile and batch_id == 200:
                 print("begin profiler")
                 if trainer_id == 0:
                     profiler.start_profiler("All")
-            elif args.profile and batch_id == 105:
+            elif args.profile and batch_id == 205:
                 print("begin to end profiler")
                 if trainer_id == 0:
                     profiler.stop_profiler("total", "./profile_pass_%d" % (pass_id))

@@ -35,6 +35,8 @@ VALIDATION_DATA_DIR=data/validation
 CONFIG_PATH=data/demo_config/bert_config.json
 VOCAB_PATH=data/demo_config/vocab.txt
 
+export CUDA_VISIBLE_DEVICES=4
+
 # Change your train arguments:
 nohup python -m paddle.distributed.launch ${distributed_args}  --log_dir log \
         ./train.py \
@@ -54,6 +56,6 @@ nohup python -m paddle.distributed.launch ${distributed_args}  --log_dir log \
         --skip_steps 20 \
         --validation_steps 1000 \
         --num_iteration_per_drop_scope 10 \
-        --use_fp16 false \
+        --use_fp16 True \
         --loss_scaling 8.0 &
        
