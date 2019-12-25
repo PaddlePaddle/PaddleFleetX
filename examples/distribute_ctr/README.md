@@ -393,9 +393,9 @@ auc = exe.run(fetch_list=[auc])
 > 
 > 在paddle dataset模式中，由于dataset设计初衷是保证高速，运行于程序底层，与paddlepaddle传统的`feed={dict}`方法不一致，不支持直接通过`train_from_dataset`的函数返回值，得到当前训练中`fetch_list`的值。
 > 
-> 但我们可以通过`paddle/release/1.6`中新增的`fetch_handler`方法创建一个新的线程，监听训练过程，不影响训练的效率。该方法需要继承`fluid.executor.FetchHandler`类中的`handler`方法实现一个监听函数。`fetch_target_vars`是一个list，由我们自行指定哪些变量的值需要被监控。在`exe.train_from_dataset`方法中，指定`fetch_handler`为我们实现的监听函数。可以配置3个超参：
+> 但我们可以通过`paddle/release/1.6`中新增的`fetch_handler`方法创建一个新的线程，监听训练过程，不影响训练的效率。该方法需要继承`fluid.executor.FetchHandler`类中的`handler`方法实现一个监听函数。`var_dict`是一个dict，由我们自行指定哪些变量的值需要被监控。在`exe.train_from_dataset`方法中，指定`fetch_handler`为我们实现的监听函数。可以配置2个超参：
 > - 第一个是`var_dict`，添加我们想要获取的变量的名称，示例中，我们指定为`{"auc": auc_var}`
-> - 第二个是监听函数的更新频率，单位是s，示例中我们设置为30s更新一次。
+> - 第二个是监听函数的更新频率，单位是s，示例中我们设置为5s更新一次。
 
 改动后的训练代码如下
 ```python
@@ -410,10 +410,10 @@ for epoch in range(num_epochs):
       var_dict = {"auc": auc_var}
       exe.train_from_dataset(program=fleet.main_program,
                             dataset=dataset,
-                            fetch_handler=fetch_vars(var_dict, 30))
+                            fetch_handler=fetch_vars(var_dict, 5))
       end_time = time.time()
 ```
-如此，便可以在`def handler()`函数中实现训练过程的实时监控，但该监控值的打印频率，不是以`mini_batch`为单位，而是以时间`s`为单位，请知悉。`Fetch hadnler`所在的线程与训练线程并发，但不完全解耦。具体表现在：fetch线程在每个epoch开始时进行计时，epoch结束重置计时。训练线程结束时，会检测fetch线程是否仍在工作，会等待fetch线程结束。
+如此，便可以在`def handler()`函数中实现训练过程的实时监控，但该监控值的打印频率，不是以`mini_batch`为单位，而是以时间`s`为单位，请知悉。`Fetch hadnler`所在的线程与训练线程并发，但不完全解耦。具体表现在：fetch线程在每个epoch开始时进行计时，epoch结束重置计时。训练线程结束时，会检测fetch线程是否仍在工作，会持续等待fetch线程运行结束。
 
 ### 运行单机训练
 为了快速验证效果，我们可以用小样本数据快速运行起来，只取前两个part的数据进行训练。在代码目录下，通过键入以下命令启动单机训练。
