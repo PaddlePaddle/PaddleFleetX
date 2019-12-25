@@ -394,9 +394,8 @@ auc = exe.run(fetch_list=[auc])
 > 在paddle dataset模式中，由于dataset设计初衷是保证高速，运行于程序底层，与paddlepaddle传统的`feed={dict}`方法不一致，不支持直接通过`train_from_dataset`的函数返回值，得到当前训练中`fetch_list`的值。
 > 
 > 但我们可以通过`paddle/release/1.6`中新增的`fetch_handler`方法创建一个新的线程，监听训练过程，不影响训练的效率。该方法需要继承`fluid.executor.FetchHandler`类中的`handler`方法实现一个监听函数。`fetch_target_vars`是一个list，由我们自行指定哪些变量的值需要被监控。在`exe.train_from_dataset`方法中，指定`fetch_handler`为我们实现的监听函数。可以配置3个超参：
-> - 第一个是`fetch_var_list`，添加我们想要获取的变量的名称，示例中，我们指定为`[self.loss.name]`
-> - 第二个是监听函数的更新频率，单位是s，示例中我们设置为5s更新一次。
-> - 第三个是我们获取的变量的数据类型，若想获得常用的`numpy.ndarray`的格式，则设置为`True`；若想获得`Tensor`，则设置为`False`。
+> - 第一个是`var_dict`，添加我们想要获取的变量的名称，示例中，我们指定为`{"auc": auc_var}`
+> - 第二个是监听函数的更新频率，单位是s，示例中我们设置为30s更新一次。
 
 改动后的训练代码如下
 ```python
@@ -404,16 +403,17 @@ for epoch in range(num_epochs):
       start_time = time.time()
       class fetch_vars(fluid.executor.FetchHandler):
           def handler(self, fetch_target_vars):
-              auc_value = fetch_target_vars[0]
+              auc_value = fetch_target_vars["auc"]
               logger.info(
                   "epoch -> {}, auc -> {}, at: {}".format(epoch, auc_value, time.ctime()))
       # 开始训练
-      exe.train_from_dataset(program=fluid.default_main_program(),     
-                             dataset=dataset,
-                             fetch_handler=fetch_vars([auc_var.name], 5, True))
+      var_dict = {"auc": auc_var}
+      exe.train_from_dataset(program=fleet.main_program,
+                            dataset=dataset,
+                            fetch_handler=fetch_vars(var_dict, 30))
       end_time = time.time()
 ```
-如此，便可以在`def handler()`函数中实现训练过程的实时监控，但该监控值的打印频率，不是以mini_batch为单位，而是以时间s为单位，请知悉。
+如此，便可以在`def handler()`函数中实现训练过程的实时监控，但该监控值的打印频率，不是以`mini_batch`为单位，而是以时间`s`为单位，请知悉。`Fetch hadnler`所在的线程与训练线程并发，但不完全解耦。具体表现在：fetch线程在每个epoch开始时进行计时，epoch结束重置计时。训练线程结束时，会检测fetch线程是否仍在工作，会等待fetch线程结束。
 
 ### 运行单机训练
 为了快速验证效果，我们可以用小样本数据快速运行起来，只取前两个part的数据进行训练。在代码目录下，通过键入以下命令启动单机训练。
@@ -566,13 +566,13 @@ elif fleet.is_worker():
 了解了以上区别，便可以非常顺利的将单机模型升级为分布式训练模型。
 
 >### 同步与异步？你可能需要了解的知识
->在`区别三 需要指定分布式运行策略`中，我们简要的提及了目前Paddle参数服务器模式支持的分布式运行策略：`同步Sync`、`半异步Half-Async`、`异步Async`与`GEO-SGD`。这些名词您可能有些陌生，具体介绍可以参考文档[Transpiler综述](www.baidu.com)(汤老师负责的文档)
+>在`区别三 需要指定分布式运行策略`中，我们简要的提及了目前Paddle参数服务器模式支持的分布式运行策略：`同步Sync`、`半异步Half-Async`、`异步Async`与`GEO-SGD`。这些名词您可能有些陌生，具体介绍可以参考文档[PaddlePaddle Fluid CPU分布式训练(Transplier)使用指南](https://github.com/PaddlePaddle/Fleet/blob/develop/markdown_doc/transpiler/transpiler_cpu.md)
 
 
 ### 运行：本地模拟分布式
 如果暂时没有集群环境，或者想要快速调试代码，可以通过本地多进程模拟分布式来运行分布式训练的代码。
 有两种方法可以进行本地多进程模拟分布式。
-#### 方法一 运行`loc_cluster.sh`脚本
+#### 方法 运行`loc_cluster.sh`脚本
 示例代码中，给出了本地模拟分布式的一键启动脚本`loc_cluster.sh async`，在代码目录，通过命令
 ```bash
 # 根据自己的运行环境，选择sh或bash
@@ -621,16 +621,6 @@ I1126 07:38:28.947477 15142 communicator.cc:251] communicator stopped, send thre
 I1126 07:38:28.947571 14715 communicator.cc:363] Communicator stop done
 2019-11-26 07:38:28,948 - INFO - Distribute Train Success!
 ```
-#### 方法二 通过`paddle.distributed.launch_ps`运行模拟分布式
-该方法更通用，不需要写特别的脚本即可运行，在代码目录，键入命令：
-```bash
-python -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 async_train.py --test=True --cloud=0  &
-```
-日志位于`./logs/`，理想输出与方法一相同。
-运行该命令时：
-1. 首先需要注意修改python的PATH，例如将`python`修改为`/home/work/python27-gcc482/bin/python`以确保运行在您的正确的python环境下。
-2. 设置`--worker_num`与`--server_num`，以运行不同分布式配置。
-3. 运行该方法，使用的是默认配置与默认环境变量，如果需要调优，则需自行修改超参与环境变量。
 
 #
 ## 分布式训练——同步模式(Sync)
@@ -743,23 +733,12 @@ for epoch in range(params.epochs):
 ### 运行：本地模拟分布式
 同步模式的运行方式与异步方式相似，同样的有两种方式。
 
-#### 方法一 运行`loc_cluster.sh`脚本
+#### 方法 运行`loc_cluster.sh`脚本
 运行`local_cluster.sh`脚本，设置启动命令为`sync`：
 ```bash
 sh local_cluster.sh sync
 ```
 使用该脚本开启分布式模拟训练，默认启用2x2的训练模式。Trainer与Pserver的运行日志，存放于`./log/`文件夹，保存的模型位于`./model/`。
-
-#### 方法二 通过`paddle.distributed.launch_ps`运行模拟分布式
-使用`paddle.distributed.launch_ps`运行`sync_train.py`文件：
-```bash
-python -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 sync_train.py --test=True --cloud=0  &
-```
-日志位于`./logs/`。
-运行该命令时：
-1. 首先需要注意修改python的PATH，例如将`python`修改为`/home/work/python27-gcc482/bin/python`以确保运行在您的正确的python环境下。
-2. 设置`--worker_num`与`--server_num`，以运行不同分布式配置。
-3. 运行该方法，使用的是默认配置与默认环境变量，如果需要调优，则需自行修改超参与环境变量。
 
 使用快速验证数据集，本地模拟同步模式的分布式训练的理想输出为：
 > pserver.0.log
@@ -905,8 +884,6 @@ open file success
 ## benchmark
 在benchmark中，我们对比了tensorflow和paddlepaddle现有的几种分布式模式在CTR-DNN模型上的效果和速度，其中参与对比的paddle分布式模式有同步、pyreader全异步、dataset全异步，这里pyreader和dataset是paddle支持的两种不同的并行数据读取器，本示例中用到的reader为dataset，pyreader的使用方法可以参考[pyreader使用文档](https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/io_cn/PyReader_cn.html#pyreader)。
 
-benchmark效果：
-
-benchmark速度：
+benchmark介绍：[](https://github.com/PaddlePaddle/Fleet/tree/develop/benchmark/ps/distribute_ctr/paddle)
 
 benchmark相关代码及复现方式见[Fleet Repo](https://github.com/PaddlePaddle/Fleet.git)，路径为Fleet/benchmark/ps/distribute_ctr/paddle/。
