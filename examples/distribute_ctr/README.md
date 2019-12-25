@@ -884,6 +884,6 @@ open file success
 ## benchmark
 在benchmark中，我们对比了tensorflow和paddlepaddle现有的几种分布式模式在CTR-DNN模型上的效果和速度，其中参与对比的paddle分布式模式有同步、pyreader全异步、dataset全异步，这里pyreader和dataset是paddle支持的两种不同的并行数据读取器，本示例中用到的reader为dataset，pyreader的使用方法可以参考[pyreader使用文档](https://www.paddlepaddle.org.cn/documentation/docs/zh/api_cn/io_cn/PyReader_cn.html#pyreader)。
 
-benchmark介绍：[](https://github.com/PaddlePaddle/Fleet/tree/develop/benchmark/ps/distribute_ctr/paddle)
+benchmark介绍：[CTR(DNN) benchmark on paddle](https://github.com/PaddlePaddle/Fleet/tree/develop/benchmark/ps/distribute_ctr/paddle)
 
 benchmark相关代码及复现方式见[Fleet Repo](https://github.com/PaddlePaddle/Fleet.git)，路径为Fleet/benchmark/ps/distribute_ctr/paddle/。
