@@ -97,47 +97,28 @@ def optimization(loss,
     param_list = dict()
 
     if use_fp16:
-        param_grads = optimizer.backward(loss)
-        master_param_grads = create_master_params_grads(
-            param_grads, train_program, startup_prog, loss_scaling)
+        fluid.contrib.mixed_precision.decorate(
+            optimizer=optimizer,
+            init_loss_scaling=loss_scaling,
+            use_dynamic_loss_scaling=True)
 
-        for param, _ in master_param_grads:
-            param_list[param.name] = param * 1.0
-            param_list[param.name].stop_gradient = True
+    for param in train_program.global_block().all_parameters():
+        param_list[param.name] = param * 1.0
+        param_list[param.name].stop_gradient = True
 
-        optimizer.apply_gradients(master_param_grads)
+    if dist_strategy is not None:
+        # use fleet api
+        optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
+    _, param_grads = optimizer.minimize(loss)
 
-        if weight_decay > 0:
-            for param, grad in master_param_grads:
-                if exclude_from_weight_decay(param.name.rstrip(".master")):
-                    continue
-                with param.block.program._optimized_guard(
-                    [param, grad]), fluid.framework.name_scope("weight_decay"):
-                    updated_param = param - param_list[
-                        param.name] * weight_decay * scheduled_lr
-                    fluid.layers.assign(output=param, input=updated_param)
-
-        master_param_to_train_param(master_param_grads, param_grads,
-                                    train_program)
-
-    else:
-        for param in train_program.global_block().all_parameters():
-            param_list[param.name] = param * 1.0
-            param_list[param.name].stop_gradient = True
-
-        if dist_strategy is not None:
-            # use fleet api
-            optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
-        _, param_grads = optimizer.minimize(loss)
-
-        if weight_decay > 0:
-            for param, grad in param_grads:
-                if exclude_from_weight_decay(param.name):
-                    continue
-                with param.block.program._optimized_guard(
-                    [param, grad]), fluid.framework.name_scope("weight_decay"):
-                    updated_param = param - param_list[
-                        param.name] * weight_decay * scheduled_lr
-                    fluid.layers.assign(output=param, input=updated_param)
+    if weight_decay > 0:
+        for param, grad in param_grads:
+            if exclude_from_weight_decay(param.name):
+                continue
+            with param.block.program._optimized_guard(
+                [param, grad]), fluid.framework.name_scope("weight_decay"):
+                updated_param = param - param_list[
+                    param.name] * weight_decay * scheduled_lr
+                fluid.layers.assign(output=param, input=updated_param)
 
     return scheduled_lr

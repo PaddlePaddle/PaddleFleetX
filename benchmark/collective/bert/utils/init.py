@@ -37,7 +37,7 @@ def cast_fp32_to_fp16(exe, main_program):
                 master_param_var.get_tensor().set(data, exe.place)
 
 
-def init_checkpoint(exe, init_checkpoint_path, main_program, use_fp16=False):
+def init_checkpoint(exe, init_checkpoint_path, main_program):
     assert os.path.exists(
         init_checkpoint_path), "[%s] cann't be found." % init_checkpoint_path
 
@@ -53,14 +53,10 @@ def init_checkpoint(exe, init_checkpoint_path, main_program, use_fp16=False):
         predicate=existed_persitables)
     print("Load model from {}".format(init_checkpoint_path))
 
-    if use_fp16:
-        cast_fp32_to_fp16(exe, main_program)
-
 
 def init_pretraining_params(exe,
                             pretraining_params_path,
-                            main_program,
-                            use_fp16=False):
+                            main_program):
     assert os.path.exists(pretraining_params_path
                           ), "[%s] cann't be found." % pretraining_params_path
 
@@ -76,6 +72,3 @@ def init_pretraining_params(exe,
         predicate=existed_params)
     print("Load pretraining parameters from {}.".format(
         pretraining_params_path))
-
-    if use_fp16:
-        cast_fp32_to_fp16(exe, main_program)

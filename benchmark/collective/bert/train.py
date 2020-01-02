@@ -109,14 +109,13 @@ def create_model(pyreader_name, bert_config):
         sentence_ids=sent_ids,
         input_mask=input_mask,
         config=bert_config,
-        weight_sharing=args.weight_sharing,
-        use_fp16=args.use_fp16)
+        weight_sharing=args.weight_sharing)
 
     next_sent_acc, mask_lm_loss, total_loss = bert.get_pretraining_output(
         mask_label, mask_pos, labels)
 
-    if args.use_fp16 and args.loss_scaling > 1.0:
-        total_loss *= args.loss_scaling
+    #if args.use_fp16 and args.loss_scaling > 1.0:
+    #    total_loss *= args.loss_scaling
 
     return pyreader, next_sent_acc, mask_lm_loss, total_loss
 
@@ -283,7 +282,7 @@ def train(args):
     exe.run(startup_prog)
 
     if args.init_checkpoint and args.init_checkpoint != "":
-        init_checkpoint(exe, args.init_checkpoint, train_program, args.use_fp16)
+        init_checkpoint(exe, args.init_checkpoint, train_program)
 
     data_reader = DataReader(
         data_dir=args.data_dir,

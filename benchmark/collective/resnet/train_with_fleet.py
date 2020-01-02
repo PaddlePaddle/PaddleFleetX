@@ -357,6 +357,7 @@ def train(args):
     if not args.fuse:
         dist_strategy.fuse_all_reduce_ops = False
     dist_strategy.nccl_comm_num = args.nccl_comm_num
+    dist_strategy.fuse_elewise_add_act_ops=True
 
     role = role_maker.PaddleCloudRoleMaker(is_collective=True)
     fleet.init(role)
@@ -485,11 +486,11 @@ def train(args):
             period = t2 - t1
             time_record.append(period)
 
-            if args.profile and batch_id == 100:
+            if args.profile and batch_id == 200:
                 print("begin profiler")
                 if trainer_id == 0:
                     profiler.start_profiler("All")
-            elif args.profile and batch_id == 105:
+            elif args.profile and batch_id == 205:
                 print("begin to end profiler")
                 if trainer_id == 0:
                     profiler.stop_profiler("total", "./profile_pass_%d" % (pass_id))

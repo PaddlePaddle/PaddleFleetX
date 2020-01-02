@@ -44,8 +44,8 @@ def create_model(args,
         position_ids=pos_ids,
         sentence_ids=sent_ids,
         input_mask=input_mask,
-        config=bert_config,
-        use_fp16=args.use_fp16)
+        config=bert_config)
+        #use_fp16=args.use_fp16)
 
     cls_feats = bert.get_pooled_output()
     cls_feats = fluid.layers.dropout(
@@ -72,8 +72,8 @@ def create_model(args,
         logits=logits, label=labels, return_softmax=True)
     loss = fluid.layers.mean(x=ce_loss)
 
-    if args.use_fp16 and args.loss_scaling > 1.0:
-        loss *= args.loss_scaling
+    #if args.use_fp16 and args.loss_scaling > 1.0:
+    #    loss *= args.loss_scaling
 
     num_seqs = fluid.layers.create_tensor(dtype='int64')
     accuracy = fluid.layers.accuracy(input=probs, label=labels, total=num_seqs)

@@ -26,7 +26,7 @@ export FLAGS_fuse_parameter_memory_size=64 #MB
 
 # pretrain config
 SAVE_STEPS=10000
-BATCH_SIZE=4096
+BATCH_SIZE=2048
 LR_RATE=1e-4
 WEIGHT_DECAY=0.01
 MAX_LEN=512
@@ -34,6 +34,8 @@ TRAIN_DATA_DIR=data/train
 VALIDATION_DATA_DIR=data/validation
 CONFIG_PATH=data/demo_config/bert_config.json
 VOCAB_PATH=data/demo_config/vocab.txt
+
+export CUDA_VISIBLE_DEVICES=4
 
 # Change your train arguments:
 nohup python -m paddle.distributed.launch ${distributed_args}  --log_dir log \
@@ -54,6 +56,6 @@ nohup python -m paddle.distributed.launch ${distributed_args}  --log_dir log \
         --skip_steps 20 \
         --validation_steps 1000 \
         --num_iteration_per_drop_scope 10 \
-        --use_fp16 false \
+        --use_fp16 False \
         --loss_scaling 8.0 &
        
