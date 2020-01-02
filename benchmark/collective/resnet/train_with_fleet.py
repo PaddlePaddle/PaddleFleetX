@@ -357,7 +357,7 @@ def train(args):
     if not args.fuse:
         dist_strategy.fuse_all_reduce_ops = False
     dist_strategy.nccl_comm_num = args.nccl_comm_num
-    #dist_strategy.fuse_elewise_add_act_ops=True
+    dist_strategy.fuse_elewise_add_act_ops=True
 
     role = role_maker.PaddleCloudRoleMaker(is_collective=True)
     fleet.init(role)
