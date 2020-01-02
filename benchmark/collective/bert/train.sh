@@ -56,6 +56,6 @@ nohup python -m paddle.distributed.launch ${distributed_args}  --log_dir log \
         --skip_steps 20 \
         --validation_steps 1000 \
         --num_iteration_per_drop_scope 10 \
-        --use_fp16 True \
+        --use_fp16 False \
         --loss_scaling 8.0 &
        

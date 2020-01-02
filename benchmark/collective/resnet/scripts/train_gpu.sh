@@ -3,7 +3,7 @@ export FLAGS_sync_nccl_allreduce=1
 export FLAGS_cudnn_exhaustive_search=1
 export FLAGS_conv_workspace_size_limit=4000 #MB
 export FLAGS_cudnn_batchnorm_spatial_persistent=1
-export CUDA_VISIBLE_DEVICES=4
+#export CUDA_VISIBLE_DEVICES=0
 
 export GLOG_v=1
 export GLOG_logtostderr=1
@@ -24,7 +24,7 @@ LR=0.1
 LR_STRATEGY=piecewise_decay
 
 # data params
-DATA_PATH="./ImageNet"
+DATA_PATH="/root/go/dataset/temp/ImageNet/"
 TOTAL_IMAGES=1281167
 CLASS_DIM=1000
 IMAGE_SHAPE=3,224,224
@@ -35,9 +35,9 @@ FUSE=True
 NCCL_COMM_NUM=1
 NUM_THREADS=2
 USE_HIERARCHICAL_ALLREDUCE=False
-NUM_CARDS=1
+NUM_CARDS=8
 FP16=True #whether to use float16
-use_dali=False
+use_dali=True
 if [[ ${use_dali} == "True" ]]; then
     export FLAGS_fraction_of_gpu_memory_to_use=0.8
 fi
@@ -63,7 +63,7 @@ set -x
 
 export LD_LIBRARY_PATH=/root/go/soft/cuda10-cudnn7.6.5.32/lib64:${LD_LIBRARY_PATH}
 
-python -m paddle.distributed.launch ${distributed_args} \
+python -m paddle.distributed.launch ${distributed_args} --log_dir log \
        ./train_with_fleet.py \
        --model=${MODEL} \
        --batch_size=${BATCH_SIZE} \
@@ -88,7 +88,7 @@ python -m paddle.distributed.launch ${distributed_args} \
        --use_dali=${use_dali} \
        --use_dgc=${USE_DGC} \
        --fetch_steps=10 \
-       --do_test=True \
-       --profile=True \
+       --do_test=False \
+       --profile=False \
        --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP} \
        --use_recompute=False
