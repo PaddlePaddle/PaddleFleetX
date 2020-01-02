@@ -268,7 +268,7 @@ def net_config(image, model, args, is_train, label=0, y_a=0, y_b=0, lam=0.0, dat
     acc_top5 = fluid.layers.accuracy(input=softmax_out, label=label, k=5)
     return avg_cost, acc_top1, acc_top5
 
-def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None, data_layout=args.data_format):
+def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None, data_layout="NCHW"):
     model_name = args.model
     model_list = [m for m in dir(models) if "__" not in m]
     assert model_name in model_list, "{} is not in lists: {}".format(args.model,
@@ -371,7 +371,7 @@ def train(args):
                      startup_prog=startup_prog,
                      args=args,
                      dist_strategy=dist_strategy,
-                     data_format=args.data_format)
+                     data_layout=args.data_format)
     if use_mixup:
         train_data_loader, train_cost, global_lr = b_out[0], b_out[1], b_out[2]
         train_fetch_vars = [train_cost, global_lr]
