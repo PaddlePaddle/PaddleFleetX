@@ -228,7 +228,7 @@ def calc_loss(epsilon,label,class_dim,softmax_out,use_label_smoothing):
     return loss
 
 
-def net_config(image, model, args, is_train, label=0, y_a=0, y_b=0, lam=0.0):
+def net_config(image, model, args, is_train, label=0, y_a=0, y_b=0, lam=0.0, data_format="NCHW"):
     model_list = [m for m in dir(models) if "__" not in m]
     assert args.model in model_list, "{} is not lists: {}".format(args.model,
                                                                   model_list)
@@ -239,7 +239,7 @@ def net_config(image, model, args, is_train, label=0, y_a=0, y_b=0, lam=0.0):
     epsilon = args.label_smoothing_epsilon
 
     if not args.is_distill:
-        out = model.net(input=image, args=args, class_dim=class_dim)
+        out = model.net(input=image, args=args, class_dim=class_dim, data_format=data_format)
         if is_train:
             if use_mixup:
                 softmax_out = fluid.layers.softmax(out, use_cudnn=False)
@@ -258,7 +258,7 @@ def net_config(image, model, args, is_train, label=0, y_a=0, y_b=0, lam=0.0):
             cost, softmax_out = fluid.layers.softmax_with_cross_entropy(
                 out, label, return_softmax=True)
     else:
-        out1, out2 = model.net(input=image, args=args, class_dim=args.class_dim)
+        out1, out2 = model.net(input=image, args=args, class_dim=args.class_dim, data_format=data_format)
         softmax_out1, softmax_out = fluid.layers.softmax(out1), fluid.layers.softmax(out2)
         smooth_out1 = fluid.layers.label_smooth(label=softmax_out1, epsilon=0.0, dtype="float32")
         cost = fluid.layers.cross_entropy(input=softmax_out, label=smooth_out1, soft_label=True)
@@ -268,7 +268,7 @@ def net_config(image, model, args, is_train, label=0, y_a=0, y_b=0, lam=0.0):
     acc_top5 = fluid.layers.accuracy(input=softmax_out, label=label, k=5)
     return avg_cost, acc_top1, acc_top5
 
-def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
+def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None, data_layout=args.data_format):
     model_name = args.model
     model_list = [m for m in dir(models) if "__" not in m]
     assert model_name in model_list, "{} is not in lists: {}".format(args.model,
@@ -276,17 +276,19 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None):
     model = models.__dict__[model_name]()
     with fluid.program_guard(main_prog, startup_prog):
         use_mixup = args.use_mixup
-        data_loader, data = utility.create_data_loader(is_train, args, data_layout=args.data_format)
+        data_loader, data = utility.create_data_loader(is_train, args, data_layout=data_layout)
 
         with fluid.unique_name.guard():
             if is_train and  use_mixup:
                 image, y_a, y_b, lam = data[0], data[1], data[2], data[3]
-                avg_cost = net_config(image=image, y_a=y_a, y_b=y_b, lam=lam, model=model, args=args, label=0, is_train=True)
+                avg_cost = net_config(image=image, y_a=y_a, y_b=y_b, lam=lam, model=model, 
+                                      args=args, label=0, is_train=True, data_format=data_layout)
                 avg_cost.persistable = True
                 build_program_out = [data_loader, avg_cost]
             else:
                 image, label = data[0], data[1],
-                avg_cost, acc_top1, acc_top5 = net_config(image, model, args, label=label, is_train=is_train)
+                avg_cost, acc_top1, acc_top5 = net_config(image, model, args, 
+                                                          label=label, is_train=is_train, data_format=data_layout)
                 avg_cost.persistable = True
                 acc_top1.persistable = True
                 acc_top5.persistable = True
@@ -368,7 +370,8 @@ def train(args):
                      main_prog=train_prog,
                      startup_prog=startup_prog,
                      args=args,
-                     dist_strategy=dist_strategy)
+                     dist_strategy=dist_strategy,
+                     data_format=args.data_format)
     if use_mixup:
         train_data_loader, train_cost, global_lr = b_out[0], b_out[1], b_out[2]
         train_fetch_vars = [train_cost, global_lr]
@@ -392,7 +395,8 @@ def train(args):
                      main_prog=test_prog,
                      startup_prog=startup_prog,
                      args=args,
-                     dist_strategy=dist_strategy)
+                     dist_strategy=dist_strategy,
+                     data_layout="NCHW")
     test_data_loader, test_cost, test_acc1, test_acc5 = b_out_test[0],b_out_test[1],b_out_test[2],b_out_test[3]
 
     test_prog = test_prog.clone(for_test=True)
@@ -435,7 +439,7 @@ def train(args):
                                     pass_id_as_seed=shuffle_seed, data_layout=args.data_format, threads=10)
         train_batch_reader=paddle.batch(train_reader, batch_size=train_batch_size)
 
-        test_reader = reader.val(settings=args, data_dir=args.data_dir, data_layout=args.data_format, threads=10)
+        test_reader = reader.val(settings=args, data_dir=args.data_dir, data_layout="NCHW", threads=10)
         test_batch_reader=paddle.batch(test_reader, batch_size=test_batch_size)
 
         places = place
@@ -530,7 +534,7 @@ def train(args):
         if trainer_id == 0 and (args.do_test or (pass_id + 1) == params["num_epochs"]):
             if args.use_dali:
                 test_iter = dali.val(settings=args, trainer_id=trainer_id, trainers_num=num_trainers,
-                                 gpu_id=gpu_id, data_layout=args.data_format)
+                                 gpu_id=gpu_id, data_layout="NCHW")
             else:
                 test_iter = test_data_loader()
 
