@@ -43,7 +43,7 @@ class ResNet():
         self.layers = layers
         self.checkpoints = []
 
-    def net(self, input, args, class_dim=1000):
+    def net(self, input, args, class_dim=1000, data_format="NCHW"):
         layers = self.layers
         supported_layers = [18, 34, 50, 101, 152]
         assert layers in supported_layers, \
@@ -60,7 +60,7 @@ class ResNet():
         num_filters = [64, 128, 256, 512]
 
         conv = self.conv_bn_layer(
-            input=input, num_filters=64, filter_size=7, stride=2, act='relu',name="conv1", data_format=args.data_format)
+            input=input, num_filters=64, filter_size=7, stride=2, act='relu',name="conv1", data_format=data_format)
         self.checkpoints.append(conv)
         conv = fluid.layers.pool2d(
             input=conv,
@@ -68,7 +68,7 @@ class ResNet():
             pool_stride=2,
             pool_padding=1,
             pool_type='max',
-            data_format=args.data_format)
+            data_format=data_format)
         self.checkpoints.append(conv)
         if layers >= 50:
             for block in range(len(depth)):
@@ -83,14 +83,14 @@ class ResNet():
                     conv = self.bottleneck_block(
                         input=conv,
                         num_filters=num_filters[block],
-                        stride=2 if i == 0 and block != 0 else 1, name=conv_name, data_format=args.data_format)
+                        stride=2 if i == 0 and block != 0 else 1, name=conv_name, data_format=data_format)
                     self.checkpoints.append(conv)
 
             pool = fluid.layers.pool2d(
-                input=conv, pool_size=7, pool_type='avg', global_pooling=True, data_format=args.data_format)
+                input=conv, pool_size=7, pool_type='avg', global_pooling=True, data_format=data_format)
 
             self.checkpoints.append(pool)
-            if args.data_format == "NCHW":
+            if data_format == "NCHW":
                 stdv = 1.0 / math.sqrt(pool.shape[1] * 1.0)
             else:
                 stdv = 1.0 / math.sqrt(pool.shape[-1] * 1.0)
@@ -109,11 +109,11 @@ class ResNet():
                         stride=2 if i == 0 and block != 0 else 1,
                         is_first=block==i==0,
                         name=conv_name,
-                        data_format=args.data_format)
+                        data_format=data_format)
 
             pool = fluid.layers.pool2d(
-                input=conv, pool_size=7, pool_type='avg', global_pooling=True, data_format=args.data_format)
-            if args.data_format == "NCHW":
+                input=conv, pool_size=7, pool_type='avg', global_pooling=True, data_format=data_format)
+            if data_format == "NCHW":
                 stdv = 1.0 / math.sqrt(pool.shape[1] * 1.0)
             else:
                 stdv = 1.0 / math.sqrt(pool.shape[-1] * 1.0)
