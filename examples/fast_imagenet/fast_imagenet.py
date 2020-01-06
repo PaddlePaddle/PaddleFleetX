@@ -24,7 +24,6 @@ import math
 import paddle
 import paddle.fluid as fluid
 import paddle.fluid.profiler as profiler
-import utils
 
 __all__ = ["FastImageNet", "lr_decay"]
 
