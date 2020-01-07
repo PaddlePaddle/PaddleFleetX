@@ -156,7 +156,7 @@ def build_program(args,
                        lr / 1000 * bs_scale[4]]
 
                 boundaries, values = lr_decay(lrs, epochs, bs_epoch,
-                                              total_images, num_trainers)
+                                              total_images)
                 optimizer = fluid.optimizer.Momentum(
                     learning_rate=fluid.layers.piecewise_decay(
                         boundaries=boundaries, values=values),
