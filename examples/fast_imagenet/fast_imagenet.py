@@ -33,7 +33,7 @@ class FastImageNet():
         self.layers = layers
         self.is_train = is_train
 
-    def net(self, input, class_dim=1000):
+    def net(self, input, class_dim=1000, data_format="NCHW"):
         layers = self.layers
         assert layers ==50, "Only support ResNet50 now."
 
@@ -41,22 +41,26 @@ class FastImageNet():
         num_filters = [64, 128, 256, 512]
 
         conv = self.conv_bn_layer(
-            input=input, num_filters=64, filter_size=7, stride=2, act='relu')
+            input=input, num_filters=64, filter_size=7, stride=2, act='relu',
+            data_format=data_format)
         conv = fluid.layers.pool2d(
             input=conv,
             pool_size=3,
             pool_stride=2,
             pool_padding=1,
-            pool_type='max')
+            pool_type='max',
+            data_format=data_format)
 
         for block in range(len(depth)):
             for i in range(depth[block]):
                 conv = self.bottleneck_block(
                     input=conv,
                     num_filters=num_filters[block],
-                    stride=2 if i == 0 and block != 0 else 1)
+                    stride=2 if i == 0 and block != 0 else 1,
+                    data_format=data_format)
         pool = fluid.layers.pool2d(
-            input=conv, pool_size=1, pool_type='avg', global_pooling=True)
+            input=conv, pool_size=1, pool_type='avg', global_pooling=True,
+            data_format=data_format)
         out = fluid.layers.fc(
             input=pool,
             size=class_dim,
@@ -75,7 +79,8 @@ class FastImageNet():
                       stride=1,
                       groups=1,
                       act=None,
-                      bn_init_value=1.0):
+                      bn_init_value=1.0,
+                      data_format="NCHW"):
         conv = fluid.layers.conv2d(
             input=input,
             num_filters=num_filters,
@@ -86,38 +91,48 @@ class FastImageNet():
             act=None,
             bias_attr=False,
             param_attr=fluid.ParamAttr(
-                regularizer=fluid.regularizer.L2Decay(1e-4)))
+                regularizer=fluid.regularizer.L2Decay(1e-4)),
+            data_format=data_format)
         return fluid.layers.batch_norm(
             input=conv, act=act, is_test=not self.is_train,
             param_attr=fluid.param_attr.ParamAttr(
                 initializer=fluid.initializer.Constant(bn_init_value),
-                regularizer=None))
+                regularizer=None),
+            data_layout=data_format)
 
-    def shortcut(self, input, ch_out, stride):
-        ch_in = input.shape[1]
+    def shortcut(self, input, ch_out, stride, data_format):
+        if data_format == 'NCHW':
+            ch_in = input.shape[1]
+        else:
+            ch_in = input.shape[-1]
         if ch_in != ch_out or stride != 1:
-            return self.conv_bn_layer(input, ch_out, 1, stride)
+            return self.conv_bn_layer(input, ch_out, 1, stride,
+                data_format=data_format)
         else:
             return input
 
-    def bottleneck_block(self, input, num_filters, stride):
+    def bottleneck_block(self, input, num_filters, stride, data_format):
         conv0 = self.conv_bn_layer(
-            input=input, num_filters=num_filters, filter_size=1, act='relu')
+            input=input, num_filters=num_filters, filter_size=1, act='relu',
+            data_format=data_format)
         conv1 = self.conv_bn_layer(
             input=conv0,
             num_filters=num_filters,
             filter_size=3,
             stride=stride,
-            act='relu')
+            act='relu',
+            data_format=data_format)
         # init bn-weight0
         conv2 = self.conv_bn_layer(
             input=conv1,
             num_filters=num_filters*4,
             filter_size=1,
             act=None,
-            bn_init_value=0.0)
+            bn_init_value=0.0,
+            data_format=data_format)
 
-        short = self.shortcut(input, num_filters * 4, stride)
+        short = self.shortcut(input, num_filters * 4, stride,
+            data_format=data_format)
 
         return fluid.layers.elementwise_add(x=short, y=conv2, act='relu')
 
