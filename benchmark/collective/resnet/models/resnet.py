@@ -61,7 +61,6 @@ class ResNet():
 
         conv = self.conv_bn_layer(
             input=input, num_filters=64, filter_size=7, stride=2, act='relu',name="conv1", data_format=data_format)
-        print(conv.shape)
         self.checkpoints.append(conv)
         conv = fluid.layers.pool2d(
             input=conv,

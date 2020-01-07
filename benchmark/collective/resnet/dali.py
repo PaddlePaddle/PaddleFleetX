@@ -210,7 +210,7 @@ def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0, 
             fill_last_batch=False,
             last_batch_padded=True)
 
-    file_list = os.path.join(file_root, 'train_list.txt.bak')
+    file_list = os.path.join(file_root, 'train_list.txt')
     if not os.path.exists(file_list):
         file_list = None
         file_root = os.path.join(file_root, 'train')

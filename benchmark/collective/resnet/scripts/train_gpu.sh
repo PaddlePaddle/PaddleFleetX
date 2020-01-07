@@ -14,12 +14,11 @@ unset https_proxy http_proxy
 set -xe
 
 MODEL=ResNet50 #VGG16
-#MODEL=VGG16
 MODEL_SAVE_PATH="output/"
 
 # training params
 NUM_EPOCHS=90
-BATCH_SIZE=32
+BATCH_SIZE=128
 LR=0.1
 LR_STRATEGY=piecewise_decay
 
@@ -35,7 +34,7 @@ FUSE=True
 NCCL_COMM_NUM=1
 NUM_THREADS=2
 USE_HIERARCHICAL_ALLREDUCE=False
-NUM_CARDS=1
+NUM_CARDS=8
 FP16=True #whether to use float16
 use_dali=True
 if [[ ${use_dali} == "True" ]]; then
