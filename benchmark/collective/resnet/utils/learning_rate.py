@@ -21,7 +21,6 @@ import math
 import paddle
 import paddle.fluid as fluid
 import paddle.fluid.layers.ops as ops
-from paddle.fluid.initializer import init_on_cpu
 from paddle.fluid.layers.learning_rate_scheduler import _decay_step_counter
 
 def cosine_decay(learning_rate, step_each_epoch, epochs=120):
@@ -30,10 +29,9 @@ def cosine_decay(learning_rate, step_each_epoch, epochs=120):
     """
     global_step = _decay_step_counter()
 
-    with init_on_cpu():
-        epoch = ops.floor(global_step / step_each_epoch)
-        decayed_lr = learning_rate * \
-                     (ops.cos(epoch * (math.pi / epochs)) + 1)/2
+    epoch = ops.floor(global_step / step_each_epoch)
+    decayed_lr = learning_rate * \
+                 (ops.cos(epoch * (math.pi / epochs)) + 1)/2
     return decayed_lr
 
 def cosine_decay_with_warmup(learning_rate, step_each_epoch, epochs=120):
@@ -52,16 +50,15 @@ def cosine_decay_with_warmup(learning_rate, step_each_epoch, epochs=120):
     warmup_epoch = fluid.layers.fill_constant(
         shape=[1], dtype='float32', value=float(5), force_cpu=True)
 
-    with init_on_cpu():
-        epoch = ops.floor(global_step / step_each_epoch)
-        with fluid.layers.control_flow.Switch() as switch:
-            with switch.case(epoch < warmup_epoch):
-                decayed_lr = learning_rate * (global_step / (step_each_epoch * warmup_epoch))
-                fluid.layers.tensor.assign(input=decayed_lr, output=lr)
-            with switch.default():
-                decayed_lr = learning_rate * \
-                    (ops.cos((global_step - warmup_epoch * step_each_epoch) * (math.pi / (epochs * step_each_epoch))) + 1)/2
-                fluid.layers.tensor.assign(input=decayed_lr, output=lr)
+    epoch = ops.floor(global_step / step_each_epoch)
+    with fluid.layers.control_flow.Switch() as switch:
+        with switch.case(epoch < warmup_epoch):
+            decayed_lr = learning_rate * (global_step / (step_each_epoch * warmup_epoch))
+            fluid.layers.tensor.assign(input=decayed_lr, output=lr)
+        with switch.default():
+            decayed_lr = learning_rate * \
+                (ops.cos((global_step - warmup_epoch * step_each_epoch) * (math.pi / (epochs * step_each_epoch))) + 1)/2
+            fluid.layers.tensor.assign(input=decayed_lr, output=lr)
     return lr
 
 def lr_warmup(learning_rate, warmup_steps, start_lr, end_lr):
