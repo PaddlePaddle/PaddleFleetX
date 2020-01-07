@@ -20,7 +20,7 @@ def dist_env():
     Return a dict of all variables that distributed training may use.
     """
     trainer_id = int(os.getenv("PADDLE_TRAINER_ID", "0"))
-    num_trainers = int(os.getenv("PADDLE_TRAINERS_NUM", "0"))
+    num_trainers = int(os.getenv("PADDLE_TRAINERS_NUM", "1"))
     current_endpoint = os.getenv("PADDLE_CURRENT_ENDPOINT", "127.0.0.1:6170")
     trainer_endpoints = os.getenv("PADDLE_TRAINER_ENDPOINTS", "127.0.0.1:6170")
     trainer_endpoints = trainer_endpoints.split(',')
