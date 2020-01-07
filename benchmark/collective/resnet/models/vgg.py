@@ -50,9 +50,7 @@ class VGGNet():
             "supported layers are {} but input layer is {}".format(vgg_spec.keys(), layers)
 
         nums = vgg_spec[layers]
-        print(input.shape)
         conv1 = self.conv_block(input, 64, nums[0], name="conv1_", data_format=data_format)
-        print(conv1.shape)
         conv2 = self.conv_block(conv1, 128, nums[1], name="conv2_", data_format=data_format)
         conv3 = self.conv_block(conv2, 256, nums[2], name="conv3_", data_format=data_format)
         conv4 = self.conv_block(conv3, 512, nums[3], name="conv4_", data_format=data_format)
