@@ -30,7 +30,7 @@ import paddle
 import paddle.fluid as fluid
 import utils
 import models
-from paddle.fluid.contrib.mixed_precision.decorator import decorate
+from paddle.fluid.contrib.mixed_precision.decorator import decorate, rewrite_program, AutoMixedPrecisionLists
 import utils.reader_cv2 as reader
 from utils.utility import add_arguments, print_arguments, check_gpu
 import utils.utility as utility
@@ -39,6 +39,7 @@ from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 from paddle.fluid import compiler
 import paddle.fluid.profiler as profiler
+from paddle.fluid.transpiler.details import program_to_code
 
 num_trainers = int(os.environ.get('PADDLE_TRAINERS_NUM', 1))
 trainer_id = int(os.environ.get('PADDLE_TRAINER_ID'))
@@ -396,10 +397,12 @@ def train(args):
                      startup_prog=startup_prog,
                      args=args,
                      dist_strategy=dist_strategy,
-                     data_layout="NCHW")
+                     data_layout=args.data_format)
     test_data_loader, test_cost, test_acc1, test_acc5 = b_out_test[0],b_out_test[1],b_out_test[2],b_out_test[3]
 
     test_prog = test_prog.clone(for_test=True)
+    #if args.fp16:
+        #rewrite_program(test_prog, AutoMixedPrecisionLists())
     test_prog = compiler.CompiledProgram(test_prog).with_data_parallel(loss_name=test_cost.name, exec_strategy=exec_strategy)
 
     gpu_id = int(os.environ.get('FLAGS_selected_gpus', 0))
@@ -439,7 +442,7 @@ def train(args):
                                     pass_id_as_seed=shuffle_seed, data_layout=args.data_format, threads=10)
         train_batch_reader=paddle.batch(train_reader, batch_size=train_batch_size)
 
-        test_reader = reader.val(settings=args, data_dir=args.data_dir, data_layout="NCHW", threads=10)
+        test_reader = reader.val(settings=args, data_dir=args.data_dir, data_layout=args.data_format, threads=10)
         test_batch_reader=paddle.batch(test_reader, batch_size=test_batch_size)
 
         places = place
@@ -534,7 +537,7 @@ def train(args):
         if trainer_id == 0 and (args.do_test or (pass_id + 1) == params["num_epochs"]):
             if args.use_dali:
                 test_iter = dali.val(settings=args, trainer_id=trainer_id, trainers_num=num_trainers,
-                                 gpu_id=gpu_id, data_layout="NCHW")
+                                 gpu_id=gpu_id, data_layout=args.data_format)
             else:
                 test_iter = test_data_loader()
 
