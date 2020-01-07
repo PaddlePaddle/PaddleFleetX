@@ -1,7 +1,7 @@
 #!/bin/bash
 export FLAGS_sync_nccl_allreduce=1
 export FLAGS_cudnn_exhaustive_search=1
-export FLAGS_conv_workspace_size_limit=7000 #MB
+export FLAGS_conv_workspace_size_limit=4000 #MB
 export FLAGS_cudnn_batchnorm_spatial_persistent=1
 
 export GLOG_v=1
