@@ -362,7 +362,7 @@ def train(args):
         dist_strategy.fuse_all_reduce_ops = False
     dist_strategy.nccl_comm_num = args.nccl_comm_num
     dist_strategy.fuse_elewise_add_act_ops=args.fuse_elewise_add_act_ops
-    dist_strategy.fuse_bn_act_ops =args.fuse_bn_act_ops
+    dist_strategy.fuse_bn_act_ops = args.fuse_bn_act_ops
 
     role = role_maker.PaddleCloudRoleMaker(is_collective=True)
     fleet.init(role)
@@ -639,6 +639,9 @@ def main():
         if args.fp16:
             print("Warning: DGC unsupport fp16 for now, so code will set fp16=False")
             args.fp16 = False
+    # fuse_bn_act_ops has bug when use fp32, so close it when use fp32
+    if not args.fp16:
+        args.fuse_bn_act_ops = False
     print_arguments(args)
     print_paddle_environments()
     check_gpu(args.use_gpu)
