@@ -85,7 +85,7 @@ add_arg('do_test',          bool,  False,                 "Whether do test every
 add_arg('use_gpu',          bool,  True,                 "Whether to use GPU or not.")
 add_arg('fuse', bool, False,                      "Whether to use tensor fusion.")
 add_arg('fuse_elewise_add_act_ops', bool, True,                      "Whether to use elementwise_act fusion.")
-add_arg('fuse_bn_act_ops', bool, True,                      "Whether to use bn_act fusion.")
+add_arg('fuse_bn_act_ops', bool, False,                      "Whether to use bn_act fusion.")
 add_arg('nccl_comm_num',        int,  1,                  "nccl comm num")
 add_arg("use_hierarchical_allreduce",     bool,   False,   "Use hierarchical allreduce or not.")
 add_arg('num_threads',        int,  1,                   "Use num_threads to run the fluid program.")
@@ -362,7 +362,7 @@ def train(args):
         dist_strategy.fuse_all_reduce_ops = False
     dist_strategy.nccl_comm_num = args.nccl_comm_num
     dist_strategy.fuse_elewise_add_act_ops=args.fuse_elewise_add_act_ops
-    dist_strategy.fuse_bn_act_ops =args.fuse_bn_act_ops
+    dist_strategy.fuse_bn_act_ops = args.fuse_bn_act_ops
 
     role = role_maker.PaddleCloudRoleMaker(is_collective=True)
     fleet.init(role)
