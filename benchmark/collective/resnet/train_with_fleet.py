@@ -85,7 +85,7 @@ add_arg('do_test',          bool,  False,                 "Whether do test every
 add_arg('use_gpu',          bool,  True,                 "Whether to use GPU or not.")
 add_arg('fuse', bool, False,                      "Whether to use tensor fusion.")
 add_arg('fuse_elewise_add_act_ops', bool, True,                      "Whether to use elementwise_act fusion.")
-add_arg('fuse_bn_act_ops', bool, False,                      "Whether to use bn_act fusion.")
+add_arg('fuse_bn_act_ops', bool, True,                      "Whether to use bn_act fusion.")
 add_arg('nccl_comm_num',        int,  1,                  "nccl comm num")
 add_arg("use_hierarchical_allreduce",     bool,   False,   "Use hierarchical allreduce or not.")
 add_arg('num_threads',        int,  1,                   "Use num_threads to run the fluid program.")
@@ -639,6 +639,9 @@ def main():
         if args.fp16:
             print("Warning: DGC unsupport fp16 for now, so code will set fp16=False")
             args.fp16 = False
+    # fuse_bn_act_ops has bug when use fp32, so close it when use fp32
+    if not args.fp16:
+        args.fuse_bn_act_ops = False
     print_arguments(args)
     print_paddle_environments()
     check_gpu(args.use_gpu)
