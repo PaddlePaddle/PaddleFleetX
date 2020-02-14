@@ -27,10 +27,8 @@ Collective Training is usually used in GPU training in PaddlePaddle. Benchmark o
 
 ### Mixed precision accelerated collective training throughput
 
-<p align="center">
-<img style="float: left;" src="images/fleet_collective_mixed_precision_training.png" height="280px" width="450px">
-<p>
-<br><br><br><br><br><br><br><br><br><br><br><br><br>
+<img  src="images/fleet_collective_mixed_precision_training.png" height="280px" width="450px">
+
 
 ## Fleet is Easy To Use
 
