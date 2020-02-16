@@ -32,7 +32,8 @@ def _reader_creator(settings,
                     data_dir=DATA_DIR,
                     pass_id_as_seed=0,
                     threads=4,
-                    buf_size=4000):
+                    buf_size=4000, 
+                    data_layout='NCHW'):
     def _reader():
         with open(file_list) as flist:
             full_lines = [line.strip() for line in flist]
@@ -93,7 +94,7 @@ def _reader_creator(settings,
         mode=mode,
         color_jitter=color_jitter,
         rotate=rotate,
-        crop_size=224)
+        crop_size=224, mean=settings.image_mean, std=settings.image_std, data_layout=data_layout)
     reader = paddle.reader.xmap_readers(
         image_mapper, _reader, threads, buf_size, order=False)
     return reader
@@ -102,7 +103,7 @@ def train(settings,
           data_dir=DATA_DIR,
           pass_id_as_seed=0,
           threads=4,
-          buf_size=4000):
+          buf_size=4000, data_layout='NCHW'):
     file_list = os.path.join(data_dir, 'train.txt')
     reader =  _reader_creator(
         settings,
@@ -115,16 +116,17 @@ def train(settings,
         pass_id_as_seed=pass_id_as_seed,
         threads=threads,
         buf_size=buf_size,
+        data_layout=data_layout
         )
     return reader
 
-def val(settings, data_dir=DATA_DIR, threads=16, buf_size=4000):
+def val(settings, data_dir=DATA_DIR, threads=16, buf_size=4000, data_layout='NCHW'):
     file_list = os.path.join(data_dir, 'val.txt')
     return _reader_creator(settings ,file_list, 'val', shuffle=False, 
-            data_dir=data_dir, threads=threads, buf_size=buf_size)
+            data_dir=data_dir, threads=threads, buf_size=buf_size, data_layout=data_layout)
 
 
-def test(data_dir=DATA_DIR, threads=4, buf_size=4000):
+def test(data_dir=DATA_DIR, threads=4, buf_size=4000, data_layout='NCHW'):
     file_list = os.path.join(data_dir, 'val.txt')
     return _reader_creator(file_list, 'test', shuffle=False,
-            data_dir=data_dir, threads=threads, buf_size=buf_size)
+            data_dir=data_dir, threads=threads, buf_size=buf_size, data_layout=data_layout)

@@ -1,7 +1,7 @@
 #!/bin/bash
 export FLAGS_sync_nccl_allreduce=1
 export FLAGS_cudnn_exhaustive_search=1
-export FLAGS_conv_workspace_size_limit=4000 #MB
+export FLAGS_conv_workspace_size_limit=0 #MB
 export FLAGS_cudnn_batchnorm_spatial_persistent=1
 
 export GLOG_v=1
@@ -18,7 +18,7 @@ MODEL_SAVE_PATH="output/"
 
 # training params
 NUM_EPOCHS=90
-BATCH_SIZE=128
+BATCH_SIZE=760
 LR=0.1
 LR_STRATEGY=piecewise_decay
 
@@ -35,8 +35,8 @@ NCCL_COMM_NUM=1
 NUM_THREADS=2
 USE_HIERARCHICAL_ALLREDUCE=False
 NUM_CARDS=8
-FP16=True #whether to use float16
-use_dali=True
+FP16=False #whether to use float16
+use_dali=False
 if [[ ${use_dali} == "True" ]]; then
     export FLAGS_fraction_of_gpu_memory_to_use=0.8
 fi
@@ -88,4 +88,4 @@ python -m paddle.distributed.launch ${distributed_args}  --log_dir log \
        --do_test=True \
        --profile=False \
        --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP} \
-       --use_recompute=False
+       --use_recompute=True

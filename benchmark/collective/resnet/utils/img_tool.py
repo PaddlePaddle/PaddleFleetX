@@ -97,7 +97,7 @@ def crop_image(img, target_size, center):
     return img
 
 def process_image(sample, mode, color_jitter, rotate, settings,
-        crop_size=224, mean=None, std=None):
+        crop_size=224, mean=None, std=None, data_layout='NCHW'):
     """ process_image """
 
     mean = [0.485, 0.456, 0.406] if mean is None else mean
@@ -128,7 +128,9 @@ def process_image(sample, mode, color_jitter, rotate, settings,
     img_std = np.array(std).reshape((3, 1, 1))
     img -= img_mean
     img /= img_std
-        
+
+    if data_layout == 'NHWC':
+        img = img.transpose((1, 2, 0))
 
     if mode == 'train' or mode == 'val':
         return (img, sample[1])

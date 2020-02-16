@@ -43,7 +43,7 @@ class ResNet():
         self.layers = layers
         self.checkpoints = []
 
-    def net(self, input, args, class_dim=1000):
+    def net(self, input, args, class_dim=1000, data_format="NCHW"):
         layers = self.layers
         supported_layers = [18, 34, 50, 101, 152]
         assert layers in supported_layers, \
@@ -105,11 +105,15 @@ class ResNet():
                         stride=2 if i == 0 and block != 0 else 1,
                         is_first=block==i==0,
                         name=conv_name,
-                        data_format=args.data_format)
+                        data_format=data_format)
 
             pool = fluid.layers.pool2d(
-                input=conv, pool_size=7, pool_type='avg', global_pooling=True, data_format=args.data_format)
-            stdv = 1.0 / math.sqrt(pool.shape[1] * 1.0)
+                input=conv, pool_size=7, pool_type='avg', global_pooling=True, data_format=data_format)
+            if data_format == "NCHW":
+                stdv = 1.0 / math.sqrt(pool.shape[1] * 1.0)
+            else:
+                stdv = 1.0 / math.sqrt(pool.shape[-1] * 1.0)
+
             out = fluid.layers.fc(input=pool,
                                   size=class_dim,
                                   param_attr=fluid.param_attr.ParamAttr(
