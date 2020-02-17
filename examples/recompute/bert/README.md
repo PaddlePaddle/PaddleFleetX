@@ -57,11 +57,12 @@ Training context: 4 V100 GPU Cards
 
 Baseline: 
 
-- Max batch size +275%
+- Max batch size +516%
 
-|Baseline|Recompute|
-|:---:|:---:|
-|12000|45000|
+|Model|Baseline|Recompute|script|
+|:---:|:---:|:---:|:---:|
+|bert-large|12000|72000|scripts/bert_large_max_batch_size.sh|
+|bert-base|35000|178000|scripts/bert_base_max_batch_size.sh|
 
 - Final test accuracy 
 
@@ -89,4 +90,3 @@ with recompute:
 
 
 
-# Quich start: Pretraining
