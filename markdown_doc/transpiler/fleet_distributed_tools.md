@@ -172,7 +172,7 @@ adam.minimize(loss)
 ```python
 ins_id \t ins_content \t field1:length:0.0:0.1:...:0.2 \t field2:length:0.0:0.1:...:0.2
 ```
-*ins_id, ins_content默认为空，但因为dump参数的过程是多线程并发的，所以输出结果和训练集ins顺序并非一一对应，为方便debug，推荐设置ins_id。*
+*注：ins_id, ins_content默认为空，但因为dump参数的过程是多线程并发的，所以输出结果和训练集ins顺序并非一一对应，为方便debug，推荐设置ins_id。*
 
 - dump_param字段中参数，返回格式如下：
 ```python
