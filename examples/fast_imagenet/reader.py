@@ -26,6 +26,8 @@ import datasets
 
 FINISH_EVENT = "FINISH_EVENT"
 
+MEAN = [val * 255 for val in [0.485, 0.456, 0.406]]
+STD = [val * 255 for val in [0.229, 0.224, 0.225]]
 
 class PaddleDataLoader(object):
     def __init__(self,
@@ -36,7 +38,8 @@ class PaddleDataLoader(object):
                  shuffle=True,
                  shuffle_seed=0,
                  rank_id=0,
-                 size=1):
+                 size=1,
+                 data_layout="NCHW"):
         self.dataset = dataset
         self.indices = indices
         self.concurrent = concurrent
@@ -45,13 +48,20 @@ class PaddleDataLoader(object):
         self.queue_size = queue_size // self.concurrent
         self.rank_id = rank_id
         self.size = size
+        self.data_layout = data_layout
 
     def _worker_loop(self, queue, worker_indices, worker_id):
         cnt = 0
         for idx in worker_indices:
             cnt += 1
             img, label = self.dataset[idx]
-            img = np.array(img).astype('uint8').transpose((2, 0, 1))
+            img = np.array(img).astype('float32').transpose((2, 0, 1))
+            img_mean = np.array(MEAN).reshape((3, 1, 1))
+            img_std = np.array(STD).reshape((3, 1, 1))
+            img = img - img_mean
+            img = img / img_std
+            if self.data_layout == "NHWC":
+                img = img.transpose((1, 2, 0))
             queue.put((img, label))
         print("worker: [%d] read [%d] samples. " % (worker_id, cnt))
         queue.put(FINISH_EVENT)
@@ -105,7 +115,8 @@ class PaddleDataLoader(object):
         return _reader_creator
 
 
-def train(traindir, sz, min_scale=0.08, shuffle_seed=0, rank_id=0, size=1):
+def train(traindir, sz, min_scale=0.08, shuffle_seed=0, rank_id=0, size=1,
+          data_layout="NCHW"):
     train_tfms = [
         transforms.RandomResizedCrop(
             sz, scale=(min_scale, 1.0)), transforms.RandomHorizontalFlip()
@@ -113,10 +124,10 @@ def train(traindir, sz, min_scale=0.08, shuffle_seed=0, rank_id=0, size=1):
     train_dataset = datasets.ImageFolder(traindir,
                                          transforms.Compose(train_tfms))
     return PaddleDataLoader(train_dataset, shuffle_seed=shuffle_seed, 
-        rank_id=rank_id, size=size).reader()
+        rank_id=rank_id, size=size, data_layout=data_layout).reader()
 
 
-def test(valdir, bs, sz, rect_val=False):
+def test(valdir, bs, sz, rect_val=False, data_layout="NCHW"):
     if rect_val:
         idx_ar_sorted = sort_ar(valdir)
         idx_sorted, _ = zip(*idx_ar_sorted)
@@ -126,12 +137,12 @@ def test(valdir, bs, sz, rect_val=False):
         val_dataset = ValDataset(valdir, transform=ar_tfms)
         return PaddleDataLoader(
             val_dataset, concurrent=1, indices=idx_sorted,
-            shuffle=False).reader()
+            shuffle=False, data_layout=data_layout).reader()
 
     val_tfms = [transforms.Resize(int(sz * 1.14)), transforms.CenterCrop(sz)]
     val_dataset = datasets.ImageFolder(valdir, transforms.Compose(val_tfms))
 
-    return PaddleDataLoader(val_dataset).reader()
+    return PaddleDataLoader(val_dataset, data_layout=data_layout).reader()
 
 
 class ValDataset(datasets.ImageFolder):

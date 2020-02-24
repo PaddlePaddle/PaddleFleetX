@@ -24,7 +24,6 @@ import math
 import paddle
 import paddle.fluid as fluid
 import paddle.fluid.profiler as profiler
-import utils
 
 __all__ = ["FastImageNet", "lr_decay"]
 
@@ -137,12 +136,11 @@ class FastImageNet():
         return fluid.layers.elementwise_add(x=short, y=conv2, act='relu')
 
 
-def lr_decay(lrs, epochs, bs, total_image, num_trainers=1):
+def lr_decay(lrs, epochs, bs, total_image):
     boundaries = []
     values = []
     for idx, epoch in enumerate(epochs):
-        images_per_trainer = int(math.ceil(total_image / num_trainers))
-        step = int(math.ceil(images_per_trainer / bs[idx]))
+        step = int(math.ceil(total_image / bs[idx]))
         ratio = (lrs[idx][1] - lrs[idx][0])*1.0 / (epoch[1] - epoch[0])
         lr_base = lrs[idx][0]
         for s in range(epoch[0], epoch[1]):

@@ -101,8 +101,18 @@ class DatasetFolder(object):
         self.root = root
         self.transform = transform
         self.target_transform = target_transform
-        classes, class_to_idx = self._find_classes(self.root)
-        samples = make_dataset(self.root, class_to_idx, extensions)
+        #classes, class_to_idx = self._find_classes(self.root)
+        file_list = os.path.join(root, "val_list.txt")
+        samples = []
+        with open(file_list) as f:
+            for line in f.xreadlines():
+                line = line.strip().split(" ")
+                path = line[0]
+                label = int(line[1])
+                path = os.path.join(root, path)
+                sample = [path, label]
+                samples.append(sample)
+        #samples = make_dataset(self.root, class_to_idx, extensions)
         if len(samples) == 0:
             raise (RuntimeError(
                 "Found 0 files in subfolders of: " + self.root + "\n"
@@ -111,8 +121,8 @@ class DatasetFolder(object):
         self.loader = loader
         self.extensions = extensions
 
-        self.classes = classes
-        self.class_to_idx = class_to_idx
+        #self.classes = classes
+        #self.class_to_idx = class_to_idx
         self.samples = samples
         self.targets = [s[1] for s in samples]
 
