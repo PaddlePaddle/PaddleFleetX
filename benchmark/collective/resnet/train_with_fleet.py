@@ -64,7 +64,6 @@ add_arg('model',            str,   "SE_ResNeXt50_32x4d", "Set the network to use
 add_arg('data_dir',         str,   "./data/ILSVRC2012/",  "The ImageNet dataset root dir.")
 add_arg('fp16',             bool,  False,                "Enable half precision training with fp16." )
 add_arg('use_dali',             bool,  False,            "use DALI for preprocess or not." )
-add_arg('use_aa',             bool,  False,            "use DALI for preprocess or not." )
 add_arg('data_format',      str,   "NCHW",               "Tensor data format when training.")
 add_arg('scale_loss',       float, 1.0,                  "Scale loss for fp16." )
 add_arg('use_dynamic_loss_scaling',     bool,   True,    "Whether to use dynamic loss scaling.")
@@ -480,7 +479,7 @@ def train(args):
     train_speed_list = []
     acc1_logs = []
     acc5_logs = []
-    for pass_id in range(train_status.epoch_no + 1, params["num_epochs"]):
+    for pass_id in range(train_status.next(), params["num_epochs"]):
         train_info = [[], [], []]
         test_info = [[], [], []]
         train_begin=time.time()
@@ -552,8 +551,7 @@ def train(args):
         train_speed_list.append(train_speed)
 
         if trainer_id == 0:
-            saved_status = TrainStatus()
-            saved_status.epoch_no = pass_id
+            saved_status = TrainStatus(pass_id)
             if args.checkpoint:
                 if not os.path.isdir(args.checkpoint):
                     os.makedirs(args.checkpoint)
