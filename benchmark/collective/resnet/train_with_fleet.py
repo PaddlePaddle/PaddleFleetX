@@ -420,7 +420,7 @@ def train(args):
 
     train_status =TrainStatus()
     if args.checkpoint is not None:
-        tmp_s = fleet.load_check_point(exe, args.checkpoint, main_program=fleet._origin_program)
+        tmp_s = fleet.load_check_point(exe, args.checkpoint)#, main_program=fleet._origin_program)
         if tmp_s is not None:
             train_status = tmp_s
 
@@ -480,7 +480,7 @@ def train(args):
     train_speed_list = []
     acc1_logs = []
     acc5_logs = []
-    for pass_id in range(train_status.epoch_no, params["num_epochs"]):
+    for pass_id in range(train_status.epoch_no + 1, params["num_epochs"]):
         train_info = [[], [], []]
         test_info = [[], [], []]
         train_begin=time.time()
@@ -553,14 +553,14 @@ def train(args):
 
         if trainer_id == 0:
             saved_status = TrainStatus()
-            saved_status.epoch_no = pass_id + 1
+            saved_status.epoch_no = pass_id
             if args.checkpoint:
                 if not os.path.isdir(args.checkpoint):
                     os.makedirs(args.checkpoint)
 
                 print("save_check_point:{}".format(args.checkpoint))
                 fleet.save_check_point(executor=exe, train_status=saved_status,
-                    path=args.checkpoint, main_program=fleet._origin_program)
+                    path=args.checkpoint)#, main_program=fleet._origin_program)
 
 
         if trainer_id == 0 and (args.do_test or (pass_id + 1) == params["num_epochs"]):
