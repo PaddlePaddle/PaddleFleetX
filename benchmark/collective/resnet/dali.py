@@ -154,7 +154,13 @@ class HybridValPipe(Pipeline):
         return self.epoch_size("Reader")
 
 
-def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0, data_layout='NCHW'):
+def build(settings, 
+          mode='train', 
+          pass_id_as_seed = 42,
+          trainer_id=None, 
+          trainers_num=None, 
+          gpu_id=0, 
+          data_layout='NCHW'):
     env = os.environ
     assert settings.use_gpu, "gpu training is required for DALI"
     assert not settings.use_mixup, "mixup is not supported by DALI reader"
@@ -234,7 +240,7 @@ def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0, 
             device_id=gpu_id,
             shard_id=shard_id,
             num_shards=num_shards,
-            seed=42 + shard_id, 
+            seed=pass_id_as_seed + shard_id, 
             data_layout=data_layout,
             num_threads=4)
         pipe.build()
@@ -274,9 +280,9 @@ def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0, 
         pipelines, ['feed_image', 'feed_label'], size=sample_per_shard)
 
 
-def train(settings, trainer_id=None, trainers_num=None, gpu_id=0, data_layout="NCHW"):
-    return build(settings, 'train', trainer_id=trainer_id, trainers_num=trainers_num, gpu_id=gpu_id, data_layout=data_layout)
+def train(settings, pass_id_as_seed, trainer_id=None, trainers_num=None, gpu_id=0, data_layout="NCHW"):
+    return build(settings, mode='train', pass_id_as_seed = pass_id_as_seed, trainer_id=trainer_id, trainers_num=trainers_num, gpu_id=gpu_id, data_layout=data_layout)
 
 
 def val(settings, trainer_id=None, trainers_num=None, gpu_id=0, data_layout="NCHW"):
-    return build(settings, 'val', trainer_id=trainer_id, trainers_num=trainers_num, gpu_id=gpu_id, data_layout=data_layout)
+    return build(settings, mode='val', trainer_id=trainer_id, trainers_num=trainers_num, gpu_id=gpu_id, data_layout=data_layout)

@@ -17,7 +17,7 @@ MODEL=ResNet50 #VGG16
 MODEL_SAVE_PATH="output/"
 
 # training params
-NUM_EPOCHS=90
+NUM_EPOCHS=91
 BATCH_SIZE=128
 LR=0.1
 LR_STRATEGY=piecewise_decay
