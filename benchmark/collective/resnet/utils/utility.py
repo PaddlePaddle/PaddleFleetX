@@ -147,3 +147,5 @@ def create_data_loader(is_train, args, data_layout='NCHW'):
             iterable=True)
 
         return data_loader, [feed_image, feed_label]
+
+

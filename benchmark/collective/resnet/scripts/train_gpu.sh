@@ -34,7 +34,7 @@ FUSE=True
 NCCL_COMM_NUM=1
 NUM_THREADS=2
 USE_HIERARCHICAL_ALLREDUCE=False
-NUM_CARDS=8
+NUM_CARDS=1
 FP16=True #whether to use float16
 use_dali=True
 if [[ ${use_dali} == "True" ]]; then
@@ -60,7 +60,7 @@ fi
 
 set -x
 
-python -m paddle.distributed.launch ${distributed_args}  --log_dir log \
+python -m paddle.distributed.launch ${distributed_args} --log_level 20 --log_dir log \
        ./train_with_fleet.py \
        --model=${MODEL} \
        --batch_size=${BATCH_SIZE} \
@@ -85,7 +85,8 @@ python -m paddle.distributed.launch ${distributed_args}  --log_dir log \
        --use_dali=${use_dali} \
        --use_dgc=${USE_DGC} \
        --fetch_steps=10 \
-       --do_test=True \
+       --do_test=False \
        --profile=False \
        --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP} \
+       --checkpoint=./fleet_checkpoints \
        --use_recompute=False
