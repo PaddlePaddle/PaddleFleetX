@@ -62,18 +62,12 @@ add_arg('num_threads',      int,   1,           "Number of threads to run paddle
 add_arg('data_layout',      str,   "NCHW",      "Data layout, 'NCHW' or 'NHWC'.")
 add_arg('use_dali',         bool,  False,       "Whether to use Nvidia DALI.")
 add_arg('lower_scale',      float, 0.08,        "Set the lower_scale in random_crop.")
-add_arg('lower_ratio',      float, 3.0/4.,      "Set the lower_ratio in random_crop.")
-add_arg('upper_ratio',      float, 4.0/3.,      "Set the upper_ratio in random_crop.")
-add_arg('resize_short_size', int,  256,         "Set the shorter image edge size.")
 add_arg('profile',          bool,  False,       "Enable profiling or not." )
 add_arg('fuse',             bool, False,        "Whether to use tensor fusion.")
 add_arg('fuse_elewise_add_act_ops', bool, True, "Whether to use elementwise_act fusion.")
 add_arg('fuse_bn_act_ops',  bool, True,         "Whether to use bn_act fusion.")
 add_arg("use_hierarchical_allreduce", bool, False,   "Use hierarchical allreduce or not.")
 add_arg('num_iteration_per_drop_scope', int, 100, "The iteration intervals to clean up temporary variables.")
-add_arg('image_mean', nargs='+', type=float, default=[0.485, 0.456, 0.406], help="The mean of input image data")
-add_arg('image_std', nargs='+', type=float, default=[0.229, 0.224, 0.225], help="The std of input image data")
-add_arg('interpolation',    int,  None,         "The interpolation mode")
 
 # yapf: enable
 args = parser.parse_args()
@@ -213,7 +207,6 @@ def refresh_program(args, sz, bs, val_bs):
         data_layout=args.data_layout,
         dist_strategy=dist_strategy)
     train_program = fleet.main_program
-    args.orig_train_program = fleet._origin_program
     with open("main.program", "w") as f:
         program_to_code(fleet._origin_program, fout=f)
     
@@ -341,16 +334,17 @@ def train_parallel(args):
         if args.use_dali:
             import dali
             gpu_id = args.trainer_id % 8
-            args.batch_size = bs
-            args.image_shape = "3,%d,%d" % (img_dim, img_dim)
-            print("shape", args.image_shape)
-            args.lower_scale = min_scale
-            args.data_dir = trn_dir
-            args.interpolation = 4
-            settings = args
-            settings.epoch_id = epoch_id
-            eii = dali.ExternalTrainSizeIterator(bs, trn_dir, epoch_id, args.total_images, args.num_trainers, args.trainer_id)
-            train_iter = dali.train(settings, trainer_id=args.trainer_id, trainers_num=args.num_trainers, eii=eii, gpu_id=gpu_id, data_layout=args.data_layout)
+            image_shape = "3,%d,%d" % (img_dim, img_dim)
+            print("shape", image_shape)
+            train_iter = dali.train(data_dir=trn_dir,
+                                    batch_size=bs,
+                                    trainer_id=args.trainer_id,
+                                    trainers_num=args.num_trainers,
+                                    gpu_id=gpu_id,
+                                    epoch_id=epoch_id
+                                    image_shape=image_shape,
+                                    lower_scale=min_scale,
+                                    data_layout=args.data_layout)
         else:
             train_iter = train_data_loader()
         batch_start_time = time.time()
@@ -395,27 +389,7 @@ def train_parallel(args):
               (epoch_id, total_train_time / 3600))
         
         trainer_id = args.dist_env["trainer_id"]
-        #if trainer_id == 0 and epoch_id >= args.start_test_pass:
         if epoch_id >= args.start_test_pass:
-            #if args.use_dali:
-            #    gpu_id = args.trainer_id
-            #    args.batch_size = val_bs
-            #    args.image_shape = "3,%d,%d" % (img_dim, img_dim)
-            #    print("shape", args.image_shape)
-            #    #args.resize_short_size = 256
-            #    args.lower_scale = min_scale
-            #    args.interpolation = 4
-            #    args.data_dir = val_dir
-            #    settings = args
-            #    eii = None
-            #    if rect_val:
-            #        eii = dali.ExternalSizeIterator(val_bs, img_dim, val_dir)
-            #    test_iter = dali.val(settings, trainer_id=0, trainers_num=1, gpu_id=gpu_id, data_layout=args.data_layout, rect_val=rect_val, eii=eii)
-            #gpu_id = 0
-            #if os.getenv("FLAGS_selected_gpus"):
-            #    gpu_id = int(os.getenv("FLAGS_selected_gpus"))
-            #test_feeder = fluid.DataFeeder(
-            #    feed_list=feed_list, place=fluid.CUDAPlace(gpu_id))
             test_iter=test_data_loader
             test_ret = test_single(exe, test_args, test_iter, test_program)
             test_acc1, test_acc5 = [np.mean(np.array(v)) for v in test_ret]
@@ -425,21 +399,14 @@ def train_parallel(args):
             if np.mean(np.array(test_ret[1])) > args.best_acc5:
                 print("Achieve the best top-1 acc %f, top-5 acc: %f" % (
                        test_acc1, test_acc5))
+                if args.model_save_dir:
+                    model_save_dir = args.model_save_dir
+                    if not os.path.isdir(model_save_dir):
+                        os.makedirs(model_save_dir)
+                        fluid.io.save_persistables(exe, model_save_dir,
+                                                   fleet._origin_program)
                 break
-            #test_iter.reset()
-            #del test_iter
-        if trainer_id == 0 and args.model_save_dir and epoch_id > 25:
-            model_save_dir = os.path.join(args.model_save_dir, str(epoch_id))
-            if not os.path.isdir(model_save_dir):
-                os.makedirs(model_save_dir)
-                fluid.io.save_persistables(exe, model_save_dir,
-                    args.orig_train_program)
 
-    if trainer_id == 0 and args.model_save_dir:
-        if not os.path.isdir(args.model_save_dir):
-            os.makedirs(args.model_save_dir)
-            fluid.io.save_persistables(exe, args.model_save_dir,
-                args.orig_train_program)
     print("total train time: ", total_train_time)
     print("total run time: ", time.time() - over_all_start)
 
