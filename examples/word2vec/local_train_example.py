@@ -21,7 +21,8 @@ def get_dataset_reader(inputs):
 
 def train():
     loss, inputs = word2vec_net(dict_size, embedding_size, neg_num)
-     
+    var_dict = {'loss': loss}
+    
     optimizer = fluid.optimizer.SGD(
         learning_rate=fluid.layers.exponential_decay(
             learning_rate=learning_rate,
@@ -40,13 +41,13 @@ def train():
         start_time = time.time() 
 
         class fetch_vars(fluid.executor.FetchHandler):
-            def handler(self, fetch_target_vars):
-                loss_value = fetch_target_vars[0]
+            def handler(self, res_dict):
+                loss_value = res_dict['loss']
                 logger.info(
                     "epoch -> {}, loss -> {}, at: {}".format(epoch, loss_value, time.ctime()))
 
         exe.train_from_dataset(program=fluid.default_main_program(), dataset=dataset,
-                               fetch_handler=fetch_vars([loss.name], 5, True))
+                               fetch_handler=fetch_vars(var_dict=var_dict))
         end_time = time.time()
         model_path = str(model_path) + '/trainer_' + str(role.worker_index()) + '_epoch_' + str(epoch)
         fluid.io.save_persistables(executor=exe, dirname=model_path)

@@ -7,13 +7,14 @@ export FLAGS_eager_delete_tensor_gb=0
 export FLAGS_fuse_parameter_memory_size=32 #MB
 export FLAGS_fuse_parameter_groups_size=50
 
-PRETRAINED_CKPT_PATH=$1
+PRETRAINED_CKPT_PATH=uncased_L-24_H-1024_A-16
+DATA_PATH=xnli
+bert_config_path=uncased_L-24_H-1024_A-16/bert_config.json
+vocab_path=uncased_L-24_H-1024_A-16/vocab.txt
+
 TASK_NAME='XNLI'
 CKPT_PATH=$PWD/tmp
-bert_config_path=$2
-vocab_path=$3
-DATA_PATH=$4
-BATCH_SIZE=4096
+BATCH_SIZE=72000
 
 python -m paddle.distributed.launch --log_dir mylog \
            run_classifier.py --task_name ${TASK_NAME} \
@@ -35,5 +36,5 @@ python -m paddle.distributed.launch --log_dir mylog \
                    --max_seq_len 128 \
                    --bert_config_path ${bert_config_path} \
                    --learning_rate 5e-5 \
-                   --skip_steps 10 \
+                   --skip_steps 1 \
                    --use_recompute true
