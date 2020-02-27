@@ -140,7 +140,6 @@ def build(data_dir,
     lower = 3.0 / 4
     upper = 4.0 / 3
 
-    assert interp in interp_map, "interpolation method not supported by DALI"
     interp = types.INTERP_LANCZOS3
 
     file_list = os.path.join(file_root, 'train_list.txt')
