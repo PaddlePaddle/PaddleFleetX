@@ -341,7 +341,7 @@ def train_parallel(args):
                                     trainer_id=args.trainer_id,
                                     trainers_num=args.num_trainers,
                                     gpu_id=gpu_id,
-                                    epoch_id=epoch_id
+                                    epoch_id=epoch_id,
                                     image_shape=image_shape,
                                     lower_scale=min_scale,
                                     data_layout=args.data_layout)
