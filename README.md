@@ -81,7 +81,7 @@ optimizer = fleet.distributed_optimizer(optimizer, strategy=DistributedStrategy(
 optimizer.minimize(cost, fluid.default_startup_program())
 
 train_prog = fleet.main_program # change line 1
-place = fluid.CUDAPlace(0)
+place = fluid.CUDAPlace(int(os.environ['FLAGS_selected_gpus'])) # change line 2
 
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
