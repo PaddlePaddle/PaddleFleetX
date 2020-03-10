@@ -355,7 +355,7 @@ def train(args):
     test_prog = fluid.Program()
 
     if args.total_batch_size > 0:
-        args.batch_size = args.total_batch_size / num_trainers
+        args.batch_size = int(args.total_batch_size / num_trainers)
 
     exec_strategy = fluid.ExecutionStrategy()
     exec_strategy.num_threads = args.num_threads
@@ -481,6 +481,7 @@ def train(args):
     train_speed_list = []
     acc1_logs = []
     acc5_logs = []
+    pass_id=None
     for pass_id in range(train_status.next(), params["num_epochs"]):
         train_info = [[], [], []]
         test_info = [[], [], []]
@@ -625,7 +626,7 @@ def train(args):
 
  
     # save in last epoch
-    if trainer_id == 0:
+    if trainer_id == 0 and pass_id is not None:
         model_path = os.path.join(model_save_dir + '/' + model_name, str(pass_id))
         if not os.path.isdir(model_path):
             os.makedirs(model_path)

@@ -17,7 +17,7 @@ MODEL=ResNet50 #VGG16
 MODEL_SAVE_PATH="output/"
 
 # training params
-NUM_EPOCHS=91
+NUM_EPOCHS=90
 BATCH_SIZE=128
 LR=0.1
 LR_STRATEGY=piecewise_decay
@@ -54,8 +54,34 @@ if [[ ${FUSE} == "True" ]]; then
     export FLAGS_fuse_parameter_groups_size=50
 fi
 distributed_args=""
-if [[ ${NUM_CARDS} == "1" ]]; then
-    distributed_args="--selected_gpus 0"
+#if [[ ${NUM_CARDS} == "1" ]]; then
+#    distributed_args="--selected_gpus 0"
+#fi
+
+NUM_CARDS=1
+while true ; do
+  case "$1" in
+    -num_cards) NUM_CARDS="$2" ; shift 2 ;;
+    *)
+       if [[ ${#1} > 0 ]]; then
+          echo "not supported arugments ${1}" ; exit 1 ;
+       else
+           break
+       fi
+       ;;
+  esac
+done
+
+
+if [[ $NUM_CARDS != 8 ]]; then
+    visable_devices=""
+    for (( t=0; t < $NUM_CARDS - 1; t++))  ; do
+        visable_devices=$visable_devices$t","
+    done
+    visable_devices=$visable_devices$t
+    echo $visable_devices
+    export CUDA_VISIBLE_DEVICES=$visable_devices
+    distributed_args="--selected_gpus ${visable_devices}"
 fi
 
 set -x
@@ -90,3 +116,5 @@ python -m paddle.distributed.launch ${distributed_args} --log_level 20 --log_dir
        --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP} \
        --checkpoint=./fleet_checkpoints \
        --use_recompute=False
+
+       #--total_batch_size=1024 \
