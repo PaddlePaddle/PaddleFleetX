@@ -39,6 +39,7 @@ from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy, T
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 from paddle.fluid import compiler
 import paddle.fluid.profiler as profiler
+from paddle.distributed.fs_wrapper import BDFS,LocalFS
 
 num_trainers = int(os.environ.get('PADDLE_TRAINERS_NUM', 1))
 trainer_id = int(os.environ.get('PADDLE_TRAINER_ID'))
@@ -58,6 +59,8 @@ add_arg('with_mem_opt',     bool,  False,                "Whether to use memory 
 add_arg('with_inplace',     bool,  False,                "Whether to use inplace memory optimization.")
 add_arg('pretrained_model', str,   None,                 "Whether to use pretrained model.")
 add_arg('checkpoint',       str,   None,                 "Whether to resume checkpoint.")
+add_arg('hdfs_name',       str,   None,                 "hdfs_name.")
+add_arg('hdfs_ugi',       str,   None,                 "hdfs_ugi.")
 add_arg('lr',               float, 0.1,                  "set learning rate.")
 add_arg('lr_strategy',      str,   "piecewise_decay",    "Set the learning rate decay strategy.")
 add_arg('model',            str,   "SE_ResNeXt50_32x4d", "Set the network to use.")
@@ -416,10 +419,13 @@ def train(args):
     exe = fluid.Executor(place)
     exe.run(startup_prog)
 
+    fs=LocalFS()
+    if args.hdfs_name and args.hdfs_ugi:
+        fs=BDFS(args.hdfs_name, args.hdfs_ugi,20*60*1000, 3 * 1000)
 
     train_status =TrainStatus()
     if args.checkpoint is not None:
-        tmp_s = fleet.load_check_point(exe, args.checkpoint)#, main_program=fleet._origin_program)
+        tmp_s = fleet.load_check_point(exe, args.checkpoint, fs=fs, trainer_id=trainer_id)#, main_program=fleet._origin_program)
         if tmp_s is not None:
             train_status = tmp_s
 
@@ -561,7 +567,7 @@ def train(args):
 
                 print("save_check_point:{}".format(args.checkpoint))
                 fleet.save_check_point(executor=exe, train_status=saved_status,
-                    path=args.checkpoint)#, main_program=fleet._origin_program)
+                    path=args.checkpoint, fs=fs)#, main_program=fleet._origin_program)
 
 
         if trainer_id == 0 and (args.do_test or (pass_id + 1) == params["num_epochs"]):

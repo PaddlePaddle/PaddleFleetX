@@ -27,7 +27,7 @@ DATA_PATH="./ImageNet"
 TOTAL_IMAGES=1281167
 CLASS_DIM=1000
 IMAGE_SHAPE=3,224,224
-DATA_FORMAT="NHWC"
+DATA_FORMAT="NCHW"
 
 #gpu params
 FUSE=True
@@ -58,7 +58,7 @@ distributed_args=""
 #    distributed_args="--selected_gpus 0"
 #fi
 
-NUM_CARDS=1
+NUM_CARDS=8
 while true ; do
   case "$1" in
     -num_cards) NUM_CARDS="$2" ; shift 2 ;;
@@ -111,10 +111,11 @@ python -m paddle.distributed.launch ${distributed_args} --log_level 20 --log_dir
        --use_dali=${use_dali} \
        --use_dgc=${USE_DGC} \
        --fetch_steps=10 \
-       --do_test=False \
+       --do_test=True \
        --profile=False \
        --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP} \
        --checkpoint=./fleet_checkpoints \
-       --use_recompute=False
+       --use_recompute=False \
+       --fuse_bn_act_ops=False
 
        #--total_batch_size=1024 \
