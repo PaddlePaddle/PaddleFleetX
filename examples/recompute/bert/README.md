@@ -80,5 +80,5 @@ Baseline:
 
 - Estimated memory usage for Bert-large with batch size 72000:
 
-![without recompute](https://github.com/mapingshuo/Fleet/blob/recompute_examples/examples/recompute/bert/image/memory_anal.png)
+![recompute](https://github.com/PaddlePaddle/Fleet/blob/develop/examples/recompute/bert/image/memory_anal.png)
 
