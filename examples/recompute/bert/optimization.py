@@ -130,7 +130,7 @@ def optimization(loss,
             param_list[param.name].stop_gradient = True
         
         if dist_strategy is not None:	
-	    optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
+	      optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
         _, param_grads = optimizer.minimize(loss)
 
         if weight_decay > 0:
