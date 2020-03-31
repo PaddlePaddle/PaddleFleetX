@@ -34,6 +34,7 @@ if fleet.is_server():
     fleet.init_server()
     fleet.run_server()
 elif fleet.is_worker():
+    fleet.init_worker()
     place = fluid.CPUPlace()
     exe = fluid.Executor(place)
     exe.run(fluid.default_startup_program())
@@ -45,5 +46,6 @@ elif fleet.is_worker():
             fetch_list=[cost.name])
         print("worker_index: %d, step%d cost = %f" %
               (fleet.worker_index(), i, cost_val[0]))
+    fleet.stop_worker()
 
 
