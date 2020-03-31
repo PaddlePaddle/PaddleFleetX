@@ -19,7 +19,7 @@ import paddle
 import paddle.fluid as fluid
 import random
 
-from .img_tool import process_image
+from img_tool import process_image
 DATA_DIR=""
 
 THREAD=4
