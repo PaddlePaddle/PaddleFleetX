@@ -319,6 +319,7 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None, d
                    dist_strategy.recompute_checkpoints = model.checkpoints
                 dist_optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
                 _, param_grads = dist_optimizer.minimize(avg_cost)
+                print("avg_loss:", avg_cost.name)
 
                 global_lr.persistable=True
                 build_program_out.append(global_lr)
@@ -390,8 +391,8 @@ def train(args):
             var.persistable=True
             train_fetch_list.append(var.name)
 
-    #train_prog = fleet.main_program
-    train_prog = fleet._transpiled_program
+    train_prog = fleet.main_program
+    #train_prog = fleet._transpiled_program
 
     # fleet._transpiled_program
     with open("trainer_{}_main_program.desc".format(trainer_id), "w") as f:
@@ -419,6 +420,7 @@ def train(args):
     place = fluid.CUDAPlace(gpu_id) if args.use_gpu else fluid.CPUPlace()
     exe = fluid.Executor(place)
     exe.run(startup_prog)
+    
 
     if checkpoint is not None:
         fluid.io.load_persistables(exe, checkpoint, main_program=train_prog)

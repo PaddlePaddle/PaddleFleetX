@@ -28,13 +28,18 @@ echo $PYTHONPATH
 
 DATA_PATH="../ImageNet"
 
-export PADDLE_TRAINERS=2
-export PADDLE_TRAINERS_NUM=2
-export PADDLE_TRAINER_ID=0 
-export FLAGS_selected_gpus=4
-python ./remote_executor.py  --data_dir=$DATA_PATH > 0.log 2>&1 &
+#export PADDLE_TRAINERS=2
+#export PADDLE_TRAINERS_NUM=2
+#export PADDLE_TRAINER_ID=0 
+#export FLAGS_selected_gpus=4
+#python ./remote_executor.py  --data_dir=$DATA_PATH > 0.log 2>&1 &
 
 
-export PADDLE_TRAINER_ID=1
-export FLAGS_selected_gpus=5
-python ./remote_executor.py --data_dir=$DATA_PATH > 1.log 2>&1 &
+#export PADDLE_TRAINER_ID=1
+#export FLAGS_selected_gpus=5
+#python ./remote_executor.py --data_dir=$DATA_PATH > 1.log 2>&1 &
+
+export CUDA_VISIBLE_DEVICES=4,5
+
+python -m paddle.distributed.launch  --log_dir log \
+    remote_executor.py --data_dir $DATA_PATH

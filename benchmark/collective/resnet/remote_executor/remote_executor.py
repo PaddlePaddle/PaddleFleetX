@@ -19,12 +19,13 @@ import utils.reader_cv2 as reader
 import utils.utility as utility
 from utils.utility import add_arguments, print_arguments, check_gpu
 from utils.learning_rate import cosine_decay_with_warmup, lr_warmup
-from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
+from paddle.fluid.incubate.fleet.collective import  DistributedStrategy
 from paddle.fluid import compiler
 from paddle.fluid.transpiler.details import program_to_code
 
 trainer_id = int(os.environ.get('PADDLE_TRAINER_ID'))
 num_trainers = int(os.environ.get('PADDLE_TRAINERS_NUM', 1))
+#trainer_endpoints = os.getenv("PADDLE_TRAINER_ENDPOINTS")
 
 parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
@@ -84,6 +85,38 @@ def reader_creator(train_batch_size, places, is_train=True, data_layout="NCHW"):
     train_data_loader.set_sample_list_generator(train_batch_reader, places)
     return train_data_loader, None
 
+def get_exec_strategy():
+    exec_strategy = fluid.ExecutionStrategy()
+    exec_strategy.num_threads = 2
+
+    return exec_strategy
+
+def get_dist_strategy():
+    dist_strategy = DistributedStrategy()
+    dist_strategy.num_trainers = num_trainers
+    dist_strategy.trainer_id = trainer_id 
+    # launcher should ommit this trainer_endpoints
+    dist_strategy.trainers_endpoints = ["127.0.0.1:40214","127.0.0.1:25671"]
+    dist_strategy.enable_backward_optimizer_op_deps = True
+
+    dist_strategy.exec_strategy = get_exec_strategy()
+    return dist_strategy
+
+
+def compile_program(main_prog, loss_name):
+    #TODO(gongwb): fleet should support tranpiler and compiler function.
+    dist_strategy = get_dist_strategy()
+
+    compiled_program = compiler.CompiledProgram(main_prog)
+
+    compiled_program.with_data_parallel(
+        loss_name=loss_name,
+        build_strategy=dist_strategy,
+        exec_strategy=dist_strategy.exec_strategy,
+        share_vars_from=None)
+
+    return compiled_program
+
 def print_paddle_environments():
     print('--------- Configuration Environments -----------')
     #print("Devices per node: %d" % DEVICE_NUM)
@@ -95,10 +128,11 @@ def print_paddle_environments():
 def train(startup_file, main_file):
     # program
     startup_prog, train_prog = program_creator(startup_file, main_file)
-    print("startup_program:")
-    program_to_code(startup_prog)
-    print("train_program:")
-    program_to_code(train_prog)
+    train_prog = compile_program(train_prog, 'mean_0.tmp_0')
+    #print("startup_program:")
+    #program_to_code(startup_prog)
+    #print("train_program:")
+    #program_to_code(train_prog)
 
     # reader
     gpu_id = int(os.environ.get('FLAGS_selected_gpus', 0))
@@ -112,6 +146,11 @@ def train(startup_file, main_file):
     # executor
     exe = fluid.Executor(place)
     exe.run(startup_prog)
+
+
+    if trainer_id == 0:
+        time.sleep(30)
+
     train_exe = exe
 
     train_fetch_list = ['mean_0.tmp_0', 'accuracy_0.tmp_0', 'accuracy_1.tmp_0', 'learning_rate_warmup']
