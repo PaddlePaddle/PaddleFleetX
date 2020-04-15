@@ -18,7 +18,7 @@ MODEL_SAVE_PATH="output/"
 
 # training params
 NUM_EPOCHS=90
-BATCH_SIZE=128
+BATCH_SIZE=64
 LR=0.1
 LR_STRATEGY=piecewise_decay
 
@@ -27,23 +27,22 @@ DATA_PATH="./ImageNet"
 TOTAL_IMAGES=1281167
 CLASS_DIM=1000
 IMAGE_SHAPE=3,224,224
-DATA_FORMAT="NHWC"
+DATA_FORMAT="NCHW"
 
 #gpu params
-FUSE=True
+FUSE=False
 NCCL_COMM_NUM=1
 NUM_THREADS=2
 USE_HIERARCHICAL_ALLREDUCE=False
-NUM_CARDS=8
-FP16=True #whether to use float16
-use_dali=True
+FP16=False #whether to use float16
+use_dali=False
 if [[ ${use_dali} == "True" ]]; then
     export FLAGS_fraction_of_gpu_memory_to_use=0.8
 fi
 
 # dgc params
 USE_DGC=False # whether to use dgc
-ALL_CARDS=8
+ALL_CARDS=2
 START_EPOCHS=4 # start dgc after 4 epochs
 # add 1 in let, let will not return 1 when set START_EPOCHS=0
 let '_tmp_ans=((TOTAL_IMAGES+BATCH_SIZE*ALL_CARDS-1)/(BATCH_SIZE*ALL_CARDS))*START_EPOCHS' 1
@@ -57,6 +56,9 @@ distributed_args=""
 if [[ ${NUM_CARDS} == "1" ]]; then
     distributed_args="--selected_gpus 0"
 fi
+
+NUM_CARDS=2
+export CUDA_VISIBLE_DEVICES=4,5
 
 set -x
 

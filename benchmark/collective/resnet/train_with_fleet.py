@@ -390,7 +390,18 @@ def train(args):
             var.persistable=True
             train_fetch_list.append(var.name)
 
-    train_prog = fleet.main_program
+    #train_prog = fleet.main_program
+    train_prog = fleet._transpiled_program
+
+    # fleet._transpiled_program
+    with open("trainer_{}_main_program.desc".format(trainer_id), "w") as f:
+        f.write(fleet._origin_program.desc.serialize_to_string())
+    with open("trainer_{}_start_program.desc".format(trainer_id), "w") as f:
+        f.write(startup_prog.desc.serialize_to_string())
+
+    print("fetch_list:", train_fetch_list)
+
+    #sys.exit(0)
 
     b_out_test = build_program(
                      is_train=False,
