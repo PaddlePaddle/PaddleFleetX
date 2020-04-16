@@ -74,11 +74,29 @@ def program_creator(startup_file, main_file):
     return start_prog, main_prog
 
 
-def reader_creator(train_batch_size, places, is_train=True, data_layout="NCHW"):
-    train_data_loader, data = utility.create_data_loader(is_train, args, data_layout=data_layout)
+#def reader_creator(train_batch_size, places, is_train=True, data_layout="NCHW"):
+#    train_data_loader, data = utility.create_data_loader(is_train, args, data_layout=data_layout)
+def reader_creator(train_prog, feed_var_names, train_batch_size, places, is_train=True, data_layout="NCHW"):
+    # create data reador from
+    assert isinstance(feed_var_names, list), "feed_var_names:{} must be list".format(feed_var_names)
+    feed_list =  []
+    try:
+        block = train_prog.global_block()
+        for name in feed_var_names:
+            feed_list.append(block.var(name))
+    except Exception as e:
+        print("find {} in list error:{}", feed_var_names, e)
+
+    train_data_loader = fluid.io.DataLoader.from_generator(
+        feed_list=feed_list,
+        capacity=64,
+        use_double_buffer=True,
+        iterable=True)
+
+    # TODO(gongwb):move this to data server
     shuffle_seed = 1 if num_trainers > 1 else None
     train_reader = reader.train(settings=args, data_dir=args.data_dir,
-                                pass_id_as_seed=shuffle_seed, data_layout=args.data_format, threads=10)
+                                pass_id_as_seed=shuffle_seed, data_layout=data_layout, threads=10)
     train_batch_reader=paddle.batch(train_reader, batch_size=train_batch_size)
 
 
@@ -127,8 +145,8 @@ def print_paddle_environments():
 
 def train(startup_file, main_file):
     # program
-    startup_prog, train_prog = program_creator(startup_file, main_file)
-    train_prog = compile_program(train_prog, 'mean_0.tmp_0')
+    startup_prog, origin_train_prog = program_creator(startup_file, main_file)
+    train_prog = compile_program(origin_train_prog, 'mean_0.tmp_0')
     #print("startup_program:")
     #program_to_code(startup_prog)
     #print("train_program:")
@@ -141,7 +159,10 @@ def train(startup_file, main_file):
     if num_trainers <= 1 and args.use_gpu:
         places = fluid.framework.cuda_places()
 
-    train_data_loader, _ = reader_creator(args.batch_size, places=places, data_layout=args.data_format)
+    #train_data_loader, _ = reader_creator(args.batch_size, places=places, data_layout=args.data_format)
+    train_data_loader, _ = reader_creator(train_prog=origin_train_prog, 
+                                          feed_var_names=['feed_image', 'feed_label'], 
+                                          train_batch_size=args.batch_size, places=places, data_layout=args.data_format)
 
     # executor
     exe = fluid.Executor(place)
