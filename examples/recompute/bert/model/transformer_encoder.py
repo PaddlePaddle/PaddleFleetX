@@ -145,7 +145,7 @@ def multi_head_attention(queries,
         product = layers.matmul(x=scaled_q, y=k, transpose_y=True)
         if attn_bias:
             product += attn_bias
-        weights = layers.softmax(product)
+        weights = layers.softmax(product, use_cudnn=True)
         if dropout_rate:
             weights = layers.dropout(
                 weights,
@@ -236,8 +236,8 @@ def pre_post_process_layer(prev_out, out, process_cmd, dropout_rate=0.,
             out = out + prev_out if prev_out else out
         elif cmd == "n":  # add layer normalization
             out_dtype = out.dtype
-            if out_dtype == fluid.core.VarDesc.VarType.FP16:
-                out = layers.cast(x=out, dtype="float32")
+            #if out_dtype == fluid.core.VarDesc.VarType.FP16:
+            #    out = layers.cast(x=out, dtype="float32")
             out = layer_norm(
                 out,
                 begin_norm_axis=len(out.shape) - 1,
@@ -247,8 +247,8 @@ def pre_post_process_layer(prev_out, out, process_cmd, dropout_rate=0.,
                 bias_attr=fluid.ParamAttr(
                     name=name + '_layer_norm_bias',
                     initializer=fluid.initializer.Constant(0.)))
-            if out_dtype == fluid.core.VarDesc.VarType.FP16:
-                out = layers.cast(x=out, dtype="float16")
+            #if out_dtype == fluid.core.VarDesc.VarType.FP16:
+            #    out = layers.cast(x=out, dtype="float16")
         elif cmd == "d":  # add dropout
             if dropout_rate:
                 out = layers.dropout(
@@ -318,13 +318,21 @@ def encoder_layer(enc_input,
         hidden_act,
         param_initializer=param_initializer,
         name=name + '_ffn')
-
+    
     return post_process_layer(
         attn_output,
         ffd_output,
         postprocess_cmd,
         prepostprocess_dropout,
         name=name + '_post_ffn'), ffd_output
+
+    #res = post_process_layer(
+    #    attn_output,
+    #    ffd_output,
+    #    postprocess_cmd,
+    #    prepostprocess_dropout,
+    #    name=name + '_post_ffn')
+    #return res, res
 
 
 def encoder(enc_input,

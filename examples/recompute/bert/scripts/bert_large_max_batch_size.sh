@@ -6,8 +6,9 @@ export FLAGS_fraction_of_gpu_memory_to_use=0.99
 export FLAGS_eager_delete_tensor_gb=0
 export FLAGS_fuse_parameter_memory_size=32 #MB
 export FLAGS_fuse_parameter_groups_size=50
+export FLAGS_allocator_strategy=naive_best_fit
 
-PRETRAINED_CKPT_PATH=uncased_L-24_H-1024_A-16
+PRETRAINED_CKPT_PATH=uncased_L-24_H-1024_A-16/params
 DATA_PATH=xnli
 bert_config_path=uncased_L-24_H-1024_A-16/bert_config.json
 vocab_path=uncased_L-24_H-1024_A-16/vocab.txt
@@ -37,4 +38,5 @@ python -m paddle.distributed.launch --log_dir mylog \
                    --bert_config_path ${bert_config_path} \
                    --learning_rate 5e-5 \
                    --skip_steps 1 \
-                   --use_recompute true
+                   --use_recompute true \
+		   --use_mix_precision false

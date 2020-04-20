@@ -66,7 +66,8 @@ train_g.add_arg("warmup_proportion", float,  0.1,
 train_g.add_arg("save_steps",        int,    10000,   "The steps interval to save checkpoints.")
 train_g.add_arg("validation_steps",  int,    1000,    "The steps interval to evaluate model performance.")
 train_g.add_arg("use_fp16",          bool,   False,   "Whether to use fp16 mixed precision training.")
-train_g.add_arg("use_recompute",          bool,   True,   "Whether to use recompute optimizer for training.")
+train_g.add_arg("use_recompute",          bool,   False,   "Whether to use recompute optimizer for training.")
+train_g.add_arg("use_mix_precision",          bool,   False,   "Whether to use mix-precision optimizer for training.")
 train_g.add_arg("loss_scaling",      float,  1.0,
                 "Loss scaling factor for mixed precision training, only valid when use_fp16 is enabled.")
 
@@ -226,10 +227,13 @@ def main(args):
         dist_strategy.exec_strategy = exec_strategy
         dist_strategy.nccl_comm_num = 3
         dist_strategy.use_hierarchical_allreduce = True
-        
+ 
         if args.use_recompute:
             dist_strategy.forward_recompute = True
-            dist_strategy.enable_sequential_execution=True
+            dist_strategy.enable_sequential_execution = True
+        if args.use_mix_precision:
+            dist_strategy.use_amp = True
+	    
         #dist_strategy.mode = "collective"
         #dist_strategy.collective_mode = "grad_allreduce"
 
@@ -303,7 +307,14 @@ def main(args):
                                 dev_idx=0,
                                 shuffle=False), place)
 
+
     exe.run(startup_prog)
+    with open("__model__", "wb") as f:
+        f.write(fleet._origin_program.desc.serialize_to_string())
+
+    with open("debug_program", "w") as f:
+        f.write(str(fleet._origin_program))
+    
 
     if args.do_train:
         if args.init_checkpoint and args.init_pretraining_params:
