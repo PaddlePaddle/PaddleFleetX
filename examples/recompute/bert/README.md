@@ -25,16 +25,16 @@ sh train_cls.sh $PRETRAINED_CKPT_PATH $bert_config_path $vocab_path $DATA_PATH
 
 Training context: 4 V100 GPU Cards
 
-Baseline: 
+- max batch size
 
-when setting seq_len to 512, Max batch size +328%
+When setting seq_len to 512, max batch size +328%
 
 |Model|Baseline|Recompute|
 |:---:|:---:|:---:|
 |bert-large|28|120|
 |bert-base|80|300|
 
-when setting seq_len to 128, Max batch size +510%
+When setting seq_len to 128, max batch size +510%
 
 |Model|Baseline|Recompute|script|
 |:---:|:---:|:---:|:---:|
@@ -47,7 +47,7 @@ when setting seq_len to 128, Max batch size +510%
 |:---:|:---:|
 |85.24%|85.91%|
 
-注：以上结果为4次实验的平均准确率。
+注：以上结果为4次实验的平均准确率, 由于训练由随机性，所以最终准确率有diff。
 
 - Training speed -22.5%
 
