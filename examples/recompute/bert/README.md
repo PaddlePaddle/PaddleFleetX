@@ -29,7 +29,7 @@ Baseline:
 
 - Max batch size +?%
 
-when setting seq_len to 128, the max batch size is:
+when setting seq_len to 512, the max batch size is:
 
 |Model|Baseline|Recompute|
 |:---:|:---:|:---:|
