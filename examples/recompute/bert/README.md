@@ -27,16 +27,14 @@ Training context: 4 V100 GPU Cards
 
 Baseline: 
 
-- Max batch size +?%
-
-when setting seq_len to 512, the max batch size is:
+when setting seq_len to 512, Max batch size +328%
 
 |Model|Baseline|Recompute|
 |:---:|:---:|:---:|
 |bert-large|28|120|
 |bert-base|80|300|
 
-when setting seq_len to 128 the max batch size is:
+when setting seq_len to 128, Max batch size +510%
 
 |Model|Baseline|Recompute|script|
 |:---:|:---:|:---:|:---:|
