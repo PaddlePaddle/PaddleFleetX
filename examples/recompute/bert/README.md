@@ -23,7 +23,7 @@ sh train_cls.sh $PRETRAINED_CKPT_PATH $bert_config_path $vocab_path $DATA_PATH
 ```
 ## Results
 
-Training context: 4 V100 GPU Cards
+Training context: V100 GPU Cards
 
 - max batch size
 
