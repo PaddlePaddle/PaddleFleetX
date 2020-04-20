@@ -6,46 +6,16 @@ This is an example of BERT pretraining and fine-tuning with Recompute.
 # Quick start: Fine-tuning on XNLI-en dataset
 
 ## download data
-    Please follow this page to download xnli data: https://github.com/PaddlePaddle/models/tree/develop/PaddleNLP/PaddleLARK/BERT
-
-Downloaded data
-```shell
-|-- multinli
-|   |-- multinli.train.ar.tsv
-|   |-- multinli.train.bg.tsv
-|   |-- multinli.train.de.tsv
-|   |-- multinli.train.el.tsv
-|   |-- multinli.train.en.tsv
-|   |-- multinli.train.es.tsv
-|   |-- multinli.train.fr.tsv
-|   |-- multinli.train.hi.tsv
-|   |-- multinli.train.ru.tsv
-|   |-- multinli.train.sw.tsv
-|   |-- multinli.train.th.tsv
-|   |-- multinli.train.tr.tsv
-|   |-- multinli.train.ur.tsv
-|   |-- multinli.train.vi.tsv
-|   `-- multinli.train.zh.tsv
-|-- README.md
-|-- xnli
-|   |-- xnli.dev.en.jsonl
-|   |-- xnli.dev.en.tsv
-|   |-- xnli.test.en.jsonl
-|   `-- xnli.test.en.tsv
-|-- xnli.dev.jsonl
-|-- xnli.dev.tsv
-|-- xnli.test.jsonl
-`-- xnli.test.tsv
-``` 
+请分别下载 [XNLI dev/test set](https://bert-data.bj.bcebos.com/XNLI-1.0.zip) 和 [XNLI machine-translated training set](https://bert-data.bj.bcebos.com/XNLI-MT-1.0.zip)，然后解压到同一个目录。
 
 ## download pretrained model
 
-Please follow this page to download pretrained model named `BERT-Large, Uncased`
+请按此链接下载数据：[BERT-Large, Uncased](https://bert-models.bj.bcebos.com/uncased_L-24_H-1024_A-16.tar.gz)
 
 ## fine-tuning!
 
 ```shell
-PRETRAINED_CKPT_PATH=uncased_L-24_H-1024_A-16
+PRETRAINED_CKPT_PATH=uncased_L-24_H-1024_A-16/params
 DATA_PATH=xnli
 bert_config_path=uncased_L-24_H-1024_A-16/bert_config.json
 vocab_path=uncased_L-24_H-1024_A-16/vocab.txt
@@ -53,16 +23,23 @@ sh train_cls.sh $PRETRAINED_CKPT_PATH $bert_config_path $vocab_path $DATA_PATH
 ```
 ## Results
 
-Training context: 4 V100 GPU Cards
+Training context: V100 GPU Cards
 
-Baseline: 
+- max batch size
 
-- Max batch size +516%
+When setting seq_len to 512, max batch size +328%
+
+|Model|Baseline|Recompute|
+|:---:|:---:|:---:|
+|bert-large|28|120|
+|bert-base|80|300|
+
+When setting seq_len to 128, max batch size +510%
 
 |Model|Baseline|Recompute|script|
 |:---:|:---:|:---:|:---:|
-|bert-large|12000|72000|scripts/bert_large_max_batch_size.sh|
-|bert-base|35000|178000|scripts/bert_base_max_batch_size.sh|
+|bert-large|93|562|scripts/bert_large_max_batch_size.sh|
+|bert-base|273|1390|scripts/bert_base_max_batch_size.sh|
 
 - Final test accuracy 
 
@@ -70,7 +47,7 @@ Baseline:
 |:---:|:---:|
 |85.24%|85.91%|
 
-注：以上结果为4次实验的平均准确率。
+注：以上结果为4次实验的平均准确率, 由于训练由随机性，所以最终准确率有diff。
 
 - Training speed -22.5%
 

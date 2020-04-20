@@ -99,7 +99,7 @@ def optimization(loss,
         return False
 
     param_list = dict()
-
+    """
     if use_fp16:
         param_grads = optimizer.backward(loss)
         master_param_grads = create_master_params_grads(
@@ -123,12 +123,18 @@ def optimization(loss,
 
         master_param_to_train_param(master_param_grads, param_grads,
                                     train_program)
+    """
+    if use_fp16:
+        pass
 
     else:
         for param in train_program.global_block().all_parameters():
             param_list[param.name] = param * 1.0
             param_list[param.name].stop_gradient = True
-        
+       
+        #optimizer = fluid.contrib.mixed_precision.decorate(optimizer,
+        #               init_loss_scaling=1.0,
+        #               use_dynamic_loss_scaling=True)
         if dist_strategy is not None:	
 	      optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
         _, param_grads = optimizer.minimize(loss)
