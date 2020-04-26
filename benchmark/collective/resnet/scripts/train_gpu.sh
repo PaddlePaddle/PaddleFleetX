@@ -27,7 +27,7 @@ DATA_PATH="./ImageNet"
 TOTAL_IMAGES=1281167
 CLASS_DIM=1000
 IMAGE_SHAPE=3,224,224
-DATA_FORMAT="NHWC"
+DATA_FORMAT="NCHW"
 
 #gpu params
 FUSE=True
@@ -54,13 +54,39 @@ if [[ ${FUSE} == "True" ]]; then
     export FLAGS_fuse_parameter_groups_size=50
 fi
 distributed_args=""
-if [[ ${NUM_CARDS} == "1" ]]; then
-    distributed_args="--selected_gpus 0"
+#if [[ ${NUM_CARDS} == "1" ]]; then
+#    distributed_args="--selected_gpus 0"
+#fi
+
+NUM_CARDS=8
+while true ; do
+  case "$1" in
+    -num_cards) NUM_CARDS="$2" ; shift 2 ;;
+    *)
+       if [[ ${#1} > 0 ]]; then
+          echo "not supported arugments ${1}" ; exit 1 ;
+       else
+           break
+       fi
+       ;;
+  esac
+done
+
+
+if [[ $NUM_CARDS != 8 ]]; then
+    visable_devices=""
+    for (( t=0; t < $NUM_CARDS - 1; t++))  ; do
+        visable_devices=$visable_devices$t","
+    done
+    visable_devices=$visable_devices$t
+    echo $visable_devices
+    export CUDA_VISIBLE_DEVICES=$visable_devices
+    distributed_args="--selected_gpus ${visable_devices}"
 fi
 
 set -x
 
-python -m paddle.distributed.launch ${distributed_args}  --log_dir log \
+python -m paddle.distributed.launch ${distributed_args} --log_level 20 --log_dir log \
        ./train_with_fleet.py \
        --model=${MODEL} \
        --batch_size=${BATCH_SIZE} \
@@ -88,4 +114,8 @@ python -m paddle.distributed.launch ${distributed_args}  --log_dir log \
        --do_test=True \
        --profile=False \
        --rampup_begin_step=${DGC_RAMPUP_BEGIN_STEP} \
-       --use_recompute=False
+       --checkpoint=./fleet_checkpoints \
+       --use_recompute=False \
+       --fuse_bn_act_ops=False
+
+       #--total_batch_size=1024 \

@@ -35,10 +35,11 @@ import utils.reader_cv2 as reader
 from utils.utility import add_arguments, print_arguments, check_gpu
 import utils.utility as utility
 from utils.learning_rate import cosine_decay_with_warmup, lr_warmup
-from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
+from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy, TrainStatus
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 from paddle.fluid import compiler
 import paddle.fluid.profiler as profiler
+from paddle.distributed.fs_wrapper import BDFS,LocalFS
 
 num_trainers = int(os.environ.get('PADDLE_TRAINERS_NUM', 1))
 trainer_id = int(os.environ.get('PADDLE_TRAINER_ID'))
@@ -48,6 +49,7 @@ add_arg = functools.partial(add_arguments, argparser=parser)
 
 # yapf: disable
 add_arg('batch_size',       int,   32,                   "Minibatch size per device.")
+add_arg('total_batch_size',       int,   -1,                   "total minibatch size per device.")
 add_arg('total_images',     int,   1281167,              "Training image number.")
 add_arg('num_epochs',       int,   120,                  "number of epochs.")
 add_arg('class_dim',        int,   1000,                 "Class number.")
@@ -57,15 +59,16 @@ add_arg('with_mem_opt',     bool,  False,                "Whether to use memory 
 add_arg('with_inplace',     bool,  False,                "Whether to use inplace memory optimization.")
 add_arg('pretrained_model', str,   None,                 "Whether to use pretrained model.")
 add_arg('checkpoint',       str,   None,                 "Whether to resume checkpoint.")
+add_arg('hdfs_name',       str,   None,                 "hdfs_name.")
+add_arg('hdfs_ugi',       str,   None,                 "hdfs_ugi.")
 add_arg('lr',               float, 0.1,                  "set learning rate.")
 add_arg('lr_strategy',      str,   "piecewise_decay",    "Set the learning rate decay strategy.")
 add_arg('model',            str,   "SE_ResNeXt50_32x4d", "Set the network to use.")
 add_arg('data_dir',         str,   "./data/ILSVRC2012/",  "The ImageNet dataset root dir.")
 add_arg('fp16',             bool,  False,                "Enable half precision training with fp16." )
 add_arg('use_dali',             bool,  False,            "use DALI for preprocess or not." )
-add_arg('use_aa',             bool,  False,            "use DALI for preprocess or not." )
 add_arg('data_format',      str,   "NCHW",               "Tensor data format when training.")
-add_arg('scale_loss',       float, 1.0,                  "Scale loss for fp16." )
+add_arg('scale_loss',       float, 128.0,                  "Scale loss for fp16." )
 add_arg('use_dynamic_loss_scaling',     bool,   True,    "Whether to use dynamic loss scaling.")
 add_arg('l2_decay',         float, 1e-4,                 "L2_decay parameter.")
 add_arg('momentum_rate',    float, 0.9,                  "momentum_rate.")
@@ -125,6 +128,8 @@ def optimizer_setting(params):
     if ls["name"] == "piecewise_decay":
         global_batch_size = ls["batch_size"] * num_trainers
         steps_per_pass = int(math.ceil(params["total_images"] * 1.0 / global_batch_size))
+        print("steps_per_pass:", steps_per_pass)
+
         warmup_steps = steps_per_pass * 5
         passes = [30,60,80,90]
         bd = [steps_per_pass * p for p in passes]
@@ -133,6 +138,7 @@ def optimizer_setting(params):
         start_lr = params["lr"]
         base_lr = params["lr"] * global_batch_size / batch_denom
         lr = [base_lr * (0.1**i) for i in range(len(bd) + 1)]
+        print("lr:", lr)
         lr_var = lr_warmup(fluid.layers.piecewise_decay(boundaries=bd, values=lr),\
                            warmup_steps, start_lr, base_lr)
         momentum_kwargs['learning_rate'] = lr_var
@@ -341,7 +347,7 @@ def get_device_num():
 def train(args):
     # parameters from arguments
     model_name = args.model
-    checkpoint = args.checkpoint
+    #checkpoint = args.checkpoint
     pretrained_model = args.pretrained_model
     model_save_dir = args.model_save_dir
     use_mixup = args.use_mixup
@@ -350,6 +356,9 @@ def train(args):
     startup_prog = fluid.Program()
     train_prog = fluid.Program()
     test_prog = fluid.Program()
+
+    if args.total_batch_size > 0:
+        args.batch_size = int(args.total_batch_size / num_trainers)
 
     exec_strategy = fluid.ExecutionStrategy()
     exec_strategy.num_threads = args.num_threads
@@ -389,6 +398,7 @@ def train(args):
         for var in train_fetch_vars:
             var.persistable=True
             train_fetch_list.append(var.name)
+        train_fetch_list.append("@LR_DECAY_COUNTER@")
 
     train_prog = fleet.main_program
 
@@ -409,8 +419,19 @@ def train(args):
     exe = fluid.Executor(place)
     exe.run(startup_prog)
 
-    if checkpoint is not None:
-        fluid.io.load_persistables(exe, checkpoint, main_program=train_prog)
+    fs=LocalFS()
+    if args.hdfs_name and args.hdfs_ugi:
+        fs=BDFS(args.hdfs_name, args.hdfs_ugi,20*60*1000, 3 * 1000)
+
+    train_status =TrainStatus()
+    if args.checkpoint is not None:
+        tmp_s = fleet.load_check_point(exe, args.checkpoint, fs=fs, trainer_id=trainer_id)#, main_program=fleet._origin_program)
+        if tmp_s is not None:
+            train_status = tmp_s
+
+        scope = fluid.global_scope()
+        print("global lr:", np.array(scope.find_var(global_lr.name).get_tensor()))
+        print("global step:", np.array(scope.find_var("@LR_DECAY_COUNTER@").get_tensor()))
 
     if pretrained_model:
         def if_exist(var):
@@ -425,20 +446,22 @@ def train(args):
         device_num = 1
 
     train_batch_size = args.batch_size
-    print("train_batch_size: %d device_num:%d" % (train_batch_size, device_num))
+    print("train_batch_size: %d device_num:%d total_batch_size:%d" % (train_batch_size, device_num, args.total_batch_size))
 
     test_batch_size = args.batch_size
     # NOTE: the order of batch data generated by batch_reader
     # must be the same in the respective processes.
-    shuffle_seed = 1 if num_trainers > 1 else None
+    #shuffle_seed = 1 if num_trainers > 1 else None
 
     if args.use_dali:
         import dali
-        train_iter = dali.train(settings=args, trainer_id=trainer_id, trainers_num=num_trainers,
+        train_iter = dali.train(settings=args, 
+                                pass_id_as_seed=train_status.next(), 
+                                trainer_id=trainer_id, trainers_num=num_trainers,
                                 gpu_id=gpu_id, data_layout=args.data_format)
     else:
         train_reader = reader.train(settings=args, data_dir=args.data_dir,
-                                    pass_id_as_seed=shuffle_seed, data_layout=args.data_format, threads=10)
+                                    pass_id_as_seed=train_status.next(), data_layout=args.data_format, threads=10)
         train_batch_reader=paddle.batch(train_reader, batch_size=train_batch_size)
 
         test_reader = reader.val(settings=args, data_dir=args.data_dir, data_layout=args.data_format, threads=10)
@@ -464,7 +487,8 @@ def train(args):
     train_speed_list = []
     acc1_logs = []
     acc5_logs = []
-    for pass_id in range(params["num_epochs"]):
+    pass_id=None
+    for pass_id in range(train_status.next(), params["num_epochs"]):
         train_info = [[], [], []]
         test_info = [[], [], []]
         train_begin=time.time()
@@ -483,11 +507,12 @@ def train(args):
                 if use_mixup:
                     loss, lr = train_exe.run(train_prog, feed=data, fetch_list=train_fetch_list)
                 else:
-                    loss, acc1, acc5, lr = train_exe.run(train_prog,  feed=data,  fetch_list=train_fetch_list)
+                    loss, acc1, acc5, lr, global_step = train_exe.run(train_prog,  feed=data,  fetch_list=train_fetch_list)
                     acc1 = np.mean(np.array(acc1))
                     acc5 = np.mean(np.array(acc5))
                     train_info[1].append(acc1)
                     train_info[2].append(acc5)
+                    global_step = np.array(global_step)
 
             t2 = time.time()
             period = t2 - t1
@@ -519,6 +544,7 @@ def train(args):
                         acc1 {3}, acc5 {4}, lr {5}, time {6}, speed {7}"
                           .format(pass_id, batch_id, "%.5f"%loss, "%.5f"%acc1, "%.5f"%acc5, "%.5f" %
                                   lr, "%2.4f sec" % period, "%.2f" % speed))
+                    print("global_step 2:", global_step)
                 sys.stdout.flush()
             batch_id += 1
 
@@ -532,6 +558,17 @@ def train(args):
         train_end=time.time()
         train_speed = (batch_id * train_batch_size) / (train_end - train_begin)
         train_speed_list.append(train_speed)
+
+        if trainer_id == 0:
+            saved_status = TrainStatus(pass_id)
+            if args.checkpoint:
+                if not os.path.isdir(args.checkpoint):
+                    os.makedirs(args.checkpoint)
+
+                print("save_check_point:{}".format(args.checkpoint))
+                fleet.save_check_point(executor=exe, train_status=saved_status,
+                    path=args.checkpoint, fs=fs)#, main_program=fleet._origin_program)
+
 
         if trainer_id == 0 and (args.do_test or (pass_id + 1) == params["num_epochs"]):
             if args.use_dali:
@@ -592,14 +629,16 @@ def train(args):
                     pass_id, "%.5f"%train_loss, "%.5f"%train_acc1, "%.5f"%train_acc5, "%.2f" % train_speed))
 
         sys.stdout.flush()
+
  
     # save in last epoch
-    if trainer_id == 0:
+    if trainer_id == 0 and pass_id is not None:
         model_path = os.path.join(model_save_dir + '/' + model_name, str(pass_id))
         if not os.path.isdir(model_path):
             os.makedirs(model_path)
 
         fluid.io.save_persistables(exe, model_path, main_program=fleet._origin_program)
+
         if args.benchmark_test:
             if not os.path.isdir("./benchmark_logs/"):
                 os.makedirs("./benchmark_logs/")
