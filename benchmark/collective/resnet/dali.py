@@ -34,7 +34,7 @@ def convert_data_layout(data_layout):
 
 class HybridTrainPipe(Pipeline):
     """
-    Create train pipe line.  You can find document here: 
+    Create train pipe line.  You can find document here:
     https://docs.nvidia.com/deeplearning/sdk/dali-master-branch-user-guide/docs/plugins/paddle_tutorials.html
     Note: You may need to find the newest DALI version.
     """
@@ -207,7 +207,7 @@ def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0, 
             pipe, ['feed_image', 'feed_label'],
             size=len(pipe),
             dynamic_shape=True,
-            fill_last_batch=False,
+            fill_last_batch=True,
             last_batch_padded=True)
 
     file_list = os.path.join(file_root, 'train_list.txt')
@@ -234,7 +234,7 @@ def build(settings, mode='train', trainer_id=None, trainers_num=None, gpu_id=0, 
             device_id=gpu_id,
             shard_id=shard_id,
             num_shards=num_shards,
-            seed=42 + shard_id, 
+            seed=42 + shard_id,
             data_layout=data_layout,
             num_threads=4)
         pipe.build()
