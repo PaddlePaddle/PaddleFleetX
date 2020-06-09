@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from .util import *
+from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 
 class ModelBase(object):
     def __init__(self):
@@ -42,7 +43,7 @@ class ModelBase(object):
 class Resnet50(ModelBase):
     def __init__(self):
         super(Resnet50, self).__init__()
-        inputs, loss, startup, main = load_program("./.resnet50")
+        inputs, loss, startup, main, unique_generator = load_program("resnet50")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs

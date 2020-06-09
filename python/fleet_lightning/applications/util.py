@@ -1,8 +1,8 @@
 import os
 import six
 import paddle.fluid as fluid
-from paddle.fluid import Program
-from paddle.fluid import Block
+from paddle.fluid.framework import Program
+from paddle.fluid.framework import Block
 from paddle.fluid import core
 
 class FleetProgram(Program):
@@ -24,7 +24,7 @@ class FleetProgram(Program):
     def parse_from_string(self, binary_str):
         p = FleetProgram()
         p.desc = core.ProgramDesc(binary_str)
-        p.blocks = [fluid.Block(p, i) for i in six.moves.range(p.desc.num_blocks())]
+        p.blocks = [Block(p, i) for i in six.moves.range(p.desc.num_blocks())]
         p._sync_with_cpp()
         return p
 
@@ -62,11 +62,20 @@ def load_program(program_input):
     new_startup._set_input_names(input_list)
     new_main._set_input_names(input_list)
 
+    fluid.framework.switch_main_program(new_main)
+    fluid.framework.switch_startup_program(new_startup)
     with open(program_input + '/loss_name', 'r') as fin:
         loss_name = fin.read()
     new_startup._set_loss_name(loss_name)
     new_main._set_loss_name(loss_name)
 
+    unique_generator = fluid.unique_name.UniqueNameGenerator()
+    with open(program_input + '/unique_name_guard', 'r') as fin:
+        for line in fin:
+            current_guard = line[:-1].split(":")
+            unique_generator.ids[current_guard[0]] = int(current_guard[1])
+
+    fluid.unique_name.switch(unique_generator)
     if os.path.exists(program_input + '/lr_name'):
         with open(program_input + '/lr_name', 'r') as fin:
             lr_name = fin.read()
@@ -74,10 +83,17 @@ def load_program(program_input):
         lr_name = None
 
     for item in para_list:
-        para = new_main.global_block().var(item)
-        para.regularizer = None
-        para.optimize_attr = {'learning_rate': 1.0}
-        para.trainable = True
+        main_para = new_main.global_block().var(item)
+        main_para.regularizer = None
+        main_para.optimize_attr = {'learning_rate': 1.0}
+        main_para.trainable = True
+        main_para.is_distributed = False
+ 
+        startup_para = new_startup.global_block().var(item)
+        startup_para.regularizer = None
+        startup_para.optimize_attr = {'learning_rate': 1.0}
+        startup_para.trainable = True
+        startup_para.is_distributed = False
 
     exe = fluid.Executor(fluid.CPUPlace())
     loss = None
@@ -92,7 +108,7 @@ def load_program(program_input):
             if var.name == lr_name:
                 lr = var
 
-    return input_vars, loss, new_startup, new_main
+    return input_vars, loss, new_startup, new_main, unique_generator
 
 
 def save_program(main_prog,
@@ -104,10 +120,10 @@ def save_program(main_prog,
                  learning_rate=None):
     if not os.path.exists(program_path):
         os.makedirs(program_path)
-        main_program_str = main_prog.desc.serialize_to_string()
-        startup_program_str = startup_prog.desc.serialize_to_string()
-        params = main_prog.global_block().all_parameters()
-        para_info = []
+    main_program_str = main_prog.desc.serialize_to_string()
+    startup_program_str = startup_prog.desc.serialize_to_string()
+    params = main_prog.global_block().all_parameters()
+    para_info = []
     for pa in params:
         para_info.append(pa.name)
     with open(program_path + '/input_names', 'w') as fout:
@@ -129,3 +145,6 @@ def save_program(main_prog,
     if type(learning_rate) == fluid.Variable:
         with open(program_path + '/lr_name', 'w') as fout:
             fout.write(learning_rate.name)
+    with open(program_path + '/unique_name_guard', 'w') as fout:
+        for id,value in generator_info.iteritems():
+            fout.write("%s:%s\n" % (id,value))

@@ -19,6 +19,7 @@ model = lighting.applications.Resnet50()
 loader = lightning.image_dataset_from_filelist(
     "/ssd2/imagenet/train.txt", model.inputs())
 
+
 optimizer = fluid.optimizer.Momentum(
     learning_rate=configs.lr(),
     momentum=configs.momentum(),
@@ -26,7 +27,6 @@ optimizer = fluid.optimizer.Momentum(
     regularization=fluid.regularizer.L2Decay(0.0001))
 optimizer = fleet.distributed_optimizer(optimizer)
 optimizer.minimize(model.loss(),
-                   startup_program=model.startup_program(),
                    parameter_list=model.parameter_list())
 
 place = fluid.CUDAPlace(configs.gpu_id())
