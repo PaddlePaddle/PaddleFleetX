@@ -6,7 +6,8 @@
 **Note: all the examples here should be replicated from develop branch of Paddle**
 
 ## Installation of Fleet-Lightning
-To show how to use fleet to setup distributed training, we introduce a small library call **fleet-lightning**. **fleet-lightning** helps industrial users to directly train a specific standard model such as Resnet50 without learning to write a Paddle Model. 
+To show how to setup distributed training with fleet, we introduce a small library call **fleet-lightning**. **fleet-lightning** helps industrial users to directly train a specific standard model such as Resnet50 without learning to write a Paddle Model. 
+
 ``` bash
 pip install fleet-lightning
 ```
