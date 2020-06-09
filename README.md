@@ -11,7 +11,7 @@ To show how to use fleet to setup distributed training, we introduce a small lib
 pip install fleet-lightning
 ```
 
-## Quick Start Example
+## A Distributed Resnet50 Training Example
 
 ``` python
 import fleet_lightning as lighting
@@ -34,16 +34,11 @@ optimizer = fleet.distributed_optimizer(optimizer)
 optimizer.minimize(model.loss(), startup_program=model.startup_program(),
                    parameter_list=model.parameter_list())
 
-place = fluid.CUDAPlace(configs.gpu_id())
-exe = fluid.Executor(place)
+exe = fluid.Executor(fluid.CUDAPlace(configs.gpu_id()))
 exe.run(model.startup_program())
 
-epoch = 10
-for i in range(epoch):
-    for data in loader():
-        cost_val = exe.run(fleet.main_program,
-                           feed=data,
-                           fetch_list=[model.loss().name])
+for data in loader():
+    cost_val = exe.run(fleet.main_program, feed=data, fetch_list=[model.loss().name])
     
 ```
 
