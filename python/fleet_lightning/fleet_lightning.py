@@ -12,7 +12,8 @@ def parse_train_configs():
     parser.add_argument(
         "--momentum", type=float, default=0.99,
         help="momentum value")
-    return parser
+    args = parser.parse_args()
+    return args
 
 
 

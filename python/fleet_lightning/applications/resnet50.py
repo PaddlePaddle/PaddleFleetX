@@ -24,7 +24,7 @@ class ModelBase(object):
     def inputs(self):
         return self.inputs
 
-    def loss(self):
+    def get_loss(self):
         return self.loss
 
     def hidden(self):
