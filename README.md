@@ -15,17 +15,17 @@ pip install fleet-lightning
 ## A Distributed Resnet50 Training Example
 
 ``` python
-import fleet_lightning as lighting
+import fleet_lightning as lightning
 import paddle.fluid as fluid
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 
-configs = lighting.parse_train_configs()
+configs = lightning.parse_train_configs()
 
 role = role_maker.PaddleCloudRoleMaker(is_collective=True)
 fleet.init(role)
 
-model = lighting.applications.Resnet50()
+model = lightning.applications.Resnet50()
 
 loader = lightning.image_dataset_from_filelist(
     "/pathto/imagenet/train.txt", model.inputs())
