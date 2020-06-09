@@ -5,9 +5,13 @@
 
 **Note: all the examples here should be replicated from develop branch of Paddle**
 
-## Fleet is Easy To Use
-
+## Installation of Fleet-Lightning
 To show how to use fleet to setup distributed training, we introduce a small library call **fleet-lightning**. **fleet-lightning** helps industrial users to directly train a specific standard model such as Resnet50 without learning to write a Paddle Model. 
+``` bash
+pip install fleet-lightning
+```
+
+## Quick Start Example
 
 ``` python
 import fleet_lightning as lighting
@@ -25,14 +29,9 @@ model = lighting.applications.Resnet50()
 loader = lightning.image_dataset_from_filelist(
     "/pathto/imagenet/train.txt", model.inputs())
 
-optimizer = fluid.optimizer.Momentum(
-    learning_rate=configs.lr(),
-    momentum=configs.momentum(),
-    parameter_list=model.parameter_list(),
-    regularization=fluid.regularizer.L2Decay(0.0001))
+optimizer = fluid.optimizer.Momentum(learning_rate=configs.lr())
 optimizer = fleet.distributed_optimizer(optimizer)
-optimizer.minimize(model.loss(),
-                   startup_program=model.startup_program(),
+optimizer.minimize(model.loss(), startup_program=model.startup_program(),
                    parameter_list=model.parameter_list())
 
 place = fluid.CUDAPlace(configs.gpu_id())
