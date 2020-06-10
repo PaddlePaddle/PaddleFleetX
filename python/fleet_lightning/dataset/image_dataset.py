@@ -1,3 +1,17 @@
+# Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 import functools
 import math
@@ -7,22 +21,43 @@ import paddle
 import paddle.fluid as fluid
 from .img_tool import process_image
 
-def image_dataset_from_filelist(filelist, configs, 
-                                shuffle=True, phase="train"):
-    
-    loader = create_data_loader(phase, configs)
-    reader = reader_creator(filelist, phase, configs, shuffle)
-    batch_reader = paddle.batch(reader, configs.batch_size)
+
+def imagenet_dataset_from_filelist(filelist,
+                                   shuffle=True,
+                                   phase="train",
+                                   batch_size=32,
+                                   image_mean=[0.485, 0.456, 0.406],
+                                   image_std=[0.229, 0.224, 0.225],
+                                   use_dali=False,
+                                   use_mixup=False,
+                                   resize_short_size=256,
+                                   lower_scale=0.08,
+                                   lower_ratio=3. / 4,
+                                   upper_ratio=4. / 3):
+
+    loader = create_data_loader(phase, use_mixup, use_dali)
+    reader = reader_creator(filelist, phase, shuffle, image_mean, image_std,
+                            resize_short_size, lower_scale, lower_ratio,
+                            upper_ratio)
+    batch_reader = paddle.batch(reader, batch_size)
     gpu_id = int(os.environ.get('FLAGS_selected_gpus', 0))
-    places = fluid.CUDAPlace(gpu_id) if configs.use_gpu else fluid.CPUPlace()
+    places = fluid.CUDAPlace(gpu_id)
     loader.set_sample_list_generator(batch_reader, places)
     return loader
 
 
-def reader_creator(filelist, phase, configs, shuffle, pass_id_as_seed=0):
+def reader_creator(filelist,
+                   phase,
+                   shuffle,
+                   image_mean,
+                   image_std,
+                   resize_short_size,
+                   lower_scale,
+                   lower_ratio,
+                   upper_ratio,
+                   pass_id_as_seed=0):
     def _reader():
         data_dir = filelist[:-4]
-        print(data_dir)
         with open(filelist) as flist:
             full_lines = [line.strip() for line in flist]
             if shuffle:
@@ -36,11 +71,13 @@ def reader_creator(filelist, phase, configs, shuffle, pass_id_as_seed=0):
             if phase == 'train':
                 trainer_id = int(os.getenv("PADDLE_TRAINER_ID", "0"))
                 if os.getenv("PADDLE_TRAINER_ENDPOINTS"):
-                    trainer_count = len(os.getenv("PADDLE_TRAINER_ENDPOINTS").split(","))
+                    trainer_count = len(
+                        os.getenv("PADDLE_TRAINER_ENDPOINTS").split(","))
                 else:
                     trainer_count = int(os.getenv("PADDLE_TRAINERS", "1"))
 
-                per_node_lines = int(math.ceil(len(full_lines) * 1.0 / trainer_count))
+                per_node_lines = int(
+                    math.ceil(len(full_lines) * 1.0 / trainer_count))
                 total_lines = per_node_lines * trainer_count
 
                 # aligned full_lines so that it can evenly divisible
@@ -71,23 +108,29 @@ def reader_creator(filelist, phase, configs, shuffle, pass_id_as_seed=0):
                     img_path = img_path.replace("JPEG", "jpeg")
                     img_path = os.path.join(data_dir, img_path)
                     yield (img_path, int(label))
+
     image_mapper = functools.partial(
         process_image,
-        settings=configs,
         mode=phase,
         color_jitter=False,
         rotate=False,
-        crop_size=224, mean=configs.image_mean, std=configs.image_std)
+        crop_size=224,
+        mean=image_mean,
+        std=image_std,
+        resize_short_size=resize_short_size,
+        lower_scale=lower_scale,
+        lower_ratio=lower_ratio,
+        upper_ratio=upper_ratio)
     reader = paddle.reader.xmap_readers(
         image_mapper, _reader, 4, 4000, order=False)
     return reader
 
 
-def create_data_loader(phase, configs, data_layout='NCHW'):
+def create_data_loader(phase, use_mixup, use_dali, data_layout='NCHW'):
 
-    image_shape = [int(m) for m in configs.image_shape.split(",")]
+    image_shape = [3, 224, 224]
     if data_layout == "NHWC":
-        image_shape=[image_shape[1], image_shape[2], image_shape[0]]
+        image_shape = [image_shape[1], image_shape[2], image_shape[0]]
         feed_image = fluid.data(
             name="feed_image",
             shape=[None] + image_shape,
@@ -106,7 +149,7 @@ def create_data_loader(phase, configs, data_layout='NCHW'):
     feed_y_a = fluid.data(
         name="feed_y_a", shape=[None, 1], dtype="int64", lod_level=0)
 
-    if phase == 'train' and configs.use_mixup:
+    if phase == 'train' and use_mixup:
         feed_y_b = fluid.data(
             name="feed_y_b", shape=[None, 1], dtype="int64", lod_level=0)
         feed_lam = fluid.data(
@@ -119,7 +162,7 @@ def create_data_loader(phase, configs, data_layout='NCHW'):
             iterable=True)
         return data_loader
     else:
-        if configs.use_dali:
+        if use_dali:
             return None
 
         data_loader = fluid.io.DataLoader.from_generator(
@@ -129,5 +172,3 @@ def create_data_loader(phase, configs, data_layout='NCHW'):
             iterable=True)
 
         return data_loader
-
-

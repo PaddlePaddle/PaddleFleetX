@@ -11,7 +11,6 @@
 #WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #See the License for the specific language governing permissions and
 #limitations under the License.
-
 """Contains image preprocessing methods."""
 import cv2
 import math
@@ -20,6 +19,7 @@ import functools
 import numpy as np
 
 #random.seed(0)
+
 
 def rotate_image(img):
     """ rotate_image """
@@ -30,28 +30,27 @@ def rotate_image(img):
     rotated = cv2.warpAffine(img, M, (w, h))
     return rotated
 
-def random_crop(img, size, settings, scale=None, ratio=None):
+
+def random_crop(img, size, scale=None, ratio=None):
     """ random_crop """
-    lower_scale = settings.lower_scale
-    lower_ratio = settings.lower_ratio
-    upper_ratio = settings.upper_ratio
+
     scale = [lower_scale, 1.0] if scale is None else scale
     ratio = [lower_ratio, upper_ratio] if ratio is None else ratio
 
-#     scale = [0.08, 1.0] if scale is None else scale
-#     ratio = [3. / 4., 4. / 3.] if ratio is None else ratio
-
+    scale = [0.08, 1.0] if scale is None else scale
+    ratio = [3. / 4., 4. / 3.] if ratio is None else ratio
 
     aspect_ratio = math.sqrt(random.uniform(*ratio))
     w = 1. * aspect_ratio
     h = 1. / aspect_ratio
 
-    bound = min((float(img.shape[1]) / img.shape[0]) / (w ** 2),
-                (float(img.shape[0]) / img.shape[1]) / (h ** 2))
+    bound = min((float(img.shape[1]) / img.shape[0]) / (w**2),
+                (float(img.shape[0]) / img.shape[1]) / (h**2))
     scale_max = min(scale[1], bound)
     scale_min = min(scale[0], bound)
 
-    target_area = img.shape[0] * img.shape[1] * random.uniform(scale_min, scale_max)
+    target_area = img.shape[0] * img.shape[1] * random.uniform(scale_min,
+                                                               scale_max)
     target_size = math.sqrt(target_area)
     w = int(target_size * w)
     h = int(target_size * h)
@@ -59,16 +58,17 @@ def random_crop(img, size, settings, scale=None, ratio=None):
     i = random.randint(0, img.shape[0] - h)
     j = random.randint(0, img.shape[1] - w)
 
-    img = img[i:i+h, j:j+w, :]
-    resized = cv2.resize(img, (size, size),
-#                          interpolation=cv2.INTER_LANCZOS4
-                        )
+    img = img[i:i + h, j:j + w, :]
+    resized = cv2.resize(
+        img,
+        (size, size),
+        #                          interpolation=cv2.INTER_LANCZOS4
+    )
     return resized
+
 
 def distort_color(img):
     return img
-
-
 
 
 def resize_short(img, target_size):
@@ -76,10 +76,13 @@ def resize_short(img, target_size):
     percent = float(target_size) / min(img.shape[0], img.shape[1])
     resized_width = int(round(img.shape[1] * percent))
     resized_height = int(round(img.shape[0] * percent))
-    resized = cv2.resize(img, (resized_width, resized_height),
-#                          interpolation=cv2.INTER_LANCZOS4
-                        )
+    resized = cv2.resize(
+        img,
+        (resized_width, resized_height),
+        #                          interpolation=cv2.INTER_LANCZOS4
+    )
     return resized
+
 
 def crop_image(img, target_size, center):
     """ crop_image """
@@ -96,13 +99,26 @@ def crop_image(img, target_size, center):
     img = img[h_start:h_end, w_start:w_end, :]
     return img
 
-def process_image(sample, mode, color_jitter, rotate, settings,
-        crop_size=224, mean=None, std=None):
+
+def process_image(sample,
+                  mode,
+                  color_jitter,
+                  rotate,
+                  crop_size=224,
+                  mean=None,
+                  std=None,
+                  resize_short_size=None,
+                  lower_scale=None,
+                  lower_ratio=None,
+                  upper_ratio=None):
     """ process_image """
 
     mean = [0.485, 0.456, 0.406] if mean is None else mean
     std = [0.229, 0.224, 0.225] if std is None else std
-
+    resize_short_size = 256 if resize_short_size is None else resize_short_size
+    lower_scale = 0.08 if lower_scale is None else lower_scale
+    lower_ratio = 3. / 4 if lower_ratio is None else lower_ratio
+    upper_ratio = 4. / 3 if upper_ratio is None else upper_ratio
     raw_img = sample[0]
 
     #img_data = np.fromstring(raw_img, dtype='uint8')
@@ -114,14 +130,16 @@ def process_image(sample, mode, color_jitter, rotate, settings,
         if rotate:
             img = rotate_image(img)
         if crop_size > 0:
-            img = random_crop(img, crop_size, settings)
+            scale = [lower_scale, 1.0]
+            ratio = [lower_ratio, upper_ratio]
+            img = random_crop(img, crop_size, scale, ratio)
         if color_jitter:
             img = distort_color(img)
         if random.randint(0, 1) == 1:
             img = img[:, ::-1, :]
     else:
         if crop_size > 0:
-            target_size = settings.resize_short_size
+            target_size = resize_short_size
             img = resize_short(img, target_size)
             img = crop_image(img, target_size=crop_size, center=True)
 
@@ -132,15 +150,16 @@ def process_image(sample, mode, color_jitter, rotate, settings,
     img -= img_mean
     img /= img_std
 
-
     if mode == 'train' or mode == 'val':
         return (img, sample[1])
+
 #         return (sample[0], sample[0])
 
 #         return (sample[0],)
 
     elif mode == 'test':
         return (img, )
+
 
 def image_mapper(**kwargs):
     """ image_mapper """
