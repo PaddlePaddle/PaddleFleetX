@@ -23,8 +23,8 @@ from .img_tool import process_image
 
 
 def imagenet_dataset_from_filelist(filelist,
-                                   shuffle=True,
                                    phase="train",
+                                   shuffle=True,
                                    batch_size=32,
                                    image_mean=[0.485, 0.456, 0.406],
                                    image_std=[0.229, 0.224, 0.225],
