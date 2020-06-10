@@ -16,9 +16,8 @@ role = role_maker.PaddleCloudRoleMaker(is_collective=True)
 fleet.init(role)
 
 model = lighting.applications.Resnet50()
-
-loader = lightning.image_dataset_from_filelist(
-    "/ssd2/imagenet/train.txt", model.inputs())
+loader = lighting.image_dataset_from_filelist(
+    "/ssd2/lilong/ImageNet/train.txt", configs)
 
 optimizer = fluid.optimizer.Momentum(
     learning_rate=configs.lr,
@@ -26,7 +25,7 @@ optimizer = fluid.optimizer.Momentum(
     parameter_list=model.parameter_list(),
     regularization=fluid.regularizer.L2Decay(0.0001))
 optimizer = fleet.distributed_optimizer(optimizer)
-optimizer.minimize(model.get_loss(),
+optimizer.minimize(model.loss,
                    parameter_list=model.parameter_list())
 
 gpu_id = int(os.environ.get('FLAGS_selected_gpus', 0))
@@ -34,10 +33,8 @@ place = fluid.CUDAPlace(gpu_id)
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
 
-epoch = 10
-for i in range(epoch):
-    for data in loader():
-        cost_val = exe.run(fleet.main_program,
-                           feed=data,
-                           fetch_list=[model.loss().name])
-        print(cost_val[0])
+for data in loader():
+    cost_val = exe.run(fleet.main_program,
+                       feed=data,
+                       fetch_list=[model.loss.name])
+    print(cost_val[0])

@@ -98,7 +98,6 @@ def load_program(program_input):
     exe = fluid.Executor(fluid.CPUPlace())
     loss = None
     input_vars = []
-    print(input_list)
     for var in new_main.list_vars():
         if var.name in input_list:
             input_vars.append(var)
