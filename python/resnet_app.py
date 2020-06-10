@@ -3,13 +3,10 @@ import fleet_lightning as lighting
 import paddle.fluid as fluid
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
-import numpy as np
-from paddle.dataset.cifar import *
 # lightning help users to focus more on learning to train a large scale model
 # if you want to learn how to write a model, lightning is not for you
 # focus more on engineering staff in fleet-lightning
 
-cifar10 = train10()
 
 configs = lighting.parse_train_configs()
 role = role_maker.PaddleCloudRoleMaker(is_collective=True)
@@ -28,8 +25,7 @@ optimizer = fleet.distributed_optimizer(optimizer)
 optimizer.minimize(model.loss,
                    parameter_list=model.parameter_list())
 
-gpu_id = int(os.environ.get('FLAGS_selected_gpus', 0))
-place = fluid.CUDAPlace(gpu_id)
+place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
 
