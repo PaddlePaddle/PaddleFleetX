@@ -28,7 +28,7 @@ fleet.init(role)
 
 model = lighting.applications.Resnet50()
 loader = lighting.imagenet_dataset_from_filelist(
-    "/ssd2/lilong/ImageNet/val.txt", configs)
+    "/ssd2/lilong/ImageNet/train.txt")
 
 optimizer = fluid.optimizer.Momentum(
     learning_rate=configs.lr,
