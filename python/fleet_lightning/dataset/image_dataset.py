@@ -23,6 +23,7 @@ from .img_tool import process_image
 
 
 def imagenet_dataset_from_filelist(filelist,
+                                   inputs,
                                    phase="train",
                                    shuffle=True,
                                    batch_size=32,
@@ -35,7 +36,7 @@ def imagenet_dataset_from_filelist(filelist,
                                    lower_ratio=3. / 4,
                                    upper_ratio=4. / 3):
 
-    loader = create_data_loader(phase, use_mixup, use_dali)
+    loader = create_data_loader(inputs, phase, use_mixup, use_dali)
     reader = reader_creator(filelist, phase, shuffle, image_mean, image_std,
                             resize_short_size, lower_scale, lower_ratio,
                             upper_ratio)
@@ -126,26 +127,18 @@ def reader_creator(filelist,
     return reader
 
 
-def create_data_loader(phase, use_mixup, use_dali, data_layout='NCHW'):
+def create_data_loader(inputs, phase, use_mixup, use_dali, data_layout='NCHW'):
 
     image_shape = [3, 224, 224]
     if data_layout == "NHWC":
         image_shape = [image_shape[1], image_shape[2], image_shape[0]]
-        feed_image = fluid.data(
-            name="feed_image",
-            shape=[None] + image_shape,
-            dtype="float32",
-            lod_level=0)
+        feed_image = fluid.layers.reshape(
+            inputs[0], shape=[None] + image_shape)
     else:
         # NCHW
-        feed_image = fluid.data(
-            name="feed_image",
-            shape=[None] + image_shape,
-            dtype="float32",
-            lod_level=0)
+        feed_image = inputs[0]
 
-    feed_label = fluid.data(
-        name="feed_label", shape=[None, 1], dtype="int64", lod_level=0)
+    feed_label = inputs[1]
     feed_y_a = fluid.data(
         name="feed_y_a", shape=[None, 1], dtype="int64", lod_level=0)
 
