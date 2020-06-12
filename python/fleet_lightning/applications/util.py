@@ -15,40 +15,8 @@
 import os
 import six
 import paddle.fluid as fluid
-from paddle.fluid.framework import Program, Block, Parameter
+from paddle.fluid.framework import Program, Parameter
 from paddle.fluid import core
-
-
-class FleetProgram(Program):
-    def __init__(self):
-        super(FleetProgram, self).__init__()
-
-    def _set_input_names(self, input_names):
-        self.input_names = input_names
-
-    def _set_loss_name(self, loss_name):
-        self.loss_name = loss_name
-
-    def _set_param_names(self, param_names):
-        self.param_names = param_names
-
-    def _set_hidden_var_names(self, hidden_var_names):
-        self.hidden_names = hidden_var_names
-
-    def parse_from_string(self, binary_str):
-        p = FleetProgram()
-        p.desc = core.ProgramDesc(binary_str)
-        p.blocks = [Block(p, i) for i in six.moves.range(p.desc.num_blocks())]
-        p._sync_with_cpp()
-        return p
-
-    def all_parameters(self):
-        parameters = []
-        for each_block in self.blocks:
-            for item in six.iteritems(each_block.vars):
-                if item[0] in self.param_names:
-                    parameters.append(item[1])
-        return parameters
 
 
 def load_program(program_input):
@@ -65,22 +33,15 @@ def load_program(program_input):
         for line in fin:
             current_para = line[:-1]
             para_list.append(current_para)
-#    new_startup._set_param_names(para_list)
-#    new_main._set_param_names(para_list)
 
     input_list = []
     with open(program_input + '/input_names', 'r') as fin:
         for line in fin:
             current_input = line[:-1].split(":")[0].replace("var", "").strip()
             input_list.append(current_input)
-    #new_startup._set_input_names(input_list)
-    #new_main._set_input_names(input_list)
 
     with open(program_input + '/loss_name', 'r') as fin:
         loss_name = fin.read()
-
-#    new_startup._set_loss_name(loss_name)
-#    new_main._set_loss_name(loss_name)
 
     unique_generator = fluid.unique_name.UniqueNameGenerator()
     with open(program_input + '/unique_name_guard', 'r') as fin:
