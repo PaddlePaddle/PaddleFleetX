@@ -14,6 +14,8 @@
 # limitations under the License.
 from .util import *
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
+from fleet_lightning.dataset.image_dataset import imagenet_dataset_from_filelist
+
 
 class ModelBase(object):
     def __init__(self):
@@ -38,14 +40,17 @@ class ModelBase(object):
 
     def main_program(self):
         return self.main_prog
-    
+
 
 class Resnet50(ModelBase):
     def __init__(self):
         super(Resnet50, self).__init__()
-        inputs, loss, startup, main, unique_generator = load_program("resnet50")
+        inputs, loss, startup, main, unique_generator = load_program(
+            "resnet50")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
 
+    def load_imagenet_from_file(self, filelist):
+        return imagenet_dataset_from_filelist(filelist, self.inputs)

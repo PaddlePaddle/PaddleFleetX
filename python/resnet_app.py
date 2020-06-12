@@ -27,8 +27,8 @@ role = role_maker.PaddleCloudRoleMaker(is_collective=True)
 fleet.init(role)
 
 model = lighting.applications.Resnet50()
-loader = lighting.imagenet_dataset_from_filelist(
-    "/ssd2/lilong/ImageNet/train.txt", model.inputs)
+
+loader = model.load_imagenet_from_file("/ssd2/lilong/ImageNet/val.txt")
 
 optimizer = fluid.optimizer.Momentum(
     learning_rate=configs.lr,

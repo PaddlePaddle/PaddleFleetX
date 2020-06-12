@@ -13,3 +13,4 @@
 # limitations under the License.
 
 from image_dataset import imagenet_dataset_from_filelist
+from . import image_dataset
