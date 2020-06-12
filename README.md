@@ -27,19 +27,18 @@ fleet.init(role)
 
 model = lightning.applications.Resnet50()
 
-loader = lightning.image_dataset_from_filelist(
-    "/pathto/imagenet/train.txt", model.inputs())
+loader = model.load_imagenet_from_file("/pathto/imagenet/train.txt")
 
 optimizer = fluid.optimizer.Momentum(learning_rate=configs.lr())
 optimizer = fleet.distributed_optimizer(optimizer)
-optimizer.minimize(model.loss(), startup_program=model.startup_program(),
-                   parameter_list=model.parameter_list())
+optimizer.minimize(model.loss, parameter_list=model.parameter_list())
 
-exe = fluid.Executor(fluid.CUDAPlace(configs.gpu_id()))
-exe.run(model.startup_program())
+place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+exe = fluid.Executor(place)
+exe.run(fluid.default_startup_program())
 
 for data in loader():
-    cost_val = exe.run(fleet.main_program, feed=data, fetch_list=[model.loss().name])
+    cost_val = exe.run(fleet.main_program, feed=data, fetch_list=[model.loss.name])
     
 ```
 
@@ -87,4 +86,3 @@ Collective Training is usually used in GPU training in PaddlePaddle. Benchmark o
 - [Transformer on En-De](https://github.com/PaddlePaddle/Fleet/tree/develop/benchmark/collective/transformer)
 
 - [Bert on English Wikipedia](https://github.com/PaddlePaddle/Fleet/tree/develop/benchmark/collective/bert)
-

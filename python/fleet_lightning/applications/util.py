@@ -1,9 +1,23 @@
+# Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 import six
 import paddle.fluid as fluid
-from paddle.fluid.framework import Program
-from paddle.fluid.framework import Block
+from paddle.fluid.framework import Program, Block, Parameter
 from paddle.fluid import core
+
 
 class FleetProgram(Program):
     def __init__(self):
@@ -35,39 +49,38 @@ class FleetProgram(Program):
                 if item[0] in self.param_names:
                     parameters.append(item[1])
         return parameters
-        
+
 
 def load_program(program_input):
     with open(program_input + '/startup_program', "rb") as fin:
         program_desc_str = fin.read()
-        new_startup = FleetProgram().parse_from_string(program_desc_str)
+        new_startup = Program().parse_from_string(program_desc_str)
 
     with open(program_input + '/main_program', "rb") as fin:
         program_desc_str = fin.read()
-        new_main = FleetProgram().parse_from_string(program_desc_str)
+        new_main = Program().parse_from_string(program_desc_str)
 
     para_list = []
     with open(program_input + '/para_info', 'r') as fin:
         for line in fin:
             current_para = line[:-1]
             para_list.append(current_para)
-    new_startup._set_param_names(para_list)
-    new_main._set_param_names(para_list)
+#    new_startup._set_param_names(para_list)
+#    new_main._set_param_names(para_list)
 
     input_list = []
     with open(program_input + '/input_names', 'r') as fin:
         for line in fin:
             current_input = line[:-1].split(":")[0].replace("var", "").strip()
             input_list.append(current_input)
-    new_startup._set_input_names(input_list)
-    new_main._set_input_names(input_list)
+    #new_startup._set_input_names(input_list)
+    #new_main._set_input_names(input_list)
 
-    fluid.framework.switch_main_program(new_main)
-    fluid.framework.switch_startup_program(new_startup)
     with open(program_input + '/loss_name', 'r') as fin:
         loss_name = fin.read()
-    new_startup._set_loss_name(loss_name)
-    new_main._set_loss_name(loss_name)
+
+#    new_startup._set_loss_name(loss_name)
+#    new_main._set_loss_name(loss_name)
 
     unique_generator = fluid.unique_name.UniqueNameGenerator()
     with open(program_input + '/unique_name_guard', 'r') as fin:
@@ -84,12 +97,14 @@ def load_program(program_input):
 
     for item in para_list:
         main_para = new_main.global_block().var(item)
+        main_para.__class__ = Parameter
         main_para.regularizer = None
         main_para.optimize_attr = {'learning_rate': 1.0}
         main_para.trainable = True
         main_para.is_distributed = False
- 
+
         startup_para = new_startup.global_block().var(item)
+        startup_para.__class__ = Parameter
         startup_para.regularizer = None
         startup_para.optimize_attr = {'learning_rate': 1.0}
         startup_para.trainable = True
@@ -106,6 +121,9 @@ def load_program(program_input):
         if lr_name != None:
             if var.name == lr_name:
                 lr = var
+
+    fluid.framework.switch_main_program(new_main)
+    fluid.framework.switch_startup_program(new_startup)
 
     return input_vars, loss, new_startup, new_main, unique_generator
 
@@ -145,5 +163,5 @@ def save_program(main_prog,
         with open(program_path + '/lr_name', 'w') as fout:
             fout.write(learning_rate.name)
     with open(program_path + '/unique_name_guard', 'w') as fout:
-        for id,value in generator_info.iteritems():
-            fout.write("%s:%s\n" % (id,value))
+        for id, value in generator_info.iteritems():
+            fout.write("%s:%s\n" % (id, value))
