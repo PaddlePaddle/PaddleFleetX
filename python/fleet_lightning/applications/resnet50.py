@@ -14,7 +14,7 @@
 # limitations under the License.
 from .util import *
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
-from fleet_lightning.dataset.image_dataset import imagenet_dataset_from_filelist
+from fleet_lightning.dataset.image_dataset import dataloader_from_filelist
 
 
 class ModelBase(object):
@@ -53,4 +53,4 @@ class Resnet50(ModelBase):
         self.loss = loss
 
     def load_imagenet_from_file(self, filelist):
-        return imagenet_dataset_from_filelist(filelist, self.inputs)
+        return dataloader_from_filelist(filelist, self.inputs)
