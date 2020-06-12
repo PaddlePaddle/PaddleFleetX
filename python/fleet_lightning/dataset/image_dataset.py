@@ -22,19 +22,19 @@ import paddle.fluid as fluid
 from .img_tool import process_image
 
 
-def dataset_from_filelist(filelist,
-                          inputs,
-                          phase="train",
-                          shuffle=True,
-                          batch_size=32,
-                          image_mean=[0.485, 0.456, 0.406],
-                          image_std=[0.229, 0.224, 0.225],
-                          use_dali=False,
-                          use_mixup=False,
-                          resize_short_size=256,
-                          lower_scale=0.08,
-                          lower_ratio=3. / 4,
-                          upper_ratio=4. / 3):
+def image_dataset_from_filelist(filelist,
+                                inputs,
+                                phase="train",
+                                shuffle=True,
+                                batch_size=32,
+                                image_mean=[0.485, 0.456, 0.406],
+                                image_std=[0.229, 0.224, 0.225],
+                                use_dali=False,
+                                use_mixup=False,
+                                resize_short_size=256,
+                                lower_scale=0.08,
+                                lower_ratio=3. / 4,
+                                upper_ratio=4. / 3):
 
     loader = create_data_loader(inputs, phase, use_mixup, use_dali)
     reader = reader_creator(filelist, phase, shuffle, image_mean, image_std,
