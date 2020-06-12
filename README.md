@@ -29,11 +29,7 @@ model = lightning.applications.Resnet50()
 
 loader = model.load_imagenet_from_file("/pathto/imagenet/train.txt")
 
-optimizer = fluid.optimizer.Momentum(
-    learning_rate=configs.lr,
-    momentum=configs.momentum,
-    parameter_list=model.parameter_list(),
-    regularization=fluid.regularizer.L2Decay(0.0001))
+optimizer = fluid.optimizer.Momentum(learning_rate=configs.lr())
 optimizer = fleet.distributed_optimizer(optimizer)
 optimizer.minimize(model.loss, parameter_list=model.parameter_list())
 
