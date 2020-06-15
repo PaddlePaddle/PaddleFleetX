@@ -326,15 +326,6 @@ def encoder_layer(enc_input,
         prepostprocess_dropout,
         name=name + '_post_ffn'), ffd_output
 
-    #res = post_process_layer(
-    #    attn_output,
-    #    ffd_output,
-    #    postprocess_cmd,
-    #    prepostprocess_dropout,
-    #    name=name + '_post_ffn')
-    #return res, res
-
-
 def encoder(enc_input,
             attn_bias,
             n_layer,

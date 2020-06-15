@@ -1,6 +1,6 @@
 export FLAGS_enable_parallel_graph=0
 export FLAGS_sync_nccl_allreduce=1
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+export CUDA_VISIBLE_DEVICES=0,1
 
 export FLAGS_fraction_of_gpu_memory_to_use=0.99
 export FLAGS_eager_delete_tensor_gb=0
@@ -8,19 +8,21 @@ export FLAGS_fuse_parameter_memory_size=32 #MB
 export FLAGS_fuse_parameter_groups_size=50
 export FLAGS_allocator_strategy=naive_best_fit
 
-PRETRAINED_CKPT_PATH=$1
+PRETRAINED_CKPT_PATH=uncased_L-24_H-1024_A-16/params
 TASK_NAME='XNLI'
 CKPT_PATH=$PWD/tmp
-bert_config_path=$2
-vocab_path=$3
-DATA_PATH=$4
-BATCH_SIZE=16
+bert_config_path=uncased_L-24_H-1024_A-16/bert_config.json
+vocab_path=uncased_L-24_H-1024_A-16/vocab.txt
+DATA_PATH=xnli
+BATCH_SIZE=26
+
+rm -rf mylog
 
 python -m paddle.distributed.launch --log_dir mylog \
            run_classifier.py --task_name ${TASK_NAME} \
                    --use_cuda true \
                    --do_train true \
-                   --do_val true \
+                   --do_val false \
                    --do_test false \
                    --batch_size ${BATCH_SIZE} \
                    --in_tokens false \
@@ -38,4 +40,5 @@ python -m paddle.distributed.launch --log_dir mylog \
                    --learning_rate 5e-5 \
                    --skip_steps 1 \
                    --use_recompute true \
-                   --use_mix_precision false
+                   --use_mix_precision false \
+                   --profile false

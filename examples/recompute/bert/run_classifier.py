@@ -37,7 +37,8 @@ from utils.cards import get_cards
 import dist_utils
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
-
+# from paddle_debug_tools import memory_tool
+import paddle.fluid.profiler as profiler
 
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
@@ -67,6 +68,7 @@ train_g.add_arg("save_steps",        int,    10000,   "The steps interval to sav
 train_g.add_arg("validation_steps",  int,    1000,    "The steps interval to evaluate model performance.")
 train_g.add_arg("use_fp16",          bool,   False,   "Whether to use fp16 mixed precision training.")
 train_g.add_arg("use_recompute",          bool,   False,   "Whether to use recompute optimizer for training.")
+train_g.add_arg("profile",          bool,   False,   "Whether to profile.")
 train_g.add_arg("use_mix_precision",          bool,   False,   "Whether to use mix-precision optimizer for training.")
 train_g.add_arg("loss_scaling",      float,  1.0,
                 "Loss scaling factor for mixed precision training, only valid when use_fp16 is enabled.")
@@ -233,9 +235,6 @@ def main(args):
             dist_strategy.enable_sequential_execution = True
         if args.use_mix_precision:
             dist_strategy.use_amp = True
-	    
-        #dist_strategy.mode = "collective"
-        #dist_strategy.collective_mode = "grad_allreduce"
 
         with fluid.program_guard(train_program, startup_prog):
             with fluid.unique_name.guard():
@@ -244,7 +243,7 @@ def main(args):
                     bert_config=bert_config,
                     num_labels=num_labels)
                 if args.use_recompute:
-                    dist_strategy.recompute_checkpoints=checkpoints
+                    dist_strategy.recompute_checkpoints = checkpoints
                 scheduled_lr = optimization(
                     loss=loss,
                     warmup_steps=warmup_steps,
@@ -254,20 +253,11 @@ def main(args):
                     startup_prog=startup_prog,
                     weight_decay=args.weight_decay,
                     scheduler=args.lr_scheduler,
-                    use_fp16=args.use_fp16,
-                    loss_scaling=args.loss_scaling,
-                    dist_strategy = dist_strategy)
-
-        if args.verbose:
-            if args.in_tokens:
-                lower_mem, upper_mem, unit = fluid.contrib.memory_usage(
-                    program=train_program,
-                    batch_size=args.batch_size // args.max_seq_len)
-            else:
-                lower_mem, upper_mem, unit = fluid.contrib.memory_usage(
-                    program=train_program, batch_size=args.batch_size)
-            print("Theoretical memory usage in training: %.3f - %.3f %s" %
-                  (lower_mem, upper_mem, unit))
+                    dist_strategy=dist_strategy)
+                
+        # print("batch size: %d", args.batch_size)
+        # tool = memory_tool.MemoryEstimate(fleet._origin_program, args.batch_size)
+        # tool.cal_memory()
 
     if args.do_val:
         dev_prog = fluid.Program()
@@ -343,22 +333,6 @@ def main(args):
             main_program=startup_prog,
             use_fp16=args.use_fp16)
 
-    #if args.do_train:
-        #build_strategy = fluid.BuildStrategy()
-
-        
-        #if args.use_cuda and num_trainers > 1:
-       #    assert shuffle_seed is not None
-        #    dist_utils.prepare_for_multi_process(exe, build_strategy, train_program)
-        #    train_data_generator = fluid.contrib.reader.distributed_batch_reader(
-        #          train_data_generator)
-
-        #train_compiled_program = fluid.CompiledProgram(train_program).with_data_parallel(
-        #         loss_name=loss.name, build_strategy=build_strategy)
-
-        #train_pyreader.decorate_batch_generator(train_data_generator, place)
-
-
     if args.do_train:
         train_pyreader.decorate_batch_generator(train_data_generator, place)
         
@@ -367,81 +341,87 @@ def main(args):
         time_begin = time.time()
         throughput = []
         ce_info = []
-        #while True:
-        #    try:
 
-        if True:
-            for data in train_pyreader():
-                # steps += 1
-                if steps % args.skip_steps == 0:
-                    if warmup_steps <= 0:
-                        fetch_list = [loss.name, accuracy.name, num_seqs.name]
-                    else:
-                        fetch_list = [
-                            loss.name, accuracy.name, scheduled_lr.name,
-                            num_seqs.name
-                        ]
+        for data in train_pyreader():
+            # profile to debug
+            if args.profile and steps == 5 and fleet.worker_index() == 0:
+                print("begin profiler")
+                profiler.start_profiler("All")
+            elif args.profile and steps == 10 and fleet.worker_index() == 0:
+                print("end profiler")
+                profiler.stop_profiler("total", "./profile_file")
+                print("end profiler break!")
+                args.profile=False
+
+            if steps % args.skip_steps == 0:
+                if warmup_steps <= 0:
+                    fetch_list = [loss.name, accuracy.name, num_seqs.name]
                 else:
-                    fetch_list = []
-                
-                outputs = exe.run(fleet.main_program, feed=data, fetch_list=fetch_list)
+                    fetch_list = [
+                        loss.name, accuracy.name, scheduled_lr.name,
+                        num_seqs.name
+                    ]
+            else:
+                fetch_list = []
+            
+            outputs = exe.run(fleet.main_program, feed=data, fetch_list=fetch_list)
 
-                if steps % args.skip_steps == 0:
-                    if warmup_steps <= 0:
-                        np_loss, np_acc, np_num_seqs = outputs
-                    else:
-                        np_loss, np_acc, np_lr, np_num_seqs = outputs
+            if steps % args.skip_steps == 0:
+                if warmup_steps <= 0:
+                    np_loss, np_acc, np_num_seqs = outputs
+                else:
+                    np_loss, np_acc, np_lr, np_num_seqs = outputs
 
-                    total_cost.extend(np_loss * np_num_seqs)
-                    total_acc.extend(np_acc * np_num_seqs)
-                    total_num_seqs.extend(np_num_seqs)
+                total_cost.extend(np_loss * np_num_seqs)
+                total_acc.extend(np_acc * np_num_seqs)
+                total_num_seqs.extend(np_num_seqs)
 
-                    if args.verbose:
-                        verbose = "train pyreader queue size: %d, " % train_pyreader.queue.size(
-                        )
-                        verbose += "learning rate: %f" % (
-                            np_lr[0]
-                            if warmup_steps > 0 else args.learning_rate)
-                        print(verbose)
-
-                    current_example, current_epoch = processor.get_train_progress(
+                if args.verbose:
+                    verbose = "train pyreader queue size: %d, " % train_pyreader.queue.size(
                     )
-                    time_end = time.time()
-                    used_time = time_end - time_begin
+                    verbose += "learning rate: %f" % (
+                        np_lr[0]
+                        if warmup_steps > 0 else args.learning_rate)
+                    print(verbose)
 
-                    log_record = "epoch: {}, progress: {}/{}, step: {}, ave loss: {}, ave acc: {}".format(
-                           current_epoch, current_example, num_train_examples,
-                           steps, np.sum(total_cost) / np.sum(total_num_seqs),
-                           np.sum(total_acc) / np.sum(total_num_seqs))
-                    ce_info.append([np.sum(total_cost) / np.sum(total_num_seqs), np.sum(total_acc) / np.sum(total_num_seqs), used_time])
-                    if steps > 0 :
-                        throughput.append( args.skip_steps / used_time)
-                        log_record = log_record + ", speed: %f steps/s" % (args.skip_steps / used_time)
-                        print(log_record)
-                    else:
-                        print(log_record)
-                    total_cost, total_acc, total_num_seqs = [], [], []
-                    time_begin = time.time()
+                current_example, current_epoch = processor.get_train_progress(
+                )
+                time_end = time.time()
+                used_time = time_end - time_begin
 
-                steps += 1
-                if steps % args.save_steps == 0 and trainer_id == 0:
-                    save_path = os.path.join(args.checkpoints,
-                                             "step_" + str(steps))
-                    fluid.io.save_persistables(exe, save_path, train_program)
+                log_record = "epoch: {}, progress: {}/{}, step: {}, ave loss: {}, ave acc: {}".format(
+                        current_epoch, current_example, num_train_examples,
+                        steps, np.sum(total_cost) / np.sum(total_num_seqs),
+                        np.sum(total_acc) / np.sum(total_num_seqs))
+                ce_info.append([np.sum(total_cost) / np.sum(total_num_seqs), np.sum(total_acc) / np.sum(total_num_seqs), used_time])
+                if steps > 0 :
+                    throughput.append( args.skip_steps / used_time)
+                    log_record = log_record + ", speed: %f steps/s" % (args.skip_steps / used_time)
+                    print(log_record)
+                else:
+                    print(log_record)
+                total_cost, total_acc, total_num_seqs = [], [], []
+                time_begin = time.time()
 
-                if steps % args.validation_steps == 0 and trainer_id == 0:
-                    print("Average throughtput: %s" % (np.average(throughput)))
-                    throughput = []
-                    # evaluate dev set
-                    if args.do_val:
-                        evaluate(exe, dev_prog, dev_pyreader,
-                                 [loss.name, accuracy.name, num_seqs.name],
-                                 "dev")
-                    # evaluate test set
-                    if args.do_test:
-                        evaluate(exe, test_prog, test_pyreader,
-                                 [loss.name, accuracy.name, num_seqs.name],
-                                 "test")
+            steps += 1
+            if steps % args.save_steps == 0 and trainer_id == 0:
+                save_path = os.path.join(args.checkpoints,
+                                            "step_" + str(steps))
+                fluid.io.save_persistables(exe, save_path, train_program)
+
+            if steps % args.validation_steps == 0 and trainer_id == 0:
+                print("Average throughtput: %s" % (np.average(throughput)))
+                # throughput = []
+                # evaluate dev set
+                if args.do_val:
+                    evaluate(exe, dev_prog, dev_pyreader,
+                                [loss.name, accuracy.name, num_seqs.name],
+                                "dev")
+                # evaluate test set
+                if args.do_test:
+                    evaluate(exe, test_prog, test_pyreader,
+                                [loss.name, accuracy.name, num_seqs.name],
+                                "test")
              
         if args.enable_ce:
             card_num = get_cards()
