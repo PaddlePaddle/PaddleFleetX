@@ -95,6 +95,7 @@ def save_program(main_prog,
                  input_list,
                  hidden_vars,
                  loss,
+                 generator_info,
                  learning_rate=None):
     if not os.path.exists(program_path):
         os.makedirs(program_path)
