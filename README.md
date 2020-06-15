@@ -31,7 +31,7 @@ loader = model.load_imagenet_from_file("/pathto/imagenet/train.txt")
 
 optimizer = fluid.optimizer.Momentum(learning_rate=configs.lr())
 optimizer = fleet.distributed_optimizer(optimizer)
-optimizer.minimize(model.loss, parameter_list=model.parameter_list())
+optimizer.minimize(model.loss)
 
 place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
 exe = fluid.Executor(place)
