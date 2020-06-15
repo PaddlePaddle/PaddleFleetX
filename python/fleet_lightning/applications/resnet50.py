@@ -52,5 +52,9 @@ class Resnet50(ModelBase):
         self.inputs = inputs
         self.loss = loss
 
-    def load_imagenet_from_file(self, filelist):
-        return image_dataloader_from_filelist(filelist, self.inputs)
+    def load_imagenet_from_file(self,
+                                filelist,
+                                use_dali=False,
+                                use_mixup=False):
+        return image_dataloader_from_filelist(filelist, self.inputs, use_dali,
+                                              use_mixup)
