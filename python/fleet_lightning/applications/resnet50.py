@@ -55,7 +55,7 @@ class Resnet50(ModelBase):
     def load_imagenet_from_file(self,
                                 filelist,
                                 phase='train',
-                                use_dali=False,
-                                use_mixup=False):
+                                shuffle=True,
+                                use_dali=False):
         return image_dataloader_from_filelist(filelist, self.inputs, phase,
-                                              use_dali, use_mixup)
+                                              shuffle, use_dali)
