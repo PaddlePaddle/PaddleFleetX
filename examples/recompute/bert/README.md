@@ -15,11 +15,7 @@ This is an example of BERT pretraining and fine-tuning with Recompute.
 ## fine-tuning!
 
 ```shell
-PRETRAINED_CKPT_PATH=uncased_L-24_H-1024_A-16/params
-DATA_PATH=xnli
-bert_config_path=uncased_L-24_H-1024_A-16/bert_config.json
-vocab_path=uncased_L-24_H-1024_A-16/vocab.txt
-sh train_cls.sh $PRETRAINED_CKPT_PATH $bert_config_path $vocab_path $DATA_PATH
+sh train_cls.sh 
 ```
 ## Results
 
@@ -59,3 +55,17 @@ When setting seq_len to 128, max batch size +510%
 
 ![recompute](https://github.com/PaddlePaddle/Fleet/blob/develop/examples/recompute/bert/image/memory_anal.png)
 
+# Quick start: Pretraining
+
+sh pretrain.sh
+
+## results
+
+- max batch size
+
+When setting seq_len to 512, max batch size +300%, speed -31%
+
+|Model|Baseline|Recompute|
+|:---:|:---:|:---:|
+|batch size| 14 | 56 |
+|speed|18.5 sents/s| 12.88 sents/s|
