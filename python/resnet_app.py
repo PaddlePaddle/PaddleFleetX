@@ -28,15 +28,16 @@ fleet.init(role)
 
 model = lighting.applications.Resnet50()
 
-loader = model.load_imagenet_from_file("/ssd2/lilong/ImageNet/train.txt")
+loader = model.load_imagenet_from_file("/ssd2/lilong/ImageNet/val.txt")
 
 optimizer = fluid.optimizer.Momentum(
     learning_rate=configs.lr,
     momentum=configs.momentum,
-    parameter_list=model.parameter_list(),
+    #    parameter_list=model.parameter_list(),
     regularization=fluid.regularizer.L2Decay(0.0001))
 optimizer = fleet.distributed_optimizer(optimizer)
-optimizer.minimize(model.loss, parameter_list=model.parameter_list())
+#optimizer.minimize(model.loss, parameter_list=model.parameter_list())
+optimizer.minimize(model.loss)
 
 place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
 exe = fluid.Executor(place)
