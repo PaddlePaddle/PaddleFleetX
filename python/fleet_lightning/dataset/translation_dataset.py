@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import numpy as np
+import translation_reader as reader
 
 
 def position_encoding_init(n_position, d_pos_vec):
@@ -128,22 +129,37 @@ def pad_batch_data(insts,
     return return_list if len(return_list) > 1 else return_list[0]
 
 
-def prepare_data_generator(
-        src_vocab_fpath,
-        trg_vocab_fpath,
-        train_file_pattern,
-        place,
-        token_delimiter=" ",
-        use_token_batch=True,
-        batch_size=4096,
-        pool_size=200000,
-        sort_type="pool",
-        shuffle=True,
-        shuffle_batch=True,
-        special_token=["<s>", "<e>", "<unk>"],
-        max_length=256,
-        is_test=False,
-        count=1, ):
+def prepare_data_generator(src_vocab_fpath,
+                           trg_vocab_fpath,
+                           train_file_pattern,
+                           place,
+                           encoder_data_input_fields=(
+                               "src_word",
+                               "src_pos",
+                               "src_slf_attn_bias", ),
+                           decoder_data_input_fields=(
+                               "trg_word",
+                               "trg_pos",
+                               "trg_slf_attn_bias",
+                               "trg_src_attn_bias",
+                               "enc_output", ),
+                           label_data_input_fields=(
+                               "lbl_word",
+                               "lbl_weight", ),
+                           pos_enc_param_names=(
+                               "src_pos_enc_table",
+                               "trg_pos_enc_table", ),
+                           token_delimiter=" ",
+                           use_token_batch=True,
+                           batch_size=4096,
+                           pool_size=200000,
+                           sort_type="pool",
+                           shuffle=True,
+                           shuffle_batch=True,
+                           special_token=["<s>", "<e>", "<unk>"],
+                           max_length=256,
+                           is_test=False,
+                           count=1):
     """
     Data generator wrapper for DataReader. If use py_reader, set the data
     provider for py_reader
