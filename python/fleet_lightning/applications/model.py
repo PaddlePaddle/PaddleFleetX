@@ -59,3 +59,32 @@ class Resnet50(ModelBase):
                                 use_dali=False):
         return image_dataloader_from_filelist(filelist, self.inputs, phase,
                                               shuffle, use_dali)
+
+
+class VGG16(ModelBase):
+    def __init__(self):
+        super(VGG16, self).__init__()
+        inputs, loss, startup, main, unique_generator = load_program("vgg16")
+        self.startup_prog = startup
+        self.main_prog = main
+        self.inputs = inputs
+        self.loss = loss
+
+    def load_imagenet_from_file(self,
+                                filelist,
+                                phase='train',
+                                shuffle=True,
+                                use_dali=False):
+        return image_dataloader_from_filelist(filelist, self.inputs, phase,
+                                              shuffle, use_dali)
+
+
+class Transformer(ModelBase):
+    def __init__(self):
+        super(Transformer, self).__init__()
+        inputs, loss, startup, main, unique_generator = load_program(
+            "transformer")
+        self.startup_prog = startup
+        self.main_prog = main
+        self.inputs = inputs
+        self.loss = loss
