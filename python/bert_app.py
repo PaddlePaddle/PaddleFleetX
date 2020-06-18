@@ -30,8 +30,6 @@ fleet.init(role)
 
 model = lighting.applications.Bert()
 
-data_dir = "./train_data"
-vocab_path = "./vocab.txt"
 data_loader = model.load_digital_dataset_from_file(
     data_dir='./train_data', vocab_path='./vocab.txt')
 place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
