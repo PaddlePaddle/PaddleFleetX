@@ -57,15 +57,27 @@ When setting seq_len to 128, max batch size +510%
 
 # Quick start: Pretraining
 
+```shell
 sh pretrain.sh
+```
 
 ## results
 
-- max batch size
+- Bert Large model
 
-When setting seq_len to 512, max batch size +300%, speed -31%
+When setting seq_len to 512, the max batch size is increased by 300% compared with the Baseline, while the training speed is decresed by 31%.
 
-|Model|Baseline|Recompute|
-|:---:|:---:|:---:|
-|batch size| 14 | 56 |
-|speed|18.5 sents/s| 12.88 sents/s|
+|Model|Baseline|Recompute| Recompute + mixed precision| 
+|:---:|:---:|:---:|:---:|
+|batch size| 14 | 56 | 87 |
+|speed|18.5 sents/s| 12.88 sents/s| 19.14 sents/s |
+
+- Bert Base model
+
+When setting seq_len to 512, the max batch size is increased by 245% compared with the Baseline, while the training speed is decresed by 32%.
+
+|Model|Baseline|Recompute| Recompute + mixed precision| 
+|:---:|:---:|:---:|:---:|
+|batch size| 42 | 145 | 200 |
+|speed|53.4 sents/s| 36.5 sents/s| 59.8 sents/s |
+
