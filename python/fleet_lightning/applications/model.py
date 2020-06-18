@@ -15,6 +15,7 @@
 from .util import *
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 from fleet_lightning.dataset.image_dataset import image_dataloader_from_filelist
+from fleet_lightning.dataset.bert_dataset import load_bert_dataset
 
 
 class ModelBase(object):
@@ -88,3 +89,20 @@ class Transformer(ModelBase):
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
+
+
+class Bert(ModelBase):
+    def __init__(self):
+        super(Bert, self).__init__()
+        inputs, loss, startup, main, unique_generator = load_program("bert")
+        self.startup_prog = startup
+        self.main_prog = main
+        self.inputs = inputs
+        self.loss = loss
+
+    def load_digital_dataset_from_file(self,
+                                       data_dir,
+                                       vocab_path,
+                                       batch_size=8196,
+                                       max_seq_len=512):
+        return load_bert_dataset(data_dir, vocab_path, self.inputs)
