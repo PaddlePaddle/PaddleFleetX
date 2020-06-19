@@ -23,5 +23,20 @@ def parse_train_configs():
         "--lr", type=float, default=0.00001, help="base learning rate")
     parser.add_argument(
         "--momentum", type=float, default=0.99, help="momentum value")
+    parser.add_argument(
+        "--beta1",
+        type=float,
+        default=0.9,
+        help="beta1 value for adam optimizer")
+    parser.add_argument(
+        "--beta2",
+        type=float,
+        default=0.997,
+        help="beta2 value for adam optimizer")
+    parser.add_argument(
+        "--epsilon",
+        type=float,
+        default=1e-9,
+        help="epsilon value for adam optimizer")
     args = parser.parse_args()
     return args
