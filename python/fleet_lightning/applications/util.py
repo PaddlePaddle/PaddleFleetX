@@ -74,9 +74,11 @@ def load_program(program_input):
     exe = fluid.Executor(fluid.CPUPlace())
     loss = None
     input_vars = []
+    for input_name in input_list:
+        for var in new_main.list_vars():
+            if var.name == input_name:
+                input_vars.append(var)
     for var in new_main.list_vars():
-        if var.name in input_list:
-            input_vars.append(var)
         if var.name == loss_name:
             loss = var
         if lr_name != None:
