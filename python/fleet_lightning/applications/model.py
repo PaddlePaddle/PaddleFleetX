@@ -47,6 +47,11 @@ class ModelBase(object):
 class Resnet50(ModelBase):
     def __init__(self):
         super(Resnet50, self).__init__()
+        if not os.path.exists('resnet50'):
+            os.system(
+                'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
+                format('resnet50'))
+            os.system('tar -xf {}.tar.gz'.format('resnet50'))
         inputs, loss, startup, main, unique_generator = load_program(
             "resnet50")
         self.startup_prog = startup
@@ -66,6 +71,11 @@ class Resnet50(ModelBase):
 class VGG16(ModelBase):
     def __init__(self):
         super(VGG16, self).__init__()
+        if not os.path.exists('vgg16'):
+            os.system(
+                'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
+                format('vgg16'))
+            os.system('tar -xf {}.tar.gz'.format('vgg16'))
         inputs, loss, startup, main, unique_generator = load_program("vgg16")
         self.startup_prog = startup
         self.main_prog = main
@@ -84,6 +94,11 @@ class VGG16(ModelBase):
 class Transformer(ModelBase):
     def __init__(self):
         super(Transformer, self).__init__()
+        if not os.path.exists('transformer'):
+            os.system(
+                'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
+                format('transformer'))
+            os.system('tar -xf {}.tar.gz'.format('transformer'))
         inputs, loss, startup, main, unique_generator = load_program(
             "transformer")
         self.startup_prog = startup
@@ -110,6 +125,11 @@ class Transformer(ModelBase):
 class Bert(ModelBase):
     def __init__(self):
         super(Bert, self).__init__()
+        if not os.path.exists('bert'):
+            os.system(
+                'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
+                format('bert'))
+            os.system('tar -xf {}.tar.gz'.format('bert'))
         inputs, loss, startup, main, unique_generator = load_program("bert")
         self.startup_prog = startup
         self.main_prog = main
