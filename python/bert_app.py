@@ -18,7 +18,7 @@ import fleet_lightning as lighting
 import paddle.fluid as fluid
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
-from fleet_lightning.dataset.bert_reader import load_bert_dataset
+#from fleet_lightning.dataset.bert_reader import load_bert_dataset
 import time
 # lightning help users to focus more on learning to train a large scale model
 # if you want to learn how to write a model, lightning is not for you
@@ -33,8 +33,11 @@ model = lighting.applications.Bert()
 data_loader = model.load_digital_dataset_from_file(
     data_dir='./train_data', vocab_path='./vocab.txt')
 place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+dist_strategy = DistributedStrategy()
+dist_strategy.mode = 'collective'
+dist_strategy.collective_mode = "grad_allreduce"
 optimizer = fluid.optimizer.Adam(learning_rate=configs.lr)
-optimizer = fleet.distributed_optimizer(optimizer)
+optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
 optimizer.minimize(model.loss)
 
 exe = fluid.Executor(place)
