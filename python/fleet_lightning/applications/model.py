@@ -141,4 +141,25 @@ class Bert(ModelBase):
                                        vocab_path,
                                        batch_size=8196,
                                        max_seq_len=512):
-        return load_bert_dataset(data_dir, vocab_path, self.inputs)
+        return load_bert_dataset(
+            data_dir,
+            vocab_path,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            max_seq_len=max_seq_len)
+
+
+class Faster_rcnn(ModelBase):
+    def __init__(self):
+        super(Faster_rcnn, self).__init__()
+        if not os.path.exists('faster_rcnn'):
+            os.system(
+                'wget --no-check-certificate https://fleet.bj.bcebos.com/models/faster_rcnn.tar.gz'
+            )
+            os.system('tar -xf faster_rcnn.tar.gz')
+        inputs, loss, startup, main, unique_generator = load_program(
+            "faster_rcnn")
+        self.startup_prog = startup
+        self.main_prog = main
+        self.inputs = inputs
+        self.loss = loss

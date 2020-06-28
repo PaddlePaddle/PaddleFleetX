@@ -1,0 +1,200 @@
+-----------  Configuration Arguments -----------
+batch_size: 8
+bert_config_path: data/large_config/bert_config.json
+checkpoints: ./output
+data_dir: /home/jingqinghe/test/Fleet/examples/recompute/bert/../../../benchmark/collective/bert/data/train
+do_test: False
+epoch: 100
+generate_neg_sample: True
+in_tokens: False
+init_checkpoint: None
+learning_rate: 0.0001
+loss_scaling: 8.0
+lr_scheduler: linear_warmup_decay
+max_seq_len: 512
+num_iteration_per_drop_scope: 10
+num_threads: 2
+num_train_steps: 1000000
+profile: False
+save_steps: 10000
+skip_steps: 1
+test_set_dir: None
+use_cuda: True
+use_fp16: False
+use_mix_precision: False
+use_recompute: False
+validation_set_dir: /home/jingqinghe/test/Fleet/examples/recompute/bert/../../../benchmark/collective/bert/data/validation
+validation_steps: 10000000000
+verbose: False
+vocab_path: data/large_config/vocab.txt
+warmup_steps: 4000
+weight_decay: 0.01
+weight_sharing: True
+------------------------------------------------
+pretraining start
+attention_probs_dropout_prob: 0.1
+hidden_act: gelu
+hidden_dropout_prob: 0.1
+hidden_size: 1024
+initializer_range: 0.02
+intermediate_size: 4096
+max_position_embeddings: 512
+num_attention_heads: 16
+num_hidden_layers: 24
+type_vocab_size: 2
+vocab_size: 30522
+------------------------------------------------
+2020-06-28 22:58:13,930-WARNING: paddle.fluid.layers.py_reader() may be deprecated in the near future. Please use paddle.fluid.io.DataLoader.from_generator() instead.
+/home/jingqinghe/python-gcc482-paddle/lib/python2.7/site-packages/paddle/fluid/layers/math_op_patch.py:276: UserWarning: /home/jingqinghe/test/Fleet/examples/recompute/bert/model/bert.py:106
+The behavior of expression A + B has been unified with elementwise_add(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_add(X, Y, axis=0) instead of A + B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/home/jingqinghe/python-gcc482-paddle/lib/python2.7/site-packages/paddle/fluid/layers/math_op_patch.py:276: UserWarning: /home/jingqinghe/test/Fleet/examples/recompute/bert/model/bert.py:107
+The behavior of expression A + B has been unified with elementwise_add(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_add(X, Y, axis=0) instead of A + B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/home/jingqinghe/python-gcc482-paddle/lib/python2.7/site-packages/paddle/fluid/layers/math_op_patch.py:276: UserWarning: /home/jingqinghe/test/Fleet/examples/recompute/bert/model/transformer_encoder.py:147
+The behavior of expression A + B has been unified with elementwise_add(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_add(X, Y, axis=0) instead of A + B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/home/jingqinghe/python-gcc482-paddle/lib/python2.7/site-packages/paddle/fluid/layers/math_op_patch.py:276: UserWarning: /home/jingqinghe/test/Fleet/examples/recompute/bert/model/transformer_encoder.py:236
+The behavior of expression A + B has been unified with elementwise_add(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_add(X, Y, axis=0) instead of A + B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/home/jingqinghe/python-gcc482-paddle/lib/python2.7/site-packages/paddle/fluid/clip.py:793: UserWarning: Caution! 'set_gradient_clip' is not recommended and may be deprecated in future! We recommend a new strategy: set 'grad_clip' when initializing the 'optimizer'. This method can reduce the mistakes, please refer to documention of 'optimizer'.
+  warnings.warn("Caution! 'set_gradient_clip' is not recommended "
+2020-06-28 22:58:20,057-WARNING: set nccl_comm_num=1 since you only have 1 node.
+2020-06-28 22:58:20,057-WARNING: set use_hierarchical_allreduce=False since you only have 1 node.
+
+
+API is deprecated since 2.0.0 Please use FleetAPI instead.
+WIKI: https://github.com/PaddlePaddle/Fleet/blob/develop/markdown_doc/transpiler
+
+        
+server not ready, wait 3 sec to retry...
+not ready endpoints:['127.0.0.1:53156']
+server not ready, wait 3 sec to retry...
+not ready endpoints:['127.0.0.1:53156']
+server not ready, wait 3 sec to retry...
+not ready endpoints:['127.0.0.1:53156']
+2020-06-28 22:58:29,524-WARNING: paddle.fluid.layers.py_reader() may be deprecated in the near future. Please use paddle.fluid.io.DataLoader.from_generator() instead.
+Device count 2
+W0628 22:58:33.507093 119686 device_context.cc:265] Please NOTE: device: 0, CUDA Capability: 70, Driver API Version: 10.1, Runtime API Version: 9.2
+W0628 22:58:33.511205 119686 device_context.cc:273] device: 0, cuDNN Version: 7.4.
+W0628 22:58:39.291349 119686 fuse_all_reduce_op_pass.cc:74] Find all_reduce operators: 398. To make the speed faster, some all_reduce ops are fused during training, after fusion, the number of all_reduce ops is 37.
+current learning_rate:0.000000
+2020-06-28 22:58:44,436-INFO: epoch: 1, progress: 1/1, step: 2, loss: 11.220365, ppl: 35347.582031, next_sent_acc: 0.250000, speed: 0.319369 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:58:45,346-INFO: epoch: 1, progress: 1/1, step: 4, loss: 11.182055, ppl: 36404.609375, next_sent_acc: 0.625000, speed: 2.199591 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:58:46,223-INFO: epoch: 1, progress: 1/1, step: 6, loss: 11.185112, ppl: 36008.054688, next_sent_acc: 0.583333, speed: 2.281329 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:58:47,198-INFO: epoch: 1, progress: 1/1, step: 8, loss: 11.189568, ppl: 36201.656250, next_sent_acc: 0.593750, speed: 2.050134 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:58:48,067-INFO: epoch: 1, progress: 1/1, step: 10, loss: 11.210800, ppl: 36547.789062, next_sent_acc: 0.525000, speed: 2.302432 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:58:48,921-INFO: epoch: 1, progress: 1/1, step: 12, loss: 11.211002, ppl: 36407.703125, next_sent_acc: 0.500000, speed: 2.342184 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:58:49,885-INFO: epoch: 1, progress: 1/1, step: 14, loss: 11.216136, ppl: 36365.585938, next_sent_acc: 0.464286, speed: 2.075772 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:58:50,735-INFO: epoch: 1, progress: 1/1, step: 16, loss: 11.199081, ppl: 35917.765625, next_sent_acc: 0.484375, speed: 2.355638 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:58:51,663-INFO: epoch: 1, progress: 1/1, step: 18, loss: 11.203297, ppl: 35891.886719, next_sent_acc: 0.458333, speed: 2.155676 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:58:52,415-INFO: epoch: 1, progress: 1/1, step: 20, loss: 11.203282, ppl: 35665.699219, next_sent_acc: 0.412500, speed: 2.659150 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:58:53,288-INFO: epoch: 1, progress: 1/1, step: 22, loss: 11.203012, ppl: 35638.980469, next_sent_acc: 0.397727, speed: 2.292897 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:58:54,276-INFO: epoch: 1, progress: 1/1, step: 24, loss: 11.195636, ppl: 35407.699219, next_sent_acc: 0.395833, speed: 2.023994 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:58:55,198-INFO: epoch: 1, progress: 1/1, step: 26, loss: 11.191817, ppl: 35257.636719, next_sent_acc: 0.384615, speed: 2.170478 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:58:55,883-INFO: epoch: 1, progress: 1/1, step: 28, loss: 11.184237, ppl: 35100.265625, next_sent_acc: 0.401786, speed: 2.922259 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:58:56,680-INFO: epoch: 1, progress: 1/1, step: 30, loss: 11.176686, ppl: 34880.746094, next_sent_acc: 0.408333, speed: 2.511408 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:58:57,496-INFO: epoch: 1, progress: 1/1, step: 32, loss: 11.173334, ppl: 34827.726562, next_sent_acc: 0.421875, speed: 2.451713 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:58:58,425-INFO: epoch: 1, progress: 1/1, step: 34, loss: 11.174302, ppl: 34809.417969, next_sent_acc: 0.411765, speed: 2.154750 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:58:59,242-INFO: epoch: 1, progress: 1/1, step: 36, loss: 11.171230, ppl: 34634.699219, next_sent_acc: 0.409722, speed: 2.450262 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:59:00,243-INFO: epoch: 1, progress: 1/1, step: 38, loss: 11.170449, ppl: 34612.941406, next_sent_acc: 0.407895, speed: 1.998222 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:59:01,196-INFO: epoch: 1, progress: 1/1, step: 40, loss: 11.163072, ppl: 34422.906250, next_sent_acc: 0.412500, speed: 2.099112 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000000
+2020-06-28 22:59:01,889-INFO: epoch: 1, progress: 1/1, step: 42, loss: 11.160882, ppl: 34355.367188, next_sent_acc: 0.410714, speed: 2.889609 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:02,850-INFO: epoch: 1, progress: 1/1, step: 44, loss: 11.156991, ppl: 34193.347656, next_sent_acc: 0.403409, speed: 2.080640 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:03,816-INFO: epoch: 1, progress: 1/1, step: 46, loss: 11.155671, ppl: 34230.546875, next_sent_acc: 0.413043, speed: 2.072165 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:04,555-INFO: epoch: 1, progress: 1/1, step: 48, loss: 11.150993, ppl: 34107.812500, next_sent_acc: 0.411458, speed: 2.705873 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:05,508-INFO: epoch: 1, progress: 1/1, step: 50, loss: 11.144315, ppl: 33957.164062, next_sent_acc: 0.425000, speed: 2.099590 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:06,233-INFO: epoch: 1, progress: 1/1, step: 52, loss: 11.140036, ppl: 33893.308594, next_sent_acc: 0.437500, speed: 2.759461 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:07,201-INFO: epoch: 1, progress: 1/1, step: 54, loss: 11.138057, ppl: 33748.929688, next_sent_acc: 0.439815, speed: 2.067754 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:07,972-INFO: epoch: 1, progress: 1/1, step: 56, loss: 11.133950, ppl: 33601.714844, next_sent_acc: 0.441964, speed: 2.595451 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:08,770-INFO: epoch: 1, progress: 1/1, step: 58, loss: 11.126939, ppl: 33482.277344, next_sent_acc: 0.452586, speed: 2.508214 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:09,539-INFO: epoch: 1, progress: 1/1, step: 60, loss: 11.121592, ppl: 33335.183594, next_sent_acc: 0.454167, speed: 2.600056 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:10,314-INFO: epoch: 1, progress: 1/1, step: 62, loss: 11.118782, ppl: 33260.875000, next_sent_acc: 0.459677, speed: 2.581055 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:11,310-INFO: epoch: 1, progress: 1/1, step: 64, loss: 11.114128, ppl: 33139.601562, next_sent_acc: 0.457031, speed: 2.008518 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:11,928-INFO: epoch: 1, progress: 1/1, step: 66, loss: 11.107976, ppl: 32947.781250, next_sent_acc: 0.454545, speed: 3.239595 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:12,791-INFO: epoch: 1, progress: 1/1, step: 68, loss: 11.103436, ppl: 32827.058594, next_sent_acc: 0.455882, speed: 2.319048 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:13,560-INFO: epoch: 1, progress: 1/1, step: 70, loss: 11.097608, ppl: 32680.382812, next_sent_acc: 0.464286, speed: 2.601954 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:14,342-INFO: epoch: 1, progress: 1/1, step: 72, loss: 11.093380, ppl: 32564.978516, next_sent_acc: 0.472222, speed: 2.560036 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:15,186-INFO: epoch: 1, progress: 1/1, step: 74, loss: 11.088657, ppl: 32414.791016, next_sent_acc: 0.472973, speed: 2.368462 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:16,005-INFO: epoch: 1, progress: 1/1, step: 76, loss: 11.079481, ppl: 32151.736328, next_sent_acc: 0.470395, speed: 2.445720 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:16,697-INFO: epoch: 1, progress: 1/1, step: 78, loss: 11.073610, ppl: 32018.115234, next_sent_acc: 0.474359, speed: 2.888237 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:17,623-INFO: epoch: 1, progress: 1/1, step: 80, loss: 11.067856, ppl: 31855.099609, next_sent_acc: 0.468750, speed: 2.161181 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:18,376-INFO: epoch: 1, progress: 1/1, step: 82, loss: 11.064695, ppl: 31728.259766, next_sent_acc: 0.466463, speed: 2.656455 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:19,252-INFO: epoch: 1, progress: 1/1, step: 84, loss: 11.057963, ppl: 31547.609375, next_sent_acc: 0.467262, speed: 2.284187 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:20,127-INFO: epoch: 1, progress: 1/1, step: 86, loss: 11.052189, ppl: 31428.683594, next_sent_acc: 0.473837, speed: 2.288130 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:21,101-INFO: epoch: 1, progress: 1/1, step: 88, loss: 11.046680, ppl: 31287.082031, next_sent_acc: 0.477273, speed: 2.052594 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:21,916-INFO: epoch: 1, progress: 1/1, step: 90, loss: 11.040549, ppl: 31147.363281, next_sent_acc: 0.480556, speed: 2.455705 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:22,711-INFO: epoch: 1, progress: 1/1, step: 92, loss: 11.035488, ppl: 31023.943359, next_sent_acc: 0.480978, speed: 2.516879 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:23,383-INFO: epoch: 1, progress: 1/1, step: 94, loss: 11.031534, ppl: 30920.044922, next_sent_acc: 0.484043, speed: 2.976580 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:24,302-INFO: epoch: 1, progress: 1/1, step: 96, loss: 11.027233, ppl: 30772.654297, next_sent_acc: 0.481771, speed: 2.177961 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:25,286-INFO: epoch: 1, progress: 1/1, step: 98, loss: 11.019384, ppl: 30590.599609, next_sent_acc: 0.487245, speed: 2.032200 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:25,923-INFO: epoch: 1, progress: 1/1, step: 100, loss: 11.013581, ppl: 30419.185547, next_sent_acc: 0.487500, speed: 3.142648 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:26,628-INFO: epoch: 1, progress: 1/1, step: 102, loss: 11.008855, ppl: 30281.535156, next_sent_acc: 0.490196, speed: 2.840985 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:27,430-INFO: epoch: 1, progress: 1/1, step: 104, loss: 11.003549, ppl: 30145.808594, next_sent_acc: 0.492788, speed: 2.494577 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:28,062-INFO: epoch: 1, progress: 1/1, step: 106, loss: 10.997869, ppl: 29994.277344, next_sent_acc: 0.492925, speed: 3.162410 steps/s, file: demo_wiki_train.gz
+current learning_rate:0.000001
+2020-06-28 22:59:28,752-INFO: epoch: 1, progress: 1/1, step: 108, loss: 10.994324, ppl: 29885.158203, next_sent_acc: 0.493056, speed: 2.902762 steps/s, file: demo_wiki_train.gz
+Traceback (most recent call last):
+  File "./train.py", line 420, in <module>
+    train(args)
+  File "./train.py", line 357, in train
+    scheduled_lr.name], program=train_program)
+  File "/home/jingqinghe/python-gcc482-paddle/lib/python2.7/site-packages/paddle/fluid/executor.py", line 1074, in run
+    return_merged=return_merged)
+  File "/home/jingqinghe/python-gcc482-paddle/lib/python2.7/site-packages/paddle/fluid/executor.py", line 1175, in _run_impl
+    return_merged=return_merged)
+  File "/home/jingqinghe/python-gcc482-paddle/lib/python2.7/site-packages/paddle/fluid/executor.py", line 887, in _run_parallel
+    tensors = exe.run(fetch_var_names, return_merged)._move_to_list()
+KeyboardInterrupt
