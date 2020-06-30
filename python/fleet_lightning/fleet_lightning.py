@@ -20,9 +20,9 @@ def parse_train_configs():
     parser.add_argument(
         "--gpu_ids", type=str, default="0,1,2,3,4,5,6,7", help="training gpu")
     parser.add_argument(
-        "--lr", type=float, default=0.00001, help="base learning rate")
+        "--lr", type=float, default=0.1, help="base learning rate")
     parser.add_argument(
-        "--momentum", type=float, default=0.99, help="momentum value")
+        "--momentum", type=float, default=0.9, help="momentum value")
     parser.add_argument(
         "--beta1",
         type=float,

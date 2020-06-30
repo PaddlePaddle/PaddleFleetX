@@ -44,8 +44,7 @@ def load_bert_dataset(data_dir,
         max_seq_len=max_seq_len,
         generate_neg_sample=generate_neg_sample)
 
-    place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
-    #    place = fluid.CPUPlace()
+    place = fluid.CPUPlace()
     data_loader.set_batch_generator(data_reader.data_generator(), place)
     return data_loader
 
@@ -144,7 +143,8 @@ class DataReader(object):
     def load_vocab(self, vocab_file):
         """Loads a vocabulary file into a dictionary."""
         vocab = collections.OrderedDict()
-        fin = io.open(vocab_file, encoding="utf8")
+        #fin = io.open(vocab_file, encoding="utf8")
+        fin = open(vocab_file)
         for num, line in enumerate(fin):
             items = self.convert_to_unicode(line.strip()).split("\t")
             if len(items) > 2:

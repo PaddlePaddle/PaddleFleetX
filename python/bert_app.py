@@ -29,9 +29,11 @@ role = role_maker.PaddleCloudRoleMaker(is_collective=True)
 fleet.init(role)
 
 model = lighting.applications.Bert()
-
 data_loader = model.load_digital_dataset_from_file(
-    data_dir='./train_data', vocab_path='./vocab.txt', batch_size=8)
+    data_dir='./train_data',
+    vocab_path='./vocab.txt',
+    batch_size=8,
+    max_seq_len=512)
 place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
 dist_strategy = DistributedStrategy()
 dist_strategy.nccl_comm_num = 3
