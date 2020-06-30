@@ -29,10 +29,9 @@ fleet.init(role)
 model = lighting.applications.Transformer()
 place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
 data_loader = model.load_wmt16_dataset_from_file(
-    '/ssd1/jingqinghe/gen_data/wmt16_ende_data_bpe/vocab_all.bpe.32000',
-    '/ssd1/jingqinghe/gen_data//wmt16_ende_data_bpe/vocab_all.bpe.32000',
-    '/ssd1/jingqinghe/gen_data/wmt16_ende_data_bpe/train.tok.clean.bpe.32000.en-de'
-)
+    '/pathto/wmt16_ende_data_bpe/vocab_all.bpe.32000',
+    '/pathto/wmt16_ende_data_bpe/vocab_all.bpe.32000',
+    '/pathto/wmt16_ende_data_bpe/train.tok.clean.bpe.32000.en-de')
 optimizer = fluid.optimizer.Adam(
     learning_rate=configs.lr,
     beta1=configs.beta1,
