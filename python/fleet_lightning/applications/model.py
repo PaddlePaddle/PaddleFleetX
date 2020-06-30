@@ -122,15 +122,16 @@ class Transformer(ModelBase):
         return prepare_feed_dict_list(data_reader, input_name)
 
 
-class Bert(ModelBase):
+class Bert_large(ModelBase):
     def __init__(self):
-        super(Bert, self).__init__()
-        if not os.path.exists('bert'):
+        super(Bert_large, self).__init__()
+        if not os.path.exists('bert_large'):
             os.system(
                 'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                format('bert'))
-            os.system('tar -xf {}.tar.gz'.format('bert'))
-        inputs, loss, startup, main, unique_generator = load_program("bert")
+                format('bert_large'))
+            os.system('tar -xf {}.tar.gz'.format('bert_large'))
+        inputs, loss, startup, main, unique_generator = load_program(
+            "bert_large")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
@@ -149,17 +150,29 @@ class Bert(ModelBase):
             max_seq_len=max_seq_len)
 
 
-class Faster_rcnn(ModelBase):
+class Bert_base(ModelBase):
     def __init__(self):
-        super(Faster_rcnn, self).__init__()
-        if not os.path.exists('faster_rcnn'):
+        super(Bert_base, self).__init__()
+        if not os.path.exists('bert_base'):
             os.system(
-                'wget --no-check-certificate https://fleet.bj.bcebos.com/models/faster_rcnn.tar.gz'
-            )
-            os.system('tar -xf faster_rcnn.tar.gz')
+                'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
+                format('bert_base'))
+            os.system('tar -xf {}.tar.gz'.format('bert_base'))
         inputs, loss, startup, main, unique_generator = load_program(
-            "faster_rcnn")
+            "bert_base")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
+
+    def load_digital_dataset_from_file(self,
+                                       data_dir,
+                                       vocab_path,
+                                       batch_size=8196,
+                                       max_seq_len=512):
+        return load_bert_dataset(
+            data_dir,
+            vocab_path,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            max_seq_len=max_seq_len)
