@@ -19,6 +19,7 @@ from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 import time
 import numpy as np
+import reader
 # lightning help users to focus more on learning to train a large scale model
 # if you want to learn how to write a model, lightning is not for you
 # focus more on engineering staff in fleet-lightning
@@ -27,10 +28,11 @@ role = role_maker.PaddleCloudRoleMaker(is_collective=True)
 fleet.init(role)
 model = lighting.applications.Transformer()
 place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
-data_reader = model.load_wmt16_dataset_from_file(
-    '/pathto/wmt16_ende_data_bpe/vocab_all.bpe.32000',
-    '/pathto/wmt16_ende_data_bpe/vocab_all.bpe.32000',
-    '/pathto/wmt16_ende_data_bpe/train.tok.clean.bpe.32000.en-de')
+data_loader = model.load_wmt16_dataset_from_file(
+    '/ssd1/jingqinghe/gen_data/wmt16_ende_data_bpe/vocab_all.bpe.32000',
+    '/ssd1/jingqinghe/gen_data//wmt16_ende_data_bpe/vocab_all.bpe.32000',
+    '/ssd1/jingqinghe/gen_data/wmt16_ende_data_bpe/train.tok.clean.bpe.32000.en-de'
+)
 optimizer = fluid.optimizer.Adam(
     learning_rate=configs.lr,
     beta1=configs.beta1,
@@ -40,13 +42,18 @@ optimizer = fleet.distributed_optimizer(optimizer)
 optimizer.minimize(model.loss)
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
-for i in range(2):
-    while True:
-        try:
-            feed_dict_list = model.generate_feed_dict_list(data_reader())
-            out = exe.run(program=fleet.main_program,
-                          fetch_list=model.loss,
-                          feed=feed_dict_list)
-            print("cost = %f" % out[0])
-        except (StopIteration, fluid.core.EOFException):
-            break
+total_time = 0
+
+for i, data in enumerate(data_loader()):
+    if i >= 10:
+        start_time = time.time()
+    cost_val = exe.run(fleet.main_program,
+                       feed=data,
+                       fetch_list=[model.loss.name])
+    if i >= 10:
+        end_time = time.time()
+        total_time += (end_time - start_time)
+        print(
+            "worker_index: %d, step%d cost = %f, total time cost = %f, step per minutes: %f, speed: %f"
+            % (fleet.worker_index(), i, cost_val[0], total_time,
+               (i - 9) / total_time, 1 / (end_time - start_time)))

@@ -16,7 +16,8 @@ from .util import *
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 from fleet_lightning.dataset.image_dataset import image_dataloader_from_filelist
 from fleet_lightning.dataset.bert_dataset import load_bert_dataset
-from fleet_lightning.dataset.translation_dataset import prepare_data_generator, prepare_feed_dict_list
+#from fleet_lightning.dataset.translation_dataset import prepare_data_generator, prepare_feed_dict_list
+from fleet_lightning.dataset.transformer_dataset import transformer_data_generator
 
 
 class ModelBase(object):
@@ -110,16 +111,15 @@ class Transformer(ModelBase):
                                      src_vocab_fpath,
                                      trg_vocab_fpath,
                                      train_file_pattern,
-                                     batch_size=4096,
+                                     batch_size=2048,
                                      shuffle=True):
-        return prepare_data_generator(src_vocab_fpath, trg_vocab_fpath,
-                                      train_file_pattern, batch_size, shuffle)
-
-    def generate_feed_dict_list(self, data_reader):
-        input_name = []
-        for item in self.inputs:
-            input_name.append(item.name)
-        return prepare_feed_dict_list(data_reader, input_name)
+        return transformer_data_generator(
+            src_vocab_fpath,
+            trg_vocab_fpath,
+            train_file_pattern,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            shuffle=shuffle)
 
 
 class Bert_large(ModelBase):
