@@ -85,11 +85,12 @@ class VGG16(ModelBase):
 
     def load_imagenet_from_file(self,
                                 filelist,
+                                batch_size=32,
                                 phase='train',
                                 shuffle=True,
                                 use_dali=False):
-        return image_dataloader_from_filelist(filelist, self.inputs, phase,
-                                              shuffle, use_dali)
+        return image_dataloader_from_filelist(
+            filelist, self.inputs, batch_size, phase, shuffle, use_dali)
 
 
 class Transformer(ModelBase):
