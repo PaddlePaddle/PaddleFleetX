@@ -27,14 +27,22 @@ configs = lighting.parse_train_configs()
 role = role_maker.PaddleCloudRoleMaker(is_collective=True)
 fleet.init(role)
 # load Bert_large / Bert_base model
-model = lighting.applications.Bert_large()
+#model = lighting.applications.Bert_large()
+model = lighting.applications.Bert_base()
 data_loader = model.load_digital_dataset_from_file(
     data_dir='./train_data',
     vocab_path='./vocab.txt',
-    batch_size=16,
-    max_seq_len=128)
+    batch_size=4096,
+    max_seq_len=512,
+    is_token=True)
 place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+exec_strategy = fluid.ExecutionStrategy()
+exec_strategy.num_threads = 2
+exec_strategy.num_iteration_per_drop_scope = 1
 dist_strategy = DistributedStrategy()
+dist_strategy.exec_strategy = exec_strategy
+dist_strategy.nccl_comm_num = 3
+dist_strategy.use_hierarchical_allreduce = True
 optimizer = fluid.optimizer.Adam(learning_rate=configs.lr)
 optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
 optimizer.minimize(model.loss)
@@ -53,6 +61,6 @@ for i, data in enumerate(data_loader()):
         end_time = time.time()
         total_time += (end_time - start_time)
         print(
-            "worker_index: %d, step%d cost = %f, total time cost = %f, step per minutes: %f"
+            "worker_index: %d, step%d cost = %f, total time cost = %f, step per second: %f, speed: %f"
             % (fleet.worker_index(), i, cost_val[0], total_time,
-               (i - 9) / total_time))
+               (i - 9) / total_time, 1 / (end_time - start_time)))

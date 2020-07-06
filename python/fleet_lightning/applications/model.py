@@ -16,7 +16,6 @@ from .util import *
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 from fleet_lightning.dataset.image_dataset import image_dataloader_from_filelist
 from fleet_lightning.dataset.bert_dataset import load_bert_dataset
-#from fleet_lightning.dataset.translation_dataset import prepare_data_generator, prepare_feed_dict_list
 from fleet_lightning.dataset.transformer_dataset import transformer_data_generator
 
 
@@ -141,14 +140,16 @@ class Bert_large(ModelBase):
     def load_digital_dataset_from_file(self,
                                        data_dir,
                                        vocab_path,
-                                       batch_size=8196,
-                                       max_seq_len=512):
+                                       batch_size=16,
+                                       max_seq_len=128,
+                                       in_tokens=False):
         return load_bert_dataset(
             data_dir,
             vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
-            max_seq_len=max_seq_len)
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens)
 
 
 class Bert_base(ModelBase):
@@ -169,11 +170,13 @@ class Bert_base(ModelBase):
     def load_digital_dataset_from_file(self,
                                        data_dir,
                                        vocab_path,
-                                       batch_size=8196,
-                                       max_seq_len=512):
+                                       batch_size=4096,
+                                       max_seq_len=512,
+                                       in_tokens=True):
         return load_bert_dataset(
             data_dir,
             vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
-            max_seq_len=max_seq_len)
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens)
