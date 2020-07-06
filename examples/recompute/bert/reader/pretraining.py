@@ -35,7 +35,7 @@ class DataReader(object):
     def __init__(self,
                  data_dir,
                  vocab_path,
-                 batch_size=4096,
+                 batch_size=7168,
                  in_tokens=True,
                  max_seq_len=512,
                  shuffle_files=True,

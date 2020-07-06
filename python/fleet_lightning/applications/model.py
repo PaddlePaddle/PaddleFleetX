@@ -16,7 +16,8 @@ from .util import *
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 from fleet_lightning.dataset.image_dataset import image_dataloader_from_filelist
 from fleet_lightning.dataset.bert_dataset import load_bert_dataset
-from fleet_lightning.dataset.translation_dataset import prepare_data_generator, prepare_feed_dict_list
+#from fleet_lightning.dataset.translation_dataset import prepare_data_generator, prepare_feed_dict_list
+from fleet_lightning.dataset.transformer_dataset import transformer_data_generator
 
 
 class ModelBase(object):
@@ -84,11 +85,12 @@ class VGG16(ModelBase):
 
     def load_imagenet_from_file(self,
                                 filelist,
+                                batch_size=32,
                                 phase='train',
                                 shuffle=True,
                                 use_dali=False):
-        return image_dataloader_from_filelist(filelist, self.inputs, phase,
-                                              shuffle, use_dali)
+        return image_dataloader_from_filelist(
+            filelist, self.inputs, batch_size, phase, shuffle, use_dali)
 
 
 class Transformer(ModelBase):
@@ -110,27 +112,27 @@ class Transformer(ModelBase):
                                      src_vocab_fpath,
                                      trg_vocab_fpath,
                                      train_file_pattern,
-                                     batch_size=4096,
+                                     batch_size=2048,
                                      shuffle=True):
-        return prepare_data_generator(src_vocab_fpath, trg_vocab_fpath,
-                                      train_file_pattern, batch_size, shuffle)
+        return transformer_data_generator(
+            src_vocab_fpath,
+            trg_vocab_fpath,
+            train_file_pattern,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            shuffle=shuffle)
 
-    def generate_feed_dict_list(self, data_reader):
-        input_name = []
-        for item in self.inputs:
-            input_name.append(item.name)
-        return prepare_feed_dict_list(data_reader, input_name)
 
-
-class Bert(ModelBase):
+class Bert_large(ModelBase):
     def __init__(self):
-        super(Bert, self).__init__()
-        if not os.path.exists('bert'):
+        super(Bert_large, self).__init__()
+        if not os.path.exists('bert_large'):
             os.system(
                 'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                format('bert'))
-            os.system('tar -xf {}.tar.gz'.format('bert'))
-        inputs, loss, startup, main, unique_generator = load_program("bert")
+                format('bert_large'))
+            os.system('tar -xf {}.tar.gz'.format('bert_large'))
+        inputs, loss, startup, main, unique_generator = load_program(
+            "bert_large")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
@@ -141,4 +143,37 @@ class Bert(ModelBase):
                                        vocab_path,
                                        batch_size=8196,
                                        max_seq_len=512):
-        return load_bert_dataset(data_dir, vocab_path, self.inputs)
+        return load_bert_dataset(
+            data_dir,
+            vocab_path,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            max_seq_len=max_seq_len)
+
+
+class Bert_base(ModelBase):
+    def __init__(self):
+        super(Bert_base, self).__init__()
+        if not os.path.exists('bert_base'):
+            os.system(
+                'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
+                format('bert_base'))
+            os.system('tar -xf {}.tar.gz'.format('bert_base'))
+        inputs, loss, startup, main, unique_generator = load_program(
+            "bert_base")
+        self.startup_prog = startup
+        self.main_prog = main
+        self.inputs = inputs
+        self.loss = loss
+
+    def load_digital_dataset_from_file(self,
+                                       data_dir,
+                                       vocab_path,
+                                       batch_size=8196,
+                                       max_seq_len=512):
+        return load_bert_dataset(
+            data_dir,
+            vocab_path,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            max_seq_len=max_seq_len)
