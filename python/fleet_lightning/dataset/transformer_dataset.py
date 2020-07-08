@@ -58,7 +58,7 @@ def transformer_data_generator(src_vocab_fpath,
         max_length=max_length,
         n_head=n_head)
     batch_generator = processor.data_generator(phase="train")
-    places = fluid.CPUPlace()
+    places = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
     data_loader.set_batch_generator(batch_generator, places)
     return data_loader
 

@@ -12,11 +12,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import time
 from .util import *
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 from fleet_lightning.dataset.image_dataset import image_dataloader_from_filelist
 from fleet_lightning.dataset.bert_dataset import load_bert_dataset
-#from fleet_lightning.dataset.translation_dataset import prepare_data_generator, prepare_feed_dict_list
 from fleet_lightning.dataset.transformer_dataset import transformer_data_generator
 
 
@@ -48,11 +48,16 @@ class ModelBase(object):
 class Resnet50(ModelBase):
     def __init__(self):
         super(Resnet50, self).__init__()
-        if not os.path.exists('resnet50'):
-            os.system(
-                'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                format('resnet50'))
-            os.system('tar -xf {}.tar.gz'.format('resnet50'))
+        gpu_id = int(os.environ.get('FLAGS_selected_gpus'))
+        if gpu_id == 0:
+            if not os.path.exists('resnet50'):
+                if not os.path.exists('resnet50.tar.gz'):
+                    os.system(
+                        'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
+                        format('resnet50'))
+                os.system('tar -xf {}.tar.gz'.format('resnet50'))
+        else:
+            time.sleep(3)
         inputs, loss, startup, main, unique_generator = load_program(
             "resnet50")
         self.startup_prog = startup
@@ -72,11 +77,15 @@ class Resnet50(ModelBase):
 class VGG16(ModelBase):
     def __init__(self):
         super(VGG16, self).__init__()
-        if not os.path.exists('vgg16'):
-            os.system(
-                'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                format('vgg16'))
-            os.system('tar -xf {}.tar.gz'.format('vgg16'))
+        gpu_id = int(os.environ.get('FLAGS_selected_gpus'))
+        if gpu_id == 0:
+            if not os.path.exists('vgg16'):
+                os.system(
+                    'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
+                    format('vgg16'))
+                os.system('tar -xf {}.tar.gz'.format('vgg16'))
+        else:
+            time.sleep(3)
         inputs, loss, startup, main, unique_generator = load_program("vgg16")
         self.startup_prog = startup
         self.main_prog = main
@@ -96,11 +105,15 @@ class VGG16(ModelBase):
 class Transformer(ModelBase):
     def __init__(self):
         super(Transformer, self).__init__()
-        if not os.path.exists('transformer'):
-            os.system(
-                'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                format('transformer'))
-            os.system('tar -xf {}.tar.gz'.format('transformer'))
+        gpu_id = int(os.environ.get('FLAGS_selected_gpus'))
+        if gpu_id == 0:
+            if not os.path.exists('transformer'):
+                os.system(
+                    'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
+                    format('transformer'))
+                os.system('tar -xf {}.tar.gz'.format('transformer'))
+        else:
+            time.sleep(3)
         inputs, loss, startup, main, unique_generator = load_program(
             "transformer")
         self.startup_prog = startup
@@ -126,11 +139,16 @@ class Transformer(ModelBase):
 class Bert_large(ModelBase):
     def __init__(self):
         super(Bert_large, self).__init__()
-        if not os.path.exists('bert_large'):
-            os.system(
-                'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                format('bert_large'))
-            os.system('tar -xf {}.tar.gz'.format('bert_large'))
+        gpu_id = os.environ.get('FLAGS_selected_gpus')
+        if gpu_id == 0:
+            if not os.path.exists('bert_large'):
+                if not os.path.exists('bert_large.tar.gz'):
+                    os.system(
+                        'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
+                        format('bert_large'))
+                os.system('tar -xf {}.tar.gz'.format('bert_large'))
+        else:
+            time.sleep(3)
         inputs, loss, startup, main, unique_generator = load_program(
             "bert_large")
         self.startup_prog = startup
@@ -141,24 +159,31 @@ class Bert_large(ModelBase):
     def load_digital_dataset_from_file(self,
                                        data_dir,
                                        vocab_path,
-                                       batch_size=8196,
-                                       max_seq_len=512):
+                                       batch_size=16,
+                                       max_seq_len=128,
+                                       in_tokens=False):
         return load_bert_dataset(
             data_dir,
             vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
-            max_seq_len=max_seq_len)
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens)
 
 
 class Bert_base(ModelBase):
     def __init__(self):
         super(Bert_base, self).__init__()
-        if not os.path.exists('bert_base'):
-            os.system(
-                'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                format('bert_base'))
-            os.system('tar -xf {}.tar.gz'.format('bert_base'))
+        gpu_id = int(os.environ.get('FLAGS_selected_gpus'))
+        if gpu_id == 0:
+            if not os.path.exists('bert_base'):
+                if not os.path.exists('bert_base.tar.gz'):
+                    os.system(
+                        'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
+                        format('bert_base'))
+                os.system('tar -xf {}.tar.gz'.format('bert_base'))
+        else:
+            time.sleep(3)
         inputs, loss, startup, main, unique_generator = load_program(
             "bert_base")
         self.startup_prog = startup
@@ -169,11 +194,13 @@ class Bert_base(ModelBase):
     def load_digital_dataset_from_file(self,
                                        data_dir,
                                        vocab_path,
-                                       batch_size=8196,
-                                       max_seq_len=512):
+                                       batch_size=4096,
+                                       max_seq_len=512,
+                                       in_tokens=True):
         return load_bert_dataset(
             data_dir,
             vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
-            max_seq_len=max_seq_len)
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens)

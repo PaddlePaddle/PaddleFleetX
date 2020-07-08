@@ -29,7 +29,7 @@ def load_bert_dataset(data_dir,
                       inputs,
                       batch_size,
                       max_seq_len=512,
-                      in_tokens=False,
+                      in_tokens=True,
                       generate_neg_sample=True,
                       voc_size=21128):
     data_loader = fluid.io.DataLoader.from_generator(
@@ -44,8 +44,8 @@ def load_bert_dataset(data_dir,
         max_seq_len=max_seq_len,
         generate_neg_sample=generate_neg_sample)
 
-    place = fluid.CPUPlace()
-    data_loader.set_batch_generator(data_reader.data_generator(), place)
+    places = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+    data_loader.set_batch_generator(data_reader.data_generator(), places)
     return data_loader
 
 
