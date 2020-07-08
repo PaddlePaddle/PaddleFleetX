@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import time
 from .util import *
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 from fleet_lightning.dataset.image_dataset import image_dataloader_from_filelist
@@ -47,11 +48,16 @@ class ModelBase(object):
 class Resnet50(ModelBase):
     def __init__(self):
         super(Resnet50, self).__init__()
-        if not os.path.exists('resnet50'):
-            os.system(
-                'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                format('resnet50'))
-            os.system('tar -xf {}.tar.gz'.format('resnet50'))
+        gpu_id = int(os.environ.get('FLAGS_selected_gpus'))
+        if gpu_id == 0:
+            if not os.path.exists('resnet50'):
+                if not os.path.exists('resnet50.tar.gz'):
+                    os.system(
+                        'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
+                        format('resnet50'))
+                os.system('tar -xf {}.tar.gz'.format('resnet50'))
+        else:
+            time.sleep(3)
         inputs, loss, startup, main, unique_generator = load_program(
             "resnet50")
         self.startup_prog = startup
@@ -71,11 +77,15 @@ class Resnet50(ModelBase):
 class VGG16(ModelBase):
     def __init__(self):
         super(VGG16, self).__init__()
-        if not os.path.exists('vgg16'):
-            os.system(
-                'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                format('vgg16'))
-            os.system('tar -xf {}.tar.gz'.format('vgg16'))
+        gpu_id = int(os.environ.get('FLAGS_selected_gpus'))
+        if gpu_id == 0:
+            if not os.path.exists('vgg16'):
+                os.system(
+                    'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
+                    format('vgg16'))
+                os.system('tar -xf {}.tar.gz'.format('vgg16'))
+        else:
+            time.sleep(3)
         inputs, loss, startup, main, unique_generator = load_program("vgg16")
         self.startup_prog = startup
         self.main_prog = main
@@ -95,11 +105,15 @@ class VGG16(ModelBase):
 class Transformer(ModelBase):
     def __init__(self):
         super(Transformer, self).__init__()
-        if not os.path.exists('transformer'):
-            os.system(
-                'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                format('transformer'))
-            os.system('tar -xf {}.tar.gz'.format('transformer'))
+        gpu_id = int(os.environ.get('FLAGS_selected_gpus'))
+        if gpu_id == 0:
+            if not os.path.exists('transformer'):
+                os.system(
+                    'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
+                    format('transformer'))
+                os.system('tar -xf {}.tar.gz'.format('transformer'))
+        else:
+            time.sleep(3)
         inputs, loss, startup, main, unique_generator = load_program(
             "transformer")
         self.startup_prog = startup
@@ -125,11 +139,16 @@ class Transformer(ModelBase):
 class Bert_large(ModelBase):
     def __init__(self):
         super(Bert_large, self).__init__()
-        if not os.path.exists('bert_large'):
-            os.system(
-                'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                format('bert_large'))
-            os.system('tar -xf {}.tar.gz'.format('bert_large'))
+        gpu_id = os.environ.get('FLAGS_selected_gpus')
+        if gpu_id == 0:
+            if not os.path.exists('bert_large'):
+                if not os.path.exists('bert_large.tar.gz'):
+                    os.system(
+                        'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
+                        format('bert_large'))
+                os.system('tar -xf {}.tar.gz'.format('bert_large'))
+        else:
+            time.sleep(3)
         inputs, loss, startup, main, unique_generator = load_program(
             "bert_large")
         self.startup_prog = startup
@@ -155,11 +174,16 @@ class Bert_large(ModelBase):
 class Bert_base(ModelBase):
     def __init__(self):
         super(Bert_base, self).__init__()
-        if not os.path.exists('bert_base'):
-            os.system(
-                'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                format('bert_base'))
-            os.system('tar -xf {}.tar.gz'.format('bert_base'))
+        gpu_id = int(os.environ.get('FLAGS_selected_gpus'))
+        if gpu_id == 0:
+            if not os.path.exists('bert_base'):
+                if not os.path.exists('bert_base.tar.gz'):
+                    os.system(
+                        'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
+                        format('bert_base'))
+                os.system('tar -xf {}.tar.gz'.format('bert_base'))
+        else:
+            time.sleep(3)
         inputs, loss, startup, main, unique_generator = load_program(
             "bert_base")
         self.startup_prog = startup
