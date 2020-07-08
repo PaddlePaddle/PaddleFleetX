@@ -45,7 +45,7 @@ def load_bert_dataset(data_dir,
         generate_neg_sample=generate_neg_sample)
 
     places = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
-    data_loader.set_batch_generator(data_reader.data_generator(), place)
+    data_loader.set_batch_generator(data_reader.data_generator(), places)
     return data_loader
 
 

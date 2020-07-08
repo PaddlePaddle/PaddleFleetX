@@ -29,7 +29,14 @@ fleet.init(role)
 model = lighting.applications.VGG16()
 
 loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
+os.environ["FLAGS_fraction_of_gpu_memory_to_use"] = "0.96"
+os.environ["FLAGS_sync_nccl_allreduce"] = "1"
+os.environ["FLAGS_eager_delete_tensor_gb"] = "0.0"
+os.environ["FLAGS_cudnn_exhaustive_search"] = "1"
+os.environ["FLAGS_conv_workspace_size_limit"] = "7000"
 
+os.environ["FLAGS_fuse_parameter_memory_size"] = "16"
+os.environ["FLAGS_fuse_parameter_groups_size"] = "50"
 exec_strategy = fluid.ExecutionStrategy()
 dist_strategy = DistributedStrategy()
 exec_strategy.num_threads = 2

@@ -27,6 +27,13 @@ role = role_maker.PaddleCloudRoleMaker(is_collective=True)
 fleet.init(role)
 model = lighting.applications.Transformer()
 place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+
+os.environ['FLAGS_fraction_of_gpu_memory_to_use'] = "0.98"
+os.environ['FLAGS_sync_nccl_allreduce'] = "1"
+os.environ['FLAGS_eager_delete_tensor_gb'] = "0.0"
+os.environ['FLAGS_cudnn_exhaustive_search'] = "1"
+os.environ['FLAGS_fuse_parameter_memory_size'] = "50"
+os.environ['FLAGS_fuse_parameter_groups_size'] = "50"
 data_loader = model.load_wmt16_dataset_from_file(
     '/pathto/wmt16_ende_data_bpe/vocab_all.bpe.32000',
     '/pathto/wmt16_ende_data_bpe/vocab_all.bpe.32000',

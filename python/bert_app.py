@@ -29,12 +29,19 @@ fleet.init(role)
 # load Bert_large / Bert_base model
 #model = lighting.applications.Bert_large()
 model = lighting.applications.Bert_base()
+
+os.environ['FLAGS_enable_parallel_graph'] = "0"
+os.environ['FLAGS_fraction_of_gpu_memory_to_use'] = "0.98"
+os.environ['FLAGS_sync_nccl_allreduce'] = "1"
+os.environ['FLAGS_eager_delete_tensor_gb'] = "0"
+os.environ['FLAGS_fuse_parameter_memory_size'] = "32"
+os.environ['FLAGS_fuse_parameter_groups_size'] = "50"
 data_loader = model.load_digital_dataset_from_file(
     data_dir='./train_data',
     vocab_path='./vocab.txt',
     batch_size=4096,
     max_seq_len=512,
-    is_token=True)
+    in_tokens=True)
 place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
 exec_strategy = fluid.ExecutionStrategy()
 exec_strategy.num_threads = 2
