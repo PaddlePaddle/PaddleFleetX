@@ -49,7 +49,7 @@ dist_strategy.fuse_elewise_add_act_ops = True
 dist_strategy.fuse_bn_act_ops = True
 
 optimizer = fluid.optimizer.Momentum(
-    learning_rate=lr_var,
+    learning_rate=configs.lr,
     momentum=configs.momentum,
     regularization=fluid.regularizer.L2Decay(0.0001))
 optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
@@ -59,14 +59,18 @@ place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
 
-total_time = 0
-for id in range(2):
+for i in range(2):
+    total_time = 0
     for i, data in enumerate(loader()):
-        start_time = time.time()
+        if i >= 100:
+            start_time = time.time()
         cost_val = exe.run(fleet.main_program,
                            feed=data,
                            fetch_list=[model.loss.name])
-        end_time = time.time()
-        total_time += (end_time - start_time)
-        print("worker_index: %d, step%d cost = %f, total time cost = %f" %
-              (fleet.worker_index(), i, cost_val[0], total_time))
+        if i >= 100:
+            end_time = time.time()
+            total_time += (end_time - start_time)
+            print(
+                "worker_index: %d, step%d cost = %f, total time cost = %f, average speed = %f, speed = %f"
+                % (fleet.worker_index(), i, cost_val[0], total_time,
+                   (i - 99) / total_time, 1 / (end_time - start_time)))

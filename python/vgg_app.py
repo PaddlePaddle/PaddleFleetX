@@ -58,13 +58,18 @@ place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
 
-total_time = 0
-for i, data in enumerate(loader()):
-    start_time = time.time()
-    cost_val = exe.run(fleet.main_program,
-                       feed=data,
-                       fetch_list=[model.loss.name])
-    end_time = time.time()
-    total_time += (end_time - start_time)
-    print("worker_index: %d, step%d cost = %f, total time cost = %f" %
-          (fleet.worker_index(), i, cost_val[0], total_time))
+for i in range(2):
+    total_time = 0
+    for i, data in enumerate(loader()):
+        if i >= 100:
+            start_time = time.time()
+        cost_val = exe.run(fleet.main_program,
+                           feed=data,
+                           fetch_list=[model.loss.name])
+        if i >= 100:
+            end_time = time.time()
+            total_time += (end_time - start_time)
+            print(
+                "worker_index: %d, step%d cost = %f, total time cost = %f, average speed = %f, speed = %f"
+                % (fleet.worker_index(), i, cost_val[0], total_time,
+                   (i - 99) / total_time, 1 / (end_time - start_time)))
