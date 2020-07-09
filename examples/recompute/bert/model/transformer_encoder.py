@@ -25,11 +25,17 @@ import paddle.fluid as fluid
 import paddle.fluid.layers as layers
 from paddle.fluid.layer_helper import LayerHelper as LayerHelper
 
-def layer_norm(x, begin_norm_axis=1, epsilon=1e-6, param_attr=None, bias_attr=None):
+
+def layer_norm(x,
+               begin_norm_axis=1,
+               epsilon=1e-6,
+               param_attr=None,
+               bias_attr=None):
     helper = LayerHelper('layer_norm', **locals())
     mean = layers.reduce_mean(x, dim=begin_norm_axis, keep_dim=True)
     shift_x = layers.elementwise_sub(x=x, y=mean, axis=0)
-    variance = layers.reduce_mean(layers.square(shift_x), dim=begin_norm_axis, keep_dim=True)
+    variance = layers.reduce_mean(
+        layers.square(shift_x), dim=begin_norm_axis, keep_dim=True)
     r_stdev = layers.rsqrt(variance + epsilon)
     norm_x = layers.elementwise_mul(x=shift_x, y=r_stdev, axis=0)
 
@@ -51,6 +57,7 @@ def layer_norm(x, begin_norm_axis=1, epsilon=1e-6, param_attr=None, bias_attr=No
     out = layers.elementwise_add(x=out, y=bias, axis=-1)
 
     return out
+
 
 def multi_head_attention(queries,
                          keys,
@@ -218,12 +225,16 @@ def positionwise_feed_forward(x,
                     size=d_hid,
                     num_flatten_dims=2,
                     param_attr=fluid.ParamAttr(
-                        name=name + '_fc_1.w_0', initializer=param_initializer),
+                        name=name + '_fc_1.w_0',
+                        initializer=param_initializer),
                     bias_attr=name + '_fc_1.b_0')
     return out
 
 
-def pre_post_process_layer(prev_out, out, process_cmd, dropout_rate=0.,
+def pre_post_process_layer(prev_out,
+                           out,
+                           process_cmd,
+                           dropout_rate=0.,
                            name=''):
     """
     Add residual connection, layer normalization and droput to the out tensor
@@ -318,13 +329,14 @@ def encoder_layer(enc_input,
         hidden_act,
         param_initializer=param_initializer,
         name=name + '_ffn')
-    
+
     return post_process_layer(
         attn_output,
         ffd_output,
         postprocess_cmd,
         prepostprocess_dropout,
         name=name + '_post_ffn'), ffd_output
+
 
 def encoder(enc_input,
             attn_bias,
@@ -367,6 +379,9 @@ def encoder(enc_input,
         checkpoints.append(cp)
         enc_input = enc_output
     enc_output = pre_process_layer(
-        enc_output, preprocess_cmd, prepostprocess_dropout, name="post_encoder")
+        enc_output,
+        preprocess_cmd,
+        prepostprocess_dropout,
+        name="post_encoder")
 
     return enc_output, checkpoints

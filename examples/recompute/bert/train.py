@@ -42,6 +42,7 @@ logging.basicConfig(
          level=logging.INFO,
          datefmt='%Y-%m-%d %H:%M:%S')
 
+
 trainer_id = int(os.environ.get('PADDLE_TRAINER_ID'))
 
 # yapf: disable
@@ -309,7 +310,7 @@ def train(args):
         max_seq_len=args.max_seq_len,
         generate_neg_sample=args.generate_neg_sample)
 
-    
+
     train_exe = exe
 
     if args.validation_set_dir and args.validation_set_dir != "":
@@ -404,9 +405,10 @@ def train(args):
                         print(result)
                         f.writelines(json.dumps(result) + '\n')
 
-		cost = []
-		lm_cost = []
-		acc = []
+                cost = []
+                lm_cost = []
+                acc = []
+
         except fluid.core.EOFException:
             train_pyreader.reset()
             break

@@ -112,7 +112,7 @@ def evaluate(exe, test_program, test_pyreader, fetch_list, eval_phase):
     time_begin = time.time()
     for data in test_pyreader():
         np_loss, np_acc, np_num_seqs = exe.run(program=test_program,
-						   feed=data,
+         feed=data,
                                                    fetch_list=fetch_list)
         total_cost.extend(np_loss * np_num_seqs)
         total_acc.extend(np_acc * np_num_seqs)
@@ -135,15 +135,15 @@ def get_device_num():
 def main(args):
     bert_config = BertConfig(args.bert_config_path)
     bert_config.print_config()
- 
-  
+
+
     if args.use_cuda:
         place = fluid.CUDAPlace(int(os.getenv('FLAGS_selected_gpus', '0')))
         dev_count = get_device_num()
     else:
         place = fluid.CPUPlace()
         dev_count = int(os.environ.get('CPU_NUM', multiprocessing.cpu_count()))
-   
+
     if args.do_train:
         # only training program run with fleet
         my_dist_env = dist_env()
@@ -158,14 +158,14 @@ def main(args):
         current_id=trainer_id,
         worker_endpoints=worker_endpoints)
         # Fleet get role of each worker
-        fleet.init(role) 
+        fleet.init(role)
 
     exe = fluid.Executor(place)
 
     # init program
     train_program = fluid.Program()
     startup_prog = fluid.Program()
-    
+
     if args.random_seed != 0:
         print("set program random seed as: ", args.random_seed)
         startup_prog.random_seed = args.random_seed
@@ -178,7 +178,7 @@ def main(args):
         'mrpc': reader.MrpcProcessor,
         'mnli': reader.MnliProcessor,
     }
-    
+
     print("max_seq_len: ", args.max_seq_len)
     print("random_seed: ", args.random_seed)
     processor = processors[task_name](data_dir=args.data_dir,
@@ -224,12 +224,12 @@ def main(args):
         exec_strategy.use_experimental_executor = args.use_fast_executor
         exec_strategy.num_threads = dev_count
         exec_strategy.num_iteration_per_drop_scope = args.num_iteration_per_drop_scope
-   
+
         dist_strategy = DistributedStrategy()
         dist_strategy.exec_strategy = exec_strategy
         dist_strategy.nccl_comm_num = 3
         dist_strategy.use_hierarchical_allreduce = True
- 
+
         if args.use_recompute:
             dist_strategy.forward_recompute = True
             dist_strategy.enable_sequential_execution = True
@@ -254,6 +254,7 @@ def main(args):
                     weight_decay=args.weight_decay,
                     scheduler=args.lr_scheduler,
                     dist_strategy=dist_strategy)
+
                 
         # print("batch size: %d", args.batch_size)
         # tool = memory_tool.MemoryEstimate(fleet._origin_program, args.batch_size)
@@ -304,7 +305,7 @@ def main(args):
 
     with open("debug_program", "w") as f:
         f.write(str(fleet._origin_program))
-    
+
 
     if args.do_train:
         if args.init_checkpoint and args.init_pretraining_params:
@@ -335,7 +336,7 @@ def main(args):
 
     if args.do_train:
         train_pyreader.decorate_batch_generator(train_data_generator, place)
-        
+
         steps = 0
         total_cost, total_acc, total_num_seqs = [], [], []
         time_begin = time.time()
@@ -363,7 +364,8 @@ def main(args):
                     ]
             else:
                 fetch_list = []
-            
+
+
             outputs = exe.run(fleet.main_program, feed=data, fetch_list=fetch_list)
 
             if steps % args.skip_steps == 0:
@@ -422,7 +424,8 @@ def main(args):
                     evaluate(exe, test_prog, test_pyreader,
                                 [loss.name, accuracy.name, num_seqs.name],
                                 "test")
-             
+
+
         if args.enable_ce:
             card_num = get_cards()
             ce_cost = 0

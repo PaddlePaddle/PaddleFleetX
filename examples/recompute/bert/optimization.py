@@ -23,6 +23,7 @@ from utils.fp16 import create_master_params_grads, master_param_to_train_param
 
 from paddle.fluid.incubate.fleet.collective import fleet
 
+
 def linear_warmup_decay(learning_rate, warmup_steps, num_train_steps):
     """ Applies linear warmup of learning rate from 0 and decay to 0."""
     with fluid.default_main_program()._lr_schedule_guard():
@@ -33,7 +34,8 @@ def linear_warmup_decay(learning_rate, warmup_steps, num_train_steps):
             persistable=True,
             name="scheduled_learning_rate")
 
-        global_step = fluid.layers.learning_rate_scheduler._decay_step_counter()
+        global_step = fluid.layers.learning_rate_scheduler._decay_step_counter(
+        )
 
         with fluid.layers.control_flow.Switch() as switch:
             with switch.case(global_step < warmup_steps):
@@ -95,9 +97,12 @@ def optimization(loss,
     for param in train_program.global_block().all_parameters():
         param_list[param.name] = param * 1.0
         param_list[param.name].stop_gradient = True
-       
-    if dist_strategy is not None:	
-	  optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
+
+
+    if dist_strategy is not None:
+        optimizer = fleet.distributed_optimizer(
+            optimizer, strategy=dist_strategy)
+
     _, param_grads = optimizer.minimize(loss)
 
     if weight_decay > 0:
@@ -108,6 +113,7 @@ def optimization(loss,
                 [param, grad]), fluid.framework.name_scope("weight_decay"):
                 updated_param = param - param_list[
                         param.name] * weight_decay * scheduled_lr
+
                 fluid.layers.assign(output=param, input=updated_param)
 
     return scheduled_lr
