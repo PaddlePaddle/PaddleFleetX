@@ -255,6 +255,7 @@ def main(args):
                     scheduler=args.lr_scheduler,
                     dist_strategy=dist_strategy)
 
+                
         # print("batch size: %d", args.batch_size)
         # tool = memory_tool.MemoryEstimate(fleet._origin_program, args.batch_size)
         # tool.cal_memory()
@@ -364,6 +365,7 @@ def main(args):
             else:
                 fetch_list = []
 
+
             outputs = exe.run(fleet.main_program, feed=data, fetch_list=fetch_list)
 
             if steps % args.skip_steps == 0:
@@ -422,6 +424,7 @@ def main(args):
                     evaluate(exe, test_prog, test_pyreader,
                                 [loss.name, accuracy.name, num_seqs.name],
                                 "test")
+
 
         if args.enable_ce:
             card_num = get_cards()

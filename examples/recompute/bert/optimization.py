@@ -98,9 +98,11 @@ def optimization(loss,
         param_list[param.name] = param * 1.0
         param_list[param.name].stop_gradient = True
 
+
     if dist_strategy is not None:
         optimizer = fleet.distributed_optimizer(
             optimizer, strategy=dist_strategy)
+
     _, param_grads = optimizer.minimize(loss)
 
     if weight_decay > 0:
@@ -110,7 +112,8 @@ def optimization(loss,
             with param.block.program._optimized_guard(
                 [param, grad]), fluid.framework.name_scope("weight_decay"):
                 updated_param = param - param_list[
-                    param.name] * weight_decay * scheduled_lr
+                        param.name] * weight_decay * scheduled_lr
+
                 fluid.layers.assign(output=param, input=updated_param)
 
     return scheduled_lr
