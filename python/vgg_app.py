@@ -58,7 +58,7 @@ place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
 
-for i in range(2):
+for epoch_id in range(2):
     total_time = 0
     for i, data in enumerate(loader()):
         if i >= 100:
