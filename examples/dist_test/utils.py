@@ -47,15 +47,15 @@ def create_dataloader(generator, feed, place, batch_size, is_test, is_distribute
     return loader
 
 
-def dist_eval_acc(exe, local_acc, local_weight):
+def dist_eval_acc(exe, local_value, local_weight):
     prog = fluid.Program()
     with fluid.program_guard(prog):
-        acc = fluid.layers.data(name='acc', shape=[1], dtype='float32')
+        value = fluid.layers.data(name='value', shape=[1], dtype='float32')
         weight = fluid.layers.data(name='weight', shape=[1], dtype='float32')
-        dist_acc = fluid.layers.collective._c_allreduce(acc, reduce_type='sum', use_calc_stream=True)
+        dist_value = fluid.layers.collective._c_allreduce(value, reduce_type='sum', use_calc_stream=True)
         dist_weight = fluid.layers.collective._c_allreduce(weight, reduce_type='sum', use_calc_stream=True)
-    acc_sum, weight_sum = exe.run(prog, feed={'acc': local_acc, 'weight': local_weight}, fetch_list=[dist_acc, dist_weight]) 
-    return acc_sum / weight_sum
+    value_sum, weight_sum = exe.run(prog, feed={'value': local_value, 'weight': local_weight}, fetch_list=[dist_value, dist_weight]) 
+    return value_sum / weight_sum
 
 
 def sample_batch(sample):

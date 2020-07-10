@@ -44,10 +44,10 @@ def main():
         feed, fetch = model.build_test_net()
 
     loader = create_test_dataloader(feed, place, args.distributed)
-    local_acc, local_weight = test(test_prog, exe, feed, fetch, loader)
+    local_value, local_weight = test(test_prog, exe, feed, fetch, loader)
 
     if args.distributed:
-        dist_acc = utils.dist_eval_acc(exe, local_acc, local_weight)
+        dist_acc = utils.dist_eval_acc(exe, local_value, local_weight)
         print('[TEST] global_acc1: %.2f' % dist_acc)
 
 

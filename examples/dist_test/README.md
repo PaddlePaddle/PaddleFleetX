@@ -1,7 +1,7 @@
 # 简介
-本示例基于MNIST数据集，展现如何使用Fleet API实现Paddle分布式训练。
+本示例基于MNIST数据集，展现如何使用Fleet API实现Paddle分布式训练和预测。
 
-我们在文件`train.py`中通过`args.distributed`配置项显式呈现了单机单卡代码如何使用Fleet API合入分布式训练能力。并且，**为了更加清晰地展现单卡训练和分布式训练在配置上的关键区别，避免分布式的配置分散不易阅读，我们将`args.distributed`配置项限制仅在主函数`main`里使用，以便于读者快速借鉴**。
+我们在文件`train.py`中通过`args.distributed`配置项显式呈现了单机单卡代码如何使用Fleet API合入分布式能力。并且，**为了更加清晰地展现单卡训练和分布式训练在配置上的关键区别，避免分布式的配置分散不易阅读，我们将`args.distributed`配置项限制仅在主函数`main`里使用，以便于读者快速借鉴**。
 
 即在`main`函数中，与分布式训练相关的代码要么在`if args.distributed`条件下执行，要么代入`args.distributed`参数。而其他可以在单卡训练和分布式训练中共享的代码均与此参数无关。
 
@@ -80,7 +80,17 @@ sh multinodes/node2_run.sh
 
 ## 基于PaddleCloud执行多机多卡
 
-待补充
+假如有条件使用PaddleCloud集群，可以按照下述步骤提交任务：
+
+1. 更新pcloud/run.sh配置中的AK/SK配置
+2. 更新pcloud/job.cfg配置中的fs_name、fs_ugi和output_path
+3. 执行下述命令：
+
+```
+cd pcloud && sh run.sh
+```
+
+注：2020年7月15日以后PaddleCloud才支持Paddle-1.8.2，在此时间之后笔者会再次验证此流程
 
 # 分布式训练的数据划分
 
@@ -101,3 +111,9 @@ sh multinodes/node2_run.sh
 目前，避免样本不均匀分割的一种做法是将尾部数量少于`nranks`数的样本遗弃。另一种方法是每个`rank`都对整个数据集进行全局打散后训练。后者可以使各个`rank`的样本数量保持一致，但需要注意，此方法一遍`pass`训练的样本数量等同于前者`nranks`遍`pass`训练的数量。更进一步，如果我们预先知道我们需要训练的总`pass`数N，我们甚至可以在每个`rank`中复制N次数据集，然后全局打散后训练，这样可以更有效地利用数据集，这种策略唯一的代价是会丢失每个`pass`的边界信息。
 
 我们可以将上述两种策略区分为无放回抽样和有放回抽样。
+
+# 分布式预测基本原理
+
+本示例需要进行分布式预测的指标是Accuracy。我们通过分布式计算Accurary为例讲解分布式预测的基本思路。
+
+首先，使用上一小节的方案将测试数据切分到各个卡上，然后各个卡独立预测分配到本卡的数据，得到一个局部的True Positive值（正确预测样本数）和对应的权重（总样本数）。然后通过集合通信函数将各个卡的True Positive值和权重分别加和，最后计算```Accuracy=TruePositive/权重```求得全局的Accuracy。

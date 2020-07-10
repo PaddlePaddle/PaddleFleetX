@@ -18,7 +18,7 @@ JOB_NAME="mnist_n${k8s_trainers}"
 cluster_name="v100-32-0-cluster"
 group_name="dltp-0-yq01-k8s-gpu-v100-8"
 # 作业版本
-job_version="paddle-fluid-v1.7.1"
+job_version="paddle-fluid-v1.8.2"
 
 job_name=${JOB_NAME}
 # 线上正式环境
