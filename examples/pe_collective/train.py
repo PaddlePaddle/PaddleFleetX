@@ -29,7 +29,7 @@ def main():
 
     train_prog, start_prog = fluid.Program(), fluid.Program()
     with fluid.program_guard(train_prog, start_prog):
-        feed, fetch = model.build_train_net()
+        feed, fetch = model.build_train_net(args.distributed)
 
     optimizer = create_optimizer(args.distributed)
     optimizer.minimize(fetch[0], start_prog)
