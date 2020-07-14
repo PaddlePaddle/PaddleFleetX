@@ -37,8 +37,10 @@ place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
 
-for data in loader():
-    cost_val = exe.run(fleet.main_program, feed=data, fetch_list=[model.loss.name])
+epoch = 10
+for e in range(epoch):
+    for data in loader():
+        cost_val = exe.run(fleet.main_program, feed=data, fetch_list=[model.loss.name])
     
 ```
 
