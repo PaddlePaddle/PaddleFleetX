@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 
 os.environ['FLAGS_fraction_of_gpu_memory_to_use'] = "0.98"
 os.environ['FLAGS_sync_nccl_allreduce'] = "1"
@@ -19,7 +20,6 @@ os.environ['FLAGS_cudnn_exhaustive_search'] = "1"
 os.environ['FLAGS_fuse_parameter_memory_size'] = "50"
 os.environ['FLAGS_fuse_parameter_groups_size'] = "50"
 
-import os
 import fleet_lightning as lighting
 import paddle.fluid as fluid
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
