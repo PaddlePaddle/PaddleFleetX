@@ -38,7 +38,7 @@ fleet.init(role)
 
 model = lighting.applications.Resnet50()
 
-loader = model.load_imagenet_from_file("/ssd2/lilong/ImageNet/train.txt")
+loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
 
 exec_strategy = fluid.ExecutionStrategy()
 dist_strategy = DistributedStrategy()
