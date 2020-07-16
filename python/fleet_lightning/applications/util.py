@@ -31,9 +31,14 @@ def load_program(program_input):
     para_list = []
     with open(program_input + '/para_info', 'r') as fin:
         for line in fin:
-            current_para = line[:-1]
+            current_para = {}
+            para = line[:-1].split(":")
+            current_para["name"] = para[0]
+            if para[1] == 'True':
+                current_para['trainable'] = True
+            else:
+                current_para['trainable'] = False
             para_list.append(current_para)
-
     input_list = []
     with open(program_input + '/input_names', 'r') as fin:
         for line in fin:
@@ -57,18 +62,18 @@ def load_program(program_input):
         lr_name = None
 
     for item in para_list:
-        main_para = new_main.global_block().var(item)
+        main_para = new_main.global_block().var(item['name'])
         main_para.__class__ = Parameter
         main_para.regularizer = None
         main_para.optimize_attr = {'learning_rate': 1.0}
-        main_para.trainable = True
+        main_para.trainable = item['trainable']
         main_para.is_distributed = False
 
-        startup_para = new_startup.global_block().var(item)
+        startup_para = new_startup.global_block().var(item['name'])
         startup_para.__class__ = Parameter
         startup_para.regularizer = None
         startup_para.optimize_attr = {'learning_rate': 1.0}
-        startup_para.trainable = True
+        startup_para.trainable = item['trainable']
         startup_para.is_distributed = False
 
     exe = fluid.Executor(fluid.CPUPlace())
@@ -105,8 +110,6 @@ def save_program(main_prog,
     startup_program_str = startup_prog.desc.serialize_to_string()
     params = main_prog.global_block().all_parameters()
     para_info = []
-    for pa in params:
-        para_info.append(pa.name)
     with open(program_path + '/input_names', 'w') as fout:
         for input in input_list:
             fout.write("%s\n" % input)
@@ -115,8 +118,8 @@ def save_program(main_prog,
             for var in hidden_vars:
                 fout.write("%s:%s\n" % (var[0], var[1].name))
     with open(program_path + '/para_info', 'w') as fout:
-        for item in para_info:
-            fout.write("%s\n" % item)
+        for item in params:
+            fout.write("%s:%s\n" % (item.name, item.trainable))
     with open(program_path + '/startup_program', "wb") as fout:
         fout.write(startup_program_str)
     with open(program_path + '/main_program', "wb") as fout:
