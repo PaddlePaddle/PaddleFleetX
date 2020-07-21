@@ -76,7 +76,6 @@ def load_program(program_input):
         startup_para.trainable = item['trainable']
         startup_para.is_distributed = False
 
-    exe = fluid.Executor(fluid.CPUPlace())
     loss = None
     input_vars = []
     for input_name in input_list:
@@ -92,7 +91,20 @@ def load_program(program_input):
 
     fluid.framework.switch_main_program(new_main)
     fluid.framework.switch_startup_program(new_startup)
-
+    main_ops = fluid.default_main_program().global_block().ops
+    for main_op in main_ops:
+        main_out_names = main_op.output_names
+        for item in main_out_names:
+            var_name = main_op.output(item)
+            var = fluid.framework._get_var(str(var_name[0]))
+            var.op = main_op
+    startup_ops = fluid.default_startup_program().global_block().ops
+    for startup_op in startup_ops:
+        out_names = startup_op.output_names
+        for item in out_names:
+            var_name = startup_op.output(item)
+            var = fluid.framework._get_var(str(var_name[0]))
+            var.op = startup_op
     return input_vars, loss, new_startup, new_main, unique_generator
 
 
