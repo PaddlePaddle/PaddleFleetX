@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 
 os.environ['FLAGS_enable_parallel_graph'] = "0"
 os.environ['FLAGS_fraction_of_gpu_memory_to_use'] = "0.98"
@@ -19,7 +20,6 @@ os.environ['FLAGS_eager_delete_tensor_gb'] = "0"
 os.environ['FLAGS_fuse_parameter_memory_size'] = "32"
 os.environ['FLAGS_fuse_parameter_groups_size'] = "50"
 
-import os
 import numpy as np
 import fleet_lightning as lighting
 import paddle.fluid as fluid

@@ -31,9 +31,14 @@ def load_program(program_input):
     para_list = []
     with open(program_input + '/para_info', 'r') as fin:
         for line in fin:
-            current_para = line[:-1]
+            current_para = {}
+            para = line[:-1].split(":")
+            current_para["name"] = para[0]
+            if para[1] == 'True':
+                current_para['trainable'] = True
+            else:
+                current_para['trainable'] = False
             para_list.append(current_para)
-
     input_list = []
     with open(program_input + '/input_names', 'r') as fin:
         for line in fin:
@@ -57,21 +62,20 @@ def load_program(program_input):
         lr_name = None
 
     for item in para_list:
-        main_para = new_main.global_block().var(item)
+        main_para = new_main.global_block().var(item['name'])
         main_para.__class__ = Parameter
         main_para.regularizer = None
         main_para.optimize_attr = {'learning_rate': 1.0}
-        main_para.trainable = True
+        main_para.trainable = item['trainable']
         main_para.is_distributed = False
 
-        startup_para = new_startup.global_block().var(item)
+        startup_para = new_startup.global_block().var(item['name'])
         startup_para.__class__ = Parameter
         startup_para.regularizer = None
         startup_para.optimize_attr = {'learning_rate': 1.0}
-        startup_para.trainable = True
+        startup_para.trainable = item['trainable']
         startup_para.is_distributed = False
 
-    exe = fluid.Executor(fluid.CPUPlace())
     loss = None
     input_vars = []
     for input_name in input_list:
@@ -87,7 +91,20 @@ def load_program(program_input):
 
     fluid.framework.switch_main_program(new_main)
     fluid.framework.switch_startup_program(new_startup)
-
+    main_ops = fluid.default_main_program().global_block().ops
+    for main_op in main_ops:
+        main_out_names = main_op.output_names
+        for item in main_out_names:
+            var_name = main_op.output(item)
+            var = fluid.framework._get_var(str(var_name[0]))
+            var.op = main_op
+    startup_ops = fluid.default_startup_program().global_block().ops
+    for startup_op in startup_ops:
+        out_names = startup_op.output_names
+        for item in out_names:
+            var_name = startup_op.output(item)
+            var = fluid.framework._get_var(str(var_name[0]))
+            var.op = startup_op
     return input_vars, loss, new_startup, new_main, unique_generator
 
 
@@ -105,8 +122,6 @@ def save_program(main_prog,
     startup_program_str = startup_prog.desc.serialize_to_string()
     params = main_prog.global_block().all_parameters()
     para_info = []
-    for pa in params:
-        para_info.append(pa.name)
     with open(program_path + '/input_names', 'w') as fout:
         for input in input_list:
             fout.write("%s\n" % input)
@@ -115,8 +130,8 @@ def save_program(main_prog,
             for var in hidden_vars:
                 fout.write("%s:%s\n" % (var[0], var[1].name))
     with open(program_path + '/para_info', 'w') as fout:
-        for item in para_info:
-            fout.write("%s\n" % item)
+        for item in params:
+            fout.write("%s:%s\n" % (item.name, item.trainable))
     with open(program_path + '/startup_program', "wb") as fout:
         fout.write(startup_program_str)
     with open(program_path + '/main_program', "wb") as fout:
