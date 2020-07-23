@@ -48,7 +48,7 @@ class ModelBase(object):
 class Resnet50(ModelBase):
     def __init__(self):
         super(Resnet50, self).__init__()
-        gpu_id = int(os.environ.get('FLAGS_selected_gpus'))
+        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
         if gpu_id == 0:
             if not os.path.exists('resnet50'):
                 if not os.path.exists('resnet50.tar.gz'):
@@ -79,7 +79,7 @@ class Resnet50(ModelBase):
 class VGG16(ModelBase):
     def __init__(self):
         super(VGG16, self).__init__()
-        gpu_id = int(os.environ.get('FLAGS_selected_gpus'))
+        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
         if gpu_id == 0:
             if not os.path.exists('vgg16'):
                 os.system(
@@ -109,7 +109,7 @@ class VGG16(ModelBase):
 class Transformer(ModelBase):
     def __init__(self):
         super(Transformer, self).__init__()
-        gpu_id = int(os.environ.get('FLAGS_selected_gpus'))
+        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
         if gpu_id == 0:
             if not os.path.exists('transformer'):
                 os.system(
@@ -144,7 +144,7 @@ class Transformer(ModelBase):
 class Bert_large(ModelBase):
     def __init__(self):
         super(Bert_large, self).__init__()
-        gpu_id = int(os.environ.get('FLAGS_selected_gpus'))
+        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
         if gpu_id == 0:
             if not os.path.exists('bert_large'):
                 if not os.path.exists('bert_large.tar.gz'):
@@ -180,7 +180,7 @@ class Bert_large(ModelBase):
 class Bert_base(ModelBase):
     def __init__(self):
         super(Bert_base, self).__init__()
-        gpu_id = int(os.environ.get('FLAGS_selected_gpus'))
+        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
         if gpu_id == 0:
             if not os.path.exists('bert_base'):
                 if not os.path.exists('bert_base.tar.gz'):
