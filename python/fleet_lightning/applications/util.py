@@ -60,7 +60,15 @@ def load_program(program_input):
             lr_name = fin.read()
     else:
         lr_name = None
-
+    if os.path.exists(program_input + '/checkpoint'):
+        checkpoints = []
+        with open(program_input + '/checkpoint', 'r') as fin:
+            for line in fin:
+                ckpt_name = line[:-1]
+                ckpt = new_main.global_block().var(ckpt_name)
+                checkpoints.append(ckpt)
+    else:
+        checkpoints = None
     for item in para_list:
         main_para = new_main.global_block().var(item['name'])
         main_para.__class__ = Parameter
@@ -105,7 +113,7 @@ def load_program(program_input):
             var_name = startup_op.output(item)
             var = fluid.framework._get_var(str(var_name[0]))
             var.op = startup_op
-    return input_vars, loss, new_startup, new_main, unique_generator
+    return input_vars, loss, new_startup, new_main, unique_generator, checkpoints
 
 
 def save_program(main_prog,
@@ -115,6 +123,7 @@ def save_program(main_prog,
                  hidden_vars,
                  loss,
                  generator_info,
+                 checkpoints=None,
                  learning_rate=None):
     if not os.path.exists(program_path):
         os.makedirs(program_path)
@@ -144,3 +153,7 @@ def save_program(main_prog,
     with open(program_path + '/unique_name_guard', 'w') as fout:
         for id, value in generator_info.iteritems():
             fout.write("%s:%s\n" % (id, value))
+    if checkpoints is not None:
+        with open(program_path + '/checkpoint', 'w') as fout:
+            for ckpt in checkpoints:
+                fout.write("%s\n" % ckpt.name)
