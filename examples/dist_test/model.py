@@ -2,14 +2,23 @@ import paddle.fluid as fluid
 
 
 def build_train_net():
+    '''
+    创建训练网络
+    '''
     return _build_net(False)
 
 
 def build_test_net():
+    '''
+    创建预测网络
+    '''
     return _build_net(True)
 
 
 def _build_net(is_test):
+    '''
+    基于MNIST数据集构建MLP网络
+    '''
     with fluid.unique_name.guard():
         image = fluid.layers.data(name='image', shape=[784], dtype='float32')
         label = fluid.layers.data(name='label', shape=[1], dtype='int64')

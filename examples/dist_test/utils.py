@@ -30,6 +30,9 @@ def create_dataloader(generator, feed, place, batch_size, is_test, is_distribute
     # sampleing with replacement.
     def _dist_wrapper(generator):
         def _wrapper():
+            '''
+            根据worker的编号采样样本，确保所有样本均分到各worker
+            '''
             rank = fleet.worker_index()
             nranks = fleet.worker_num()
             for idx, sample in enumerate(generator()):
@@ -38,8 +41,10 @@ def create_dataloader(generator, feed, place, batch_size, is_test, is_distribute
         return _wrapper
 
     if is_distributed:
+        # 如果有分布式标记，则应用装饰器对本地样本全集进行采样
         generator = _dist_wrapper(generator)
 
+    # 声明生成式的数据加载器
     drop_last = False if is_test else True
     loader = fluid.io.DataLoader.from_generator(feed_list=feed, capacity=16)
     loader.set_sample_generator(generator, batch_size=batch_size,
@@ -48,6 +53,9 @@ def create_dataloader(generator, feed, place, batch_size, is_test, is_distribute
 
 
 def dist_eval_acc(exe, local_value, local_weight):
+    '''
+    通过Collective OP汇总各worker的正确样本数和样本总数，生成全局计数结果，然后计算全局正确率
+    '''
     prog = fluid.Program()
     with fluid.program_guard(prog):
         value = fluid.layers.data(name='value', shape=[1], dtype='float32')
@@ -59,6 +67,9 @@ def dist_eval_acc(exe, local_value, local_weight):
 
 
 def sample_batch(sample):
+    '''
+    获取当前样本的批量大小
+    '''
     tensor = list(sample[0].values())[0]
     assert(isinstance(tensor, fluid.LoDTensor))
     return float(tensor.shape()[0])
