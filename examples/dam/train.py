@@ -42,12 +42,15 @@ def main():
     config.print_arguments(args)
     
     # load data
+    start = time.time()
     with open(args.data_path, 'rb') as f:
         if six.PY2:
             train_data, val_data, test_data = pickle.load(f)
         else:
             train_data, val_data, test_data = pickle.load(
                     f, encoding="bytes")
+    end = time.time()
+    print("load data: {} s".format(end - start))
 
     if args.do_train:
         if args.distributed:
@@ -78,7 +81,6 @@ def main():
             train_prog = fleet.main_program
 
         # do train
-        print('train')
         train(args, train_prog, start_prog, exe, feed, fetch, loader)
 
     if args.do_test:
@@ -87,9 +89,11 @@ def main():
         place = create_place(False)
         exe = create_executor(place)
 
+        #model_path = "saved_model/model_small"
         model_path = "saved_model/model"
 
         # create test network
+        start = time.time()
         test_prog, start_prog = fluid.Program(), fluid.Program()
         with fluid.program_guard(test_prog, start_prog):
             feed, fetch = model.build_test_net(args)
@@ -97,6 +101,8 @@ def main():
                     executor=exe,
                     dirname=model_path,
                     main_program=fluid.default_main_program())
+        end = time.time()
+        print("load model: {} s".format(end - start))
 
         # create test dataloader
         loader = create_test_dataloader(args, test_data, feed, place, False)
@@ -142,15 +148,19 @@ def create_dataloader(args, data, feed, place, is_distributed, is_test):
         "max_turn_len": args.max_turn_len,
         "_EOS_": args._EOS_,
     }
-    batch_num = len(data[six.b('y')]) // args.batch_size
+    batch_num = len(data[six.b('y')])
+    print("batch_num: {}".format(batch_num))
 
     def batch_generator(data, batch_num):
         def generator():
+            start = time.time()
             if not is_test:
                 shuffle_data = reader.unison_shuffle(data, seed=None)
             else:
                 shuffle_data = data
             data_batches = reader.build_batches(shuffle_data, data_conf)
+            end = time.time()
+            print("init dataset: {} s".format(end - start))
             for index in six.moves.xrange(batch_num):
                 yield reader.make_one_batch_input(data_batches, index)
         return generator
@@ -163,14 +173,20 @@ def create_dataloader(args, data, feed, place, is_distributed, is_test):
 def train(args, train_prog, start_prog, exe, feed, fetch, loader):
     exe.run(start_prog)
     for epoch in range(args.num_scan_data):
+        start = time.time()
         for idx, sample in enumerate(loader()):
             ret = exe.run(train_prog, feed=sample, fetch_list=fetch)
             if idx % 1 == 0:
                 print('[TRAIN] epoch=%d step=%d loss=%f' % (epoch, idx, ret[0][0]))
+        end = time.time()
+        print("epoch {}: {} s".format(epoch, end - start))
 
     save_path = "saved_model/model"
     if args.distributed and fleet.worker_index() == 0:
+        start = time.time()
         fleet.save_persistables(executor=exe, dirname=save_path)
+        end = time.time()
+        print("save model: {} s".format(end - start))
         print("model saved in {}".format(save_path))
 
 def test(args, test_prog, exe, feed, fetch, loader):
