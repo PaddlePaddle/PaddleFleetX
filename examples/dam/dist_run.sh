@@ -12,8 +12,10 @@ python -m paddle.distributed.launch \
     --log_dir=logs \
     train.py --distributed \
              --do_train True \
-             --data_path ./data/data_small.pkl \
+             --data_path ACL2018-DAM/data/ubuntu/data.pkl \
              --save_path ./model_files/ubuntu \
              --vocab_size 434512 \
              --_EOS_ 28270 \
-             --batch_size 16
+             --batch_size 256 \
+             --num_scan_data 5
+             #--data_path ./data/data.pkl \

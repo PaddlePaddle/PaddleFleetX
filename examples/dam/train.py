@@ -24,6 +24,7 @@ import paddle
 import paddle.fluid as fluid
 import reader as reader
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
+import evaluation as eva
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 
 try:
@@ -39,25 +40,7 @@ import model
 def main():
     args = config.parse_args()
     config.print_arguments(args)
-
-    if args.distributed:
-        init_dist_env()
-
-    # create executor and place
-    # (multi machine mode is different from single machine mode)
-    place = create_place(args.distributed)
-    exe = create_executor(place)
-
-    # create train network
-    train_prog, start_prog = fluid.Program(), fluid.Program()
-    with fluid.program_guard(train_prog, start_prog):
-        feed, fetch, optimizer = model.build_train_net(args)
-
-    if args.distributed:
-        # distributed  optimizer
-        optimizer = distributed_optimize(optimizer)    
-    optimizer.minimize(fetch[0], start_prog)
-
+    
     # load data
     with open(args.data_path, 'rb') as f:
         if six.PY2:
@@ -66,31 +49,59 @@ def main():
             train_data, val_data, test_data = pickle.load(
                     f, encoding="bytes")
 
-    # create train dataloader
-    # (multi machine mode is different from single machine mode)
-    loader = create_train_dataloader(args, train_data, feed, place, args.distributed)
-    if args.distributed:
-        # be sure to do the following assignment before executing
-        # train_prog to specify the program encapsulated by the 
-        # distributed policy
-        train_prog = fleet.main_program
+    if args.do_train:
+        if args.distributed:
+            init_dist_env()
 
-    # do train
-    train(args, train_prog, start_prog, exe, feed, fetch, loader)
+        # create executor and place
+        # (multi machine mode is different from single machine mode)
+        place = create_place(args.distributed)
+        exe = create_executor(place)
 
-    # create test network
-    test_prog = fluid.Program()
-    with fluid.program_guard(test_prog):
-        feed, fetch = model.build_test_net(args)
+        # create train network
+        train_prog, start_prog = fluid.Program(), fluid.Program()
+        with fluid.program_guard(train_prog, start_prog):
+            feed, fetch, optimizer = model.build_train_net(args)
 
-    # create test dataloader
-    loader = create_test_dataloader(args, test_data, feed, place, args.distributed)
-    # test on one card
-    local_value, local_weight = test(args, test_prog, exe, feed, fetch, loader)
+        if args.distributed:
+            # distributed  optimizer
+            optimizer = distributed_optimize(optimizer)    
+        optimizer.minimize(fetch[0], start_prog)
 
-    if args.distributed:
-        dist_acc = utils.dist_eval_acc(exe, local_value, local_weight)
-        print('[TEST] global_acc1: %.2f' % dist_acc)
+        # create train dataloader
+        # (multi machine mode is different from single machine mode)
+        loader = create_train_dataloader(args, train_data, feed, place, args.distributed)
+        if args.distributed:
+            # be sure to do the following assignment before executing
+            # train_prog to specify the program encapsulated by the 
+            # distributed policy
+            train_prog = fleet.main_program
+
+        # do train
+        print('train')
+        train(args, train_prog, start_prog, exe, feed, fetch, loader)
+
+    if args.do_test:
+        assert args.distributed == False 
+
+        place = create_place(False)
+        exe = create_executor(place)
+
+        model_path = "saved_model/model"
+
+        # create test network
+        test_prog, start_prog = fluid.Program(), fluid.Program()
+        with fluid.program_guard(test_prog, start_prog):
+            feed, fetch = model.build_test_net(args)
+            fluid.io.load_persistables(
+                    executor=exe,
+                    dirname=model_path,
+                    main_program=fluid.default_main_program())
+
+        # create test dataloader
+        loader = create_test_dataloader(args, test_data, feed, place, False)
+        # test on one card
+        test(args, test_prog, exe, feed, fetch, loader)
 
 def init_dist_env():
     """
@@ -126,23 +137,26 @@ def create_test_dataloader(args, data, feed, place, is_distributed):
 
 def create_dataloader(args, data, feed, place, is_distributed, is_test):
     data_conf = {
-        "batch_size": args.batch_size,
+        "batch_size": 1, # args.batch_size,
         "max_turn_num": args.max_turn_num,
         "max_turn_len": args.max_turn_len,
         "_EOS_": args._EOS_,
     }
     batch_num = len(data[six.b('y')]) // args.batch_size
-    shuffle_data = reader.unison_shuffle(data, seed=None)
-    data_batches = reader.build_batches(shuffle_data, data_conf)
 
-    def batch_generator(data_batches, batch_num):
+    def batch_generator(data, batch_num):
         def generator():
+            if not is_test:
+                shuffle_data = reader.unison_shuffle(data, seed=None)
+            else:
+                shuffle_data = data
+            data_batches = reader.build_batches(shuffle_data, data_conf)
             for index in six.moves.xrange(batch_num):
                 yield reader.make_one_batch_input(data_batches, index)
         return generator
 
     return utils.create_dataloader(
-            batch_generator(data_batches, batch_num),
+            batch_generator(data, batch_num),
             feed, place, batch_size=args.batch_size,
             is_test=is_test, is_distributed=is_distributed)
 
@@ -154,22 +168,29 @@ def train(args, train_prog, start_prog, exe, feed, fetch, loader):
             if idx % 1 == 0:
                 print('[TRAIN] epoch=%d step=%d loss=%f' % (epoch, idx, ret[0][0]))
 
+    save_path = "saved_model/model"
+    if args.distributed and fleet.worker_index() == 0:
+        fleet.save_persistables(executor=exe, dirname=save_path)
+        print("model saved in {}".format(save_path))
+
 def test(args, test_prog, exe, feed, fetch, loader):
-    acc_manager = fluid.metrics.Accuracy()
+    filename = "score"
+    score_file = open(filename, 'w')
+
+    fetch_list = fetch + ["label"]
     for idx, sample in enumerate(loader()):
-        ret = exe.run(test_prog, feed=sample, fetch_list=fetch)
-        """
+        ret = exe.run(test_prog, feed=sample, fetch_list=fetch_list)
         scores = np.array(ret[0])
-        if idx % 1 == 0:
-            for i in six.moves.xrange(args.batch_size):
-                print('[TEST] step={} scores={}, label={}'.format(
-                    idx, scores[i][0],ctest_batches["label"][idx][i]))
-        """
-        acc_manager.update(value=ret[0], weight=utils.sample_batch(sample))
-        if idx % 1 == 0:
-            print('[TEST] step=%d accum_acc1=%.2f' % (idx, acc_manager.eval()))
-    print('[TEST] local_acc1: %.2f' % acc_manager.eval())
-    return acc_manager.value, acc_manager.weight
+        label = np.array(ret[1])
+        for i in six.moves.xrange(len(scores)):
+            score_file.write("{}\t{}\n".format(scores[i][0], int(label[i][0])))
+    score_file.close()
+
+    result = eva.evaluate_ubuntu(filename)
+    print("[TEST] result: ")
+    for metric in result:
+        print("[TEST]   {}: {}".format(metric, result[metric]))
+    return filename
 
 if __name__ == '__main__':
     main()

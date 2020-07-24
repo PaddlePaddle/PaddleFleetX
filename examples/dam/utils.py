@@ -23,7 +23,6 @@ def create_dataloader(generator, feed, place, batch_size, is_test, is_distribute
     return loader
 
 
-
 def dist_eval_acc(exe, local_value, local_weight):
     prog = fluid.Program()
     with fluid.program_guard(prog):

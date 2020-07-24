@@ -204,7 +204,6 @@ def build_batches(data, conf, turn_cut_type='tail', term_cut_type='tail'):
         "response_len": _response_len_batches,
         "label": _label_batches
     }
-
     return ans
 
 
@@ -262,7 +261,7 @@ def make_one_batch_input(data_batches, index):
 
 if __name__ == '__main__':
     conf = {
-        "batch_size": 256,
+        "batch_size": 16,
         "max_turn_num": 10,
         "max_turn_len": 50,
         "_EOS_": 28270,

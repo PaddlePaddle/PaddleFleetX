@@ -49,7 +49,7 @@ def build_test_net(args):
         loss, logits = dam.create_network()
         loss.persistable = True
         logits.persistable = True
-        return data, [loss]
+        return data, [logits]
 
 class Net(object):
     """
