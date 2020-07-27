@@ -48,7 +48,7 @@ class ModelBase(object):
 class Resnet50(ModelBase):
     def __init__(self):
         super(Resnet50, self).__init__()
-        gpu_id = int(os.environ.get('FLAGS_selected_gpus'))
+        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
         if gpu_id == 0:
             if not os.path.exists('resnet50'):
                 if not os.path.exists('resnet50.tar.gz'):
@@ -58,12 +58,13 @@ class Resnet50(ModelBase):
                 os.system('tar -xf {}.tar.gz'.format('resnet50'))
         else:
             time.sleep(3)
-        inputs, loss, startup, main, unique_generator = load_program(
+        inputs, loss, startup, main, unique_generator, checkponits = load_program(
             "resnet50")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
+        self.checkpoints = checkponits
 
     def load_imagenet_from_file(self,
                                 filelist,
@@ -78,7 +79,7 @@ class Resnet50(ModelBase):
 class VGG16(ModelBase):
     def __init__(self):
         super(VGG16, self).__init__()
-        gpu_id = int(os.environ.get('FLAGS_selected_gpus'))
+        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
         if gpu_id == 0:
             if not os.path.exists('vgg16'):
                 os.system(
@@ -87,11 +88,13 @@ class VGG16(ModelBase):
                 os.system('tar -xf {}.tar.gz'.format('vgg16'))
         else:
             time.sleep(3)
-        inputs, loss, startup, main, unique_generator = load_program("vgg16")
+        inputs, loss, startup, main, unique_generator, checkponits = load_program(
+            "vgg16")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
+        self.checkpoints = checkponits
 
     def load_imagenet_from_file(self,
                                 filelist,
@@ -106,7 +109,7 @@ class VGG16(ModelBase):
 class Transformer(ModelBase):
     def __init__(self):
         super(Transformer, self).__init__()
-        gpu_id = int(os.environ.get('FLAGS_selected_gpus'))
+        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
         if gpu_id == 0:
             if not os.path.exists('transformer'):
                 os.system(
@@ -115,12 +118,13 @@ class Transformer(ModelBase):
                 os.system('tar -xf {}.tar.gz'.format('transformer'))
         else:
             time.sleep(3)
-        inputs, loss, startup, main, unique_generator = load_program(
+        inputs, loss, startup, main, unique_generator, checkponits = load_program(
             "transformer")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
+        self.checkpoints = checkponits
 
     def load_wmt16_dataset_from_file(self,
                                      src_vocab_fpath,
@@ -140,7 +144,7 @@ class Transformer(ModelBase):
 class Bert_large(ModelBase):
     def __init__(self):
         super(Bert_large, self).__init__()
-        gpu_id = os.environ.get('FLAGS_selected_gpus')
+        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
         if gpu_id == 0:
             if not os.path.exists('bert_large'):
                 if not os.path.exists('bert_large.tar.gz'):
@@ -150,12 +154,13 @@ class Bert_large(ModelBase):
                 os.system('tar -xf {}.tar.gz'.format('bert_large'))
         else:
             time.sleep(3)
-        inputs, loss, startup, main, unique_generator = load_program(
+        inputs, loss, startup, main, unique_generator, checkponits = load_program(
             "bert_large")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
+        self.checkpoints = checkponits
 
     def load_digital_dataset_from_file(self,
                                        data_dir,
@@ -175,7 +180,7 @@ class Bert_large(ModelBase):
 class Bert_base(ModelBase):
     def __init__(self):
         super(Bert_base, self).__init__()
-        gpu_id = int(os.environ.get('FLAGS_selected_gpus'))
+        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
         if gpu_id == 0:
             if not os.path.exists('bert_base'):
                 if not os.path.exists('bert_base.tar.gz'):
@@ -185,12 +190,13 @@ class Bert_base(ModelBase):
                 os.system('tar -xf {}.tar.gz'.format('bert_base'))
         else:
             time.sleep(3)
-        inputs, loss, startup, main, unique_generator = load_program(
+        inputs, loss, startup, main, unique_generator, checkponits = load_program(
             "bert_base")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
+        self.checkpoints = checkponits
 
     def load_digital_dataset_from_file(self,
                                        data_dir,
