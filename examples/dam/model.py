@@ -28,18 +28,31 @@ def build_train_net(args):
         loss, logits = dam.create_network()
         loss.persistable = True
         logits.persistable = True
-
-        learning_rate = fluid.layers.exponential_decay(
+        
+        optimizer = fluid.optimizer.Adam(
+            learning_rate=fluid.layers.exponential_decay(
                 learning_rate=args.learning_rate,
                 decay_steps=400,
                 decay_rate=0.9,
-                staircase=True)
+                staircase=True),
+            grad_clip=fluid.clip.GradientClipByValue(
+                min=-1.0, max=1.0))
 
-        optimizer = fluid.optimizer.Adam(
-                learning_rate=learning_rate,
-                grad_clip=fluid.clip.GradientClipByValue(
-                    min=-1.0, max=1.0))
-        return data, [loss], optimizer
+        if args.word_emb_init is not None:
+            print("start loading word embedding init ...")
+            if six.PY2:
+                word_emb = np.array(
+                        pickle.load(open(
+                            args.word_emb_init, 'rb'))).astype('float32')
+            else:
+                word_emb = np.array(
+                        pickle.load(open(
+                            args.word_emb_init, 'rb'), 
+                            encoding="bytes")).astype('float32')
+            dam.set_word_embedding(word_emb, place)
+            print("finish init word embedding  ...")
+        return data, loss, optimizer
+        
 
 def build_test_net(args):
     dam = Net(args.max_turn_num, args.max_turn_len, args.vocab_size,
@@ -49,7 +62,21 @@ def build_test_net(args):
         loss, logits = dam.create_network()
         loss.persistable = True
         logits.persistable = True
-        return data, [logits]
+
+        if args.word_emb_init is not None:
+            print("start loading word embedding init ...")
+            if six.PY2:
+                word_emb = np.array(
+                        pickle.load(open(
+                            args.word_emb_init, 'rb'))).astype('float32')
+            else:
+                word_emb = np.array(
+                        pickle.load(open(
+                            args.word_emb_init, 'rb'), 
+                            encoding="bytes")).astype('float32')
+            dam.set_word_embedding(word_emb, place)
+            print("finish init word embedding  ...")
+        return data, logits
 
 class Net(object):
     """

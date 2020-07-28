@@ -27,7 +27,8 @@ def parse_args():
 
     parser.add_argument(
         '--distributed',
-        action='store_true')
+        action='store_true',
+        help='Whether to use Fleet.')
     parser.add_argument(
         '--do_train',
         type=bool,
@@ -54,10 +55,15 @@ def parse_args():
         default=1e-3,
         help='Learning rate used to train. (default: %(default)f)')
     parser.add_argument(
-        '--data_path',
+        '--filelist',
         type=str,
-        default="data/data_small.pkl",
-        help='Path to training data. (default: %(default)s)')
+        default="",
+        help='Path to filelist. (default: %(default)s)')
+    parser.add_argument(
+        '--data_source',
+        type=str,
+        default="ubuntu",
+        help="Data source(ubuntu|douban). (default: %(default)s)")
     parser.add_argument(
         '--save_path',
         type=str,
@@ -68,10 +74,6 @@ def parse_args():
         type=str,
         default=None,
         help='Path to load well-trained models. (default: %(default)s)')
-    parser.add_argument(
-        '--use_cuda',
-        action='store_true',
-        help='use cuda for training if set')
     parser.add_argument(
         '--ext_eval',
         action='store_true',
@@ -92,6 +94,11 @@ def parse_args():
         default=None,
         help='Path to the initial word embedding.')
     parser.add_argument(
+        '--vocab_path',
+        type=str,
+        default="data/word2id",
+        help='Path to vocabulary.')
+    parser.add_argument(
         '--vocab_size',
         type=int,
         default=434512,
@@ -101,11 +108,6 @@ def parse_args():
         type=int,
         default=200,
         help='The dimension of word embedding.')
-    parser.add_argument(
-        '--_EOS_',
-        type=int,
-        default=28270,
-        help='The id for the end of sentence in vocabulary.')
     parser.add_argument(
         '--stack_num',
         type=int,

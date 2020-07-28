@@ -23,7 +23,6 @@ try:
 except ImportError as e:
     import pickle  #python 3
 
-
 def unison_shuffle(data, seed=None):
     """
     Shuffle data
@@ -96,6 +95,10 @@ def produce_one_sample(data,
     c = data[six.b('c')][index]
     r = data[six.b('r')][index][:]
     y = data[six.b('y')][index]
+    
+    print("----------")
+    print(c)
+    print("----------")
 
     turns = split_c(c, split_id)
     #normalize turns_c length, nor_turns length is max_turn_num
@@ -138,6 +141,10 @@ def build_one_batch(data,
             data, index, conf['_EOS_'], conf['max_turn_num'],
             conf['max_turn_len'], turn_cut_type, term_cut_type)
 
+        print("---------------")
+        print(nor_turns_nor_c)
+        print("---------------")
+        exit(0)
         _label.append(y)
         _turns.append(nor_turns_nor_c)
         _response.append(nor_r)
@@ -261,19 +268,22 @@ def make_one_batch_input(data_batches, index):
 
 if __name__ == '__main__':
     conf = {
-        "batch_size": 16,
-        "max_turn_num": 10,
+        "batch_size": 1,
+        "max_turn_num": 9,
         "max_turn_len": 50,
         "_EOS_": 28270,
     }
-    with open('../ubuntu/data/data_small.pkl', 'rb') as f:
+    with open('data/data_small.pkl', 'rb') as f:
         if six.PY2:
             train, val, test = pickle.load(f)
         else:
             train, val, test = pickle.load(f, encoding="bytes")
     print('load data success')
+    print("======= train ======")
 
+    print("====== batch =====")
     train_batches = build_batches(train, conf)
+    print(make_one_batch_input(train_batches, 0))
     val_batches = build_batches(val, conf)
     test_batches = build_batches(test, conf)
     print('build batches success')
