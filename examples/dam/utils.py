@@ -1,5 +1,4 @@
 import paddle.fluid as fluid
-#from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import os
 
@@ -39,34 +38,3 @@ def create_dataloader(feed_var_list, filelist, place, batch_size, thread_num,
             max_turn_len, data_source)
     loader = fluid.io.DataLoader.from_dataset(dataset, place, drop_last=(not is_test))
     return loader
-
-def b_create_dataloader(generator, feed, place, batch_size, is_test, is_distributed):
-    def _dist_wrapper(generator):
-        def _wrapper():
-            rank = fleet.worker_index()
-            nranks = fleet.worker_num()
-            for idx, sample in enumerate(generator()):
-                if idx % nranks == rank:
-                    yield sample
-        return _wrapper
-
-    if is_distributed:
-        generator = _dist_wrapper(generator)
-
-    drop_last = False if is_test else True
-    loader = fluid.io.DataLoader.from_generator(feed_list=feed, capacity=16)
-    loader.set_sample_generator(generator,
-            batch_size=batch_size,
-            drop_last=drop_last,
-            places=[place])
-    return loader
-
-def dist_eval_acc(exe, local_value, local_weight):
-    prog = fluid.Program()
-    with fluid.program_guard(prog):
-        value = fluid.layers.data(name='value', shape=[1], dtype='float32')
-        weight = fluid.layers.data(name='weight', shape=[1], dtype='float32')
-        dist_value = fluid.layers.collective._c_allreduce(value, reduce_type='sum', use_calc_stream=True)
-        dist_weight = fluid.layers.collective._c_allreduce(weight, reduce_type='sum', use_calc_stream=True)
-    value_sum, weight_sum = exe.run(prog, feed={'value': local_value, 'weight': local_weight}, fetch_list=[dist_value, dist_weight]) 
-    return value_sum / weight_sum

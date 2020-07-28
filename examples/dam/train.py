@@ -22,7 +22,6 @@ import time
 import multiprocessing
 import paddle
 import paddle.fluid as fluid
-import reader as reader
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 import evaluation as eva
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
