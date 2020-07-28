@@ -36,9 +36,9 @@ def train():
             staircase=True))
 
     strategy = StrategyFactory.create_async_strategy()
-    // strategy = StrategyFactory.create_sync_strategy()
-    // strategy = StrategyFactory.create_half_async_strategy()
-    // strategy = StrategyFactory.create_geo_strategy(400)
+    # strategy = StrategyFactory.create_sync_strategy()
+    # strategy = StrategyFactory.create_half_async_strategy()
+    # strategy = StrategyFactory.create_geo_strategy(400)
 
     optimizer = fleet.distributed_optimizer(optimizer, strategy)
     optimizer.minimize(loss)
@@ -56,15 +56,15 @@ def train():
         if is_local_cluster:
             file_list = fleet.split_files(file_list)
 
-        // for compiled_program
-        // compiled_prog = fluid.compiler.CompiledProgram(
-        //     fleet.main_program).with_data_parallel(
-        //     loss_name=avg_cost.name,
-        //     build_strategy=strategy.get_build_strategy(),
-        //     exec_strategy=strategy.get_executor_strategy())
+        # for compiled_program
+        # compiled_prog = fluid.compiler.CompiledProgram(
+        #     fleet.main_program).with_data_parallel(
+        #     loss_name=avg_cost.name,
+        #     build_strategy=strategy.get_build_strategy(),
+        #     exec_strategy=strategy.get_executor_strategy())
 
-        // for epoch in range(num_epochs):
-        //     ....
+        # for epoch in range(num_epochs):
+        #     ....
 
 
         for epoch in range(num_epochs):
