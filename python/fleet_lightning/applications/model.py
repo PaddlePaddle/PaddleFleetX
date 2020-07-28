@@ -58,13 +58,13 @@ class Resnet50(ModelBase):
                 os.system('tar -xf {}.tar.gz'.format('resnet50'))
         else:
             time.sleep(3)
-        inputs, loss, startup, main, unique_generator, checkponits, target = load_program(
+        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
             "resnet50")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
-        self.checkpoints = checkponits
+        self.checkpoints = checkpoints
         self.target = target
 
     def load_imagenet_from_file(self,
@@ -89,13 +89,13 @@ class VGG16(ModelBase):
                 os.system('tar -xf {}.tar.gz'.format('vgg16'))
         else:
             time.sleep(3)
-        inputs, loss, startup, main, unique_generator, checkponits, target = load_program(
+        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
             "vgg16")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
-        self.checkpoints = checkponits
+        self.checkpoints = checkpoints
         self.target = target
 
     def load_imagenet_from_file(self,
@@ -120,13 +120,13 @@ class Transformer(ModelBase):
                 os.system('tar -xf {}.tar.gz'.format('transformer'))
         else:
             time.sleep(3)
-        inputs, loss, startup, main, unique_generator, checkponits, target = load_program(
+        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
             "transformer")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
-        self.checkpoints = checkponits
+        self.checkpoints = checkpoints
         self.target = target
 
     def load_wmt16_dataset_from_file(self,
@@ -157,13 +157,13 @@ class Bert_large(ModelBase):
                 os.system('tar -xf {}.tar.gz'.format('bert_large'))
         else:
             time.sleep(3)
-        inputs, loss, startup, main, unique_generator, checkponits, target = load_program(
+        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
             "bert_large")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
-        self.checkpoints = checkponits
+        self.checkpoints = checkpoints
         self.target = target
 
     def load_digital_dataset_from_file(self,
@@ -194,13 +194,13 @@ class Bert_base(ModelBase):
                 os.system('tar -xf {}.tar.gz'.format('bert_base'))
         else:
             time.sleep(3)
-        inputs, loss, startup, main, unique_generator, checkponits, target = load_program(
+        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
             "bert_base")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
-        self.checkpoints = checkponits
+        self.checkpoints = checkpoints
         self.target = target
 
     def load_digital_dataset_from_file(self,
