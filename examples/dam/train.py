@@ -84,7 +84,6 @@ def main():
         if not os.path.exists(args.model_path):
             raise ValueError("Invalid model init path %s" % args.model_path)
         
-        start = time.time()
         place = create_place(False)
         exe = fluid.Executor(place)
 
@@ -112,8 +111,6 @@ def main():
                 max_turn_len=args.max_turn_len,
                 is_test=True,
                 data_source=args.data_source)
-        end = time.time()
-        print("before test: {} s".format(end - start))
 
         test(args, test_prog, exe, feed, [logits], dataloader)
 
@@ -122,9 +119,6 @@ def init_dist_env():
     fleet.init(role)
 
 def create_place(is_distributed):
-    """
-    decide which device to use based on distributed env
-    """
     place_idx = int(os.environ['FLAGS_selected_gpus']) if is_distributed else 0
     return fluid.CUDAPlace(place_idx)
 
@@ -136,17 +130,14 @@ def train(args, train_prog, exe, feed, fetch, loader):
                     program=train_prog,
                     feed=sample,
                     fetch_list=fetch)
-            if idx % 1 == 0:
+            if idx % 10 == 0:
                 print('[TRAIN] epoch=%d step=%d loss=%f' % (epoch, idx, ret[0][0]))
         end = time.time()
         print("epoch {}: {} s".format(epoch, end - start))
 
     save_path = os.path.join(args.save_path, "model.{}".format(epoch))
     if args.distributed and fleet.worker_index() == 0:
-        start = time.time()
         fleet.save_persistables(executor=exe, dirname=save_path)
-        end = time.time()
-        print("save model: {} s".format(end - start))
         print("model saved in {}".format(save_path))
 
 def test(args, test_prog, exe, feed, fetch, loader):
