@@ -36,7 +36,7 @@ model = lighting.applications.Resnet50()
 test_program = fluid.default_main_program().clone(for_test=True)
 loader = model.load_imagenet_from_file("./testdata/train.txt")
 test_loader = model.load_imagenet_from_file(
-    "./testdata/val.txt", batch_size=32)
+    "./testdata/val.txt", phase='val', shuffle=False)
 
 optimizer = fluid.optimizer.Momentum(
     learning_rate=configs.lr,
