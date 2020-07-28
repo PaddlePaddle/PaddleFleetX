@@ -84,14 +84,14 @@ def main():
             os.mkdir(args.save_path)
         if not os.path.exists(args.model_path):
             raise ValueError("Invalid model init path %s" % args.model_path)
-
+        
+        start = time.time()
         place = create_place(False)
         exe = fluid.Executor(place)
 
         model_path = args.model_path
 
         # create test network
-        start = time.time()
         test_prog, start_prog = fluid.Program(), fluid.Program()
         with fluid.program_guard(test_prog, start_prog):
             feed, logits = model.build_test_net(args)
@@ -113,7 +113,9 @@ def main():
                 max_turn_len=args.max_turn_len,
                 is_test=True,
                 data_source=args.data_source)
-        
+        end = time.time()
+        print("before test: {} s".format(end - start))
+
         test(args, test_prog, exe, feed, [logits], dataloader)
 
 def init_dist_env():
@@ -153,7 +155,8 @@ def test(args, test_prog, exe, feed, fetch, loader):
     score_file = open(filename, 'w')
     fetch_list = fetch + ["label"]
     for idx, sample in enumerate(loader()):
-        ret = exe.run(test_prog,
+        ret = exe.run(
+                program=test_prog,
                 feed=sample,
                 fetch_list=fetch_list,
                 return_numpy=False)

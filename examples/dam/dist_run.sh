@@ -21,7 +21,6 @@ python -m paddle.distributed.launch \
              --data_source ubuntu \
              --vocab_path data/ubuntu/word2id
 
-"""
 # douban
 python -m paddle.distributed.launch \
     --selected_gpus=0,1,2,3 \
@@ -34,6 +33,5 @@ python -m paddle.distributed.launch \
             --vocab_path data/douban/word2id \
             --data_source douban \
             --channel1_num 16 \
-             --num_scan_data 1 \
-            --batch_size 32
-"""
+            --num_scan_data 1 \
+            --batch_size 256

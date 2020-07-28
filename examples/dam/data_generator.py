@@ -79,7 +79,7 @@ class DAMDataset(dg.MultiSlotStringDataGenerator):
             with open(dict_path) as f:
                 for line in f:
                     word, ids = line.strip().split('\t')
-                    self.word2id[word] = ids
+                    self.word2id[word] = int(ids)
             self._eos = "_EOS_"
             self._unk = "_OOV_"
 

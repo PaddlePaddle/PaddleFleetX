@@ -147,6 +147,14 @@ def evaluate_douban(file_path):
             tokens = line.strip().split('\t')
             data.append((float(tokens[0]), int(tokens[1])))
             if i % 10 == 9:
+                all_neg = True
+                for d in data:
+                    if d[1] == 1:
+                        all_neg = False
+                        break
+                if all_neg:
+                    i += 1
+                    continue
                 total_num += 1
                 m_a_p, m_r_r, p_1, r_1, r_2, r_5 = evaluation_one_session(data)
                 sum_m_a_p += m_a_p
