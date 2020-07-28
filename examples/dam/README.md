@@ -1,5 +1,5 @@
 # 简介
-本示例基于[这项工作](https://github.com/PaddlePaddle/Research/tree/master/NLP/ACL2018-DAM)，使用Fleet API实现Paddle分布式训练和预测。
+本示例基于[这项工作](https://github.com/PaddlePaddle/Research/tree/master/NLP/ACL2018-DAM)，使用Fleet API实现深度注意力机制模型（Deep Attention Matching Network）的分布式训练。
 
 # 文件结构
 
