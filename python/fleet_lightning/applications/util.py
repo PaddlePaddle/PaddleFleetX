@@ -47,7 +47,16 @@ def load_program(program_input):
 
     with open(program_input + '/loss_name', 'r') as fin:
         loss_name = fin.read()
-
+    if os.path.exists(program_input + '/target'):
+        with open(program_input + '/target', 'r') as fin:
+            target_name = fin.read()
+            for var in new_main.list_vars():
+                if var.name == target_name:
+                    target = var
+    else:
+        print("Please define your target first")
+        target = None
+    print(target)
     unique_generator = fluid.unique_name.UniqueNameGenerator()
     with open(program_input + '/unique_name_guard', 'r') as fin:
         for line in fin:
@@ -113,7 +122,7 @@ def load_program(program_input):
             var_name = startup_op.output(item)
             var = fluid.framework._get_var(str(var_name[0]))
             var.op = startup_op
-    return input_vars, loss, new_startup, new_main, unique_generator, checkpoints
+    return input_vars, loss, new_startup, new_main, unique_generator, checkpoints, target
 
 
 def save_program(main_prog,
@@ -123,6 +132,7 @@ def save_program(main_prog,
                  hidden_vars,
                  loss,
                  generator_info,
+                 target,
                  checkpoints=None,
                  learning_rate=None):
     if not os.path.exists(program_path):
@@ -157,3 +167,5 @@ def save_program(main_prog,
         with open(program_path + '/checkpoint', 'w') as fout:
             for ckpt in checkpoints:
                 fout.write("%s\n" % ckpt.name)
+    with open(program_path + '/target', 'w') as fout:
+        fout.write(target.name)

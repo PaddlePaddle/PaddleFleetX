@@ -45,16 +45,23 @@ place = fluid.CUDAPlace(0)
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
 total_time = 0
-
-for i, data in enumerate(loader()):
-    if i >= 10:
-        start_time = time.time()
-    cost_val = exe.run(fluid.default_main_program(),
-                       feed=data,
-                       fetch_list=[model.loss.name],
-                       use_program_cache=True)
-    if i >= 10:
-        end_time = time.time()
-        total_time += (end_time - start_time)
-        print(" step%d cost = %f, total time cost = %f, average speed = %f" %
-              (i, cost_val[0], total_time, (i - 9) / total_time))
+model_dir = 'model'
+for epoch_id in range(2):
+    for i, data in enumerate(loader()):
+        if i >= 10:
+            start_time = time.time()
+        cost_val = exe.run(fluid.default_main_program(),
+                           feed=data,
+                           fetch_list=[model.loss.name],
+                           use_program_cache=True)
+        if i >= 10:
+            end_time = time.time()
+            total_time += (end_time - start_time)
+            print(
+                "epoch id = %f step%d cost = %f, total time cost = %f, average speed = %f"
+                % (epoch_id, i, cost_val[0], total_time, (i - 9) / total_time))
+    fluid.io.save_inference_model(
+        dirname=model_dir,
+        feeded_var_names=['feed_image'],
+        target_vars=[model.target],
+        executor=exe)
