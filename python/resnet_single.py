@@ -33,7 +33,10 @@ if not os.path.exists('testdata.tar.gz'):
 configs = lighting.parse_train_configs()
 os.environ['FLAGS_selected_gpus'] = '0'
 model = lighting.applications.Resnet50()
+test_program = fluid.default_main_program().clone(for_test=True)
 loader = model.load_imagenet_from_file("./testdata/train.txt")
+test_loader = model.load_imagenet_from_file(
+    "./testdata/val.txt", batch_size=32)
 
 optimizer = fluid.optimizer.Momentum(
     learning_rate=configs.lr,
@@ -44,9 +47,10 @@ optimizer.minimize(model.loss, parameter_list=model.parameter_list())
 place = fluid.CUDAPlace(0)
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
-total_time = 0
 model_dir = 'model'
+# start training
 for epoch_id in range(2):
+    total_time = 0
     for i, data in enumerate(loader()):
         if i >= 10:
             start_time = time.time()
@@ -58,10 +62,18 @@ for epoch_id in range(2):
             end_time = time.time()
             total_time += (end_time - start_time)
             print(
-                "epoch id = %f step%d cost = %f, total time cost = %f, average speed = %f"
+                "epoch%d step%d cost = %f, total time cost = %f, average speed = %f"
                 % (epoch_id, i, cost_val[0], total_time, (i - 9) / total_time))
     fluid.io.save_inference_model(
         dirname=model_dir,
-        feeded_var_names=['feed_image'],
-        target_vars=[model.target],
+        feeded_var_names=[model.inputs[0].name],
+        target_vars=model.target,
         executor=exe)
+
+# start inference
+for j, test_data in enumerate(test_loader()):
+    acc1, acc5 = exe.run(test_program,
+                         feed=test_data,
+                         fetch_list=[t.name for t in model.target],
+                         use_program_cache=True)
+    print("acc1 = %f, acc5 = %f" % (acc1[0], acc5[0]))

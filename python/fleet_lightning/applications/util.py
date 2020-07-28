@@ -47,14 +47,16 @@ def load_program(program_input):
 
     with open(program_input + '/loss_name', 'r') as fin:
         loss_name = fin.read()
-    if os.path.exists(program_input + '/target'):
-        with open(program_input + '/target', 'r') as fin:
-            target_name = fin.read()
-            for var in new_main.list_vars():
-                if var.name == target_name:
-                    target = var
+    if os.path.exists(program_input + '/acc'):
+        target = []
+        with open(program_input + '/acc', 'r') as fin:
+            for line in fin:
+                for var in new_main.list_vars():
+                    if var.name == line[:-1]:
+                        target.append(var)
+    #            target.append(line[:-1])
     else:
-        print("Please define your target first")
+        print("Please save your target first")
         target = None
     unique_generator = fluid.unique_name.UniqueNameGenerator()
     with open(program_input + '/unique_name_guard', 'r') as fin:
