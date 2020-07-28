@@ -54,7 +54,6 @@ def load_program(program_input):
                 for var in new_main.list_vars():
                     if var.name == line[:-1]:
                         target.append(var)
-    #            target.append(line[:-1])
     else:
         print("Please save your target first")
         target = None
