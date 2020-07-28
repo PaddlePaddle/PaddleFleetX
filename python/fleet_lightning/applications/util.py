@@ -56,7 +56,6 @@ def load_program(program_input):
     else:
         print("Please define your target first")
         target = None
-    print(target)
     unique_generator = fluid.unique_name.UniqueNameGenerator()
     with open(program_input + '/unique_name_guard', 'r') as fin:
         for line in fin:
