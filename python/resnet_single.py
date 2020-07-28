@@ -35,8 +35,7 @@ os.environ['FLAGS_selected_gpus'] = '0'
 model = lighting.applications.Resnet50()
 test_program = fluid.default_main_program().clone(for_test=True)
 loader = model.load_imagenet_from_file("./testdata/train.txt")
-test_loader = model.load_imagenet_from_file(
-    "./testdata/val.txt", phase='val', shuffle=False)
+test_loader = model.load_imagenet_from_file("./testdata/val.txt", phase='val')
 
 optimizer = fluid.optimizer.Momentum(
     learning_rate=configs.lr,

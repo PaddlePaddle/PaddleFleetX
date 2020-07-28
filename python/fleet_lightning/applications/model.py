@@ -73,6 +73,8 @@ class Resnet50(ModelBase):
                                 phase='train',
                                 shuffle=True,
                                 use_dali=False):
+        if phase != 'train':
+            shuffle = False
         return image_dataloader_from_filelist(
             filelist, self.inputs, batch_size, phase, shuffle, use_dali)
 
@@ -104,6 +106,8 @@ class VGG16(ModelBase):
                                 phase='train',
                                 shuffle=True,
                                 use_dali=False):
+        if phase != 'train':
+            shuffle = False
         return image_dataloader_from_filelist(
             filelist, self.inputs, batch_size, phase, shuffle, use_dali)
 
