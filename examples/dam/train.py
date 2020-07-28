@@ -80,7 +80,7 @@ def main():
         assert args.distributed == False 
 
         if not os.path.exists(args.save_path):
-            os.mkdir(args.save_path)
+            os.makedirs(args.save_path)
         if not os.path.exists(args.model_path):
             raise ValueError("Invalid model init path %s" % args.model_path)
         
