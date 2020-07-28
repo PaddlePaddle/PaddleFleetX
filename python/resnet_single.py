@@ -48,7 +48,7 @@ place = fluid.CUDAPlace(0)
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
 model_dir = 'model'
-# start training
+print("============start training============")
 for epoch_id in range(2):
     total_time = 0
     for i, data in enumerate(loader()):
@@ -70,7 +70,7 @@ for epoch_id in range(2):
         target_vars=model.target,
         executor=exe)
 
-# start inference
+print("============start inference============")
 for j, test_data in enumerate(test_loader()):
     acc1, acc5 = exe.run(test_program,
                          feed=test_data,
