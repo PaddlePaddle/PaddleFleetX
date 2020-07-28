@@ -5,6 +5,45 @@
 
 **Note: all the examples here should be replicated from develop branch of Paddle**
 
+## Installation of Fleet-Lightning
+To show how to setup distributed training with fleet, we introduce a small library call **fleet-lightning**. **fleet-lightning** helps industrial users to directly train a specific standard model such as Resnet50 without learning to write a Paddle Model. 
+
+``` bash
+pip install fleet-lightning
+```
+
+## A Distributed Resnet50 Training Example
+
+``` python
+import fleet_lightning as lightning
+import paddle.fluid as fluid
+from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
+import paddle.fluid.incubate.fleet.base.role_maker as role_maker
+
+configs = lightning.parse_train_configs()
+
+role = role_maker.PaddleCloudRoleMaker(is_collective=True)
+fleet.init(role)
+
+model = lightning.applications.Resnet50()
+
+loader = model.load_imagenet_from_file("/pathto/imagenet/train.txt")
+
+optimizer = fluid.optimizer.Momentum(learning_rate=configs.lr, momentum=configs.momentum)
+optimizer = fleet.distributed_optimizer(optimizer)
+optimizer.minimize(model.loss)
+
+place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+exe = fluid.Executor(place)
+exe.run(fluid.default_startup_program())
+
+epoch = 30
+for i in range(epoch):
+    for data in loader():
+        cost_val = exe.run(fleet.main_program, feed=data, fetch_list=[model.loss.name])
+    
+```
+
 ## Fleet is Highly Efficient
 
 Deep neural networks training with Fleet API is highly efficient in PaddlePaddle. We benchmark serveral standard models here.
@@ -30,71 +69,7 @@ Collective Training is usually used in GPU training in PaddlePaddle. Benchmark o
 <img  src="images/fleet_collective_mixed_precision_training.png" height="280px" width="450px">
 
 
-## Fleet is Easy To Use
 
-Fleet is easy to use for both collective training and parameter server training. Here is an example for collective training with Fleet.
-
-Local Single GPU Cards Training
-
-``` python
-import paddle.fluid as fluid
-from utils import gen_data
-from nets import mlp
-
-input_x = fluid.layers.data(name="x", shape=[32], dtype='float32')
-input_y = fluid.layers.data(name="y", shape=[1], dtype='int64')
-
-cost = mlp(input_x, input_y)
-optimizer = fluid.optimizer.SGD(learning_rate=0.01)
-optimizer.minimize(cost, fluid.default_startup_program())
-
-train_prog = fluid.default_main_program()
-gpu_id = int(os.environ.get('FLAGS_selected_gpus', 0))
-place = fluid.CUDAPlace(gpu_id) if args.use_gpu else fluid.CPUPlace()
-
-exe = fluid.Executor(place)
-exe.run(fluid.default_startup_program())
-
-step = 1001
-for i in range(step):
-    cost_val = exe.run(program=train_prog, feed=gen_data(), fetch_list=[cost.name])
-```
-
-Local Multiple GPU Cards Training
-``` python
-import paddle.fluid as fluid
-from utils import gen_data
-from nets import mlp
-from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy  # new line 1 
-from paddle.fluid.incubate.fleet.base import role_maker # new line 2
-
-input_x = fluid.layers.data(name="x", shape=[32], dtype='float32')
-input_y = fluid.layers.data(name="y", shape=[1], dtype='int64')
-
-cost = mlp(input_x, input_y)
-optimizer = fluid.optimizer.SGD(learning_rate=0.01)
-
-role = role_maker.PaddleCloudRoleMaker(is_collective=True) # new line 3
-fleet.init(role) # new line 4
-
-optimizer = fleet.distributed_optimizer(optimizer, strategy=DistributedStrategy()) # new line 5
-optimizer.minimize(cost, fluid.default_startup_program())
-
-train_prog = fleet.main_program # change line 1
-place = fluid.CUDAPlace(int(os.environ['FLAGS_selected_gpus'])) # change line 2
-
-exe = fluid.Executor(place)
-exe.run(fluid.default_startup_program())
-
-step = 1001
-for i in range(step):
-    cost_val = exe.run(program=train_prog, feed=gen_data(), fetch_list=[cost.name])
-```
-
-Launch command:
-```
-python -m paddle.distributed.launch --selected_gpus="0,1,2,3" trainer.py
-```
 
 ## More Examples
 
@@ -113,4 +88,3 @@ python -m paddle.distributed.launch --selected_gpus="0,1,2,3" trainer.py
 - [Transformer on En-De](https://github.com/PaddlePaddle/Fleet/tree/develop/benchmark/collective/transformer)
 
 - [Bert on English Wikipedia](https://github.com/PaddlePaddle/Fleet/tree/develop/benchmark/collective/bert)
-

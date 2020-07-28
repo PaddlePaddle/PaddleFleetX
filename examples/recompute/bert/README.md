@@ -15,11 +15,7 @@ This is an example of BERT pretraining and fine-tuning with Recompute.
 ## fine-tuning!
 
 ```shell
-PRETRAINED_CKPT_PATH=uncased_L-24_H-1024_A-16/params
-DATA_PATH=xnli
-bert_config_path=uncased_L-24_H-1024_A-16/bert_config.json
-vocab_path=uncased_L-24_H-1024_A-16/vocab.txt
-sh train_cls.sh $PRETRAINED_CKPT_PATH $bert_config_path $vocab_path $DATA_PATH
+sh train_cls.sh 
 ```
 ## Results
 
@@ -58,4 +54,30 @@ When setting seq_len to 128, max batch size +510%
 - Estimated memory usage for Bert-large with batch size 72000:
 
 ![recompute](https://github.com/PaddlePaddle/Fleet/blob/develop/examples/recompute/bert/image/memory_anal.png)
+
+# Quick start: Pretraining
+
+```shell
+sh pretrain.sh
+```
+
+## results
+
+- Bert Large model
+
+When setting seq_len to 512, the max batch size is increased by 300% compared with the Baseline, while the training speed is decresed by 31%.
+
+|Model|Baseline|Recompute| Recompute + mixed precision| 
+|:---:|:---:|:---:|:---:|
+|batch size| 14 | 56 | 87 |
+|speed|18.5 sents/s| 12.88 sents/s| 19.14 sents/s |
+
+- Bert Base model
+
+When setting seq_len to 512, the max batch size is increased by 245% compared with the Baseline, while the training speed is decresed by 32%.
+
+|Model|Baseline|Recompute| Recompute + mixed precision| 
+|:---:|:---:|:---:|:---:|
+|batch size| 42 | 145 | 200 |
+|speed|53.4 sents/s| 36.5 sents/s| 59.8 sents/s |
 
