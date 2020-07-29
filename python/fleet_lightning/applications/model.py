@@ -58,13 +58,14 @@ class Resnet50(ModelBase):
                 os.system('tar -xf {}.tar.gz'.format('resnet50'))
         else:
             time.sleep(3)
-        inputs, loss, startup, main, unique_generator, checkponits = load_program(
+        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
             "resnet50")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
-        self.checkpoints = checkponits
+        self.checkpoints = checkpoints
+        self.target = target
 
     def load_imagenet_from_file(self,
                                 filelist,
@@ -72,6 +73,8 @@ class Resnet50(ModelBase):
                                 phase='train',
                                 shuffle=True,
                                 use_dali=False):
+        if phase != 'train':
+            shuffle = False
         return image_dataloader_from_filelist(
             filelist, self.inputs, batch_size, phase, shuffle, use_dali)
 
@@ -88,13 +91,14 @@ class VGG16(ModelBase):
                 os.system('tar -xf {}.tar.gz'.format('vgg16'))
         else:
             time.sleep(3)
-        inputs, loss, startup, main, unique_generator, checkponits = load_program(
+        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
             "vgg16")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
-        self.checkpoints = checkponits
+        self.checkpoints = checkpoints
+        self.target = target
 
     def load_imagenet_from_file(self,
                                 filelist,
@@ -102,6 +106,8 @@ class VGG16(ModelBase):
                                 phase='train',
                                 shuffle=True,
                                 use_dali=False):
+        if phase != 'train':
+            shuffle = False
         return image_dataloader_from_filelist(
             filelist, self.inputs, batch_size, phase, shuffle, use_dali)
 
@@ -118,13 +124,14 @@ class Transformer(ModelBase):
                 os.system('tar -xf {}.tar.gz'.format('transformer'))
         else:
             time.sleep(3)
-        inputs, loss, startup, main, unique_generator, checkponits = load_program(
+        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
             "transformer")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
-        self.checkpoints = checkponits
+        self.checkpoints = checkpoints
+        self.target = target
 
     def load_wmt16_dataset_from_file(self,
                                      src_vocab_fpath,
@@ -154,13 +161,14 @@ class Bert_large(ModelBase):
                 os.system('tar -xf {}.tar.gz'.format('bert_large'))
         else:
             time.sleep(3)
-        inputs, loss, startup, main, unique_generator, checkponits = load_program(
+        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
             "bert_large")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
-        self.checkpoints = checkponits
+        self.checkpoints = checkpoints
+        self.target = target
 
     def load_digital_dataset_from_file(self,
                                        data_dir,
@@ -190,13 +198,14 @@ class Bert_base(ModelBase):
                 os.system('tar -xf {}.tar.gz'.format('bert_base'))
         else:
             time.sleep(3)
-        inputs, loss, startup, main, unique_generator, checkponits = load_program(
+        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
             "bert_base")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
-        self.checkpoints = checkponits
+        self.checkpoints = checkpoints
+        self.target = target
 
     def load_digital_dataset_from_file(self,
                                        data_dir,
