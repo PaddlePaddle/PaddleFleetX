@@ -15,6 +15,7 @@ pip install fleet-lightning
 ## A Distributed Resnet50 Training Example
 
 ``` python
+import os
 import fleet_lightning as lightning
 import paddle.fluid as fluid
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
