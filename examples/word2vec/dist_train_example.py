@@ -4,7 +4,7 @@ import paddle.fluid as fluid
 from network import word2vec_net
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler import fleet
-from paddle.fluid.transpiler.distribute_transpiler import DistributeTranspilerConfig
+from paddle.fluid.transpiler.distribute_transpiler.distributed_strategy import StrategyFactory
 from conf import *
 import logging
 
@@ -35,6 +35,11 @@ def train(strategy):
             decay_rate=decay_rate,
             staircase=True))
 
+    strategy = StrategyFactory.create_async_strategy()
+    # strategy = StrategyFactory.create_sync_strategy()
+    # strategy = StrategyFactory.create_half_async_strategy()
+    # strategy = StrategyFactory.create_geo_strategy(400)
+
     optimizer = fleet.distributed_optimizer(optimizer, strategy)
     optimizer.minimize(loss)
                
@@ -50,6 +55,17 @@ def train(strategy):
         file_list = [str(train_files_path) + "/%s" % x for x in os.listdir(train_files_path)]
         if is_local_cluster:
             file_list = fleet.split_files(file_list)
+
+        # for compiled_program
+        # compiled_prog = fluid.compiler.CompiledProgram(
+        #     fleet.main_program).with_data_parallel(
+        #     loss_name=avg_cost.name,
+        #     build_strategy=strategy.get_build_strategy(),
+        #     exec_strategy=strategy.get_executor_strategy())
+
+        # for epoch in range(num_epochs):
+        #     ....
+
         for epoch in range(num_epochs):
             dataset.set_filelist(file_list)
             start_time = time.time()
@@ -64,10 +80,4 @@ def train(strategy):
         fleet.stop_worker()
 
 if __name__ == '__main__':
-    strategy = DistributeTranspilerConfig()
-    strategy.sync_mode = False
-    strategy.runtime_split_send_recv = True
-    if is_geo_sgd:
-       strategy.geo_sgd_mode = True
-       strategy.geo_sgd_need_push_nums = 400
-    train(strategy)
+    train()

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import paddle.fluid as fluid
 from paddle.fluid.incubate.fleet.collective import fleet
 
@@ -31,7 +32,7 @@ def create_dataloader(generator, feed, place, batch_size, is_test, is_distribute
     def _dist_wrapper(generator):
         def _wrapper():
             '''
-            根据worker的编号采样样本，确保所有样本均分到各worker
+            Sampling according to the worker index to uniformly separate samples.
             '''
             rank = fleet.worker_index()
             nranks = fleet.worker_num()
@@ -41,10 +42,10 @@ def create_dataloader(generator, feed, place, batch_size, is_test, is_distribute
         return _wrapper
 
     if is_distributed:
-        # 如果有分布式标记，则应用装饰器对本地样本全集进行采样
+        # if "distributed" flag is set, sample global dataset by a wrapper function
         generator = _dist_wrapper(generator)
 
-    # 声明生成式的数据加载器
+    # declare a dataloader of generator mode
     drop_last = False if is_test else True
     loader = fluid.io.DataLoader.from_generator(feed_list=feed, capacity=16)
     loader.set_sample_generator(generator, batch_size=batch_size,
@@ -54,7 +55,8 @@ def create_dataloader(generator, feed, place, batch_size, is_test, is_distribute
 
 def dist_eval_acc(exe, local_value, local_weight):
     '''
-    通过Collective OP汇总各worker的正确样本数和样本总数，生成全局计数结果，然后计算全局正确率
+    Gather the correct and total number of prediction from all worker by collective operators,
+    generate the global counting result, and calculate the global accuracy
     '''
     prog = fluid.Program()
     with fluid.program_guard(prog):
@@ -68,7 +70,7 @@ def dist_eval_acc(exe, local_value, local_weight):
 
 def sample_batch(sample):
     '''
-    获取当前样本的批量大小
+    Get the batch size of the current mini-batch
     '''
     tensor = list(sample[0].values())[0]
     assert(isinstance(tensor, fluid.LoDTensor))
