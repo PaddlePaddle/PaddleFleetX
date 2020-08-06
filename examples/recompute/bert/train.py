@@ -38,9 +38,10 @@ import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 import paddle.fluid.profiler as profiler
 import logging
 logging.basicConfig(
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%Y-%m-%d %H:%M:%S')
+         format='%(asctime)s %(levelname)-8s %(message)s',
+         level=logging.INFO,
+         datefmt='%Y-%m-%d %H:%M:%S')
+
 
 trainer_id = int(os.environ.get('PADDLE_TRAINER_ID'))
 
@@ -407,6 +408,7 @@ def train(args):
                 cost = []
                 lm_cost = []
                 acc = []
+
         except fluid.core.EOFException:
             train_pyreader.reset()
             break

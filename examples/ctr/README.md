@@ -5,7 +5,7 @@ sh get_data.sh
 
 # To simulation distributed training with parameter server
 ```
-python -m distributed.launch_ps --worker_num 2 --server_num 2 train.py
+python -m paddle.distributed.launch_ps --worker_num 2 --server_num 2 train.py
 ```
 
 # To run local training

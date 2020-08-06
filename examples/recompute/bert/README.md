@@ -80,3 +80,4 @@ When setting seq_len to 512, the max batch size is increased by 245% compared wi
 |:---:|:---:|:---:|:---:|
 |batch size| 42 | 145 | 200 |
 |speed|53.4 sents/s| 36.5 sents/s| 59.8 sents/s |
+

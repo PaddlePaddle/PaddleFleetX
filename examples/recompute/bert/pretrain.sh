@@ -33,7 +33,7 @@ fi
 
 # pretrain config
 SAVE_STEPS=10000
-BATCH_SIZE=8
+BATCH_SIZE=56
 LR_RATE=1e-4
 WEIGHT_DECAY=0.01
 MAX_LEN=512
@@ -42,7 +42,6 @@ VALIDATION_DATA_DIR=$PWD/../../../benchmark/collective/bert/data/validation
 CONFIG_PATH=data/large_config/bert_config.json
 VOCAB_PATH=data/large_config/vocab.txt
 
-#export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 export CUDA_VISIBLE_DEVICES=0,1
 
 # Change your train arguments:
@@ -68,6 +67,6 @@ python -m paddle.distributed.launch ${distributed_args}  --log_dir mylog \
         --num_iteration_per_drop_scope 10 \
         --loss_scaling 8.0 \
         --profile false \
-        --use_recompute false \
+        --use_recompute true \
         --use_mix_precision false
        
