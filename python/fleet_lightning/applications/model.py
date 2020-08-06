@@ -14,6 +14,7 @@
 # limitations under the License.
 import time
 from .util import *
+import sysconfig
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 from fleet_lightning.dataset.image_dataset import image_dataloader_from_filelist
 from fleet_lightning.dataset.bert_dataset import load_bert_dataset
@@ -48,18 +49,21 @@ class ModelBase(object):
 class Resnet50(ModelBase):
     def __init__(self):
         super(Resnet50, self).__init__()
+        fleet_path = sysconfig.get_paths()[
+            "purelib"] + '/fleet_lightning/applications/'
         gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
         if gpu_id == 0:
-            if not os.path.exists('resnet50'):
-                if not os.path.exists('resnet50.tar.gz'):
+            if not os.path.exists(fleet_path + 'resnet50'):
+                if not os.path.exists(fleet_path + 'resnet50.tar.gz'):
                     os.system(
-                        'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                        format('resnet50'))
-                os.system('tar -xf {}.tar.gz'.format('resnet50'))
+                        'wget -P {} --no-check-certificate https://fleet.bj.bcebos.com/models/resnet50.tar.gz'.
+                        format(fleet_path))
+                os.system('tar -xf {}resnet50.tar.gz -C {}'.format(fleet_path,
+                                                                   fleet_path))
         else:
             time.sleep(3)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
-            "resnet50")
+            fleet_path + "resnet50")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
@@ -83,16 +87,19 @@ class VGG16(ModelBase):
     def __init__(self):
         super(VGG16, self).__init__()
         gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
+        fleet_path = sysconfig.get_paths()[
+            "purelib"] + '/fleet_lightning/applications/'
         if gpu_id == 0:
-            if not os.path.exists('vgg16'):
+            if not os.path.exists(fleet_path + 'vgg16'):
                 os.system(
-                    'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                    format('vgg16'))
-                os.system('tar -xf {}.tar.gz'.format('vgg16'))
+                    'wget -P {} --no-check-certificate https://fleet.bj.bcebos.com/models/vgg16.tar.gz'.
+                    format(fleet_path))
+                os.system('tar -xf {}vgg16.tar.gz -C {}'.format(fleet_path,
+                                                                fleet_path))
         else:
             time.sleep(3)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
-            "vgg16")
+            fleet_path + "vgg16")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
@@ -115,17 +122,20 @@ class VGG16(ModelBase):
 class Transformer(ModelBase):
     def __init__(self):
         super(Transformer, self).__init__()
+        fleet_path = sysconfig.get_paths()[
+            "purelib"] + '/fleet_lightning/applications/'
         gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
         if gpu_id == 0:
-            if not os.path.exists('transformer'):
+            if not os.path.exists(fleet_path + 'transformer'):
                 os.system(
-                    'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                    format('transformer'))
-                os.system('tar -xf {}.tar.gz'.format('transformer'))
+                    'wget -P {} --no-check-certificate https://fleet.bj.bcebos.com/models/transformer.tar.gz'.
+                    format(fleet_path))
+                os.system('tar -xf {}transformer.tar.gz -C {}'.format(
+                    fleet_path, fleet_path))
         else:
             time.sleep(3)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
-            "transformer")
+            fleet_path + "transformer")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
@@ -151,18 +161,22 @@ class Transformer(ModelBase):
 class Bert_large(ModelBase):
     def __init__(self):
         super(Bert_large, self).__init__()
+        fleet_path = sysconfig.get_paths()[
+            "purelib"] + '/fleet_lightning/applications/'
+        print(fleet_path)
         gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
         if gpu_id == 0:
-            if not os.path.exists('bert_large'):
-                if not os.path.exists('bert_large.tar.gz'):
+            if not os.path.exists(fleet_path + 'bert_large'):
+                if not os.path.exists(fleet_path + 'bert_large.tar.gz'):
                     os.system(
-                        'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                        format('bert_large'))
-                os.system('tar -xf {}.tar.gz'.format('bert_large'))
+                        'wget -P {} --no-check-certificate https://fleet.bj.bcebos.com/models/bert_large.tar.gz'.
+                        format(fleet_path))
+                os.system('tar -xf {}bert_large.tar.gz -C {}'.format(
+                    fleet_path, fleet_path))
         else:
             time.sleep(3)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
-            "bert_large")
+            fleet_path + "bert_large")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
@@ -189,17 +203,20 @@ class Bert_base(ModelBase):
     def __init__(self):
         super(Bert_base, self).__init__()
         gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
+        fleet_path = sysconfig.get_paths()[
+            "purelib"] + '/fleet_lightning/applications/'
         if gpu_id == 0:
-            if not os.path.exists('bert_base'):
-                if not os.path.exists('bert_base.tar.gz'):
+            if not os.path.exists(fleet_path + 'bert_base'):
+                if not os.path.exists(fleet_path + 'bert_base.tar.gz'):
                     os.system(
-                        'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                        format('bert_base'))
-                os.system('tar -xf {}.tar.gz'.format('bert_base'))
+                        'wget -P {} --no-check-certificate https://fleet.bj.bcebos.com/models/bert_base.tar.gz'.
+                        format(fleet_path))
+                os.system('tar -xf {}bert_base.tar.gz -C {}'.format(
+                    fleet_path, fleet_path))
         else:
             time.sleep(3)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
-            "bert_base")
+            fleet_path + "bert_base")
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
