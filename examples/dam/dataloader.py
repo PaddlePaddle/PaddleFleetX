@@ -154,10 +154,12 @@ class DAMDataset(dg.MultiSlotStringDataGenerator):
     
     def get_sample_generator(self, filelist):
         def sample_generator():
-            for f in filelist:
-                for line in f:
-                    for sample in self.generate_sample(line):
-                        yield sample
+            for fi in filelist:
+                with open(fi) as f:
+                    for line in f:
+                        data_iter = self.generate_sample(line)
+                        for sample in data_iter():
+                            yield sample
         return sample_generator
 
 def sample_generator(filelist, dict_path, data_conf, source):

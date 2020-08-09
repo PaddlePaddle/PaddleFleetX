@@ -54,7 +54,8 @@ def main():
         if args.distributed:
             optimizer = fleet.distributed_optimizer(optimizer)
         optimizer.minimize(loss, start_prog)
-
+    
+        filelist = [args.data_path]
         dataloader = utils.create_dataloader(
                 feed_var_list=feed,
                 filelist=filelist,
@@ -95,6 +96,7 @@ def main():
                     dirname=model_path,
                     main_program=fluid.default_main_program())
 
+        filelist = [args.data_path]
         dataloader = utils.create_dataloader(
                 feed_var_list=feed,
                 filelist=filelist,

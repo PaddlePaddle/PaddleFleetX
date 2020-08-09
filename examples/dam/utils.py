@@ -22,6 +22,7 @@ def create_dataloader(feed_var_list, filelist,
         max_turn_len, is_test, data_source, is_distributed):
     loader = fluid.io.DataLoader.from_generator(
             feed_list=feed_var_list,
+            capacity=8,
             iterable=True)
     data_conf = {
         "max_turn_num": max_turn_num,
@@ -49,5 +50,5 @@ def create_dataloader(feed_var_list, filelist,
             generator,
             batch_size=batch_size,
             drop_last=(not is_test),
-            places=places)
+            places=place)
     return loader

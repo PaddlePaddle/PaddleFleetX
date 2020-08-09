@@ -55,10 +55,10 @@ def parse_args():
         default=1e-3,
         help='Learning rate used to train. (default: %(default)f)')
     parser.add_argument(
-        '--filelist',
+        '--data_path',
         type=str,
         default="",
-        help='Path to filelist. (default: %(default)s)')
+        help='Path to training. (default: %(default)s)')
     parser.add_argument(
         '--data_source',
         type=str,
