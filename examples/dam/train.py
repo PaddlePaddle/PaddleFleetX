@@ -55,21 +55,18 @@ def main():
             optimizer = fleet.distributed_optimizer(optimizer)
         optimizer.minimize(loss, start_prog)
 
-        filelist = utils.load_filelist(args.filelist, args.distributed)
-        print("files: {}".format(filelist))
-            
         dataloader = utils.create_dataloader(
-                feed_var_list=feed, 
+                feed_var_list=feed,
                 filelist=filelist,
                 place=fluid.cpu_places(),
-                batch_size=args.batch_size, 
-                thread_num=4, 
+                batch_size=args.batch_size,
                 dict_path=args.vocab_path,
                 max_turn_num=args.max_turn_num,
                 max_turn_len=args.max_turn_len,
                 is_test=False,
-                data_source=args.data_source)
-        
+                data_source=args.data_source,
+                is_distributed=args.distributed)
+
         if args.distributed:
             train_prog = fleet.main_program
             
@@ -97,20 +94,18 @@ def main():
                     executor=exe,
                     dirname=model_path,
                     main_program=fluid.default_main_program())
-        
-        filelist = utils.load_filelist(args.filelist, False)
-        print("files: {}".format(filelist))
+
         dataloader = utils.create_dataloader(
-                feed_var_list=feed, 
+                feed_var_list=feed,
                 filelist=filelist,
                 place=fluid.cpu_places(),
-                batch_size=args.batch_size, 
-                thread_num=4, 
+                batch_size=args.batch_size,
                 dict_path=args.vocab_path,
                 max_turn_num=args.max_turn_num,
                 max_turn_len=args.max_turn_len,
                 is_test=True,
-                data_source=args.data_source)
+                data_source=args.data_source,
+                is_distributed=args.distributed)
 
         test(args, test_prog, exe, feed, [logits], dataloader)
 
@@ -135,10 +130,11 @@ def train(args, train_prog, exe, feed, fetch, loader):
         end = time.time()
         print("epoch {}: {} s".format(epoch, end - start))
 
-    save_path = os.path.join(args.save_path, "model.{}".format(epoch))
-    if args.distributed and fleet.worker_index() == 0:
-        fleet.save_persistables(executor=exe, dirname=save_path)
-        print("model saved in {}".format(save_path))
+        if epoch != 0:
+            save_path = os.path.join(args.save_path, "model.{}".format(epoch))
+            if args.distributed and fleet.worker_index() == 0:
+                fleet.save_persistables(executor=exe, dirname=save_path)
+                print("model saved in {}".format(save_path))
 
 def test(args, test_prog, exe, feed, fetch, loader):
     filename = os.path.join(args.save_path, "score")
