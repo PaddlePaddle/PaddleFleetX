@@ -110,7 +110,8 @@ def process_image(sample,
                   resize_short_size=None,
                   lower_scale=None,
                   lower_ratio=None,
-                  upper_ratio=None):
+                  upper_ratio=None,
+                  data_layout='NHWC'):
     """ process_image """
 
     mean = [0.485, 0.456, 0.406] if mean is None else mean
@@ -149,6 +150,9 @@ def process_image(sample,
     img_std = np.array(std).reshape((3, 1, 1))
     img -= img_mean
     img /= img_std
+
+    if data_layout == 'NHWC':
+        img = img.transpose((1, 2, 0))
 
     if mode == 'train' or mode == 'val':
         return (img, sample[1])

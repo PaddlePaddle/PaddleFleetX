@@ -34,16 +34,43 @@ def image_dataloader_from_filelist(filelist,
                                    resize_short_size=256,
                                    lower_scale=0.08,
                                    lower_ratio=3. / 4,
-                                   upper_ratio=4. / 3):
-
-    loader = create_data_loader(inputs, phase, use_mixup, use_dali)
-    reader = reader_creator(filelist, phase, shuffle, image_mean, image_std,
-                            resize_short_size, lower_scale, lower_ratio,
-                            upper_ratio)
-    batch_reader = paddle.batch(reader, batch_size)
+                                   upper_ratio=4. / 3,
+                                   data_layout='NHWC'):
+    trainer_id = int(os.environ.get('PADDLE_TRAINER_ID'))
+    num_trainers = int(os.environ.get('PADDLE_TRAINERS_NUM', 1))
     gpu_id = int(os.environ.get('FLAGS_selected_gpus', 0))
-    places = fluid.CUDAPlace(gpu_id)
-    loader.set_sample_list_generator(batch_reader, places)
+    if not use_dali:
+        loader = create_data_loader(inputs, phase, use_mixup)
+        reader = reader_creator(
+            filelist,
+            phase,
+            shuffle,
+            image_mean,
+            image_std,
+            resize_short_size,
+            lower_scale,
+            lower_ratio,
+            upper_ratio,
+            data_layout=data_layout)
+        batch_reader = paddle.batch(reader, batch_size)
+        gpu_id = int(os.environ.get('FLAGS_selected_gpus', 0))
+        places = fluid.CUDAPlace(gpu_id)
+        loader.set_sample_list_generator(batch_reader, places)
+    else:
+        import dali
+        loader = dali.train(
+            filelist,
+            batch_size,
+            image_mean,
+            image_std,
+            resize_short_size,
+            lower_scale,
+            lower_ratio,
+            upper_ratio,
+            trainer_id=trainer_id,
+            trainers_num=num_trainers,
+            gpu_id=gpu_id,
+            data_layout=data_layout)
     return loader
 
 
@@ -56,7 +83,8 @@ def reader_creator(filelist,
                    lower_scale,
                    lower_ratio,
                    upper_ratio,
-                   pass_id_as_seed=0):
+                   pass_id_as_seed=0,
+                   data_layout='NHWC'):
     def _reader():
         data_dir = filelist[:-4]
         with open(filelist) as flist:
@@ -121,22 +149,16 @@ def reader_creator(filelist,
         resize_short_size=resize_short_size,
         lower_scale=lower_scale,
         lower_ratio=lower_ratio,
-        upper_ratio=upper_ratio)
+        upper_ratio=upper_ratio,
+        data_layout=data_layout)
     reader = paddle.reader.xmap_readers(
         image_mapper, _reader, 4, 4000, order=False)
     return reader
 
 
-def create_data_loader(inputs, phase, use_mixup, use_dali, data_layout='NCHW'):
+def create_data_loader(inputs, phase, use_mixup, data_layout='NHWC'):
 
-    image_shape = [3, 224, 224]
-    if data_layout == "NHWC":
-        image_shape = [image_shape[1], image_shape[2], image_shape[0]]
-        feed_image = fluid.layers.reshape(
-            inputs[0], shape=[None] + image_shape)
-    else:
-        # NCHW
-        feed_image = inputs[0]
+    feed_image = inputs[0]
 
     feed_label = inputs[1]
     feed_y_a = fluid.data(
@@ -155,9 +177,6 @@ def create_data_loader(inputs, phase, use_mixup, use_dali, data_layout='NCHW'):
             iterable=True)
         return data_loader
     else:
-        if use_dali:
-            return None
-
         data_loader = fluid.io.DataLoader.from_generator(
             feed_list=[feed_image, feed_label],
             capacity=64,
