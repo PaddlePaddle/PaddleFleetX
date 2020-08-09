@@ -37,7 +37,7 @@ fleet.init(role)
 model = lighting.applications.VGG16()
 
 loader = model.load_imagenet_from_file(
-    "/ssd2/lilong/ImageNet/train.txt", data_layout='NCHW')
+    "/path/to/ImageNet/train.txt", data_layout='NCHW')
 
 exec_strategy = fluid.ExecutionStrategy()
 dist_strategy = DistributedStrategy()
