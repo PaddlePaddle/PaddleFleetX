@@ -192,7 +192,6 @@ def build(filelist,
     b.write(str)
     b.close()
     for i in range(len(filelist)):
-        print(filelist[-i])
         if filelist[-i] == '/':
             file_root = filelist[:-i]
             break
