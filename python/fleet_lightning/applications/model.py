@@ -84,12 +84,19 @@ class Resnet50(ModelBase):
                                 batch_size=32,
                                 phase='train',
                                 shuffle=True,
-                                use_dali=False):
+                                use_dali=False,
+                                data_layout='NHWC'):
         if phase != 'train':
             shuffle = False
         self.use_dali = use_dali
         return image_dataloader_from_filelist(
-            filelist, self.inputs, batch_size, phase, shuffle, use_dali)
+            filelist,
+            self.inputs,
+            batch_size,
+            phase,
+            shuffle,
+            use_dali,
+            data_layout=data_layout)
 
 
 class VGG16(ModelBase):
@@ -115,12 +122,19 @@ class VGG16(ModelBase):
                                 batch_size=32,
                                 phase='train',
                                 shuffle=True,
-                                use_dali=False):
+                                use_dali=False,
+                                data_layout='NHWC'):
         if phase != 'train':
             shuffle = False
         self.use_dali = use_dali
         return image_dataloader_from_filelist(
-            filelist, self.inputs, batch_size, phase, shuffle, use_dali)
+            filelist,
+            self.inputs,
+            batch_size,
+            phase,
+            shuffle,
+            use_dali,
+            data_layout=data_layout)
 
 
 class Transformer(ModelBase):

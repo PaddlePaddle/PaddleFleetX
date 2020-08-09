@@ -87,6 +87,12 @@ def reader_creator(filelist,
                    data_layout='NHWC'):
     def _reader():
         data_dir = filelist[:-4]
+        if not os.path.exists(data_dir):
+            for i in range(len(filelist)):
+                if filelist[-i] == '/':
+                    file_root = filelist[:-i]
+                    break
+            data_dir = os.path.join(file_root, phase)
         with open(filelist) as flist:
             full_lines = [line.strip() for line in flist]
             if shuffle:
