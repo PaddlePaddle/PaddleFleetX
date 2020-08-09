@@ -34,17 +34,25 @@ def create_dataloader(feed_var_list, filelist,
             data_conf,
             data_source)
     
-    def _dist_wrapper(generator):
+    def _dist_wrapper(generator, is_test):
         def _wrapper():
             rank = fleet.worker_index()
             nranks = fleet.worker_num()
             for idx, sample in enumerate(generator()):
-                if idx % nranks == rank:
+                if idx // 2 % nranks == rank:
                     yield sample
-        return _wrapper
+        
+        def _test_wrapper():
+            rank = fleet.worker_index()
+            nranks = fleet.worker_num()
+            for idx, sample in enumerate(generator()):
+                if idx // 10 % nranks == rank:
+                    yield sample
+
+        return _wrapper if not is_test else _test_wrapper
 
     if is_distributed:
-        generator = _dist_wrapper(generator)
+        generator = _dist_wrapper(generator, is_test)
 
     loader.set_sample_generator(
             generator,
@@ -52,3 +60,35 @@ def create_dataloader(feed_var_list, filelist,
             drop_last=(not is_test),
             places=place)
     return loader
+
+def dist_eval(exe, result):
+    prog = fluid.Program()
+    with fluid.program_guard(prog):
+        p_at_1_in_2 = fluid.layers.data(name='p_at_1_in_2', shape=[1], dtype='float32')
+        p_at_1_in_10 = fluid.layers.data(name='p_at_1_in_10', shape=[1], dtype='float32')
+        p_at_2_in_10 = fluid.layers.data(name='p_at_2_in_10', shape=[1], dtype='float32')
+        p_at_5_in_10 = fluid.layers.data(name='p_at_5_in_10', shape=[1], dtype='float32')
+        length = fluid.layers.data(name='length', shape=[1], dtype='int32')
+        dist_p_at_1_in_2 = fluid.layers.collective._c_allreduce(p_at_1_in_2, reduce_type='sum', use_calc_stream=True) 
+        dist_p_at_1_in_10 = fluid.layers.collective._c_allreduce(p_at_1_in_10, reduce_type='sum', use_calc_stream=True) 
+        dist_p_at_2_in_10 = fluid.layers.collective._c_allreduce(p_at_2_in_10, reduce_type='sum', use_calc_stream=True) 
+        dist_p_at_5_in_10 = fluid.layers.collective._c_allreduce(p_at_5_in_10, reduce_type='sum', use_calc_stream=True) 
+        dist_length = fluid.layers.collective._c_allreduce(length, reduce_type='sum', use_calc_stream=True) 
+        (dist_p_at_1_in_2, dist_p_at_1_in_10, dist_p_at_2_in_10, dist_p_at_5_in_10, dist_length) \
+                    = exe.run(prog,
+                            feed={
+                                'p_at_1_in_2': result["1_in_2"][0],
+                                'p_at_1_in_10': result["1_in_10"][0],
+                                'p_at_2_in_10': result["2_in_10"][0],
+                                'p_at_5_in_10': result["5_in_10"][0],
+                                'length': result["1_in_2"][1],
+                            },
+                            fetch_list=[dist_p_at_1_in_2, dist_p_at_1_in_10,
+                                dist_p_at_2_in_10, dist_p_at_5_in_10, dist_length])
+        dist_result = {
+            "1_in_2": dist_p_at_1_in_2 / dist_length,
+            "1_in_10": dist_p_at_1_in_10 / dist_length,
+            "2_in_10": dist_p_at_2_in_10 / dist_length,
+            "5_in_10": dist_p_at_5_in_10 / dist_length
+        }
+    return dist_result

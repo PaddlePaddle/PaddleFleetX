@@ -56,7 +56,7 @@ def main():
         optimizer.minimize(loss, start_prog)
     
         filelist = [args.data_path]
-        dataloader = utils.create_dataloader(
+        train_loader = utils.create_dataloader(
                 feed_var_list=feed,
                 filelist=filelist,
                 place=fluid.cpu_places(),
@@ -71,8 +71,28 @@ def main():
         if args.distributed:
             train_prog = fleet.main_program
             
+        test_program = fluid.Program()
+        with fluid.program_guard(test_program):
+            feed, logits = model.build_test_net(args)
+        test_program = test_program.clone(for_test=True)
+        filelist = ["data/ubuntu/valid.txt"]
+        valid_loader = utils.create_dataloader(
+                feed_var_list=feed,
+                filelist=filelist,
+                place=fluid.cpu_places(),
+                batch_size=args.batch_size,
+                dict_path=args.vocab_path,
+                max_turn_num=args.max_turn_num,
+                max_turn_len=args.max_turn_len,
+                is_test=True,
+                data_source=args.data_source,
+                is_distributed=args.distributed)
+
         exe.run(start_prog)
-        train(args, train_prog, exe, feed, [loss], dataloader)
+        train_fetch = [loss]
+        valid_fetch = [logits] + ["label"]
+        train(args, train_prog, test_program, exe,
+                feed, train_fetch, valid_fetch, train_loader, valid_loader)
     
     if args.do_test:
         assert args.distributed == False 
@@ -119,24 +139,53 @@ def create_place(is_distributed):
     place_idx = int(os.environ['FLAGS_selected_gpus']) if is_distributed else 0
     return fluid.CUDAPlace(place_idx)
 
-def train(args, train_prog, exe, feed, fetch, loader):
+def train(args, train_prog, test_program, exe, feed, 
+        train_fetch, valid_fetch, train_loader, valid_loader):
     for epoch in range(args.num_scan_data):
         start = time.time()
-        for idx, sample in enumerate(loader()):
+        for idx, sample in enumerate(train_loader()):
             ret = exe.run(
                     program=train_prog,
                     feed=sample,
-                    fetch_list=fetch)
+                    fetch_list=train_fetch)
             if idx % 10 == 0:
                 print('[TRAIN] epoch=%d step=%d loss=%f' % (epoch, idx, ret[0][0]))
         end = time.time()
         print("epoch {}: {} s".format(epoch, end - start))
 
-        if epoch != 0:
-            save_path = os.path.join(args.save_path, "model.{}".format(epoch))
-            if args.distributed and fleet.worker_index() == 0:
+        save_path = os.path.join(args.save_path, "model.{}".format(epoch))
+        if args.distributed:
+            if fleet.worker_index() == 0:
                 fleet.save_persistables(executor=exe, dirname=save_path)
                 print("model saved in {}".format(save_path))
+            
+            filename = os.path.join(args.save_path, 
+                    "score.{}.{}".format(epoch, fleet.worker_index()))
+            score_file = open(filename, 'w')
+            for idx, sample in enumerate(valid_loader()):
+                ret = exe.run(
+                        program=test_program,
+                        feed=sample,
+                        fetch_list=valid_fetch,
+                        return_numpy=False)
+                scores = np.array(ret[0])
+                label = np.array(ret[1])
+                for i in six.moves.xrange(len(scores)):
+                    score_file.write("{}\t{}\n".format(scores[i][0], int(label[i][0])))
+            score_file.close()
+            if args.ext_eval:
+                #TODO
+                result = eva.evaluate_douban(filename)
+            else:
+                result = eva.evaluate_ubuntu(filename, dist=True)
+            print("[TEST] local result: ")
+            for metric in result:
+                value, length = result[metric]
+                print("[TEST]   {}: {}".format(metric, value / length))
+            dist_result = utils.dist_eval(exe, result)
+            print("[TEST] global result: ")
+            for metric in dist_result:
+                print("[TEST]   {}: {}".format(metric, dist_result[metric]))
 
 def test(args, test_prog, exe, feed, fetch, loader):
     filename = os.path.join(args.save_path, "score")

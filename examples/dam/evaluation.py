@@ -20,7 +20,7 @@ import six
 import numpy as np
 
 
-def evaluate_ubuntu(file_path):
+def evaluate_ubuntu(file_path, dist=False):
     """
     Evaluate on ubuntu data
     """
@@ -66,12 +66,20 @@ def evaluate_ubuntu(file_path):
         p_at_2_in_10 += get_p_at_n_in_m(data, 2, 10, ind)
         p_at_5_in_10 += get_p_at_n_in_m(data, 5, 10, ind)
 
-    result_dict = {
-        "1_in_2": p_at_1_in_2 / length,
-        "1_in_10": p_at_1_in_10 / length,
-        "2_in_10": p_at_2_in_10 / length,
-        "5_in_10": p_at_5_in_10 / length
-    }
+    if not dist:
+        result_dict = {
+            "1_in_2": p_at_1_in_2 / length,
+            "1_in_10": p_at_1_in_10 / length,
+            "2_in_10": p_at_2_in_10 / length,
+            "5_in_10": p_at_5_in_10 / length
+        }
+    else:
+        result_dict = {
+            "1_in_2": (p_at_1_in_2, length),
+            "1_in_10": (p_at_1_in_10, length),
+            "2_in_10": (p_at_2_in_10, length),
+            "5_in_10": (p_at_5_in_10, length)
+        }
 
     return result_dict
 
