@@ -70,7 +70,7 @@ class Resnet50(ModelBase):
         model_name = 'resnet50'
         download_model(fleet_path, model_name)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
-            fleet_path + "resnet50")
+            fleet_path + model_name)
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
