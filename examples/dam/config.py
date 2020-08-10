@@ -55,10 +55,20 @@ def parse_args():
         default=1e-3,
         help='Learning rate used to train. (default: %(default)f)')
     parser.add_argument(
-        '--data_path',
+        '--train_data_path',
         type=str,
         default="",
         help='Path to training. (default: %(default)s)')
+    parser.add_argument(
+        '--valid_data_path',
+        type=str,
+        default="",
+        help='Path to validing. (default: %(default)s)')
+    parser.add_argument(
+        '--test_data_path',
+        type=str,
+        default="",
+        help='Path to testing. (default: %(default)s)')
     parser.add_argument(
         '--data_source',
         type=str,

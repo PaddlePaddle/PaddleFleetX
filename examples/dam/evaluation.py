@@ -20,7 +20,7 @@ import six
 import numpy as np
 
 
-def evaluate_ubuntu(file_path, dist=False):
+def evaluate_ubuntu(file_path):
     """
     Evaluate on ubuntu data
     """
@@ -66,20 +66,12 @@ def evaluate_ubuntu(file_path, dist=False):
         p_at_2_in_10 += get_p_at_n_in_m(data, 2, 10, ind)
         p_at_5_in_10 += get_p_at_n_in_m(data, 5, 10, ind)
 
-    if not dist:
-        result_dict = {
-            "1_in_2": p_at_1_in_2 / length,
-            "1_in_10": p_at_1_in_10 / length,
-            "2_in_10": p_at_2_in_10 / length,
-            "5_in_10": p_at_5_in_10 / length
-        }
-    else:
-        result_dict = {
-            "1_in_2": (p_at_1_in_2, length),
-            "1_in_10": (p_at_1_in_10, length),
-            "2_in_10": (p_at_2_in_10, length),
-            "5_in_10": (p_at_5_in_10, length)
-        }
+    result_dict = {
+        "1_in_2": (p_at_1_in_2, length),
+        "1_in_10": (p_at_1_in_10, length),
+        "2_in_10": (p_at_2_in_10, length),
+        "5_in_10": (p_at_5_in_10, length)
+    }
 
     return result_dict
 
@@ -174,11 +166,11 @@ def evaluate_douban(file_path):
             i += 1
 
     result_dict = {
-        "MAP": 1.0 * sum_m_a_p / total_num,
-        "MRR": 1.0 * sum_m_r_r / total_num,
-        "P_1": 1.0 * sum_p_1 / total_num,
-        "1_in_10": 1.0 * sum_r_1 / total_num,
-        "2_in_10": 1.0 * sum_r_2 / total_num,
-        "5_in_10": 1.0 * sum_r_5 / total_num
+        "MAP": (sum_m_a_p, total_num),
+        "MRR": (sum_m_r_r, total_num),
+        "P_1": (sum_p_1, total_num),
+        "1_in_10": (sum_r_1, total_num),
+        "2_in_10": (sum_r_2, total_num),
+        "5_in_10": (sum_r_5, total_num)
     }
     return result_dict

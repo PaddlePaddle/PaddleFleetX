@@ -61,34 +61,65 @@ def create_dataloader(feed_var_list, filelist,
             places=place)
     return loader
 
-def dist_eval(exe, result):
+def dist_eval(exe, var_names, feed):
     prog = fluid.Program()
     with fluid.program_guard(prog):
-        p_at_1_in_2 = fluid.layers.data(name='p_at_1_in_2', shape=[1], dtype='float32')
-        p_at_1_in_10 = fluid.layers.data(name='p_at_1_in_10', shape=[1], dtype='float32')
-        p_at_2_in_10 = fluid.layers.data(name='p_at_2_in_10', shape=[1], dtype='float32')
-        p_at_5_in_10 = fluid.layers.data(name='p_at_5_in_10', shape=[1], dtype='float32')
-        length = fluid.layers.data(name='length', shape=[1], dtype='int32')
-        dist_p_at_1_in_2 = fluid.layers.collective._c_allreduce(p_at_1_in_2, reduce_type='sum', use_calc_stream=True) 
-        dist_p_at_1_in_10 = fluid.layers.collective._c_allreduce(p_at_1_in_10, reduce_type='sum', use_calc_stream=True) 
-        dist_p_at_2_in_10 = fluid.layers.collective._c_allreduce(p_at_2_in_10, reduce_type='sum', use_calc_stream=True) 
-        dist_p_at_5_in_10 = fluid.layers.collective._c_allreduce(p_at_5_in_10, reduce_type='sum', use_calc_stream=True) 
-        dist_length = fluid.layers.collective._c_allreduce(length, reduce_type='sum', use_calc_stream=True) 
-        (dist_p_at_1_in_2, dist_p_at_1_in_10, dist_p_at_2_in_10, dist_p_at_5_in_10, dist_length) \
-                    = exe.run(prog,
-                            feed={
-                                'p_at_1_in_2': result["1_in_2"][0],
-                                'p_at_1_in_10': result["1_in_10"][0],
-                                'p_at_2_in_10': result["2_in_10"][0],
-                                'p_at_5_in_10': result["5_in_10"][0],
-                                'length': result["1_in_2"][1],
-                            },
-                            fetch_list=[dist_p_at_1_in_2, dist_p_at_1_in_10,
-                                dist_p_at_2_in_10, dist_p_at_5_in_10, dist_length])
-        dist_result = {
-            "1_in_2": dist_p_at_1_in_2 / dist_length,
-            "1_in_10": dist_p_at_1_in_10 / dist_length,
-            "2_in_10": dist_p_at_2_in_10 / dist_length,
-            "5_in_10": dist_p_at_5_in_10 / dist_length
-        }
+        feed_list = []
+        for name in var_names:
+            feed_list.append(fluid.layers.data(
+                name=name, shape=[1], dtype='float32'))
+        feed_list.append(fluid.layers.data(name='length', shape=[1], dtype='int32'))
+
+        dist_fetch = []
+        for var in feed_list:
+            dist_fetch.append(fluid.layers.collective._c_allreduce(
+                var, reduce_type='sum', use_calc_stream=True))
+
+        ret = exe.run(prog, feed=feed, fetch_list=dist_fetch)
+    return ret
+
+def dist_eval_ubuntu(exe, result):
+    var_names = ["p_at_1_in_2", "p_at_1_in_10", "p_at_2_in_10", "p_at_5_in_10"]
+    feed = {
+        'p_at_1_in_2': result["1_in_2"][0],
+        'p_at_1_in_10': result["1_in_10"][0],
+        'p_at_2_in_10': result["2_in_10"][0],
+        'p_at_5_in_10': result["5_in_10"][0],
+        'length': result["1_in_2"][1],
+    }
+
+    ret = dist_eval(exe, var_names, feed)
+   
+    p_at_1_in_2, p_at_1_in_10, p_at_2_in_10, p_at_5_in_10, length = ret
+    dist_result = {
+        "1_in_2": p_at_1_in_2 / length,
+        "1_in_10": p_at_1_in_10 / length,
+        "2_in_10": p_at_2_in_10 / length,
+        "5_in_10": p_at_5_in_10 / length
+    }
+    return dist_result
+
+def dist_eval_douban(exe, result):
+    var_names = ["sum_m_a_p", "sum_m_r_r", "sum_p_1", "sum_r_1", "sum_r_2", "sum_r_5"]
+    feed = {
+        "sum_m_a_p": result["MAP"][0],
+        "sum_m_r_r": result["MRR"][0],
+        "sum_p_1": result["P_1"][0],
+        "sum_r_1": result["1_in_10"][0],
+        "sum_r_2": result["2_in_10"][0],
+        "sum_r_5": result["5_in_10"][0],
+        'length': result["MAP"][1],
+    }
+
+    ret = dist_eval(exe, var_names, feed)
+    sum_m_a_p, sum_m_r_r, sum_p_1, sum_r_1, sum_r_2, sum_r_5, total_num = ret
+
+    dist_result = {
+        "MAP": sum_m_a_p / total_num,
+        "MRR": sum_m_r_r / total_num,
+        "P_1": sum_p_1 / total_num,
+        "1_in_10": sum_r_1 / total_num,
+        "2_in_10": sum_r_2 / total_num,
+        "5_in_10": sum_r_5 / total_num
+    }
     return dist_result
