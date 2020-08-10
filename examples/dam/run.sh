@@ -12,7 +12,6 @@ python -u train.py \
   --vocab_size 434512 \
   --batch_size 16 \
   --num_scan_data 1
-exit 0
 
 #test on ubuntu
 python -u train.py \
