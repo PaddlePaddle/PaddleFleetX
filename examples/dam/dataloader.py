@@ -166,39 +166,3 @@ def sample_generator(filelist, dict_path, data_conf, source):
     dataset = DAMDataset()
     dataset.load_dict(dict_path, data_conf, source)
     return dataset.get_sample_generator(filelist)
-
-if __name__ == "__main__":
-    filelist = ["??"]
-    dict_path = "??"
-    source = "ubuntu"
-    data_conf = {
-        "max_turn_num": max_turn_num,
-        "max_turn_len": max_turn_len,
-    }
-    dataset = DAMDataset()
-    dataset.load_dict(dict_path, data_conf, source)
-    loader = fluid.io.DataLoader.from_generator(
-            feed_list=[x],
-            capacity=8, 
-            drop_last=drop_last)
-    loader.set_sample_generator(
-            dataset.sample_generator(filelist),
-            fluid.cpu_places())
-    exit(0)
-
-
-    if len(sys.argv) < 5:
-        print("Usage: cat <data> | python data_generator.py <dict> <max_turn_num> <max_turn_len> <source>")
-        exit(-1)
-
-    dict_path = sys.argv[1]
-    max_turn_num = int(sys.argv[2])
-    max_turn_len = int(sys.argv[3])
-    source = sys.argv[4]
-    data_conf = {
-        "max_turn_num": max_turn_num,
-        "max_turn_len": max_turn_len,
-    }
-    a = DAMDataset()
-    a.load_dict(dict_path, data_conf, source)
-    a.run_from_stdin()
