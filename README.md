@@ -9,7 +9,7 @@
 To show how to setup distributed training with fleet, we introduce a small library call **fleet-lightning**. **fleet-lightning** helps industrial users to directly train a specific standard model such as Resnet50 without learning to write a Paddle Model. 
 
 ``` bash
-pip install fleet-lightning
+pip install fleet-x
 ```
 
 ## A Distributed Resnet50 Training Example
@@ -17,7 +17,8 @@ pip install fleet-lightning
 ``` python
 import os
 import paddle
-import fleet-x as X
+import paddle.distributed.fleet as fleet
+import fleetx as X
 
 configs = X.parse_train_configs()
 
