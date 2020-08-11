@@ -20,14 +20,18 @@ import paddle
 import paddle.distributed.fleet as fleet
 import fleetx as X
 
+# fleet-x
 configs = X.parse_train_configs()
-
-fleet.init(is_collective=True)
 model = X.applications.Resnet50()
 loader = model.load_imagenet_from_file("/pathto/imagenet/train.txt")
 
+# paddle optimizer definition
 optimizer = paddle.optimizer.Momentum(learning_rate=configs.lr, momentum=configs.momentum)
+
+# paddle distributed training code here
+fleet.init(is_collective=True)
 optimizer = paddle.distributed.fleet.distributed_optimizer(optimizer)
+
 optimizer.minimize(model.loss)
 
 ```
