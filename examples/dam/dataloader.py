@@ -130,43 +130,39 @@ class DAMDataset(dg.MultiSlotStringDataGenerator):
             every_turn_len_list = [
                 every_turn_len[i] for i in six.moves.xrange(max_turn_num)
             ]
-        
+            
             feed_list = []
             for i, turn in enumerate(turns_list):
-                feed_list.append(("turn_{}".format(i),
-                    [str(c) for c in turn]))
-        
+                turn = np.expand_dims(turn, axis=-1)
+                feed_list.append(turn)
+
             for i, turn_len in enumerate(every_turn_len_list):
                 turn_mask = np.ones(max_turn_len).astype("float32")
                 turn_mask[turn_len:] = 0
-                feed_list.append(("turn_mask_{}".format(i),
-                    [str(x) for x in turn_mask]))
-        
-            feed_list.append(("response", 
-                [str(x) for x in response]))
-        
+                feed_list.append(turn_mask)
+
+            feed_list.append(response)
+
             response_mask = np.ones(max_turn_len).astype("float32")
             response_mask[response_len:] = 0
-            feed_list.append(("response_mask",
-                [str(x) for x in response_mask]))
+            feed_list.append(response_mask)
         
-            feed_list.append(("label", [str(float(y))]))
+            label = np.array(y).astype("float32")
+            feed_list.append(label)
             yield feed_list
         return data_iter
-        
-if __name__ == "__main__":
-    if len(sys.argv) < 5:
-        print("Usage: cat <data> | python data_generator.py <dict> <max_turn_num> <max_turn_len> <source>")
-        exit(-1)
+    
+    def get_sample_generator(self, filelist):
+        def sample_generator():
+            for fi in filelist:
+                with open(fi) as f:
+                    for line in f:
+                        data_iter = self.generate_sample(line)
+                        for sample in data_iter():
+                            yield sample
+        return sample_generator
 
-    dict_path = sys.argv[1]
-    max_turn_num = int(sys.argv[2])
-    max_turn_len = int(sys.argv[3])
-    source = sys.argv[4]
-    data_conf = {
-        "max_turn_num": max_turn_num,
-        "max_turn_len": max_turn_len,
-    }
-    a = DAMDataset()
-    a.load_dict(dict_path, data_conf, source)
-    a.run_from_stdin()
+def sample_generator(filelist, dict_path, data_conf, source):
+    dataset = DAMDataset()
+    dataset.load_dict(dict_path, data_conf, source)
+    return dataset.get_sample_generator(filelist)
