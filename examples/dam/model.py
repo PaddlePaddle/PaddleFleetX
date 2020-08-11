@@ -19,6 +19,10 @@ import six
 import numpy as np
 import paddle.fluid as fluid
 import layers
+try:
+    import cPickle as pickle  #python 2
+except ImportError as e:
+    import pickle  #python 3
 
 def build_train_net(args):
     dam = Net(args.max_turn_num, args.max_turn_len, args.vocab_size,
@@ -37,21 +41,8 @@ def build_train_net(args):
                 staircase=True),
             grad_clip=fluid.clip.GradientClipByValue(
                 min=-1.0, max=1.0))
-
-        if args.word_emb_init is not None:
-            print("start loading word embedding init ...")
-            if six.PY2:
-                word_emb = np.array(
-                        pickle.load(open(
-                            args.word_emb_init, 'rb'))).astype('float32')
-            else:
-                word_emb = np.array(
-                        pickle.load(open(
-                            args.word_emb_init, 'rb'), 
-                            encoding="bytes")).astype('float32')
-            dam.set_word_embedding(word_emb, place)
-            print("finish init word embedding  ...")
-        return data, loss, optimizer
+            
+    return dam, data, loss, optimizer
         
 
 def build_test_net(args):
@@ -63,20 +54,7 @@ def build_test_net(args):
         loss.persistable = True
         logits.persistable = True
 
-        if args.word_emb_init is not None:
-            print("start loading word embedding init ...")
-            if six.PY2:
-                word_emb = np.array(
-                        pickle.load(open(
-                            args.word_emb_init, 'rb'))).astype('float32')
-            else:
-                word_emb = np.array(
-                        pickle.load(open(
-                            args.word_emb_init, 'rb'), 
-                            encoding="bytes")).astype('float32')
-            dam.set_word_embedding(word_emb, place)
-            print("finish init word embedding  ...")
-        return data, logits
+    return dam, data, logits
 
 class Net(object):
     """

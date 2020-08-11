@@ -53,7 +53,7 @@ def main():
 
         train_prog, start_prog = fluid.Program(), fluid.Program()
         with fluid.program_guard(train_prog, start_prog):
-            feed, loss, optimizer = model.build_train_net(args)
+            dam, feed, loss, optimizer = model.build_train_net(args)
             
         if args.distributed:
             optimizer = fleet.distributed_optimizer(optimizer)
@@ -74,10 +74,25 @@ def main():
 
         if args.distributed:
             train_prog = fleet.main_program
-            
+
+        exe.run(start_prog)
+        if args.word_emb_init is not None:
+            print("start loading word embedding init ...")
+            if six.PY2:
+                word_emb = np.array(
+                        pickle.load(open(
+                            args.word_emb_init, 'rb'))).astype('float32')
+            else:
+                word_emb = np.array(
+                        pickle.load(open(
+                            args.word_emb_init, 'rb'), 
+                            encoding="bytes")).astype('float32')
+            dam.set_word_embedding(word_emb, place)
+            print("finish init word embedding  ...")
+           
         test_prog = fluid.Program()
         with fluid.program_guard(test_prog):
-            feed, logits = model.build_test_net(args)
+            _, feed, logits = model.build_test_net(args)
         test_prog = test_prog.clone(for_test=True)
         filelist = [args.valid_data_path]
         valid_loader = utils.create_dataloader(
@@ -92,9 +107,9 @@ def main():
                 data_source=args.data_source,
                 is_distributed=args.distributed)
 
-        exe.run(start_prog)
         train_fetch = [loss]
         valid_fetch = [logits] + ["label"]
+
         train(args, train_prog, test_prog, exe,
                 feed, train_fetch, valid_fetch,
                 train_loader, valid_loader)
@@ -113,7 +128,7 @@ def main():
 
         test_prog, start_prog = fluid.Program(), fluid.Program()
         with fluid.program_guard(test_prog, start_prog):
-            feed, logits = model.build_test_net(args)
+            _, feed, logits = model.build_test_net(args)
             fluid.io.load_persistables(
                     executor=exe,
                     dirname=args.model_path,
@@ -146,6 +161,9 @@ def create_place(is_distributed):
 
 def train(args, train_prog, test_prog, exe, feed, 
         train_fetch, valid_fetch, train_loader, valid_loader):
+    print_step = 10
+    save_step = 2000
+    step = 0
     for epoch in range(args.num_scan_data):
         start = time.time()
         for idx, sample in enumerate(train_loader()):
@@ -153,52 +171,56 @@ def train(args, train_prog, test_prog, exe, feed,
                     program=train_prog,
                     feed=sample,
                     fetch_list=train_fetch)
-            if idx % 10 == 0:
-                print('[TRAIN] epoch=%d step=%d loss=%f' % (epoch, idx, ret[0][0]))
+            if step % print_step == 0:
+                print('[TRAIN] epoch=%d step=%d loss=%f' % (epoch, step, ret[0][0]))
+            if step != 0 and step % save_step == 0:
+                save_path = os.path.join(args.save_path, 
+                        "model.epoch_{}.step_{}".format(epoch, step))
+                if args.distributed:
+                    if fleet.worker_index() == 0:
+                        fleet.save_persistables(executor=exe, dirname=save_path)
+                        print("model saved in {}".format(save_path))
+                    filename = os.path.join(args.save_path,
+                            "score.epoch_{}.step_{}.worker_{}".format(
+                                epoch, step, fleet.worker_index()))
+                else:
+                    fluid.io.save_persistables(exe, save_path, train_prog)
+                    filename = os.path.join(args.save_path,
+                            "score.epoch_{}.step_{}".format(epoch, step))
+                score_file = open(filename, 'w')
+                for idx, sample in enumerate(valid_loader()):
+                    ret = exe.run(
+                            program=test_prog,
+                            feed=sample,
+                            fetch_list=valid_fetch,
+                            return_numpy=False)
+                    scores = np.array(ret[0])
+                    label = np.array(ret[1])
+                    for i in six.moves.xrange(len(scores)):
+                        score_file.write("{}\t{}\n".format(scores[i][0], int(label[i][0])))
+                score_file.close()
+                if args.ext_eval:
+                    result = eva.evaluate_douban(filename)
+                else:
+                    result = eva.evaluate_ubuntu(filename)
+
+                print("[VALID] local result: ")
+                for metric in result:
+                    value, length = result[metric]
+                    print("[VALID]   {}: {}".format(metric, 1.0 * value / length))
+
+                if args.distributed:
+                    if args.ext_eval:
+                        dist_result = utils.dist_eval_douban(exe, result)
+                    else:
+                        dist_result = utils.dist_eval_ubuntu(exe, result)
+                    print("[VALID] global result: ")
+                    for metric in dist_result:
+                        print("[VALID]   {}: {}".format(metric, dist_result[metric]))
+                
+            step += 1
         end = time.time()
         print("train epoch {} time: {} s".format(epoch, end - start))
-
-        save_path = os.path.join(args.save_path, "model.{}".format(epoch))
-        if args.distributed:
-            if fleet.worker_index() == 0:
-                fleet.save_persistables(executor=exe, dirname=save_path)
-                print("model saved in {}".format(save_path))
-            
-            filename = os.path.join(args.save_path, 
-                    "score.{}.{}".format(epoch, fleet.worker_index()))
-        else:
-            filename = os.path.join(args.save_path, "score.{}".format(epoch))
-        
-        score_file = open(filename, 'w')
-        for idx, sample in enumerate(valid_loader()):
-            ret = exe.run(
-                    program=test_prog,
-                    feed=sample,
-                    fetch_list=valid_fetch,
-                    return_numpy=False)
-            scores = np.array(ret[0])
-            label = np.array(ret[1])
-            for i in six.moves.xrange(len(scores)):
-                score_file.write("{}\t{}\n".format(scores[i][0], int(label[i][0])))
-        score_file.close()
-        if args.ext_eval:
-            result = eva.evaluate_douban(filename)
-        else:
-            result = eva.evaluate_ubuntu(filename)
-
-        print("[VALID] local result: ")
-        for metric in result:
-            value, length = result[metric]
-            print("[VALID]   {}: {}".format(metric, 1.0 * value / length))
-            
-        if args.distributed:
-            if args.ext_eval:
-                dist_result = utils.dist_eval_douban(exe, result)
-            else:
-                dist_result = utils.dist_eval_ubuntu(exe, result)
-            print("[VALID] global result: ")
-            for metric in dist_result:
-                print("[VALID]   {}: {}".format(metric, dist_result[metric]))
 
 def test(args, test_prog, exe, feed, fetch, loader):
     start = time.time()
