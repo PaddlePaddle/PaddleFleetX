@@ -14,10 +14,12 @@
 # limitations under the License.
 import time
 from .util import *
+import sysconfig
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 from fleet_lightning.dataset.image_dataset import image_dataloader_from_filelist
 from fleet_lightning.dataset.bert_dataset import load_bert_dataset
 from fleet_lightning.dataset.transformer_dataset import transformer_data_generator
+from fleet_lightning.version import lightning_version
 
 
 class ModelBase(object):
@@ -45,87 +47,105 @@ class ModelBase(object):
         return self.main_prog
 
 
+def download_model(fleet_path, model_name):
+    version = lightning_version.replace('-', '')
+    gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
+    if gpu_id == 0:
+        if not os.path.exists(fleet_path + model_name):
+            if not os.path.exists(fleet_path + model_name + '.tar.gz'):
+                os.system(
+                    'wget -P {} --no-check-certificate https://fleet.bj.bcebos.com/models/{}/{}.tar.gz'.
+                    format(fleet_path, version, model_name))
+                os.system('tar -xf {}{}.tar.gz -C {}'.format(
+                    fleet_path, model_name, fleet_path))
+    else:
+        time.sleep(3)
+
+
 class Resnet50(ModelBase):
     def __init__(self):
         super(Resnet50, self).__init__()
-        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
-        if gpu_id == 0:
-            if not os.path.exists('resnet50'):
-                if not os.path.exists('resnet50.tar.gz'):
-                    os.system(
-                        'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                        format('resnet50'))
-                os.system('tar -xf {}.tar.gz'.format('resnet50'))
-        else:
-            time.sleep(3)
+        fleet_path = sysconfig.get_paths()[
+            "purelib"] + '/fleet_lightning/applications/'
+        model_name = 'resnet50'
+        download_model(fleet_path, model_name)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
-            "resnet50")
+            fleet_path + model_name)
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
         self.checkpoints = checkpoints
         self.target = target
+        self.use_dali = False
 
     def load_imagenet_from_file(self,
                                 filelist,
                                 batch_size=32,
                                 phase='train',
                                 shuffle=True,
-                                use_dali=False):
+                                use_dali=False,
+                                data_layout='NHWC'):
         if phase != 'train':
             shuffle = False
+        self.use_dali = use_dali
         return image_dataloader_from_filelist(
-            filelist, self.inputs, batch_size, phase, shuffle, use_dali)
+            filelist,
+            self.inputs,
+            batch_size,
+            phase,
+            shuffle,
+            use_dali,
+            data_layout=data_layout)
 
 
 class VGG16(ModelBase):
     def __init__(self):
         super(VGG16, self).__init__()
         gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
-        if gpu_id == 0:
-            if not os.path.exists('vgg16'):
-                os.system(
-                    'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                    format('vgg16'))
-                os.system('tar -xf {}.tar.gz'.format('vgg16'))
-        else:
-            time.sleep(3)
+        fleet_path = sysconfig.get_paths()[
+            "purelib"] + '/fleet_lightning/applications/'
+        model_name = 'vgg16'
+        download_model(fleet_path, model_name)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
-            "vgg16")
+            fleet_path + model_name)
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
         self.loss = loss
         self.checkpoints = checkpoints
         self.target = target
+        self.use_dali = False
 
     def load_imagenet_from_file(self,
                                 filelist,
                                 batch_size=32,
                                 phase='train',
                                 shuffle=True,
-                                use_dali=False):
+                                use_dali=False,
+                                data_layout='NHWC'):
         if phase != 'train':
             shuffle = False
+        self.use_dali = use_dali
         return image_dataloader_from_filelist(
-            filelist, self.inputs, batch_size, phase, shuffle, use_dali)
+            filelist,
+            self.inputs,
+            batch_size,
+            phase,
+            shuffle,
+            use_dali,
+            data_layout=data_layout)
 
 
 class Transformer(ModelBase):
     def __init__(self):
         super(Transformer, self).__init__()
-        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
-        if gpu_id == 0:
-            if not os.path.exists('transformer'):
-                os.system(
-                    'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                    format('transformer'))
-                os.system('tar -xf {}.tar.gz'.format('transformer'))
-        else:
-            time.sleep(3)
+        fleet_path = sysconfig.get_paths()[
+            "purelib"] + '/fleet_lightning/applications/'
+        model_name = 'transformer'
+        download_model(fleet_path, model_name)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
-            "transformer")
+            fleet_path + model_name)
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
@@ -151,18 +171,12 @@ class Transformer(ModelBase):
 class Bert_large(ModelBase):
     def __init__(self):
         super(Bert_large, self).__init__()
-        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
-        if gpu_id == 0:
-            if not os.path.exists('bert_large'):
-                if not os.path.exists('bert_large.tar.gz'):
-                    os.system(
-                        'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                        format('bert_large'))
-                os.system('tar -xf {}.tar.gz'.format('bert_large'))
-        else:
-            time.sleep(3)
+        fleet_path = sysconfig.get_paths()[
+            "purelib"] + '/fleet_lightning/applications/'
+        model_name = 'bert_large'
+        download_model(fleet_path, model_name)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
-            "bert_large")
+            fleet_path + model_name)
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
@@ -189,17 +203,12 @@ class Bert_base(ModelBase):
     def __init__(self):
         super(Bert_base, self).__init__()
         gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
-        if gpu_id == 0:
-            if not os.path.exists('bert_base'):
-                if not os.path.exists('bert_base.tar.gz'):
-                    os.system(
-                        'wget --no-check-certificate https://fleet.bj.bcebos.com/models/{}.tar.gz'.
-                        format('bert_base'))
-                os.system('tar -xf {}.tar.gz'.format('bert_base'))
-        else:
-            time.sleep(3)
+        fleet_path = sysconfig.get_paths()[
+            "purelib"] + '/fleet_lightning/applications/'
+        model_name = 'bert_base'
+        download_model(fleet_path, model_name)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
-            "bert_base")
+            fleet_path + model_name)
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs

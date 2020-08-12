@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ Fleet_lightning version string """
-lightning_version = "0.0.3"
-module_proto_version = "0.0.3"
+lightning_version = "0.0.4"
+module_proto_version = "0.0.4"
