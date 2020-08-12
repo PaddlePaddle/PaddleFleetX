@@ -1,12 +1,11 @@
 
 <h2 align="center">FleetX</h2>
 
-**FleetX** is an extension package for [Paddle](https://github.com/PaddlePaddle/Paddle). As cloud service grows rapidly, distributed training of deep learning model will be a user-facing method for daily research. **FleetX** aims to help Paddle users do distributed training with little effort.
-<h3 align="center">Out-of-the-box models for large scale dataset</h3>
-<h3 align="center">Best practice distributed strategies</h3>
-<h3 align="center">Easy-To-Use on Kubernetes cluster</h3>
+**FleetX** is an extension package for [Paddle](https://github.com/PaddlePaddle/Paddle). As cloud service grows rapidly, distributed training of deep learning model will be a user-facing approach for daily applications and research. **FleetX** aims to help Paddle users do distributed training without much effort.
+<h4 align="center">Out-of-the-box models for large scale dataset</h4>
+<h4 align="center">Best practice distributed strategies</h4>
+<h4 align="center">Easy-To-Use on Kubernetes cluster</h4>
 
-**Note: all the examples here should be replicated from develop branch of Paddle**
 
 <h2 align="center">Installation</h2>
 
