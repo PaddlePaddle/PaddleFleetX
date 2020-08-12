@@ -33,8 +33,34 @@ optimizer = paddle.optimizer.Momentum(learning_rate=configs.lr, momentum=configs
 
 # paddle distributed training code here
 fleet.init(is_collective=True)
-optimizer = paddle.distributed.fleet.distributed_optimizer(optimizer)
+optimizer = fleet.distributed_optimizer(optimizer)
 
 optimizer.minimize(model.loss)
 
+epoch = 10
+for e in range(epoch):
+    for data in loader():
+        cost_val = exe.run(fleet.main_program, feed=data, fetch_list=[model.loss.name])
+
+```
+
+
+<h2 align="center">How to launch your task</h2>
+
+- Multiple cards
+
+``` shell
+fleetrun --gpus 0,1,2,3,4,5,6,7 resnet50_app.py
+```
+
+- Multiple cards on Multiple Nodes
+
+``` shell
+fleetrun --gpus 0,1,2,3,4,5,6,7 --endpoints="xx.xx.xx.xx:8585,yy.yy.yy.yy:9696" resnet50_app.py
+```
+
+- Run on Baidu Cloud
+
+``` shell
+fleetrun --conf config.yml resnet50_app.py
 ```
