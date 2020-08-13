@@ -91,10 +91,14 @@ if fleet.is_server():
     fleet.init_server()
     fleet.run_server()
 else:
+    fleet.init_worker()
+    exe = paddle.Executor(paddle.CPUPlace())
+    exe.run(paddle.default_startup_program())
     epoch = 10
     for e in range(epoch):
         for data in loader():
             cost_val = exe.run(paddle.default_main_program(), feed=data, fetch_list=[model.loss.name])
+    fleet.stop_worker()
 
 ```
 
