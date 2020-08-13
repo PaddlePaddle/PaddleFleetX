@@ -6,13 +6,9 @@
 
 <h2 align="center">Main Features</h2>
 
-- Out of box models suitable for distributed training
-- Best practice distributed strategies
-- Easy to use on the cloud
-
 <p align="center">
     <br>
-<img src='docs/fleetx.png' width = "400" height = "300">
+<img src='docs/fleetx.png' width = "600" height = "200">
     <br>
 <p>
 
