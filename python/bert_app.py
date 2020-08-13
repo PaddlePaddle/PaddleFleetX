@@ -21,21 +21,21 @@ os.environ['FLAGS_fuse_parameter_memory_size'] = "32"
 os.environ['FLAGS_fuse_parameter_groups_size'] = "50"
 
 import numpy as np
-import fleet_lightning as lighting
+import fleetx as X
 import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
 import paddle.distributed.fleet.base.role_maker as role_maker
 import time
-# lightning help users to focus more on learning to train a large scale model
-# if you want to learn how to write a model, lightning is not for you
-# focus more on engineering staff in fleet-lightning
+# FleetX help users to focus more on learning to train a large scale model
+# if you want to learn how to write a model, fleetx is not for you
+# focus more on engineering staff in fleet-x
 
-configs = lighting.parse_train_configs()
+configs = X.parse_train_configs()
 role = role_maker.PaddleCloudRoleMaker(is_collective=True)
 fleet.init(role)
 # load Bert_large / Bert_base model
-#model = lighting.applications.Bert_large()
-model = lighting.applications.Bert_base()
+#model = X.applications.Bert_large()
+model = X.applications.Bert_base()
 
 data_loader = model.load_digital_dataset_from_file(
     data_dir='./train_data', vocab_path='./vocab.txt')

@@ -20,19 +20,19 @@ os.environ['FLAGS_cudnn_exhaustive_search'] = "1"
 os.environ['FLAGS_fuse_parameter_memory_size'] = "50"
 os.environ['FLAGS_fuse_parameter_groups_size'] = "50"
 
-import fleet_lightning as lighting
+import fleetx as X
 import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
-import paddle.fluid.incubate.fleet.base.role_maker as role_maker
+import paddle.distributed.fleet.base.role_maker as role_maker
 import time
 import numpy as np
-# lightning help users to focus more on learning to train a large scale model
-# if you want to learn how to write a model, lightning is not for you
-# focus more on engineering staff in fleet-lightning
-configs = lighting.parse_train_configs()
+# FleetX help users to focus more on learning to train a large scale model
+# if you want to learn how to write a model, FleetX is not for you
+# focus more on engineering staff in fleet-x
+configs = X.parse_train_configs()
 role = role_maker.PaddleCloudRoleMaker(is_collective=True)
 fleet.init(role)
-model = lighting.applications.Transformer()
+model = X.applications.Transformer()
 place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
 
 data_loader = model.load_wmt16_dataset_from_file(
