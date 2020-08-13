@@ -74,6 +74,7 @@ class DAMDataset(dg.MultiSlotStringDataGenerator):
         self.term_cut_type = term_cut_type
         self.data_conf = data_conf
         self.word2id = {}
+        self.source = source
         if source == "ubuntu":
             with open(dict_path) as f:
                 word = None
@@ -98,9 +99,12 @@ class DAMDataset(dg.MultiSlotStringDataGenerator):
 
     def generate_sample(self, line):
         def word_to_ids(words):
-            return [self.word2id.get(
-                w.replace('_', ''), self.word2id[self._unk])
-                for w in words.strip().split(" ")]
+            if self.source == "ubuntu":
+                words = words.replace('_', '')
+            if words.strip() == '':
+                return []        
+            return [self.word2id.get(w, self.word2id[self._unk])
+                for w in words.strip().split()]
 
         def data_iter():
             elements = line.strip().split('\t')
@@ -110,6 +114,8 @@ class DAMDataset(dg.MultiSlotStringDataGenerator):
             c2ids = []
             for words in c:
                 ids = word_to_ids(words)
+                if len(ids) == 0 and idx + 1 == len(c):
+                    continue
                 c2ids.append(ids)
             r2ids = word_to_ids(r)
 
