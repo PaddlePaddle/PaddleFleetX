@@ -1,11 +1,6 @@
 
 <h1 align="center">FleetX</h1>
 
-<p align="center">
-    <br>
-<img src='docs/fleetx.png' width = "600" height = "130">
-    <br>
-<p>
 
 **FleetX** is an extension package for [Paddle](https://github.com/PaddlePaddle/Paddle) High-Level Distributed Training API `paddle.fleet`. As cloud service grows rapidly, distributed training of deep learning model will be a user-facing approach for daily applications and research. **FleetX** aims to help Paddle users do distributed training on cloud like running on notebooks.
 
@@ -13,7 +8,13 @@
 
 - Out of box models suitable for distributed training
 - Best practice distributed strategies
-- Easy-To-Use Submission, Profiling and Job Monitor
+- Easy to use on the cloud
+
+<p align="center">
+    <br>
+<img src='docs/fleetx.png' width = "400" height = "300">
+    <br>
+<p>
 
 <h2 align="center">Installation</h2>
 
