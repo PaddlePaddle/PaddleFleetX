@@ -22,7 +22,7 @@ os.environ['FLAGS_fuse_parameter_groups_size'] = "50"
 
 import fleet_lightning as lighting
 import paddle.fluid as fluid
-from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
+import paddle.distributed.fleet as fleet
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 import time
 import numpy as np
@@ -45,6 +45,7 @@ optimizer = fluid.optimizer.Adam(
     beta1=configs.beta1,
     beta2=configs.beta2,
     epsilon=configs.epsilon)
+dist_strategy = fleet.DistributedStrategy()
 optimizer = fleet.distributed_optimizer(optimizer)
 optimizer.minimize(model.loss)
 
@@ -55,7 +56,7 @@ total_time = 0
 for i, data in enumerate(data_loader()):
     if i >= 100:
         start_time = time.time()
-    cost_val = exe.run(fleet.main_program,
+    cost_val = exe.run(fluid.default_main_program(),
                        feed=data,
                        fetch_list=[model.loss.name])
     if i >= 100:

@@ -25,8 +25,8 @@ os.environ['FLAGS_fuse_parameter_groups_size'] = "50"
 import math
 import fleet_lightning as lighting
 import paddle.fluid as fluid
-from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
-import paddle.fluid.incubate.fleet.base.role_maker as role_maker
+import paddle.distributed.fleet as fleet
+import paddle.distributed.fleet.base.role_maker as role_maker
 import time
 # lightning help users to focus more on learning to train a large scale model
 # if you want to learn how to write a model, lightning is not for you
@@ -42,7 +42,7 @@ loader = model.load_imagenet_from_file(
     "/path/to/ImageNet/train.txt", batch_size=256, use_dali=True)
 
 exec_strategy = fluid.ExecutionStrategy()
-dist_strategy = DistributedStrategy()
+dist_strategy = fleet.DistributedStrategy()
 exec_strategy.num_threads = 2
 exec_strategy.num_iteration_per_drop_scope = 100
 dist_strategy.exec_strategy = exec_strategy
@@ -69,7 +69,7 @@ for epoch_id in range(2):
     for data in loader:
         if step >= 100:
             start_time = time.time()
-        cost_val = exe.run(fleet.main_program,
+        cost_val = exe.run(fluid.default_main_program(),
                            feed=data,
                            fetch_list=[model.loss.name])
         if step >= 100:
