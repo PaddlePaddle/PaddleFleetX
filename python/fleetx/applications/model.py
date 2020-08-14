@@ -15,11 +15,10 @@
 import time
 from .util import *
 import sysconfig
-from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
-from fleet_lightning.dataset.image_dataset import image_dataloader_from_filelist
-from fleet_lightning.dataset.bert_dataset import load_bert_dataset
-from fleet_lightning.dataset.transformer_dataset import transformer_data_generator
-from fleet_lightning.version import lightning_version
+from fleetx.dataset.image_dataset import image_dataloader_from_filelist
+from fleetx.dataset.bert_dataset import load_bert_dataset
+from fleetx.dataset.transformer_dataset import transformer_data_generator
+from fleetx.version import fleetx_version
 
 
 class ModelBase(object):
@@ -48,7 +47,7 @@ class ModelBase(object):
 
 
 def download_model(fleet_path, model_name):
-    version = lightning_version.replace('-', '')
+    version = fleetx_version.replace('-', '')
     gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
     if gpu_id == 0:
         if not os.path.exists(fleet_path + model_name):
@@ -102,7 +101,6 @@ class Resnet50(ModelBase):
 class VGG16(ModelBase):
     def __init__(self):
         super(VGG16, self).__init__()
-        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
         fleet_path = sysconfig.get_paths()[
             "purelib"] + '/fleet_lightning/applications/'
         model_name = 'vgg16'
@@ -202,7 +200,6 @@ class Bert_large(ModelBase):
 class Bert_base(ModelBase):
     def __init__(self):
         super(Bert_base, self).__init__()
-        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
         fleet_path = sysconfig.get_paths()[
             "purelib"] + '/fleet_lightning/applications/'
         model_name = 'bert_base'

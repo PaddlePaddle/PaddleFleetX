@@ -13,15 +13,15 @@
 # limitations under the License.
 
 import os
-import fleet_lightning as lighting
+import fleetx as X
 import numpy as np
 import paddle.fluid as fluid
 from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
 import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 import time
-# lightning help users to focus more on learning to train a large scale model
-# if you want to learn how to write a model, lightning is not for you
-# focus more on engineering staff in fleet-lightning
+# FleetX help users to focus more on learning to train a large scale model
+# if you want to learn how to write a model, FleetX is not for you
+# focus more on engineering staff in fleet-x
 
 if not os.path.exists('testdata.tar.gz'):
     print("============download data============")
@@ -30,9 +30,9 @@ if not os.path.exists('testdata.tar.gz'):
     )
     os.system('tar -xf testdata.tar.gz')
 
-configs = lighting.parse_train_configs()
+configs = X.parse_train_configs()
 os.environ['FLAGS_selected_gpus'] = '0'
-model = lighting.applications.Resnet50()
+model = X.applications.Resnet50()
 test_program = fluid.default_main_program().clone(for_test=True)
 loader = model.load_imagenet_from_file("./testdata/train.txt")
 test_loader = model.load_imagenet_from_file("./testdata/val.txt", phase='val')
