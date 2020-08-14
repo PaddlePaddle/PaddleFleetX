@@ -162,7 +162,7 @@ def create_place(is_distributed):
 def train(args, train_prog, test_prog, exe, feed, 
         train_fetch, valid_fetch, train_loader, valid_loader):
     print_step = 10
-    save_step = 2000
+    save_step = 200
     step = 0
     for epoch in range(args.num_scan_data):
         start = time.time()

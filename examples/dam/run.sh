@@ -20,7 +20,7 @@ python -u train.py \
   --test_data_path data/ubuntu/test.txt \
   --vocab_path data/ubuntu/word2id \
   --data_source ubuntu \
-  --model_path ./model_files/ubuntu/model.epoch_0.step_6000 \
+  --model_path ./model_files/ubuntu/model.epoch_0.step_7400 \
   --save_path model_files/ubuntu/result \
   --vocab_size 434512 \
   --batch_size 512
@@ -46,7 +46,7 @@ python -u train.py \
   --test_data_path data/douban/test.txt \
   --vocab_path data/douban/word2id \
   --data_source douban \
-  --model_path ./model_files/douban/model.epoch_0.step_6000 \
+  --model_path ./model_files/douban/model.epoch_0.step_6200 \
   --save_path model_files/douban/result \
   --vocab_size 172130 \
   --channel1_num 16 \

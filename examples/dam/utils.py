@@ -39,7 +39,7 @@ def create_dataloader(feed_var_list, filelist,
             rank = fleet.worker_index()
             nranks = fleet.worker_num()
             for idx, sample in enumerate(generator()):
-                if idx // 2 % nranks == rank:
+                if idx % nranks == rank:
                     yield sample
         
         def _test_wrapper():

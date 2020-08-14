@@ -13,7 +13,7 @@ python -m paddle.distributed.launch \
     --log_dir=logs \
     train.py --distributed \
              --do_train True \
-             --train_data_path data/ubuntu/train.txt \
+             --train_data_path data/ubuntu/train.txt.shuffled \
              --valid_data_path data/ubuntu/valid.txt \
              --word_emb_init data/ubuntu/word_embedding.pkl \
              --vocab_path data/ubuntu/word2id \
@@ -22,14 +22,14 @@ python -m paddle.distributed.launch \
              --vocab_size 434512 \
              --batch_size 32 \
              --num_scan_data 2
-
+ 
 # douban dist train
 python -m paddle.distributed.launch \
     --selected_gpus=0,1,2,3 \
     --log_dir=logs \
     train.py --distributed \
             --do_train True \
-            --train_data_path data/douban/train.txt \
+            --train_data_path data/douban/train.txt.shuffled \
             --valid_data_path data/douban/dev.txt \
             --word_emb_init data/douban/word_embedding.pkl \
             --vocab_path data/douban/word2id \

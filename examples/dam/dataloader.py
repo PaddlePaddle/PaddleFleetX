@@ -112,7 +112,7 @@ class DAMDataset(dg.MultiSlotStringDataGenerator):
             c = elements[1:-1]
             r = elements[-1]
             c2ids = []
-            for words in c:
+            for idx, words in enumerate(c):
                 ids = word_to_ids(words)
                 if len(ids) == 0 and idx + 1 == len(c):
                     continue
