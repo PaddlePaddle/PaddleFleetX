@@ -1,46 +1,107 @@
 
-# Fleet
+<h1 align="center">FleetX</h1>
 
-**Fleet** is High-Level API for distributed training in PaddlePaddle. The name of **Fleet** means that a large crowd of ships working together to finish a large scale job. The design of Fleet makes a trade-off between easy-to-use and algorithmic extensibility and is highly efficient. First, a user can shift from local machine paddlepaddle code to distributed code  **within ten lines of code**. Second, different algorithms can be easily defined through **distributed strategy**  through Fleet API. Finally, distributed training is **extremely fast** with Fleet and just enjoy it.
 
-**Note: all the examples here should be replicated from develop branch of Paddle**
+**FleetX** is an extension package for `Paddle's` High-Level Distributed Training API `paddle.distributed.fleet`. As cloud service grows rapidly, distributed training of deep learning model will be a user-facing approach for daily applications and research. **FleetX** aims to help Paddle users do distributed training on cloud like running on notebooks.
 
-## Installation of Fleet-Lightning
-To show how to setup distributed training with fleet, we introduce a small library call **fleet-lightning**. **fleet-lightning** helps industrial users to directly train a specific standard model such as Resnet50 without learning to write a Paddle Model. 
+<h2 align="center">Main Features</h2>
+
+<p align="center">
+    <br>
+<img src='docs/fleetx.png' width = "600" height = "200">
+    <br>
+<p>
+
+<h2 align="center">Installation</h2>
 
 ``` bash
-pip install fleet-lightning
+pip install fleet-x
 ```
 
-## A Distributed Resnet50 Training Example
+<h2 align="center">A Distributed Resnet50 Training Example</h2>
 
 ``` python
 import os
-import fleet_lightning as lightning
-import paddle.fluid as fluid
-from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
-import paddle.fluid.incubate.fleet.base.role_maker as role_maker
+import paddle
+import paddle.distributed.fleet as fleet
+import fleetx as X
 
-configs = lightning.parse_train_configs()
-
-role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-fleet.init(role)
-
-model = lightning.applications.Resnet50()
-
+# fleet-x
+configs = X.parse_train_configs()
+model = X.applications.Resnet50()
 loader = model.load_imagenet_from_file("/pathto/imagenet/train.txt")
 
-optimizer = fluid.optimizer.Momentum(learning_rate=configs.lr, momentum=configs.momentum)
+# paddle optimizer definition
+optimizer = paddle.optimizer.Momentum(learning_rate=configs.lr, momentum=configs.momentum)
+
+# paddle distributed training code here
+fleet.init(is_collective=True)
+optimizer = fleet.distributed_optimizer(optimizer)
+
+optimizer.minimize(model.loss)
+
+epoch = 10
+for e in range(epoch):
+    for data in loader():
+        cost_val = exe.run(paddle.static.default_main_program(), feed=data, fetch_list=[model.loss.name])
+
+```
+
+
+<h2 align="center">How to launch your task</h2>
+
+- Multiple cards
+
+``` shell
+fleetrun --gpus 0,1,2,3,4,5,6,7 resnet50_app.py
+```
+
+- Multiple cards on Multiple Nodes
+
+``` shell
+fleetrun --gpus 0,1,2,3,4,5,6,7 --endpoints="xx.xx.xx.xx:8585,yy.yy.yy.yy:9696" resnet50_app.py
+```
+
+- Run on Baidu Cloud
+
+``` shell
+fleetrun --conf config.yml resnet50_app.py
+```
+
+
+<h2 align="center">Multi-slot DNN CTR model</h2>
+
+``` python
+import os
+import paddle
+import paddle.distributed.fleet as fleet
+import fleetx as X
+
+# fleet-x
+configs = X.parse_train_configs()
+model = X.applications.MultiSlotCTR()
+loader = model.load_multislot_from_file("/pathto/imagenet/train.txt")
+
+# paddle optimizer definition
+optimizer = paddle.optimizer.SGD(learning_rate=configs.lr)
+
+# paddle distributed training code here
+fleet.init()
 optimizer = fleet.distributed_optimizer(optimizer)
 optimizer.minimize(model.loss)
 
-place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
-exe = fluid.Executor(place)
-exe.run(fluid.default_startup_program())
+if fleet.is_server():
+    fleet.init_server()
+    fleet.run_server()
+else:
+    fleet.init_worker()
+    exe = paddle.Executor(paddle.CPUPlace())
+    exe.run(paddle.default_startup_program())
+    epoch = 10
+    for e in range(epoch):
+        for data in loader():
+            cost_val = exe.run(paddle.default_main_program(), feed=data, fetch_list=[model.loss.name])
+    fleet.stop_worker()
 
-epoch = 30
-for i in range(epoch):
-    for data in loader():
-        cost_val = exe.run(fleet.main_program, feed=data, fetch_list=[model.loss.name])
-    
 ```
+

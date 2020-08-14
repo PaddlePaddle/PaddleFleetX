@@ -21,21 +21,21 @@ os.environ['FLAGS_fuse_parameter_memory_size'] = "32"
 os.environ['FLAGS_fuse_parameter_groups_size'] = "50"
 
 import numpy as np
-import fleet_lightning as lighting
+import fleetx as X
 import paddle.fluid as fluid
-from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
-import paddle.fluid.incubate.fleet.base.role_maker as role_maker
+import paddle.distributed.fleet as fleet
+import paddle.distributed.fleet.base.role_maker as role_maker
 import time
-# lightning help users to focus more on learning to train a large scale model
-# if you want to learn how to write a model, lightning is not for you
-# focus more on engineering staff in fleet-lightning
+# FleetX help users to focus more on learning to train a large scale model
+# if you want to learn how to write a model, fleetx is not for you
+# focus more on engineering staff in fleet-x
 
-configs = lighting.parse_train_configs()
+configs = X.parse_train_configs()
 role = role_maker.PaddleCloudRoleMaker(is_collective=True)
 fleet.init(role)
 # load Bert_large / Bert_base model
-model = lighting.applications.Bert_large()
-#model = lighting.applications.Bert_base()
+#model = X.applications.Bert_large()
+model = X.applications.Bert_base()
 
 data_loader = model.load_digital_dataset_from_file(
     data_dir='./train_data', vocab_path='./vocab.txt')
@@ -44,10 +44,9 @@ place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
 exec_strategy = fluid.ExecutionStrategy()
 exec_strategy.num_threads = 2
 exec_strategy.num_iteration_per_drop_scope = 1
-dist_strategy = DistributedStrategy()
+dist_strategy = fleet.DistributedStrategy()
 dist_strategy.exec_strategy = exec_strategy
 dist_strategy.nccl_comm_num = 3
-dist_strategy.use_hierarchical_allreduce = True
 optimizer = fluid.optimizer.Adam(learning_rate=configs.lr)
 optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
 optimizer.minimize(model.loss)
@@ -59,7 +58,7 @@ total_time = 0
 for i, data in enumerate(data_loader()):
     if i >= 10:
         start_time = time.time()
-    cost_val = exe.run(fleet.main_program,
+    cost_val = exe.run(fluid.default_main_program(),
                        feed=data,
                        fetch_list=[model.loss.name])
     if i >= 10:
