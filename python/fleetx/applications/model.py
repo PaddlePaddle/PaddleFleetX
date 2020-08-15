@@ -64,8 +64,7 @@ def download_model(fleet_path, model_name):
 class Resnet50(ModelBase):
     def __init__(self):
         super(Resnet50, self).__init__()
-        fleet_path = sysconfig.get_paths()[
-            "purelib"] + '/fleet_lightning/applications/'
+        fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
         model_name = 'resnet50'
         download_model(fleet_path, model_name)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
@@ -101,8 +100,7 @@ class Resnet50(ModelBase):
 class VGG16(ModelBase):
     def __init__(self):
         super(VGG16, self).__init__()
-        fleet_path = sysconfig.get_paths()[
-            "purelib"] + '/fleet_lightning/applications/'
+        fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
         model_name = 'vgg16'
         download_model(fleet_path, model_name)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
@@ -138,8 +136,7 @@ class VGG16(ModelBase):
 class Transformer(ModelBase):
     def __init__(self):
         super(Transformer, self).__init__()
-        fleet_path = sysconfig.get_paths()[
-            "purelib"] + '/fleet_lightning/applications/'
+        fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
         model_name = 'transformer'
         download_model(fleet_path, model_name)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
@@ -169,8 +166,7 @@ class Transformer(ModelBase):
 class Bert_large(ModelBase):
     def __init__(self):
         super(Bert_large, self).__init__()
-        fleet_path = sysconfig.get_paths()[
-            "purelib"] + '/fleet_lightning/applications/'
+        fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
         model_name = 'bert_large'
         download_model(fleet_path, model_name)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
@@ -200,8 +196,7 @@ class Bert_large(ModelBase):
 class Bert_base(ModelBase):
     def __init__(self):
         super(Bert_base, self).__init__()
-        fleet_path = sysconfig.get_paths()[
-            "purelib"] + '/fleet_lightning/applications/'
+        fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
         model_name = 'bert_base'
         download_model(fleet_path, model_name)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
