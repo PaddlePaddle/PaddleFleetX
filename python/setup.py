@@ -49,7 +49,7 @@ package_dir = {
 }
 
 setup(
-    name='fleet_x',
+    name='fleet-x',
     version=fleetx_version.replace('-', ''),
     description=(''),
     long_description='',
