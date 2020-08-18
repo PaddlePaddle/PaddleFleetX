@@ -161,8 +161,8 @@ def create_place(is_distributed):
 
 def train(args, train_prog, test_prog, exe, feed, 
         train_fetch, valid_fetch, train_loader, valid_loader):
-    print_step = 10
-    save_step = 200
+    print_step = max(1, 1000000 / args.batch_size // (4 * 100))
+    save_step = max(1, 1000000 / args.batch_size // (4 * 10))
     step = 0
     for epoch in range(args.num_scan_data):
         start = time.time()
@@ -204,11 +204,6 @@ def train(args, train_prog, test_prog, exe, feed,
                 else:
                     result = eva.evaluate_ubuntu(filename)
 
-                print("[VALID] local result: ")
-                for metric in result:
-                    value, length = result[metric]
-                    print("[VALID]   {}: {}".format(metric, 1.0 * value / length))
-
                 if args.distributed:
                     if args.ext_eval:
                         dist_result = utils.dist_eval_douban(exe, result)
@@ -217,6 +212,20 @@ def train(args, train_prog, test_prog, exe, feed,
                     print("[VALID] global result: ")
                     for metric in dist_result:
                         print("[VALID]   {}: {}".format(metric, dist_result[metric]))
+                    if fleet.worker_index() == 0:
+                        with open(os.path.join(args.save_path,
+                            "result.epoch_{}.step_{}".format(epoch, step)), "w") as f:
+                            for k, v in dist_result.items():
+                                f.write("{}: {}".format(k, v) + "\n")
+                else:
+                    print("[VALID] local result: ")
+                    for metric in result:
+                        value, length = result[metric]
+                        print("[VALID]   {}: {}".format(metric, 1.0 * value / length))
+                    with open(os.path.join(args.save_path,
+                        "result.epoch_{}.step_{}".format(epoch, step)), "w") as f:
+                        for k, v in dist_result.items():
+                            f.write("{}: {}".format(k, v) + "\n")
                 
             step += 1
         end = time.time()

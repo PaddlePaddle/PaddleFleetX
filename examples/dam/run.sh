@@ -11,7 +11,7 @@ python -u train.py \
   --data_source ubuntu \
   --save_path ./model_files/ubuntu \
   --vocab_size 434512 \
-  --batch_size 1 \
+  --batch_size 256 \
   --num_scan_data 1
 
 #test on ubuntu
@@ -36,7 +36,7 @@ python -u train.py
   --save_path ./model_files/douban \
   --vocab_size 172130 \
   --channel1_num 16 \
-  --batch_size 16 \
+  --batch_size 256 \
   --num_scan_data 1
 
 #test on douban
@@ -46,7 +46,7 @@ python -u train.py \
   --test_data_path data/douban/test.txt \
   --vocab_path data/douban/word2id \
   --data_source douban \
-  --model_path ./model_files/douban/model.epoch_0.step_6200 \
+  --model_path model_files/douban/model.epoch_0.step_485 \
   --save_path model_files/douban/result \
   --vocab_size 172130 \
   --channel1_num 16 \
