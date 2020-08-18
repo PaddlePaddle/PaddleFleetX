@@ -39,6 +39,7 @@ fleet.init(is_collective=True)
 optimizer = fleet.distributed_optimizer(optimizer)
 
 optimizer.minimize(model.loss)
+exe = paddle.Executor(paddle.CUDAPlace(0))
 
 epoch = 10
 for e in range(epoch):
