@@ -74,8 +74,7 @@ def load_program(program_input):
         with open(program_input + '/checkpoint', 'r') as fin:
             for line in fin:
                 ckpt_name = line[:-1]
-                ckpt = new_main.global_block().var(ckpt_name)
-                checkpoints.append(ckpt)
+                checkpoints.append(ckpt_name)
     else:
         checkpoints = None
     for item in para_list:
