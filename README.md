@@ -39,11 +39,12 @@ fleet.init(is_collective=True)
 optimizer = fleet.distributed_optimizer(optimizer)
 
 optimizer.minimize(model.loss)
+exe = paddle.Executor(paddle.CUDAPlace(0))
 
 epoch = 10
 for e in range(epoch):
     for data in loader():
-        cost_val = exe.run(paddle.default_main_program(), feed=data, fetch_list=[model.loss.name])
+        cost_val = exe.run(paddle.static.default_main_program(), feed=data, fetch_list=[model.loss.name])
 
 ```
 
