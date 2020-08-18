@@ -21,29 +21,31 @@ os.environ["FLAGS_conv_workspace_size_limit"] = "7000"
 os.environ["FLAGS_fuse_parameter_memory_size"] = "16"
 os.environ["FLAGS_fuse_parameter_groups_size"] = "50"
 
-import fleet_lightning as lighting
+import fleetx as X
 import paddle.fluid as fluid
-from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
-import paddle.fluid.incubate.fleet.base.role_maker as role_maker
+import paddle.distributed.fleet as fleet
+import paddle.distributed.fleet.base.role_maker as role_maker
 import time
-# lightning help users to focus more on learning to train a large scale model
-# if you want to learn how to write a model, lightning is not for you
-# focus more on engineering staff in fleet-lightning
+# FleetX help users to focus more on learning to train a large scale model
+# if you want to learn how to write a model, FleetX is not for you
+# focus more on engineering staff in fleet-x
 
-configs = lighting.parse_train_configs()
+configs = X.parse_train_configs()
 role = role_maker.PaddleCloudRoleMaker(is_collective=True)
 fleet.init(role)
 
-model = lighting.applications.VGG16()
+model = X.applications.VGG16()
 
-loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
+loader = model.load_imagenet_from_file(
+    "/pathto/ImageNet/train.txt", data_layout='NCHW')
 
 exec_strategy = fluid.ExecutionStrategy()
-dist_strategy = DistributedStrategy()
+dist_strategy = fleet.DistributedStrategy()
 exec_strategy.num_threads = 2
 exec_strategy.num_iteration_per_drop_scope = 100
 dist_strategy.exec_strategy = exec_strategy
 dist_strategy.enable_inplace = False
+dist_strategy.use_amp = True
 dist_strategy.nccl_comm_num = 1
 dist_strategy.fuse_elewise_add_act_ops = True
 dist_strategy.fuse_bn_act_ops = True
@@ -61,16 +63,20 @@ exe.run(fluid.default_startup_program())
 
 for epoch_id in range(2):
     total_time = 0
-    for i, data in enumerate(loader()):
-        if i >= 100:
+    step = 0
+    for data in loader:
+        if step >= 100:
             start_time = time.time()
-        cost_val = exe.run(fleet.main_program,
+        cost_val = exe.run(fluid.default_main_program(),
                            feed=data,
                            fetch_list=[model.loss.name])
-        if i >= 100:
+        if step >= 100:
             end_time = time.time()
             total_time += (end_time - start_time)
             print(
                 "worker_index: %d, step%d cost = %f, total time cost = %f, average speed = %f, speed = %f"
-                % (fleet.worker_index(), i, cost_val[0], total_time,
-                   (i - 99) / total_time, 1 / (end_time - start_time)))
+                % (fleet.worker_index(), step, cost_val[0], total_time,
+                   (step - 99) / total_time, 1 / (end_time - start_time)))
+        step += 1
+    if model.use_dali:
+        loader.reset()
