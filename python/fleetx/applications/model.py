@@ -19,6 +19,7 @@ from fleetx.dataset.image_dataset import image_dataloader_from_filelist
 from fleetx.dataset.bert_dataset import load_bert_dataset
 from fleetx.dataset.transformer_dataset import transformer_data_generator
 from fleetx.version import fleetx_version
+from fleetx.dataset.ctr_data_generator import get_dataloader
 
 
 class ModelBase(object):
@@ -221,3 +222,31 @@ class Bert_base(ModelBase):
             batch_size=batch_size,
             max_seq_len=max_seq_len,
             in_tokens=in_tokens)
+
+
+class MultiSlotCTR(ModelBase):
+    def __init__(self):
+        super(CTR, self).__init__()
+        fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
+        model_name = 'ctr'
+        #        download_model(fleet_path, model_name)
+        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
+            model_name)
+        self.startup_prog = startup
+        self.main_prog = main
+        self.inputs = inputs
+        self.loss = loss
+        self.checkpoints = checkpoints
+        self.target = target
+
+    def load_multislot_from_file(self,
+                                 train_files_path,
+                                 sparse_feature_dim=1000001,
+                                 batch_size=1000,
+                                 shuffle=True):
+        return get_dataloader(
+            model.inputs,
+            train_files_path,
+            sparse_feature_dim=sparse_feature_dim,
+            batch_size=batch_size,
+            shuffle=shuffle)
