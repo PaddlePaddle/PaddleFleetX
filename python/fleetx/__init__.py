@@ -17,3 +17,4 @@ from . import applications
 from .applications import *
 from . import dataset
 from .dataset import *
+from .applications.trainer import Trainer

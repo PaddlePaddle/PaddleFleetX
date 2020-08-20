@@ -58,25 +58,5 @@ optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
 optimizer.minimize(model.loss)
 
 place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
-exe = fluid.Executor(place)
-exe.run(fluid.default_startup_program())
-
-for epoch_id in range(2):
-    total_time = 0
-    step = 0
-    for data in loader:
-        if step >= 100:
-            start_time = time.time()
-        cost_val = exe.run(fluid.default_main_program(),
-                           feed=data,
-                           fetch_list=[model.loss.name])
-        if step >= 100:
-            end_time = time.time()
-            total_time += (end_time - start_time)
-            print(
-                "worker_index: %d, step%d cost = %f, total time cost = %f, average speed = %f, speed = %f"
-                % (fleet.worker_index(), step, cost_val[0], total_time,
-                   (step - 99) / total_time, 1 / (end_time - start_time)))
-        step += 1
-    if model.use_dali:
-        loader.reset()
+trainer = X.Trainer(place)
+trainer.fit(model, loader, epoch=10)

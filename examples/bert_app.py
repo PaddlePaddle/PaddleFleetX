@@ -40,31 +40,19 @@ model = X.applications.Bert_base()
 data_loader = model.load_digital_dataset_from_file(
     data_dir='./train_data', vocab_path='./vocab.txt')
 
-place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+learning_rate = X.applications.linear_warmup_decay(configs.lr, 4000, 1000000)
 exec_strategy = fluid.ExecutionStrategy()
 exec_strategy.num_threads = 2
 exec_strategy.num_iteration_per_drop_scope = 1
 dist_strategy = fleet.DistributedStrategy()
 dist_strategy.exec_strategy = exec_strategy
 dist_strategy.nccl_comm_num = 3
-optimizer = fluid.optimizer.Adam(learning_rate=configs.lr)
+print(configs.lr)
+optimizer = fluid.optimizer.Adam(learning_rate=learning_rate)
 optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
 optimizer.minimize(model.loss)
 
-exe = fluid.Executor(place)
-exe.run(fluid.default_startup_program())
+place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+trainer = X.Trainer(place)
 
-total_time = 0
-for i, data in enumerate(data_loader()):
-    if i >= 10:
-        start_time = time.time()
-    cost_val = exe.run(fluid.default_main_program(),
-                       feed=data,
-                       fetch_list=[model.loss.name])
-    if i >= 10:
-        end_time = time.time()
-        total_time += (end_time - start_time)
-        print(
-            "worker_index: %d, step%d cost = %f, total time cost = %f, step per second: %f, speed: %f"
-            % (fleet.worker_index(), i, cost_val[0], total_time,
-               (i - 9) / total_time, 1 / (end_time - start_time)))
+trainer.fit(model, data_loader, 10)

@@ -18,7 +18,6 @@ import fleetx as X
 import paddle
 import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
-from py_reader_generator import CriteoDataset
 import paddle.distributed.fleet.base.role_maker as role_maker
 import time
 
@@ -29,10 +28,8 @@ model = X.applications.MultiSlotCTR()
 loader = model.load_multislot_from_file('./ctr_data/train_data')
 
 dist_strategy = fleet.DistributedStrategy()
-dist_strategy.mode = 'PS'
-dist_strategy.a_sync = False
-#dist_strategy.a_sync = True
-#dist_strategy.a_sync_configs = {"k_steps": 10000, "send_queue_size": 32}
+dist_strategy.a_sync = True
+dist_strategy.a_sync_configs = {"k_steps": 10000, "send_queue_size": 32}
 
 optimizer = fluid.optimizer.SGD(learning_rate=0.0001)
 
@@ -44,18 +41,5 @@ if fleet.is_server():
     fleet.run_server()
 else:
     fleet.init_worker()
-    exe = fluid.Executor(fluid.CPUPlace())
-    exe.run(fluid.default_startup_program())
-    epochs = 10
-    for epoch in range(epochs):
-        for i, data in enumerate(loader()):
-            print("hi")
-            print(data[0])
-            start_time = time.time()
-            cost_val = exe.run(fluid.default_main_program(),
-                               feed=data,
-                               fetch_list=[model.loss.name])
-            end_time = time.time()
-            print("epoch %d,step %d, use time=%d\n, loss=%f" % (
-                (epoch), i, end_time - start_time, cost_val[0]))
-    fleet.stop_worker()
+    trainer = X.Trainer(fluid.CPUPlace())
+    trainer.fit(model, loader, epoch=10)

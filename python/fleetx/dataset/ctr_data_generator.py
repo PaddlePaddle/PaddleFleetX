@@ -14,6 +14,7 @@
 # limitations under the License.
 
 # There are 13 integer features and 26 categorical features
+import os
 import paddle
 import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
@@ -45,7 +46,7 @@ def get_dataloader(inputs,
     else:
         reader = paddle.batch(reader, batch_size=batch_size)
     places = fluid.CPUPlace()
-    loader.set_sample_list_generator(train_reader, places)
+    loader.set_sample_list_generator(reader, places)
     return loader
 
 

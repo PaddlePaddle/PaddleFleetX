@@ -15,6 +15,7 @@
 import time
 from .util import *
 import sysconfig
+import paddle.distributed.fleet as fleet
 from fleetx.dataset.image_dataset import image_dataloader_from_filelist
 from fleetx.dataset.bert_dataset import load_bert_dataset
 from fleetx.dataset.transformer_dataset import transformer_data_generator
@@ -45,35 +46,6 @@ class ModelBase(object):
 
     def main_program(self):
         return self.main_prog
-
-    def linear_warmup_decay(self, learning_rate, warmup_steps,
-                            num_train_steps):
-        """ Applies linear warmup of learning rate from 0 and decay to 0."""
-        with fluid.default_main_program()._lr_schedule_guard():
-            lr = fluid.layers.tensor.create_global_var(
-                shape=[1],
-                value=0.0,
-                dtype='float32',
-                persistable=True,
-                name="scheduled_learning_rate")
-
-            global_step = fluid.layers.learning_rate_scheduler._decay_step_counter(
-            )
-
-            with fluid.layers.control_flow.Switch() as switch:
-                with switch.case(global_step < warmup_steps):
-                    warmup_lr = learning_rate * (global_step / warmup_steps)
-                    fluid.layers.tensor.assign(warmup_lr, lr)
-                with switch.default():
-                    decayed_lr = fluid.layers.learning_rate_scheduler.polynomial_decay(
-                        learning_rate=learning_rate,
-                        decay_steps=num_train_steps,
-                        end_learning_rate=0.0,
-                        power=1.0,
-                        cycle=False)
-                    fluid.layers.tensor.assign(decayed_lr, lr)
-
-            return lr
 
 
 def download_model(fleet_path, model_name):
@@ -255,12 +227,12 @@ class Bert_base(ModelBase):
 
 class MultiSlotCTR(ModelBase):
     def __init__(self):
-        super(CTR, self).__init__()
+        super(MultiSlotCTR, self).__init__()
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
         model_name = 'ctr'
-        #        download_model(fleet_path, model_name)
+        download_model(fleet_path, model_name)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
-            model_name)
+            fleet_path + model_name)
         self.startup_prog = startup
         self.main_prog = main
         self.inputs = inputs
@@ -274,7 +246,7 @@ class MultiSlotCTR(ModelBase):
                                  batch_size=1000,
                                  shuffle=True):
         return get_dataloader(
-            model.inputs,
+            self.inputs,
             train_files_path,
             sparse_feature_dim=sparse_feature_dim,
             batch_size=batch_size,
