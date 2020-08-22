@@ -7,31 +7,35 @@ export FLAGS_conv_workspace_size_limit=4000
 export FLAGS_cudnn_exhaustive_search=1
 export FLAGS_cudnn_batchnorm_spatial_persistent=1
 
-# ubuntu
+# ubuntu dist train
 python -m paddle.distributed.launch \
     --selected_gpus=0,1,2,3 \
     --log_dir=logs \
     train.py --distributed \
              --do_train True \
-             --filelist train.ubuntu.files \
+             --train_data_path data/ubuntu/train.txt \
+             --valid_data_path data/ubuntu/valid.txt \
+             --word_emb_init data/ubuntu/word_embedding.pkl \
+             --vocab_path data/ubuntu/word2id \
+             --data_source ubuntu \
              --save_path ./model_files/ubuntu \
              --vocab_size 434512 \
              --batch_size 256 \
-             --num_scan_data 1 \
-             --data_source ubuntu \
-             --vocab_path data/ubuntu/word2id
+             --num_scan_data 2
 
-# douban
+# douban dist train
 python -m paddle.distributed.launch \
     --selected_gpus=0,1,2,3 \
     --log_dir=logs \
     train.py --distributed \
             --do_train True \
-            --filelist train.douban.files \
-            --save_path ./model_files/douban \
-            --vocab_size 172130 \
+            --train_data_path data/douban/train.txt \
+            --valid_data_path data/douban/dev.txt \
+            --word_emb_init data/douban/word_embedding.pkl \
             --vocab_path data/douban/word2id \
             --data_source douban \
+            --save_path ./model_files/douban \
+            --vocab_size 172130 \
             --channel1_num 16 \
-            --num_scan_data 1 \
-            --batch_size 256
+            --batch_size 256 \
+            --num_scan_data 3
