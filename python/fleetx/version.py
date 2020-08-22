@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ FleetX version string """
-fleetx_version = "0.0.0"
-module_proto_version = "0.0.0"
+fleetx_version = "0.0.1"
+module_proto_version = "0.0.1"

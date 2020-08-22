@@ -34,8 +34,8 @@ configs = X.parse_train_configs()
 role = role_maker.PaddleCloudRoleMaker(is_collective=True)
 fleet.init(role)
 # load Bert_large / Bert_base model
-#model = X.applications.Bert_large()
-model = X.applications.Bert_base()
+model = X.applications.Bert_large()
+#model = X.applications.Bert_base()
 
 data_loader = model.load_digital_dataset_from_file(
     data_dir='./train_data', vocab_path='./vocab.txt')
@@ -47,7 +47,7 @@ exec_strategy.num_iteration_per_drop_scope = 1
 dist_strategy = fleet.DistributedStrategy()
 dist_strategy.exec_strategy = exec_strategy
 dist_strategy.nccl_comm_num = 3
-print(configs.lr)
+
 optimizer = fluid.optimizer.Adam(learning_rate=learning_rate)
 optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
 optimizer.minimize(model.loss)

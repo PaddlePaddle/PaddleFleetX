@@ -13,13 +13,10 @@
 # limitations under the License.
 
 import os
-import numpy as np
 import fleetx as X
-import paddle
 import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
 import paddle.distributed.fleet.base.role_maker as role_maker
-import time
 
 configs = X.parse_train_configs()
 role = role_maker.PaddleCloudRoleMaker()

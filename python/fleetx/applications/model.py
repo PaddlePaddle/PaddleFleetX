@@ -57,8 +57,8 @@ def download_model(fleet_path, model_name):
                 os.system(
                     'wget -P {} --no-check-certificate https://fleet.bj.bcebos.com/models/{}/{}.tar.gz'.
                     format(fleet_path, version, model_name))
-                os.system('tar -xf {}{}.tar.gz -C {}'.format(
-                    fleet_path, model_name, fleet_path))
+            os.system('tar -xf {}{}.tar.gz -C {}'.format(
+                fleet_path, model_name, fleet_path))
     else:
         time.sleep(3)
 

@@ -170,7 +170,7 @@ def save_program(main_prog,
         fout.write(target.name)
 
 
-def linear_warmup_decay(self, learning_rate, warmup_steps, num_train_steps):
+def linear_warmup_decay(learning_rate, warmup_steps, num_train_steps):
     """ Applies linear warmup of learning rate from 0 and decay to 0."""
     with fluid.default_main_program()._lr_schedule_guard():
         lr = fluid.layers.tensor.create_global_var(
