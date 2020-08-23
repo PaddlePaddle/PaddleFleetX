@@ -31,184 +31,144 @@ try:
 except ImportError as e:
     import pickle  #python 3
 
-from model_check import check_cuda
 import utils
 import config
 import model
 
-def main():
+def test():
     args = config.parse_args()
     config.print_arguments(args)
 
-    if args.do_train:
-        if args.distributed:
-            init_dist_env()
+    trainer = GPUTrainer(distributed=False)
+    place = trainer.place
+    exe = trainer.exe
+    dam = model.DAM(exe, args.max_turn_num, args.max_turn_len,
+              args.vocab_size, args.emb_size, args.stack_num,
+              args.channel1_num, args.channel2_num)
 
-        if not os.path.exists(args.save_path):
-            if not args.distributed or fleet.worker_index() == 0:
-                os.makedirs(args.save_path)
-    
-        place = create_place(args.distributed)
-        exe = fluid.Executor(place)
+    filelists = {
+        "test": [args.test_data_path],
+    }
+    loaders = dam.get_loader_from_filelist(
+            args.batch_size, args.vocab_path, 
+            args.data_source, filelists, 1, 0)
+    test_loader = loaders["test"]
 
-        train_prog, start_prog = fluid.Program(), fluid.Program()
-        with fluid.program_guard(train_prog, start_prog):
-            dam, feed, loss, optimizer = model.build_train_net(args)
-            
-        if args.distributed:
-            optimizer = fleet.distributed_optimizer(optimizer)
-        optimizer.minimize(loss, start_prog)
-    
-        filelist = [args.train_data_path]
-        train_loader = utils.create_dataloader(
-                feed_var_list=feed,
-                filelist=filelist,
-                place=fluid.cpu_places(),
-                batch_size=args.batch_size,
-                dict_path=args.vocab_path,
-                max_turn_num=args.max_turn_num,
-                max_turn_len=args.max_turn_len,
-                is_test=False,
-                data_source=args.data_source,
-                is_distributed=args.distributed)
+    trainer.run(dam, None)
+    trainer.test(args, dam, test_loader)
 
-        if args.distributed:
-            train_prog = fleet.main_program
 
-        exe.run(start_prog)
-        if args.word_emb_init is not None:
-            print("start loading word embedding init ...")
-            if six.PY2:
-                word_emb = np.array(
-                        pickle.load(open(
-                            args.word_emb_init, 'rb'))).astype('float32')
-            else:
-                word_emb = np.array(
-                        pickle.load(open(
-                            args.word_emb_init, 'rb'), 
-                            encoding="bytes")).astype('float32')
-            dam.set_word_embedding(word_emb, place)
-            print("finish init word embedding  ...")
-           
-        test_prog = fluid.Program()
-        with fluid.program_guard(test_prog):
-            _, feed, logits = model.build_test_net(args)
-        test_prog = test_prog.clone(for_test=True)
-        filelist = [args.valid_data_path]
-        valid_loader = utils.create_dataloader(
-                feed_var_list=feed,
-                filelist=filelist,
-                place=fluid.cpu_places(),
-                batch_size=args.batch_size,
-                dict_path=args.vocab_path,
-                max_turn_num=args.max_turn_num,
-                max_turn_len=args.max_turn_len,
-                is_test=True,
-                data_source=args.data_source,
-                is_distributed=args.distributed)
+def train():
+    args = config.parse_args()
+    config.print_arguments(args)
 
-        train_fetch = [loss]
-        valid_fetch = [logits] + ["label"]
-
-        train(args, train_prog, test_prog, exe,
-                feed, train_fetch, valid_fetch,
-                train_loader, valid_loader)
-    
-    if args.do_test:
-        assert args.distributed == False 
-
-        if not os.path.exists(args.save_path):
-            os.makedirs(args.save_path)
-    
-        if not os.path.exists(args.model_path):
-            raise ValueError("Invalid model init path %s" % args.model_path)
-        
-        place = create_place(False)
-        exe = fluid.Executor(place)
-
-        test_prog, start_prog = fluid.Program(), fluid.Program()
-        with fluid.program_guard(test_prog, start_prog):
-            _, feed, logits = model.build_test_net(args)
-            fluid.io.load_persistables(
-                    executor=exe,
-                    dirname=args.model_path,
-                    main_program=fluid.default_main_program())
-
-        filelist = [args.test_data_path]
-        test_loader = utils.create_dataloader(
-                feed_var_list=feed,
-                filelist=filelist,
-                place=fluid.cpu_places(),
-                batch_size=args.batch_size,
-                dict_path=args.vocab_path,
-                max_turn_num=args.max_turn_num,
-                max_turn_len=args.max_turn_len,
-                is_test=True,
-                data_source=args.data_source,
-                is_distributed=False)
-
-        test_fetch = [logits] + ["label"]
-        test(args, test_prog, exe, feed, test_fetch, test_loader)
-        
-
-def init_dist_env():
     role = role_maker.PaddleCloudRoleMaker(is_collective=True)
     fleet.init(role)
 
-def create_place(is_distributed):
-    place_idx = int(os.environ['FLAGS_selected_gpus']) if is_distributed else 0
-    return fluid.CUDAPlace(place_idx)
+    trainer = GPUTrainer()
+    place = trainer.place
+    exe = trainer.exe
+    dam = model.DAM(exe, args.max_turn_num, args.max_turn_len,
+              args.vocab_size, args.emb_size, args.stack_num,
+              args.channel1_num, args.channel2_num)
 
-def train(args, train_prog, test_prog, exe, feed, 
-        train_fetch, valid_fetch, train_loader, valid_loader):
-    print_step = max(1, 1000000 / args.batch_size // (4 * 100))
-    save_step = max(1, 1000000 / args.batch_size // (4 * 10))
-    step = 0
-    for epoch in range(args.num_scan_data):
-        start = time.time()
-        for idx, sample in enumerate(train_loader()):
-            ret = exe.run(
-                    program=train_prog,
-                    feed=sample,
-                    fetch_list=train_fetch)
-            if step % print_step == 0:
-                print('[TRAIN] epoch=%d step=%d loss=%f' % (epoch, step, ret[0][0]))
-            if step != 0 and step % save_step == 0:
-                save_path = os.path.join(args.save_path, 
-                        "model.epoch_{}.step_{}".format(epoch, step))
-                if args.distributed:
+    filelists = {
+        "train": [args.train_data_path],
+        "valid": [args.valid_data_path],
+    }
+    loaders = dam.get_loader_from_filelist(
+            args.batch_size, args.vocab_path, 
+            args.data_source, filelists,
+            fleet.worker_num(), fleet.worker_index())
+    train_loader = loaders["train"]
+    valid_loader = loaders["valid"]
+
+    optimizer = fluid.optimizer.Adam(
+        learning_rate=fluid.layers.exponential_decay(
+            learning_rate=args.learning_rate,
+            decay_steps=400,
+            decay_rate=0.9,
+            staircase=True),
+        grad_clip=fluid.clip.GradientClipByValue(
+            min=-1.0, max=1.0))
+    
+    optimizer = fleet.distributed_optimizer(optimizer)
+    trainer.run(dam, optimizer)
+
+    if args.word_emb_init is not None:
+        dam.init_emb_from_file(args.word_emb_init, place)
+
+    epoch = args.num_scan_data
+    trainer.fit(args, dam, train_loader, valid_loader, epoch)
+
+class GPUTrainer(object):
+    def __init__(self, distributed=True):
+        self.distributed = distributed
+        self.place_idx = int(os.environ['FLAGS_selected_gpus']) if self.distributed else 0
+        self.place = fluid.CUDAPlace(self.place_idx)
+        self.exe = fluid.Executor(self.place)
+
+    def run(self, dam, optimizer):
+        self.train_prog = fluid.default_main_program()
+        self.start_prog = fluid.default_startup_program()
+        if optimizer is not None:
+            optimizer.minimize(dam.loss, self.start_prog)
+        self.test_prog = self.train_prog.clone(for_test=True)
+        if self.distributed:
+            self.train_prog = fleet.main_program
+        self.exe.run(self.start_prog)
+
+    def fit(self, args, dam, train_loader, valid_loader, epoch):
+        if not os.path.exists(args.save_path):
+            if fleet.worker_index() == 0:
+                os.makedirs(args.save_path)
+
+        train_fetch = [dam.loss]
+        valid_fetch = [dam.logits] + ["label"]
+
+        print_step = max(1, 1000000 / args.batch_size // (4 * 100))
+        save_step = max(1, 1000000 / args.batch_size // (4 * 10))
+        step = 0
+        for e_i in range(epoch):
+            start = time.time()
+            for idx, sample in enumerate(train_loader()):
+                step += 1
+                ret = self.exe.run(
+                        program=self.train_prog,
+                        feed=sample,
+                        fetch_list=train_fetch)
+                if step % print_step == 0:
+                    print('[TRAIN] epoch=%d step=%d loss=%f' % (epoch, step, ret[0][0]))
+                if step % save_step == 0:
+                    save_path = os.path.join(args.save_path, 
+                            "model.epoch_{}.step_{}".format(epoch, step))
                     if fleet.worker_index() == 0:
-                        fleet.save_persistables(executor=exe, dirname=save_path)
+                        fleet.save_persistables(executor=self.exe, dirname=save_path)
                         print("model saved in {}".format(save_path))
+                    """
                     filename = os.path.join(args.save_path,
                             "score.epoch_{}.step_{}.worker_{}".format(
-                                epoch, step, fleet.worker_index()))
-                else:
-                    fluid.io.save_persistables(exe, save_path, train_prog)
-                    filename = os.path.join(args.save_path,
-                            "score.epoch_{}.step_{}".format(epoch, step))
-                score_file = open(filename, 'w')
-                for idx, sample in enumerate(valid_loader()):
-                    ret = exe.run(
-                            program=test_prog,
-                            feed=sample,
-                            fetch_list=valid_fetch,
-                            return_numpy=False)
-                    scores = np.array(ret[0])
-                    label = np.array(ret[1])
-                    for i in six.moves.xrange(len(scores)):
-                        score_file.write("{}\t{}\n".format(scores[i][0], int(label[i][0])))
-                score_file.close()
-                if args.ext_eval:
-                    result = eva.evaluate_douban(filename)
-                else:
-                    result = eva.evaluate_ubuntu(filename)
-
-                if args.distributed:
+                                e_i, step, fleet.worker_index()))
+                    score_file = open(filename, "w")
+                    for idx, sample in enumerate(valid_loader()):
+                        ret = self.exe.run(
+                                program=self.test_prog,
+                                feed=sample,
+                                fetch_list=valid_fetch,
+                                return_numpy=False)
+                        scores = np.array(ret[0])
+                        label = np.array(ret[1])
+                        for i in six.moves.xrange(len(scores)):
+                            score_file.write("{}\t{}\n".format(scores[i][0], int(label[i][0])))
+                    score_file.close()
+                
                     if args.ext_eval:
-                        dist_result = utils.dist_eval_douban(exe, result)
+                        result = eva.evaluate_douban(filename)
+                        dist_result = utils.dist_eval_douban(self.exe, result)
                     else:
-                        dist_result = utils.dist_eval_ubuntu(exe, result)
+                        result = eva.evaluate_ubuntu(filename)
+                        dist_result = utils.dist_eval_ubuntu(self.exe, result)
+
                     print("[VALID] global result: ")
                     for metric in dist_result:
                         print("[VALID]   {}: {}".format(metric, dist_result[metric]))
@@ -217,47 +177,48 @@ def train(args, train_prog, test_prog, exe, feed,
                             "result.epoch_{}.step_{}".format(epoch, step)), "w") as f:
                             for k, v in dist_result.items():
                                 f.write("{}: {}".format(k, v) + "\n")
-                else:
-                    print("[VALID] local result: ")
-                    for metric in result:
-                        value, length = result[metric]
-                        print("[VALID]   {}: {}".format(metric, 1.0 * value / length))
-                    with open(os.path.join(args.save_path,
-                        "result.epoch_{}.step_{}".format(epoch, step)), "w") as f:
-                        for k, v in dist_result.items():
-                            f.write("{}: {}".format(k, v) + "\n")
-                
-            step += 1
+                    """
         end = time.time()
         print("train epoch {} time: {} s".format(epoch, end - start))
 
-def test(args, test_prog, exe, feed, fetch, loader):
-    start = time.time()
-    filename = os.path.join(args.save_path, "score.test")
-    score_file = open(filename, 'w')
-    for idx, sample in enumerate(loader()):
-        ret = exe.run(
-                program=test_prog,
-                feed=sample,
-                fetch_list=fetch,
-                return_numpy=False)
-        scores = np.array(ret[0])
-        label = np.array(ret[1])
-        for i in six.moves.xrange(len(scores)):
-            score_file.write("{}\t{}\n".format(scores[i][0], int(label[i][0])))
-    score_file.close()
+    def test(self, args, dam, loader):
+        if not os.path.exists(args.save_path):
+            if fleet.worker_index() == 0:
+                os.makedirs(args.save_path)
 
-    if args.ext_eval:
-        result = eva.evaluate_douban(filename)
-    else:
-        result = eva.evaluate_ubuntu(filename)
+        start = time.time()
+        filename = os.path.join(args.save_path, "score.test")
+        score_file = open(filename, "w")
+        fetch = [dam.logits] + ["label"]
+        for idx, sample in enumerate(loader()):
+            ret = self.exe.run(
+                    program=self.test_prog,
+                    feed=sample,
+                    fetch_list=fetch,
+                    return_numpy=False)
+            scores = np.array(ret[0])
+            label = np.array(ret[1])
+            for i in six.moves.xrange(len(scores)):
+                score_file.write("{}\t{}\n".format(scores[i][0], int(label[i][0])))
+        score_file.close()
+        
+        if args.ext_eval:
+            result = eva.evaluate_douban(filename)
+        else:
+            result = eva.evaluate_ubuntu(filename)
 
-    print("[TEST] local result: ")
-    for metric in result:
-        value, length = result[metric]
-        print("[TEST]   {}: {}".format(metric, 1.0 * value / length))
-    end = time.time()
-    print("test time: {} s".format(end - start))
-    
+        print("[TEST] result: ")
+        with open(os.path.join(args.save_path, "result"), "w") as f:
+            for metric in result:
+                value, length = result[metric]
+                print("[TEST]   {}: {}".format(metric, 1.0 * value / length))
+                f.write("{}: {}".format(metric, 1.0 * value / length) + "\n")
+        end = time.time()
+        print("test time: {} s".format(end - start))
+
 if __name__ == '__main__':
-    main()
+    args = config.parse_args()
+    if args.do_train:
+        train()
+    if args.do_test:
+        test()

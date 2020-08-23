@@ -13,54 +13,8 @@
 # limitations under the License.
 import sys
 import paddle.fluid as fluid
-from dataloader import sample_generator
 from paddle.fluid.incubate.fleet.collective import fleet
 import os
-
-def create_dataloader(feed_var_list, filelist,
-        place, batch_size, dict_path, max_turn_num,
-        max_turn_len, is_test, data_source, is_distributed):
-    loader = fluid.io.DataLoader.from_generator(
-            feed_list=feed_var_list,
-            capacity=8,
-            iterable=True)
-    data_conf = {
-        "max_turn_num": max_turn_num,
-        "max_turn_len": max_turn_len,
-    }
-    generator = sample_generator(
-            filelist,
-            dict_path,
-            data_conf,
-            data_source)
-    
-    def _dist_wrapper(generator, is_test):
-        def _wrapper():
-            rank = fleet.worker_index()
-            nranks = fleet.worker_num()
-            for idx, sample in enumerate(generator()):
-                if idx % nranks == rank:
-                    yield sample
-        
-        def _test_wrapper():
-            rank = fleet.worker_index()
-            nranks = fleet.worker_num()
-            for idx, sample in enumerate(generator()):
-                if idx // 10 % nranks == rank:
-                    yield sample
-
-        return _wrapper if not is_test else _test_wrapper
-
-    if is_distributed:
-        generator = _dist_wrapper(generator, is_test)
-
-    loader.set_sample_generator(
-            generator,
-            batch_size=batch_size,
-            drop_last=(not is_test),
-            places=place)
-    return loader
-
 def dist_eval(exe, var_names, feed):
     prog = fluid.Program()
     with fluid.program_guard(prog):
