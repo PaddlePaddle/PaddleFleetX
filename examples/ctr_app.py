@@ -22,7 +22,7 @@ configs = X.parse_train_configs()
 role = role_maker.PaddleCloudRoleMaker()
 fleet.init(role)
 model = X.applications.MultiSlotCTR()
-loader = model.load_multislot_from_file('./ctr_data/train_data')
+loader = model.load_criteo_from_file('./ctr_data/train_data')
 
 dist_strategy = fleet.DistributedStrategy()
 dist_strategy.a_sync = True
@@ -37,6 +37,5 @@ if fleet.is_server():
     fleet.init_server()
     fleet.run_server()
 else:
-    fleet.init_worker()
-    trainer = X.Trainer(fluid.CPUPlace())
+    trainer = X.CPUTrainer(fluid.CPUPlace())
     trainer.fit(model, loader, epoch=10)

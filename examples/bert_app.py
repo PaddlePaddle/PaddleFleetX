@@ -33,14 +33,14 @@ import time
 configs = X.parse_train_configs()
 role = role_maker.PaddleCloudRoleMaker(is_collective=True)
 fleet.init(role)
-# load Bert_large / Bert_base model
-model = X.applications.Bert_large()
-#model = X.applications.Bert_base()
+# load BertLarge / BertBase model
+model = X.applications.BertLarge()
+#model = X.applications.BertBase()
 
 data_loader = model.load_digital_dataset_from_file(
     data_dir='./train_data', vocab_path='./vocab.txt')
 
-learning_rate = X.applications.linear_warmup_decay(configs.lr, 4000, 1000000)
+learning_rate = X.utils.linear_warmup_decay(configs.lr, 4000, 1000000)
 exec_strategy = fluid.ExecutionStrategy()
 exec_strategy.num_threads = 2
 exec_strategy.num_iteration_per_drop_scope = 1
@@ -53,6 +53,6 @@ optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
 optimizer.minimize(model.loss)
 
 place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
-trainer = X.Trainer(place)
+trainer = X.MultiGPUTrainer(place)
 
 trainer.fit(model, data_loader, 10)

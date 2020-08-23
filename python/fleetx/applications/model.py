@@ -165,9 +165,9 @@ class Transformer(ModelBase):
             shuffle=shuffle)
 
 
-class Bert_large(ModelBase):
+class BertLarge(ModelBase):
     def __init__(self):
-        super(Bert_large, self).__init__()
+        super(BertLarge, self).__init__()
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
         model_name = 'bert_large'
         download_model(fleet_path, model_name)
@@ -195,9 +195,9 @@ class Bert_large(ModelBase):
             in_tokens=in_tokens)
 
 
-class Bert_base(ModelBase):
+class BertBase(ModelBase):
     def __init__(self):
-        super(Bert_base, self).__init__()
+        super(BertBase, self).__init__()
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
         model_name = 'bert_base'
         download_model(fleet_path, model_name)
@@ -240,11 +240,11 @@ class MultiSlotCTR(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_multislot_from_file(self,
-                                 train_files_path,
-                                 sparse_feature_dim=1000001,
-                                 batch_size=1000,
-                                 shuffle=True):
+    def load_criteo_from_file(self,
+                              train_files_path,
+                              sparse_feature_dim=1000001,
+                              batch_size=1000,
+                              shuffle=True):
         return get_dataloader(
             self.inputs,
             train_files_path,

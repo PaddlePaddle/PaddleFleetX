@@ -60,5 +60,5 @@ optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
 optimizer.minimize(model.loss)
 
 place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
-trainer = X.Trainer(place)
+trainer = X.MultiGPUTrainer(place)
 trainer.fit(model, loader, epoch=10, use_dali=True)

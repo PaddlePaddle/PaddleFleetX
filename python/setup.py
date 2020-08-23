@@ -40,12 +40,14 @@ packages = [
     'fleetx',
     'fleetx.applications',
     'fleetx.dataset',
+    'fleetx.utils',
 ]
 
 package_dir = {
     'fleetx': './fleetx',
     'fleetx.applications': './fleetx/applications',
-    'fleetx.dataset': './fleetx/dataset'
+    'fleetx.dataset': './fleetx/dataset',
+    'fleetx.utils': './fleetx/utils'
 }
 
 setup(
