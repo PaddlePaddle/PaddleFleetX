@@ -49,19 +49,6 @@ class DAM(object):
         self.use_mask_cache = True
         self.use_sparse_embedding = True
     
-        """
-        self.train_prog = fluid.Program()
-        self.start_prog = fluid.Program()
-        with fluid.program_guard(self.train_prog, self.start_prog):
-            with fluid.unique_name.guard():
-                self.feed_vars = self.create_data_layers()
-                loss, logits = self.create_network()
-                loss.persistable = True
-                logits.persistable = True
-                self.loss = loss
-                self.logits = logits
-        exe.run(self.start_prog)
-        """
         self.feed_vars = self.create_data_layers()
         loss, logits = self.create_network()
         loss.persistable = True

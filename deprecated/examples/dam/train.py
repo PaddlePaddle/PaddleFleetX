@@ -54,7 +54,7 @@ def test():
             args.data_source, filelists, 1, 0)
     test_loader = loaders["test"]
 
-    trainer.run(dam, None)
+    trainer.run(dam, model_path=args.model_path)
     trainer.test(args, dam, test_loader)
 
 
@@ -93,7 +93,7 @@ def train():
             min=-1.0, max=1.0))
     
     optimizer = fleet.distributed_optimizer(optimizer)
-    trainer.run(dam, optimizer)
+    trainer.run(dam, optimizer=optimizer)
 
     if args.word_emb_init is not None:
         dam.init_emb_from_file(args.word_emb_init, place)
@@ -108,15 +108,23 @@ class GPUTrainer(object):
         self.place = fluid.CUDAPlace(self.place_idx)
         self.exe = fluid.Executor(self.place)
 
-    def run(self, dam, optimizer):
-        self.train_prog = fluid.default_main_program()
-        self.start_prog = fluid.default_startup_program()
-        if optimizer is not None:
+    def run(self, dam, optimizer=None, model_path=None):
+        if model_path is not None:
+            # test
+            fluid.io.load_persistables(
+                    executor=self.exe,
+                    dirname=model_path,
+                    main_program=fluid.default_main_program())
+            self.test_prog = fluid.default_main_program()
+        elif optimizer is not None:
+            # train
+            self.train_prog = fluid.default_main_program()
+            self.start_prog = fluid.default_startup_program()
             optimizer.minimize(dam.loss, self.start_prog)
-        self.test_prog = self.train_prog.clone(for_test=True)
-        if self.distributed:
-            self.train_prog = fleet.main_program
-        self.exe.run(self.start_prog)
+            self.test_prog = self.train_prog.clone(for_test=True)
+            if self.distributed:
+                self.train_prog = fleet.main_program
+            self.exe.run(self.start_prog)
 
     def fit(self, args, dam, train_loader, valid_loader, epoch):
         if not os.path.exists(args.save_path):
@@ -138,14 +146,14 @@ class GPUTrainer(object):
                         feed=sample,
                         fetch_list=train_fetch)
                 if step % print_step == 0:
-                    print('[TRAIN] epoch=%d step=%d loss=%f' % (epoch, step, ret[0][0]))
+                    print('[TRAIN] epoch=%d step=%d loss=%f' % (e_i, step, ret[0][0]))
                 if step % save_step == 0:
                     save_path = os.path.join(args.save_path, 
-                            "model.epoch_{}.step_{}".format(epoch, step))
+                            "model.epoch_{}.step_{}".format(e_i, step))
                     if fleet.worker_index() == 0:
                         fleet.save_persistables(executor=self.exe, dirname=save_path)
                         print("model saved in {}".format(save_path))
-                    """
+                    
                     filename = os.path.join(args.save_path,
                             "score.epoch_{}.step_{}.worker_{}".format(
                                 e_i, step, fleet.worker_index()))
@@ -174,17 +182,15 @@ class GPUTrainer(object):
                         print("[VALID]   {}: {}".format(metric, dist_result[metric]))
                     if fleet.worker_index() == 0:
                         with open(os.path.join(args.save_path,
-                            "result.epoch_{}.step_{}".format(epoch, step)), "w") as f:
+                            "result.epoch_{}.step_{}".format(e_i, step)), "w") as f:
                             for k, v in dist_result.items():
                                 f.write("{}: {}".format(k, v) + "\n")
-                    """
-        end = time.time()
-        print("train epoch {} time: {} s".format(epoch, end - start))
+            end = time.time()
+            print("train epoch {} time: {} s".format(e_i, end - start))
 
     def test(self, args, dam, loader):
         if not os.path.exists(args.save_path):
-            if fleet.worker_index() == 0:
-                os.makedirs(args.save_path)
+            os.makedirs(args.save_path)
 
         start = time.time()
         filename = os.path.join(args.save_path, "score.test")
