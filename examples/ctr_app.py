@@ -37,5 +37,5 @@ if fleet.is_server():
     fleet.init_server()
     fleet.run_server()
 else:
-    trainer = X.CPUTrainer(fluid.CPUPlace())
+    trainer = X.CPUTrainer()
     trainer.fit(model, loader, epoch=10)

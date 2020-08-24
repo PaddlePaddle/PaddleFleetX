@@ -37,7 +37,7 @@ fleet.init(role)
 model = X.applications.VGG16()
 
 loader = model.load_imagenet_from_file(
-    "/pathto/ImageNet/train.txt", data_layout='NCHW')
+    "/ssd2/lilong/ImageNet/train.txt", data_layout='NCHW')
 
 exec_strategy = fluid.ExecutionStrategy()
 dist_strategy = fleet.DistributedStrategy()
@@ -57,6 +57,5 @@ optimizer = fluid.optimizer.Momentum(
 optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
 optimizer.minimize(model.loss)
 
-place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
-trainer = X.MultiGPUTrainer(place)
+trainer = X.MultiGPUTrainer()
 trainer.fit(model, loader, epoch=10)
