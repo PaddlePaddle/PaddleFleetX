@@ -15,10 +15,12 @@
 import time
 from .util import *
 import sysconfig
+import paddle.distributed.fleet as fleet
 from fleetx.dataset.image_dataset import image_dataloader_from_filelist
 from fleetx.dataset.bert_dataset import load_bert_dataset
 from fleetx.dataset.transformer_dataset import transformer_data_generator
 from fleetx.version import fleetx_version
+from fleetx.dataset.ctr_data_generator import get_dataloader
 
 
 class ModelBase(object):
@@ -55,8 +57,8 @@ def download_model(fleet_path, model_name):
                 os.system(
                     'wget -P {} --no-check-certificate https://fleet.bj.bcebos.com/models/{}/{}.tar.gz'.
                     format(fleet_path, version, model_name))
-                os.system('tar -xf {}{}.tar.gz -C {}'.format(
-                    fleet_path, model_name, fleet_path))
+            os.system('tar -xf {}{}.tar.gz -C {}'.format(
+                fleet_path, model_name, fleet_path))
     else:
         time.sleep(3)
 
@@ -163,9 +165,9 @@ class Transformer(ModelBase):
             shuffle=shuffle)
 
 
-class Bert_large(ModelBase):
+class BertLarge(ModelBase):
     def __init__(self):
-        super(Bert_large, self).__init__()
+        super(BertLarge, self).__init__()
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
         model_name = 'bert_large'
         download_model(fleet_path, model_name)
@@ -193,9 +195,9 @@ class Bert_large(ModelBase):
             in_tokens=in_tokens)
 
 
-class Bert_base(ModelBase):
+class BertBase(ModelBase):
     def __init__(self):
-        super(Bert_base, self).__init__()
+        super(BertBase, self).__init__()
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
         model_name = 'bert_base'
         download_model(fleet_path, model_name)
@@ -221,3 +223,31 @@ class Bert_base(ModelBase):
             batch_size=batch_size,
             max_seq_len=max_seq_len,
             in_tokens=in_tokens)
+
+
+class MultiSlotCTR(ModelBase):
+    def __init__(self):
+        super(MultiSlotCTR, self).__init__()
+        fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
+        model_name = 'ctr'
+        download_model(fleet_path, model_name)
+        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
+            fleet_path + model_name)
+        self.startup_prog = startup
+        self.main_prog = main
+        self.inputs = inputs
+        self.loss = loss
+        self.checkpoints = checkpoints
+        self.target = target
+
+    def load_criteo_from_file(self,
+                              train_files_path,
+                              sparse_feature_dim=1000001,
+                              batch_size=1000,
+                              shuffle=True):
+        return get_dataloader(
+            self.inputs,
+            train_files_path,
+            sparse_feature_dim=sparse_feature_dim,
+            batch_size=batch_size,
+            shuffle=shuffle)
