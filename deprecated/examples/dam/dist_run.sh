@@ -12,7 +12,7 @@ python -m paddle.distributed.launch \
     --selected_gpus=0,1,2,3 \
     --log_dir=logs \
     train.py --do_train True \
-             --train_data_path data/ubuntu/train.txt.shuffled \
+             --train_data_path data/ubuntu/train.txt \
              --valid_data_path data/ubuntu/valid.txt \
              --word_emb_init data/ubuntu/word_embedding.pkl \
              --vocab_path data/ubuntu/word2id \
@@ -27,7 +27,7 @@ python -m paddle.distributed.launch \
     --selected_gpus=0,1,2,3 \
     --log_dir=logs \
     train.py --do_train True \
-             --train_data_path data/douban/train.txt.shuffled \
+             --train_data_path data/douban/train.txt \
              --valid_data_path data/douban/dev.txt \
              --word_emb_init data/douban/word_embedding.pkl \
              --vocab_path data/douban/word2id \
