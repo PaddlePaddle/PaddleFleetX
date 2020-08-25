@@ -37,18 +37,19 @@ fleet.init(role)
 model = X.applications.VGG16()
 
 loader = model.load_imagenet_from_file(
-    "/ssd2/lilong/ImageNet/train.txt", data_layout='NCHW')
+    "/pathto/ImageNet/train.txt", data_layout='NCHW')
 
 exec_strategy = fluid.ExecutionStrategy()
 dist_strategy = fleet.DistributedStrategy()
 exec_strategy.num_threads = 2
 exec_strategy.num_iteration_per_drop_scope = 100
-dist_strategy.exec_strategy = exec_strategy
-dist_strategy.enable_inplace = False
-dist_strategy.use_amp = True
+dist_strategy.execution_strategy = exec_strategy
+build_strategy = fluid.BuildStrategy()
+build_strategy.enable_inplace = False
+build_strategy.fuse_elewise_add_act_ops = True
+build_strategy.fuse_bn_act_ops = True
+dist_strategy.amp = True
 dist_strategy.nccl_comm_num = 1
-dist_strategy.fuse_elewise_add_act_ops = True
-dist_strategy.fuse_bn_act_ops = True
 
 optimizer = fluid.optimizer.Momentum(
     learning_rate=configs.lr,

@@ -45,7 +45,7 @@ exec_strategy = fluid.ExecutionStrategy()
 exec_strategy.num_threads = 2
 exec_strategy.num_iteration_per_drop_scope = 1
 dist_strategy = fleet.DistributedStrategy()
-dist_strategy.exec_strategy = exec_strategy
+dist_strategy.execution_strategy = exec_strategy
 dist_strategy.nccl_comm_num = 3
 
 optimizer = fluid.optimizer.Adam(learning_rate=learning_rate)
