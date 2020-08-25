@@ -20,12 +20,10 @@ os.environ['FLAGS_eager_delete_tensor_gb'] = "0"
 os.environ['FLAGS_fuse_parameter_memory_size'] = "32"
 os.environ['FLAGS_fuse_parameter_groups_size'] = "50"
 
-import numpy as np
 import fleetx as X
 import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
 import paddle.distributed.fleet.base.role_maker as role_maker
-import time
 # FleetX help users to focus more on learning to train a large scale model
 # if you want to learn how to write a model, fleetx is not for you
 # focus more on engineering staff in fleet-x
@@ -34,8 +32,8 @@ configs = X.parse_train_configs()
 role = role_maker.PaddleCloudRoleMaker(is_collective=True)
 fleet.init(role)
 # load BertLarge / BertBase model
-model = X.applications.BertLarge()
-#model = X.applications.BertBase()
+#model = X.applications.BertLarge()
+model = X.applications.BertBase()
 
 data_loader = model.load_digital_dataset_from_file(
     data_dir='./train_data', vocab_path='./vocab.txt')
