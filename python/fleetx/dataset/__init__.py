@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from image_dataset import image_dataloader_from_filelist
+from .image_dataset import image_dataloader_from_filelist

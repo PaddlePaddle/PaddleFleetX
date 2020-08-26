@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from model import *
-from util import *
+from .model import *
+from .util import *
