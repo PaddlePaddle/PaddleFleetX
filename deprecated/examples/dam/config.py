@@ -26,10 +26,6 @@ def parse_args():
     parser = argparse.ArgumentParser("DAM Config")
 
     parser.add_argument(
-        '--distributed',
-        action='store_true',
-        help='Whether to use Fleet.')
-    parser.add_argument(
         '--do_train',
         type=bool,
         default=False,

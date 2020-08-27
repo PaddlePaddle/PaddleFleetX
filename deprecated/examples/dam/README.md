@@ -14,7 +14,7 @@
 * `config.py`: 命令行参数配置文件
 * `data/download_data.sh`: 用于获取Ubuntu和Douban数据集
 * `dist_run.sh`: 用于便捷启动分布式训练的脚本
-* `run.sh`: 用于便捷启动单机训练/预测的脚本
+* `test.sh`: 用于便捷启动单机预测的脚本
 * `model_check.py`: 用于检查CUDA是否可用
 
 

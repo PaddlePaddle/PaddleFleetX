@@ -19,49 +19,19 @@ import six
 import numpy as np
 import paddle.fluid as fluid
 import layers
+from paddle.fluid.incubate.fleet.collective import fleet
+from dataloader import sample_generator
 try:
     import cPickle as pickle  #python 2
 except ImportError as e:
     import pickle  #python 3
 
-def build_train_net(args):
-    dam = Net(args.max_turn_num, args.max_turn_len, args.vocab_size,
-            args.emb_size, args.stack_num, args.channel1_num, args.channel2_num)
-    with fluid.unique_name.guard():
-        data = dam.create_data_layers()
-        loss, logits = dam.create_network()
-        loss.persistable = True
-        logits.persistable = True
-        
-        optimizer = fluid.optimizer.Adam(
-            learning_rate=fluid.layers.exponential_decay(
-                learning_rate=args.learning_rate,
-                decay_steps=400,
-                decay_rate=0.9,
-                staircase=True),
-            grad_clip=fluid.clip.GradientClipByValue(
-                min=-1.0, max=1.0))
-            
-    return dam, data, loss, optimizer
-        
-
-def build_test_net(args):
-    dam = Net(args.max_turn_num, args.max_turn_len, args.vocab_size,
-            args.emb_size, args.stack_num, args.channel1_num, args.channel2_num)
-    with fluid.unique_name.guard():
-        data = dam.create_data_layers()
-        loss, logits = dam.create_network()
-        loss.persistable = True
-        logits.persistable = True
-
-    return dam, data, logits
-
-class Net(object):
+class DAM(object):
     """
     Deep attention matching network
     """
 
-    def __init__(self, max_turn_num, max_turn_len, vocab_size, emb_size,
+    def __init__(self, exe, max_turn_num, max_turn_len, vocab_size, emb_size,
                  stack_num, channel1_num, channel2_num):
         """
         Init
@@ -78,6 +48,79 @@ class Net(object):
         self.use_stack_op = True
         self.use_mask_cache = True
         self.use_sparse_embedding = True
+    
+        self.feed_vars = self.create_data_layers()
+        loss, logits = self.create_network()
+        loss.persistable = True
+        logits.persistable = True
+        self.loss = loss
+        self.logits = logits
+
+    def init_emb_from_file(self, word_emb_init, place):
+        print("start loading word embedding init ...")
+        if six.PY2:
+            word_emb = np.array(
+                    pickle.load(open(
+                        word_emb_init, 'rb'))).astype('float32')
+        else:
+            word_emb = np.array(
+                    pickle.load(open(
+                        word_emb_init, 'rb'), 
+                        encoding="bytes")).astype('float32')
+        self.set_word_embedding(word_emb, place)
+        print("finish init word embedding  ...")
+
+    def get_loader_from_filelist(self, batch_size, dict_path,
+            data_source, filelists, worker_num, worker_index):
+        data_conf = {
+            "max_turn_num": self._max_turn_num,
+            "max_turn_len": self._max_turn_len,
+        }
+        
+        def _dist_wrapper(generator, is_test):
+            def _wrapper():
+                rank = worker_index
+                nranks = worker_num
+                for idx, sample in enumerate(generator()):
+                    if idx % nranks == rank:
+                        yield sample
+        
+            def _test_wrapper():
+                rank = worker_index
+                nranks = worker_num
+                for idx, sample in enumerate(generator()):
+                    if idx // 10 % nranks == rank:
+                        yield sample
+
+            return _wrapper if not is_test else _test_wrapper
+
+        loaders = {}
+        for data_type, filelist in filelists.items():
+            loader = fluid.io.DataLoader.from_generator(
+                    feed_list=self.feed_vars,
+                    capacity=8,
+                    iterable=True)
+            generator = sample_generator(
+                    filelist,
+                    dict_path,
+                    data_conf,
+                    data_source)
+            if data_type == "train":
+                generator = _dist_wrapper(generator, is_test=False)
+                loader.set_sample_generator(
+                        generator,
+                        batch_size=batch_size,
+                        drop_last=True,
+                        places=fluid.cpu_places())
+            elif data_type in ("valid", "test"):
+                generator = _dist_wrapper(generator, is_test=True)
+                loader.set_sample_generator(
+                        generator,
+                        batch_size=batch_size,
+                        drop_last=False,
+                        places=fluid.cpu_places())
+            loaders[data_type] = loader
+        return loaders
 
     def create_data_layers(self):
         """
