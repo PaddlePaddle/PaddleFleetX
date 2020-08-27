@@ -64,6 +64,13 @@ def load_program(program_input):
             unique_generator.ids[current_guard[0]] = int(current_guard[1])
 
     fluid.unique_name.switch(unique_generator)
+
+    with open(program_input + '/stop_gradient', 'r') as fin:
+        for line in fin:
+            stop_name = line[:-1]
+            stop_var = new_main.global_block().var(stop_name)
+            stop_var.stop_gradient = True
+
     if os.path.exists(program_input + '/lr_name'):
         with open(program_input + '/lr_name', 'r') as fin:
             lr_name = fin.read()
@@ -112,14 +119,15 @@ def load_program(program_input):
         main_out_names = main_op.output_names
         for item in main_out_names:
             var_name = main_op.output(item)
-            var = fluid.framework._get_var(str(var_name[0]))
+            var = fluid.default_main_program().global_block().var(var_name[0])
             var.op = main_op
     startup_ops = fluid.default_startup_program().global_block().ops
     for startup_op in startup_ops:
         out_names = startup_op.output_names
         for item in out_names:
             var_name = startup_op.output(item)
-            var = fluid.framework._get_var(str(var_name[0]))
+            var = fluid.default_startup_program().global_block().var(var_name[
+                0])
             var.op = startup_op
     return input_vars, loss, new_startup, new_main, unique_generator, checkpoints, target
 
@@ -159,6 +167,13 @@ def save_program(main_prog,
     if type(learning_rate) == fluid.Variable:
         with open(program_path + '/lr_name', 'w') as fout:
             fout.write(learning_rate.name)
+    stop_vars = []
+    for check_stop in main_prog.list_vars():
+        if check_stop.stop_gradient == True:
+            stop_vars.append(check_stop.name)
+    with open(program_path + '/stop_gradient', 'w') as fout:
+        for stop_item in stop_vars:
+            fout.write("%s\n" % stop_item)
     with open(program_path + '/unique_name_guard', 'w') as fout:
         for id, value in generator_info.iteritems():
             fout.write("%s:%s\n" % (id, value))
