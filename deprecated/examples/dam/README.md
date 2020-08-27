@@ -9,30 +9,28 @@
 * `model.py`: 模型网络结构描述，含训练网络和测试网络
 * `layers.py`: 一些结构化的网络结构模块
 * `evaluation.py`: 对预测值进行后处理的模块
-* `data_generator.py`: 数据读取模块，用于Dataset
+* `dataloader.py`: 数据读取模块
 * `utils.py`: 工具函数
 * `config.py`: 命令行参数配置文件
 * `data/download_data.sh`: 用于获取Ubuntu和Douban数据集
-* `gen_filelist.sh`: 切分少量数据集并生成训练/预测所用的filelist
 * `dist_run.sh`: 用于便捷启动分布式训练的脚本
-* `run.sh`: 用于便捷启动单机训练/预测的脚本
+* `test.sh`: 用于便捷启动单机预测的脚本
 * `model_check.py`: 用于检查CUDA是否可用
 
 
 # 执行方法
+
+## Paddle 版本
+
+```text
+1.8.3
+```
 
 ## 获取数据
 
 ``` code::bash
 cd data
 sh download_data.sh
-```
-
-## 数据划分
-为了支持分布式训练，本样例将整个训练文件划分为多个小文件，每个文件包含多个样本，不同设备训练不同的数据。
-
-``` code::bash
-sh gen_filelist.sh
 ```
 
 ## 单机单卡

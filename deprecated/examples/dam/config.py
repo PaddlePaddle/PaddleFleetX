@@ -26,10 +26,6 @@ def parse_args():
     parser = argparse.ArgumentParser("DAM Config")
 
     parser.add_argument(
-        '--distributed',
-        action='store_true',
-        help='Whether to use Fleet.')
-    parser.add_argument(
         '--do_train',
         type=bool,
         default=False,
@@ -55,10 +51,20 @@ def parse_args():
         default=1e-3,
         help='Learning rate used to train. (default: %(default)f)')
     parser.add_argument(
-        '--filelist',
+        '--train_data_path',
         type=str,
         default="",
-        help='Path to filelist. (default: %(default)s)')
+        help='Path to training. (default: %(default)s)')
+    parser.add_argument(
+        '--valid_data_path',
+        type=str,
+        default="",
+        help='Path to validing. (default: %(default)s)')
+    parser.add_argument(
+        '--test_data_path',
+        type=str,
+        default="",
+        help='Path to testing. (default: %(default)s)')
     parser.add_argument(
         '--data_source',
         type=str,
