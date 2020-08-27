@@ -13,3 +13,4 @@
 # limitations under the License.
 
 from .lr_strategy import *
+from .downloader import ImageNetDownloader
