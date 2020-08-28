@@ -22,7 +22,7 @@ import platform
 
 from setuptools import find_packages
 from setuptools import setup
-from version import lightning_version
+from fleetx.version import fleetx_version
 
 
 def python_version():
@@ -37,20 +37,22 @@ REQUIRED_PACKAGES = [
 ]
 
 packages = [
-    'fleet_lightning',
-    'fleet_lightning.applications',
-    'fleet_lightning.dataset',
+    'fleetx',
+    'fleetx.applications',
+    'fleetx.dataset',
+    'fleetx.utils',
 ]
 
 package_dir = {
-    'fleet_lightning': './fleet_lightning',
-    'fleet_lightning.applications': './fleet_lightning/applications',
-    'fleet_lightning.dataset': './fleet_lightning/dataset'
+    'fleetx': './fleetx',
+    'fleetx.applications': './fleetx/applications',
+    'fleetx.dataset': './fleetx/dataset',
+    'fleetx.utils': './fleetx/utils'
 }
 
 setup(
-    name='fleet_lightning',
-    version=lightning_version.replace('-', ''),
+    name='fleet-x',
+    version=fleetx_version.replace('-', ''),
     description=(''),
     long_description='',
     url='https://github.com/PaddlePaddle/Fleet',
