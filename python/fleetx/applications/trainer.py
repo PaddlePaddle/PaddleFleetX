@@ -73,7 +73,7 @@ class MultiGPUTrainer(Trainer):
                     start_time = time.time()
                 loss = exe.run(fluid.default_main_program(),
                                feed=data,
-                               fetch_list=[model.loss.name])
+                               fetch_list=[model.loss.name], use_program_cache=True)
                 if step > start_step:
                     end_time = time.time()
                     total_time += (end_time - start_time)
