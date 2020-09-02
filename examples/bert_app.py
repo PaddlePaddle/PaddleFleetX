@@ -46,8 +46,10 @@ dist_strategy = fleet.DistributedStrategy()
 dist_strategy.execution_strategy = exec_strategy
 dist_strategy.nccl_comm_num = 3
 
-optimizer = fluid.optimizer.Adam(learning_rate=learning_rate)
+clip=fluid.clip.GradientClipByGlobalNorm(clip_norm=1.0)
+optimizer = fluid.optimizer.Adam(learning_rate=learning_rate, grad_clip=clip)
 optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
+
 optimizer.minimize(model.loss)
 
 trainer = X.MultiGPUTrainer()
