@@ -30,12 +30,19 @@ class ImageNetDownloader(Downloader):
         
         if "hadoop_home" in cfg:
             self.hadoop_home = cfg["hadoop_home"]
+        elif "HADOOP_HOME" in os.environ:
+            self.hadoop_home = os.environ['HADOOP_HOME']
+        elif os.system('which hadoop') == 0:
+            path = os.popen("which hadoop").readlines()[0].rstrip()
+            self.hadoop_home = os.path.dirname(os.path.dirname(path))
+
+        if self.hadoop_home:
+            print("HADOOP_HOME: " + self.hadoop_home)
 
             if "fs.default.name" in cfg and "hadoop.job.ugi" in cfg:
                 self.hdfs_configs = {"fs.default.name": cfg["fs.default.name"],
                                      "hadoop.job.ugi": cfg["hadoop.job.ugi"]}
-
-        if "imagenet_path" in cfg:
+        elif "imagenet_path" in cfg:
             self.default_path = cfg["imagenet_path"]
         else:
             print("WARNING: imagenet default path is empty")
