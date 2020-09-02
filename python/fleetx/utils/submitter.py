@@ -109,7 +109,6 @@ class PaddleCloudSubmitter(Submitter):
         cluster_name = cfg["cluster_name"]
         assert "group_name" in cfg, "group_name should be configured"
         group_name = cfg["group_name"]
-        print("jobbbbb", cfg['job_script'])
         self.get_start_job(cfg)
 
         distribute_suffix = " --k8s-not-local --distribute-job-type NCCL2" \
