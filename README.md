@@ -59,12 +59,6 @@ for e in range(epoch):
 fleetrun --gpus 0,1,2,3,4,5,6,7 resnet50_app.py
 ```
 
-- Multiple cards on Multiple Nodes
-
-``` shell
-fleetrun --gpus 0,1,2,3,4,5,6,7 --endpoints="xx.xx.xx.xx:8585,yy.yy.yy.yy:9696" resnet_app.py
-```
-
 - Run on Baidu Cloud
 
 ``` shell
