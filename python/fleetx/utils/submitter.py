@@ -1,10 +1,26 @@
+# Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import sys
 import os
 import yaml
 
+
 class Submitter(object):
     def __init__(self):
         pass
+
 
 class PaddleCloudSubmitter(Submitter):
     def __init__(self):
@@ -23,17 +39,31 @@ class PaddleCloudSubmitter(Submitter):
                           "--job-name {} " \
                           "--start-cmd 'sh start_job.sh' " \
                           "--job-conf config.ini " \
-                          "--files start_job.sh " \
+                          "--files start_job.sh {} " \
                           "--k8s-trainers {} {} " \
                           "--k8s-cpu-cores 35"
 
     def get_start_job(self, yml_cfg):
+        # set up config.ini
+        fs_name = yml_cfg['fs_name']
+        fs_ugi = yml_cfg['fs_ugi']
+        output_path = yml_cfg['output_path']
+        storage_type = yml_cfg['storage_type']
+        config = "storage_type = \"{}\"\n".format(storage_type)
+        config += "fs_name = \"{}\"\n".format(fs_name)
+        config += "fs_ugi = \"{}\"\n".format(fs_ugi)
+        config += "output_path = \"{}\"\n".format(output_path)
+        config += "FLAGS_rpc_deadline=3000000\n"
+        config += "NCCL_DEBUG=INFO\n"
+        with open("config.ini", "w") as fout:
+            fout.write(config)
         # by default, we use baidu pip source
         pip_src = "--index-url=http://pip.baidu.com/pypi/simple --trusted-host pip.baidu.com"
         if "pip_src" in yml_cfg:
             pip_src = yml_cfg["pip_src"]
         wheel_list = []
         get_wheel_cmd_list = []
+        job_script = yml_cfg['job_script']
         if "wheels" in yml_cfg:
             wheel_list = yml_cfg["wheels"]
         if "get_wheel_cmds" in yml_cfg:
@@ -78,18 +108,17 @@ class PaddleCloudSubmitter(Submitter):
         cluster_name = cfg["cluster_name"]
         assert "group_name" in cfg, "group_name should be configured"
         group_name = cfg["group_name"]
-
         self.get_start_job(cfg)
 
         distribute_suffix = " --k8s-not-local --distribute-job-type NCCL2" \
                             if int(num_trainers) > 1 else ""
         pcloud_submit_cmd = self.submit_str.format(
-            server, port, image_addr, cluster_name,
-            group_name, num_cards,
+            server, port, image_addr, cluster_name, group_name, num_cards,
             "{}_N{}C{}".format(job_prefix, num_trainers, num_cards),
-            num_trainers, distribute_suffix)
+            cfg['job_script'], num_trainers, distribute_suffix)
         print(pcloud_submit_cmd)
         os.system(pcloud_submit_cmd)
+
 
 if __name__ == "__main__":
     submitter = PaddleCloudSubmitter()

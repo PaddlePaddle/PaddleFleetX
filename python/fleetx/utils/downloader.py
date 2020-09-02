@@ -16,18 +16,25 @@ import multiprocessing
 import yaml
 import os
 
+
 class Downloader(object):
-    def __init__(self, fs_yaml):
+    def __init__(self):
         pass
 
+
 class ImageNetDownloader(Downloader):
-    def __init__(self, fs_yaml):
-        super(ImageNetDownloader, self).__init__(fs_yaml)
+    def __init__(self):
+        super(ImageNetDownloader, self).__init__()
+
+    def download_from_hdfs(self, fs_yaml, local_path="./", hdfs_path=None):
+        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
+        if gpu_id != 0:
+            return local_path
         _, ext = os.path.splitext(fs_yaml)
         assert ext in ['.yml', '.yaml'], "only support yaml files for now"
         with open(fs_yaml) as f:
             cfg = yaml.load(f, Loader=yaml.Loader)
-        
+
         if "hadoop_home" in cfg:
             self.hadoop_home = cfg["hadoop_home"]
         elif "HADOOP_HOME" in os.environ:
@@ -40,30 +47,33 @@ class ImageNetDownloader(Downloader):
             print("HADOOP_HOME: " + self.hadoop_home)
 
             if "fs.default.name" in cfg and "hadoop.job.ugi" in cfg:
-                self.hdfs_configs = {"fs.default.name": cfg["fs.default.name"],
-                                     "hadoop.job.ugi": cfg["hadoop.job.ugi"]}
-        elif "imagenet_path" in cfg:
+                self.hdfs_configs = {
+                    "fs.default.name": cfg["fs.default.name"],
+                    "hadoop.job.ugi": cfg["hadoop.job.ugi"]
+                }
+
+        if "imagenet_path" in cfg:
             self.default_path = cfg["imagenet_path"]
         else:
             print("WARNING: imagenet default path is empty")
-        print(cfg)
 
-    def download_from_hdfs(self, local_path="./", hdfs_path=None):
         def untar_files(local_path, process_num=10):
             def _subprocess_untar(files):
                 for ff in files:
                     if "shard" in ff and ff.endswith(".tar"):
-                        cmd = "tar -xf {}".format(local_path + "/" + ff)
+                        cmd = "tar -xf {} -C {}".format(local_path + "/" + ff,
+                                                        local_path)
                         os.system(cmd)
+
             filelist = os.listdir(local_path)
-            full_filelist = [local_path + "/" + x for x in filelist]
+            full_filelist = [x for x in filelist]
             dir_per_process = len(full_filelist) / process_num
-                
+
             procs = []
             for i in range(process_num):
                 process_filelist = full_filelist[i::process_num]
                 p = multiprocessing.Process(
-                    target=_subprocess_untar, args=(process_filelist,))
+                    target=_subprocess_untar, args=(process_filelist, ))
                 procs.append(p)
                 p.start()
 
@@ -80,6 +90,45 @@ class ImageNetDownloader(Downloader):
         untar_files(local_path)
         return local_path
 
-    def download_from_bos(self, bos_path):
-        pass
-    
+    def download_from_bos(self, local_path="./"):
+        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
+        if gpu_id != 0:
+            return local_path
+        print("Start download data")
+        os.system(
+            'wget -q -P {} --no-check-certificate https://fleet.bj.bcebos.com/small_datasets/imagenet/val.txt'.
+            format(local_path))
+        os.system(
+            'wget -q -P {} --no-check-certificate https://fleet.bj.bcebos.com/small_datasets/imagenet/train.txt'.
+            format(local_path))
+        os.system(
+            'wget -q -P {} --no-check-certificate https://fleet.bj.bcebos.com/small_datasets/imagenet/val.tar.gz'.
+            format(local_path))
+        os.system('tar -xf {}/val.tar.gz -C {}'.format(local_path, local_path))
+
+        def untar(target_file, steps):
+            for i in steps:
+                os.system(
+                    'wget -q -P {} --no-check-certificate https://fleet.bj.bcebos.com/small_datasets/imagenet/shard{}.tar'.
+                    format(target_file, i))
+                os.system('tar -xf {}/shard{}.tar -C {}'.format(target_file, i,
+                                                                target_file))
+
+        set_lists = {}
+        for process in range(20):
+            set_lists[process] = []
+        for num in range(62):
+            set_lists[num % 10].append(num)
+        print(set_lists)
+        procs = []
+        for i in range(10):
+            p = multiprocessing.Process(
+                target=untar, args=(
+                    local_path,
+                    set_lists[i], ))
+            procs.append(p)
+            p.start()
+
+        for proc in procs:
+            proc.join()
+        return local_path
