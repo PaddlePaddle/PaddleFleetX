@@ -57,7 +57,6 @@ class PaddleCloudSubmitter(Submitter):
         config += "NCCL_DEBUG=INFO\n"
         with open("config.ini", "w") as fout:
             fout.write(config)
-        os.system("cat config.ini")
         # by default, we use baidu pip source
         pip_src = "--index-url=http://pip.baidu.com/pypi/simple --trusted-host pip.baidu.com"
         if "pip_src" in yml_cfg:

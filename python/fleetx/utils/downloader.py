@@ -114,16 +114,14 @@ class ImageNetDownloader(Downloader):
                 os.system('tar -xf {}/shard{}.tar -C {}'.format(target_file, i,
                                                                 target_file))
 
-        process_num = 10
-        file_num = 62
         set_lists = {}
-        for process in range(process_num):
+        for process in range(20):
             set_lists[process] = []
-        for num in range(file_num):
-            set_lists[num % process_num].append(num)
+        for num in range(62):
+            set_lists[num % 10].append(num)
         print(set_lists)
         procs = []
-        for i in range(process_num):
+        for i in range(10):
             p = multiprocessing.Process(
                 target=untar, args=(
                     local_path,
