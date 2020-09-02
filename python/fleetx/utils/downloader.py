@@ -18,13 +18,15 @@ import os
 
 
 class Downloader(object):
-    def __init__(self, fs_yaml):
+    def __init__(self):
         pass
 
 
 class ImageNetDownloader(Downloader):
-    def __init__(self, fs_yaml):
-        super(ImageNetDownloader, self).__init__(fs_yaml)
+    def __init__(self):
+        super(ImageNetDownloader, self).__init__()
+
+    def download_from_hdfs(self, fs_yaml, local_path="./", hdfs_path=None):
         _, ext = os.path.splitext(fs_yaml)
         assert ext in ['.yml', '.yaml'], "only support yaml files for now"
         with open(fs_yaml) as f:
@@ -43,9 +45,7 @@ class ImageNetDownloader(Downloader):
             self.default_path = cfg["imagenet_path"]
         else:
             print("WARNING: imagenet default path is empty")
-        print(cfg)
 
-    def download_from_hdfs(self, local_path="./", hdfs_path=None):
         def untar_files(local_path, process_num=10):
             def _subprocess_untar(files):
                 for ff in files:
@@ -79,5 +79,47 @@ class ImageNetDownloader(Downloader):
         untar_files(local_path)
         return local_path
 
-    def download_from_bos(self, bos_path):
-        pass
+    def download_from_bos(self, local_path="./"):
+        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
+        if gpu_id != 0:
+            return local_path
+        print("Start download data")
+        os.system(
+            'wget -q -P {} --no-check-certificate https://fleet.bj.bcebos.com/small_datasets/imagenet/val.txt'.
+            format(local_path))
+        os.system(
+            'wget -q -P {} --no-check-certificate https://fleet.bj.bcebos.com/small_datasets/imagenet/train.txt'.
+            format(local_path))
+        os.system(
+            'wget -q -P {} --no-check-certificate https://fleet.bj.bcebos.com/small_datasets/imagenet/val.tar.gz'.
+            format(local_path))
+        os.system('tar -xf {}/val.tar.gz -C {}'.format(local_path, local_path))
+
+        def untar(target_file, steps):
+            for i in steps:
+                os.system(
+                    'wget -q -P {} --no-check-certificate https://fleet.bj.bcebos.com/small_datasets/imagenet/shard{}.tar'.
+                    format(target_file, i))
+                os.system('tar -xf {}/shard{}.tar -C {}'.format(target_file, i,
+                                                                target_file))
+
+        process_num = 10
+        file_num = 62
+        set_lists = {}
+        for process in range(process_num):
+            set_lists[process] = []
+        for num in range(file_num):
+            set_lists[num % process_num].append(num)
+        print(set_lists)
+        procs = []
+        for i in range(process_num):
+            p = multiprocessing.Process(
+                target=untar, args=(
+                    local_path,
+                    set_lists[i], ))
+            procs.append(p)
+            p.start()
+
+        for proc in procs:
+            proc.join()
+        return local_path
