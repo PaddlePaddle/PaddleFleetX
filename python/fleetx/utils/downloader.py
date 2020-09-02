@@ -16,9 +16,11 @@ import multiprocessing
 import yaml
 import os
 
+
 class Downloader(object):
     def __init__(self, fs_yaml):
         pass
+
 
 class ImageNetDownloader(Downloader):
     def __init__(self, fs_yaml):
@@ -27,13 +29,15 @@ class ImageNetDownloader(Downloader):
         assert ext in ['.yml', '.yaml'], "only support yaml files for now"
         with open(fs_yaml) as f:
             cfg = yaml.load(f, Loader=yaml.Loader)
-        
+
         if "hadoop_home" in cfg:
             self.hadoop_home = cfg["hadoop_home"]
 
             if "fs.default.name" in cfg and "hadoop.job.ugi" in cfg:
-                self.hdfs_configs = {"fs.default.name": cfg["fs.default.name"],
-                                     "hadoop.job.ugi": cfg["hadoop.job.ugi"]}
+                self.hdfs_configs = {
+                    "fs.default.name": cfg["fs.default.name"],
+                    "hadoop.job.ugi": cfg["hadoop.job.ugi"]
+                }
 
         if "imagenet_path" in cfg:
             self.default_path = cfg["imagenet_path"]
@@ -46,17 +50,19 @@ class ImageNetDownloader(Downloader):
             def _subprocess_untar(files):
                 for ff in files:
                     if "shard" in ff and ff.endswith(".tar"):
-                        cmd = "tar -xf {}".format(local_path + "/" + ff)
+                        cmd = "tar -xf {} -C {}".format(local_path + "/" + ff,
+                                                        local_path)
                         os.system(cmd)
+
             filelist = os.listdir(local_path)
-            full_filelist = [local_path + "/" + x for x in filelist]
+            full_filelist = [x for x in filelist]
             dir_per_process = len(full_filelist) / process_num
-                
+
             procs = []
             for i in range(process_num):
                 process_filelist = full_filelist[i::process_num]
                 p = multiprocessing.Process(
-                    target=_subprocess_untar, args=(process_filelist,))
+                    target=_subprocess_untar, args=(process_filelist, ))
                 procs.append(p)
                 p.start()
 
@@ -75,4 +81,3 @@ class ImageNetDownloader(Downloader):
 
     def download_from_bos(self, bos_path):
         pass
-    

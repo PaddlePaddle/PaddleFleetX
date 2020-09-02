@@ -18,10 +18,10 @@ import paddle.distributed.fleet as fleet
 configs = X.parse_train_configs()
 
 model = X.applications.Resnet50()
-imagenet_downloader = X.utils.ImageNetDownloader("imagenet.yaml")
-local_path = imagenet_downloader.download_from_hdfs()
+#imagenet_downloader = X.utils.ImageNetDownloader("imagenet.yaml")
+#local_path = imagenet_downloader.download_from_hdfs()
 loader = model.load_imagenet_from_file(
-    "{}/train.txt".format(local_path), batch_size=32, use_dali=False)
+    "/ssd2/lilong/ImageNet/train.txt", batch_size=32, use_dali=False)
 
 fleet.init(is_collective=True)
 dist_strategy = fleet.DistributedStrategy()
@@ -30,7 +30,7 @@ dist_strategy.amp = True
 optimizer = paddle.optimizer.Momentum(
     learning_rate=configs.lr,
     momentum=configs.momentum,
-    regularization=paddle.regularizer.L2Decay(0.0001))
+    regularization=paddle.fluid.regularizer.L2Decay(0.0001))
 optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
 optimizer.minimize(model.loss)
 
