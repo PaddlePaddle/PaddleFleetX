@@ -14,3 +14,4 @@
 
 from .lr_strategy import *
 from .downloader import ImageNetDownloader
+from .downloader import WikiDataDownloader
