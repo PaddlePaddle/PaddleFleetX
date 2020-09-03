@@ -15,6 +15,7 @@
 import sys
 import os
 import yaml
+from argparse import ArgumentParser, REMAINDER
 
 
 class Submitter(object):
@@ -57,13 +58,13 @@ class PaddleCloudSubmitter(Submitter):
         config += "NCCL_DEBUG=INFO\n"
         with open("config.ini", "w") as fout:
             fout.write(config)
+        os.system("cat config.ini")
         # by default, we use baidu pip source
         pip_src = "--index-url=http://pip.baidu.com/pypi/simple --trusted-host pip.baidu.com"
         if "pip_src" in yml_cfg:
             pip_src = yml_cfg["pip_src"]
         wheel_list = []
         get_wheel_cmd_list = []
-        job_script = yml_cfg['job_script']
         if "wheels" in yml_cfg:
             wheel_list = yml_cfg["wheels"]
         if "get_wheel_cmds" in yml_cfg:
@@ -74,7 +75,11 @@ class PaddleCloudSubmitter(Submitter):
         commands = yml_cfg["commands"]
         assert len(wheel_list) == len(get_wheel_cmd_list), \
             "each wheel should have download source"
-        job_sh = "unset http_proxy\nunset https_proxy\n"
+        job_sh = ""
+        if yml_cfg['use_dali']:
+            job_sh += "export https_proxy=http://172.19.56.199:3128/\nexport http_proxy=http://172.19.56.199:3128/\n"
+            job_sh += "pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly/cuda/10.0 nvidia-dali-nightly==0.18.0.dev20191220 \n"
+        job_sh += "unset http_proxy\nunset https_proxy\n"
         job_sh += "pip uninstall paddlepaddle -y\n"
         job_sh += "pip uninstall paddlepaddle-gpu -y\n"
         job_sh += "pip uninstall fleet-x -y\n"
@@ -109,7 +114,8 @@ class PaddleCloudSubmitter(Submitter):
         assert "group_name" in cfg, "group_name should be configured"
         group_name = cfg["group_name"]
         self.get_start_job(cfg)
-
+        if 'download_yaml' in cfg:
+            cfg['job_script'] += " " + cfg['download_yaml']
         distribute_suffix = " --k8s-not-local --distribute-job-type NCCL2" \
                             if int(num_trainers) > 1 else ""
         pcloud_submit_cmd = self.submit_str.format(
@@ -120,6 +126,18 @@ class PaddleCloudSubmitter(Submitter):
         os.system(pcloud_submit_cmd)
 
 
-if __name__ == "__main__":
+def _parse_args():
+    parser = ArgumentParser('''submit paddlecloud jobs''')
+    parser.add_argument(
+        "-f", type=str, default="", help="set up your job in a yaml file")
+    return parser.parse_args()
+
+
+def submitter():
+    args = _parse_args()
     submitter = PaddleCloudSubmitter()
-    submitter.submit(sys.argv[1])
+    submitter.submit(args.f)
+
+
+if __name__ == "__main__":
+    submitter()

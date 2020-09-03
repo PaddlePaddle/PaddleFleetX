@@ -32,9 +32,10 @@ def python_version():
     return [int(v) for v in platform.python_version().split(".")]
 
 
-REQUIRED_PACKAGES = [
-    'paddlepaddle >= 1.8.0', 'paddlepaddle-gpu >= 1.8', 'numpy>=1.10.0'
-]
+#REQUIRED_PACKAGES = [
+#    'paddlepaddle >= 1.8.0', 'paddlepaddle-gpu >= 1.8', 'numpy>=1.10.0'
+#]
+REQUIRED_PACKAGES = ['paddlepaddle', 'paddlepaddle-gpu', 'numpy>=1.10.0']
 
 packages = [
     'fleetx',
@@ -79,5 +80,8 @@ setup(
         'Topic :: Software Development :: Libraries',
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
+    entry_points={
+        'console_scripts': ['fleetx = fleetx.utils.submitter:submitter']
+    },
     license='Apache 2.0',
     keywords=('paddlepaddle distributed-training deep-learning'))
