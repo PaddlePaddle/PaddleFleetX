@@ -11,33 +11,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
-
-os.environ['FLAGS_fraction_of_gpu_memory_to_use'] = "0.98"
-os.environ['FLAGS_sync_nccl_allreduce'] = "1"
-os.environ['FLAGS_eager_delete_tensor_gb'] = "0.0"
-os.environ['FLAGS_cudnn_exhaustive_search'] = "1"
-os.environ['FLAGS_fuse_parameter_memory_size'] = "50"
-os.environ['FLAGS_fuse_parameter_groups_size'] = "50"
-
 import fleetx as X
-import paddle.fluid as fluid
+import paddle
 import paddle.distributed.fleet as fleet
-import paddle.distributed.fleet.base.role_maker as role_maker
+
 # FleetX help users to focus more on learning to train a large scale model
 # if you want to learn how to write a model, FleetX is not for you
 # focus more on engineering staff in fleet-x
 configs = X.parse_train_configs()
-role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-fleet.init(role)
+fleet.init(is_collective=True)
 model = X.applications.Transformer()
-
+wmt_downloader = X.utils.WMTDataDownloader()
+local_path = wmt_downloader.download_from_bos(local_path='./data')
 data_loader = model.load_wmt16_dataset_from_file(
-    '/pathto/wmt16_ende_data_bpe/vocab_all.bpe.32000',
-    '/pathto/wmt16_ende_data_bpe/vocab_all.bpe.32000',
-    '/pathto/wmt16_ende_data_bpe/train.tok.clean.bpe.32000.en-de')
+    '{}/vocab_all.bpe.32000'.format(local_path),
+    '{}/vocab_all.bpe.32000'.format(local_path),
+    '{}/train.tok.clean.bpe.32000.en-de'.format(local_path))
 
-optimizer = fluid.optimizer.Adam(
+optimizer = paddle.fluid.optimizer.Adam(
     learning_rate=configs.lr,
     beta1=configs.beta1,
     beta2=configs.beta2,
