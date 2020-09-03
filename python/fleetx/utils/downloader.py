@@ -28,9 +28,6 @@ class ImageNetDownloader(Downloader):
         super(ImageNetDownloader, self).__init__()
 
     def download_from_hdfs(self, fs_yaml, local_path="./", hdfs_path=None):
-        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
-        if gpu_id != 0:
-            return local_path
         _, ext = os.path.splitext(fs_yaml)
         assert ext in ['.yml', '.yaml'], "only support yaml files for now"
         with open(fs_yaml) as f:
@@ -87,7 +84,9 @@ class ImageNetDownloader(Downloader):
         if hdfs_path == None:
             hdfs_path = self.default_path
         client = HDFSClient(self.hadoop_home, self.hdfs_configs)
-        multi_download(client, hdfs_path, local_path, 0, 1, 12)
+        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
+        num_trainers = int(os.environ.get('PADDLE_TRAINERS_NUM', 0))
+        multi_download(client, hdfs_path, local_path, gpu_id, num_trainers, 12)
         untar_files(local_path)
         return local_path
 
@@ -182,6 +181,7 @@ class WikiDataDownloader(Downloader):
     def download_from_bos(self, local_path):
         gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
         if gpu_id != 0:
+            time.sleep(3)
             return local_path
         print("Start download data")
         os.system(

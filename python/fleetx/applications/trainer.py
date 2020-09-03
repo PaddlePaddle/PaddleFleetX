@@ -54,12 +54,6 @@ class CPUTrainer(Trainer):
 
         fleet.stop_worker()
 
-    def load_params(self, param_path):
-        fluid.io.load_params(self.exe, param_path)
-
-    def save_params(self, target_path):
-        fluid.io.save_params(self.exe, target_path)
-
 
 class MultiGPUTrainer(Trainer):
     def __init__(self):
@@ -92,9 +86,3 @@ class MultiGPUTrainer(Trainer):
                 step += 1
             if use_dali:
                 dataloader.reset()
-
-    def load_params(self, param_path):
-        fluid.io.load_params(self.exe, param_path)
-
-    def save_params(self, target_path):
-        fluid.io.save_params(self.exe, target_path)

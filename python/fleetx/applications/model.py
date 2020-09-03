@@ -47,6 +47,16 @@ class ModelBase(object):
     def main_program(self):
         return self.main_prog
 
+    def load_params(self, file_path):
+        place = fluid.CPUPlace()
+        exe = fluid.Executor(place)
+        fluid.io.load_params(exe, file_path)
+
+    def save_params(self, target_path):
+        place = fluid.CPUPlace()
+        exe = fluid.Executor(place)
+        fluid.io.save_params(exe, target_path)
+
 
 def download_model(fleet_path, model_name):
     version = fleetx_version.replace('-', '')
