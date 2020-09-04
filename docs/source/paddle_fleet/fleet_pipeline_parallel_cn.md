@@ -21,7 +21,7 @@
 
 <img src='https://github.com/PaddlePaddle/FleetX/tree/develop/docs/source/paddle_fleet/img/pipeline-3.png' width = "683" height = "408" align="middle" description="xxxxxxxxxx" />
 
-下面我们将通过例子为您讲解如何使用pipeline策略在两张GPU上训练Resnet50模型。
+下面我们将通过例子为您讲解如何使用pipeline策略在两张GPU上训练Resnet50模型（假设训练脚本为resnet_pipeline.py）。
 
 
 ## 使用样例
@@ -29,19 +29,18 @@
 ### 导入依赖
 
 ```python
-import os
-import argparse
-import time
-import math 
+import math
+import fleetx as X
 import paddle.fluid as fluid
-
+import paddle.distributed.fleet as fleet
+from fleetx.dataset.image_dataset import image_dataloader_from_filelist
 ```
 
 ### 定义模型
 
 在本例子中，我们为您实现了Paddle中Resnet模型的实现。其中`conv_bn_layer`、`shortcut`以及`bottleneck_block`函数根据模型的规律将一些计算层打包，以避免模型定义中重复使用相同的代码。
 
-`build_network`函数中定义了最终的函数，对于不同深度的模型，我们都将其切分层数成相同的两份并通过`device_guard`接口的区分分别放置到两张GPU卡上。
+`build_network`函数中定义了最终的函数，对于不同深度的模型，我们都将其切分成与GPU相同的卡数相同的分数，并分别定义在训练中所用到的GPU卡中。
 
 对于CPU设备，在使用`device_guard`时只需要指定设备类型，即`device_guard("cpu")`；对于GPU设备，除了指定设备类型外，还需要指定设备的id，如`device_guard("gpu:0")`。
 
@@ -106,19 +105,20 @@ def bottleneck_block(input,
 def build_network(input,
                   layers=50,
                   class_dim=1000):
-    supported_layers = [50, 101, 152]
+    supported_layers = [18, 34, 50, 101, 152]
     assert layers in supported_layers
     depth = None
-    if layers == 50:
+    if layers == 18:
+        depth = [2, 2, 2, 2]
+    elif layers == 34 or layers == 50:
         depth = [3, 4, 6, 3]
     elif layers == 101:
         depth = [3, 4, 23, 3]
     elif layers == 152:
         depth = [3, 8, 36, 3]
     num_filters = [64, 128, 256, 512]
-     
-    # 指定层所在的设备
-    with fluid.device_guard("gpu:0"):
+    offset = 0
+    with fluid.device_guard("gpu:%d"%(offset)):
         conv = conv_bn_layer(input=input,
                              num_filters=64,
                              filter_size=7,
@@ -129,53 +129,72 @@ def build_network(input,
                                    pool_stride=2,
                                    pool_padding=1,
                                    pool_type='max')
-        for block in range(len(depth)//2):
-            for i in range(depth[block]):
-                conv = bottleneck_block(
+    offset += 1
+    if layers >= 50:
+        for block in range(len(depth)):
+            with fluid.device_guard("gpu:%d"%(offset)):
+                for i in range(depth[block]):
+                    conv = bottleneck_block(
                             input=conv,
                             num_filters=num_filters[block],
                             stride=2 if i == 0 and block != 0 else 1)
-    # 指定网络层所在的设备
-    with fluid.device_guard("gpu:1"):    
-        for block in range(len(depth)//2, len(depth)):
-            for i in range(depth[block]):
-                conv = bottleneck_block(
-                            input=conv,
-                            num_filters=num_filters[block],
-                            stride=2 if i == 0 and block != 0 else 1)
- 
-        pool = fluid.layers.pool2d(input=conv,
-                                   pool_size=7,
-                                   pool_type='avg',
-                                   global_pooling=True)
-        stdv = 1.0 / math.sqrt(pool.shape[1] * 1.0)
-        out = fluid.layers.fc(
+            offset += 1
+
+        with fluid.device_guard("gpu:%d"%(offset)):
+            pool = fluid.layers.pool2d(input=conv,
+                                       pool_size=7,
+                                       pool_type='avg',
+                                       global_pooling=True)
+            stdv = 1.0 / math.sqrt(pool.shape[1] * 1.0)
+            out = fluid.layers.fc(
                     input=pool,
                     size=class_dim,
                     param_attr=fluid.param_attr.ParamAttr(
                         initializer=fluid.initializer.Uniform(-stdv, stdv)))
-    return out
+    else:
+        for block in range(len(depth)):
+            with fluid.device_guard("gpu:%d"%(offset)):
+                for i in range(depth[block]):
+                    conv = basic_block(input=conv,
+                                       num_filters=num_filters[block],
+                                       stride=2 if i == 0 and block != 0 else 1,
+                                       is_first=block==i==0)
+            offset += 1
+        with fluid.device_guard("gpu:%d"%(offset)):
+            pool = fluid.layers.pool2d(input=conv,
+                                       pool_size=7,
+                                       pool_type='avg',
+                                       global_pooling=True)
+            stdv = 1.0 / math.sqrt(pool.shape[1] * 1.0)
+            out = fluid.layers.fc(
+                    input=pool,
+                    size=class_dim,
+                    param_attr=fluid.param_attr.ParamAttr(
+                        initializer=fluid.initializer.Uniform(-stdv, stdv)))
+    return out, offset
 ```
 
 ### 定义数据集及梯度更新策略
 
-定义完模型后，我们可以继续定义训练所需要的数据，以及训练中所用到的更新策略。
+定义完模型后，我们可以继续定义训练所需要的数据，以及训练中所用到的优化器。在pipeline训练策略中，我们通常将数据定义在第一张GPU卡中，并将优化器定义在最后一张GPU卡中。
+
+最后我们使用`strategy.pipeline =True`将pipeline训练策略打开，并将`micro_batch`设置为12
 
 ```python
 # 定义模型剩余部分
 with fluid.device_guard("gpu:0"):
     image_shape = [3, 224, 224]
-    image = fluid.layers.data(name="image",
+    image = fluid.layers.data(name="feed_image",
                               shape=image_shape,
                               dtype="float32")
-    label = fluid.layers.data(name="label", shape=[1], dtype="int64")
+    label = fluid.layers.data(name="feed_label", shape=[1], dtype="int64")
     data_loader = fluid.io.DataLoader.from_generator(
             feed_list=[image, label],
             capacity=64,
             use_double_buffer=True,
             iterable=False)
 
-fc = build_network(image)
+fc, offset = build_network(image)
 
 with fluid.device_guard("gpu:1"):
     out, prob = fluid.layers.softmax_with_cross_entropy(logits=fc,
@@ -184,34 +203,41 @@ with fluid.device_guard("gpu:1"):
     loss = fluid.layers.mean(out)
     acc_top1 = fluid.layers.accuracy(input=prob, label=label, k=1)
     acc_top5 = fluid.layers.accuracy(input=prob, label=label, k=5)
- 
-opt = fluid.optimizer.Momentum(0.1, momentum=0.9)
-opt = fluid.optimizer.PipelineOptimizer(
-                            opt,
-                            num_microbatches=args.microbatch_num)
-opt.minimize(loss)
-
-# 定义data loader；在该例子中，我们使用随机生成的数据。
-def train_reader():
-    for _ in range(2560):
-        image = np.random.random([3, 224, 224]).astype('float32')
-        label = np.random.random([1]).astype('uint64')
-        yield image, label
-place = fluid.CUDAPlace(0)
-data_loader.set_sample_generator(train_reader,
-                                 batch_size=args.microbatch_size)
-
+# 定义训练策略及优化器 
+strategy = fleet.DistributedStrategy()
+strategy.pipeline = True
+strategy.pipeline_configs = {"micro_batch": 12}
+optimizer = fluid.optimizer.Momentum(0.1, momentum=0.9)
+optimizer = fleet.distributed_optimizer(optimizer, strategy)
+optimizer.minimize(loss)
 
 ```
 
 ### 开始训练
 
+最后我们就可以开始训练了，在训练中，我们通过`fleetx`中的`fleetx.dataset.image_dataset.image_dataloader_from_filelist`接口加载imagenet数据并设置batch_size为48。因为上面的代码中，我们将`micro_batch`被设置为12，所以在训练中，每一个batch会被分为4小份，并传输到网络中进行计算。
+
 ```python
+place = fluid.CUDAPlace(0)
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
-t1 = time.time()
-data_loader.start()
-exe.train_from_dataset(fluid.default_main_program())
-t2 = time.time()
-print("Execution time: {}".format(t2 - t1))
+
+loader = image_dataloader_from_filelist(
+    "/ssd2/lilong/ImageNet/train.txt", inputs=['feed_image', 'feed_label'], batch_size=48)
+
+for data in loader:
+    metrices = exe.run(fluid.default_main_program(), feed=data, fetch_list=['mean_0.tmp_0'])
+```
+
+### 运行训练脚本
+
+定义完训练脚本后，我们就可以在自己的机器上运行pipeline的训练代码了，运行命令如下：
+
+```sh
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+export PADDLE_TRAINER_ID=0
+export PADDLE_TRAINERS_NUM=1
+rm -rf log
+python resnet_pipeline.py
+
 ```
