@@ -13,9 +13,6 @@
 # limitations under the License.
 
 import os
-os.environ['FLAGS_cudnn_exhaustive_search'] = "1"
-os.environ['FLAGS_conv_workspace_size_limit'] = "4000"
-os.environ['FLAGS_cudnn_batchnorm_spatial_persistent'] = "1"
 os.environ['FLAGS_fuse_parameter_memory_size'] = "32"
 os.environ['FLAGS_fuse_parameter_groups_size'] = "50"
 
@@ -44,6 +41,8 @@ def parse_args():
         "--momentum", type=float, default=0.9, help="momentum value")
     parser.add_argument(
         "--weight_decay", type=float, default=1e-4, help="weight decay")
+    parser.add_argument(
+        "--data_format", type=str, default="NHWC", help="Tensor data format when training.")
 
     parser.add_argument(
         "--use_amp", type=bool, default=False, help="Whether use amp(Automatic Mixed Precision)")
@@ -122,8 +121,14 @@ def main(args):
     model.test_prog = model.main_prog.clone(for_test=True)
     
     # define data loader
-    loader = model.load_imagenet_from_file("./ImageNet/train.txt", batch_size=args.batch_size)#, data_layout='NCHW')
-    test_loader = model.load_imagenet_from_file("./ImageNet/val.txt", phase='val', batch_size=args.batch_size)#, data_layout='NCHW')
+    loader = model.load_imagenet_from_file("./ImageNet/train.txt",
+                                           batch_size=args.batch_size,
+                                           data_layout=args.data_format)
+
+    test_loader = model.load_imagenet_from_file("./ImageNet/val.txt",
+                                                phase='val',
+                                                batch_size=args.batch_size,
+                                                data_layout=args.data_format)
     
     lr = lr_strategy(args, args.batch_size * nranks)
     optimizer = fluid.optimizer.Momentum(
