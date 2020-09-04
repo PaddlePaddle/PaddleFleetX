@@ -1,7 +1,7 @@
 
 <h1 align="center">FleetX</h1>
 
-<p align="center"> Fully utilize your AI Chip Cluster with FleetX for your model pre-training. </p>
+<p align="center"> Fully utilize your GPU Clusters with FleetX for your model pre-training. </p>
 
 <h2 align="center">What is it?</h2>
 
