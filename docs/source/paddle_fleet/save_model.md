@@ -96,5 +96,5 @@ class BertLarge(ModelBase):
 
 ```
 cd FleetX/example
-python -m paddle.distributed.launch bert_app.py
+fleetrun bert_app.py
 ```
