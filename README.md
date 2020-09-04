@@ -1,7 +1,7 @@
 
 <h1 align="center">FleetX</h1>
 
-<p align="center"> Fully utilize your GPUs or other AI Chips with FleetX for your model pre-training. </p>
+<p align="center"> Fully utilize your AI Chip Cluster with FleetX for your model pre-training. </p>
 
 <h2 align="center">What is it?</h2>
 
@@ -49,7 +49,6 @@ for e in range(epoch):
 
 ```
 
-
 <h2 align="center">How to launch your task</h2>
 
 - Multiple cards
@@ -57,47 +56,3 @@ for e in range(epoch):
 ``` shell
 fleetrun --gpus 0,1,2,3,4,5,6,7 resnet50_app.py
 ```
-
-- Run on Baidu Cloud
-
-``` shell
-fleetrun --conf config.yml resnet50_app.py
-```
-
-
-<h2 align="center">Multi-slot DNN CTR model</h2>
-
-``` python
-import os
-import paddle
-import paddle.distributed.fleet as fleet
-import fleetx as X
-
-# fleet-x
-configs = X.parse_train_configs()
-model = X.applications.MultiSlotCTR()
-loader = model.load_multislot_from_file("/pathto/imagenet/train.txt")
-
-# paddle optimizer definition
-optimizer = paddle.optimizer.SGD(learning_rate=configs.lr)
-
-# paddle distributed training code here
-fleet.init()
-optimizer = fleet.distributed_optimizer(optimizer)
-optimizer.minimize(model.loss)
-
-if fleet.is_server():
-    fleet.init_server()
-    fleet.run_server()
-else:
-    fleet.init_worker()
-    exe = paddle.Executor(paddle.CPUPlace())
-    exe.run(paddle.default_startup_program())
-    epoch = 10
-    for e in range(epoch):
-        for data in loader():
-            cost_val = exe.run(paddle.default_main_program(), feed=data, fetch_list=[model.loss.name])
-    fleet.stop_worker()
-
-```
-
