@@ -22,30 +22,31 @@ pip install fleet-x
 <h2 align="center">A Distributed Resnet50 Training Example</h2>
 
 ``` python
-import os
+import fleetx as X
 import paddle
 import paddle.distributed.fleet as fleet
-import fleetx as X
 
-# fleet-x
 configs = X.parse_train_configs()
+
 model = X.applications.Resnet50()
-loader = model.load_imagenet_from_file("/pathto/imagenet/train.txt")
+imagenet_downloader = X.utils.ImageNetDownloader()
+local_path = imagenet_downloader.download_from_bos(local_path='./data')
+loader = model.load_imagenet_from_file(
+    "{}/train.txt".format(local_path), batch_size=32)
 
-# paddle optimizer definition
-optimizer = paddle.optimizer.Momentum(learning_rate=configs.lr, momentum=configs.momentum)
-
-# paddle distributed training code here
 fleet.init(is_collective=True)
-optimizer = fleet.distributed_optimizer(optimizer)
+dist_strategy = fleet.DistributedStrategy()
+dist_strategy.amp = True
 
+optimizer = paddle.optimizer.Momentum(
+    learning_rate=configs.lr,
+    momentum=configs.momentum,
+    weight_decay=paddle.fluid.regularizer.L2Decay(0.0001))
+optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
 optimizer.minimize(model.loss)
-exe = paddle.Executor(paddle.CUDAPlace(0))
 
-epoch = 10
-for e in range(epoch):
-    for data in loader():
-        cost_val = exe.run(paddle.static.default_main_program(), feed=data, fetch_list=[model.loss.name])
+trainer = X.MultiGPUTrainer()
+trainer.fit(model, loader, epoch=10)
 
 ```
 
