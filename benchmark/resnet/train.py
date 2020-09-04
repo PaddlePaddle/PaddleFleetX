@@ -115,6 +115,11 @@ def main(args):
     dist_strategy = fleet.DistributedStrategy()
     dist_strategy.amp = args.use_amp
     dist_strategy.dgc = args.use_dgc
+    if args.use_dgc:
+        global_batch_size = args.batch_size * nranks
+        steps_per_pass = int(math.ceil(args.total_images * 1.0 / global_batch_size))
+        dgc_rampup_step = args.dgc_rampup_epoch * steps_per_pass
+        dist_strategy.dgc_configs = {'rampup_begin_step': dgc_rampup_step}
     
     # define model
     model = X.applications.Resnet50()
