@@ -1,18 +1,17 @@
 
 <h1 align="center">FleetX</h1>
 
+<p align="center"> Fully utilize your GPUs or other AI Chips with FleetX for your model pre-training. </p>
 
-**FleetX** is an extension package for `Paddle's` High-Level Distributed Training API `paddle.distributed.fleet`. As cloud service grows rapidly, distributed training of deep learning model will be a user-facing approach for daily applications and research. **FleetX** aims to help Paddle users do distributed training on cloud like running on notebooks. 
+<h2 align="center">What is it?</h2>
 
-<h2 align="center">Motivations</h2>
+- **FleetX** is an out-of-the-box pre-trained model training toolkit for cloud users. It can be viewed as an extension package for `Paddle's` High-Level Distributed Training API `paddle.distributed.fleet`. 
 
-<p align="center">
-    <br>
-<img src='docs/fleetx.png' width = "600" height = "200">
-    <br>
-<p>
-    
-<h4 align="center"> FleetX helps users play with Paddle distributed training tasks easily</h4>
+<h2 align="center">Key Features</h2>
+
+- **Pre-defined Models for Training**: define a Bert-Large or GPT-2 with one line code, which is commonly used self-supervised training model.
+- **Friendly to User-defined Dataset**: plugin user-defined dataset and do training without much effort.
+- **Distributed Training Best Practices**: the most efficient way to do distributed training is provided.
 
 <h2 align="center">Installation</h2>
 
