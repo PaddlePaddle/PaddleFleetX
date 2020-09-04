@@ -194,6 +194,63 @@ class BertLarge(ModelBase):
             max_seq_len=max_seq_len,
             in_tokens=in_tokens)
 
+class BertHuge(ModelBase):
+    def __init__(self):
+        super(BertHuge, self).__init__()
+        fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
+        model_name = 'bert_huge'
+        download_model(fleet_path, model_name)
+        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
+            fleet_path + model_name)
+        self.startup_prog = startup
+        self.main_prog = main
+        self.inputs = inputs
+        self.loss = loss
+        self.checkpoints = checkpoints
+        self.target = target
+
+    def load_digital_dataset_from_file(self,
+                                       data_dir,
+                                       vocab_path,
+                                       batch_size=16,
+                                       max_seq_len=128,
+                                       in_tokens=False):
+        return load_bert_dataset(
+            data_dir,
+            vocab_path,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens)
+
+class BertGiant(ModelBase):
+    def __init__(self):
+        super(BertGiant, self).__init__()
+        fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
+        model_name = 'bert_giant'
+        download_model(fleet_path, model_name)
+        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
+            fleet_path + model_name)
+        self.startup_prog = startup
+        self.main_prog = main
+        self.inputs = inputs
+        self.loss = loss
+        self.checkpoints = checkpoints
+        self.target = target
+
+    def load_digital_dataset_from_file(self,
+                                       data_dir,
+                                       vocab_path,
+                                       batch_size=16,
+                                       max_seq_len=128,
+                                       in_tokens=False):
+        return load_bert_dataset(
+            data_dir,
+            vocab_path,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens)
 
 class BertBase(ModelBase):
     def __init__(self):
