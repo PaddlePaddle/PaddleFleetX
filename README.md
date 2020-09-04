@@ -40,7 +40,8 @@ dist_strategy.amp = True
 
 optimizer = paddle.optimizer.Momentum(
     learning_rate=configs.lr,
-    momentum=configs.momentum)
+    momentum=configs.momentum,
+    regularization=paddle.fluid.regularizer.L2Decay(0.0001))
 optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
 optimizer.minimize(model.loss)
 
