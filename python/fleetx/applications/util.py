@@ -147,7 +147,6 @@ def save_program(main_prog,
     main_program_str = main_prog.desc.serialize_to_string()
     startup_program_str = startup_prog.desc.serialize_to_string()
     params = main_prog.global_block().all_parameters()
-    para_info = []
     with open(program_path + '/input_names', 'w') as fout:
         for input in input_list:
             fout.write("%s\n" % input)
@@ -181,5 +180,6 @@ def save_program(main_prog,
         with open(program_path + '/checkpoint', 'w') as fout:
             for ckpt in checkpoints:
                 fout.write("%s\n" % ckpt.name)
-    with open(program_path + '/target', 'w') as fout:
-        fout.write(target.name)
+    with open(program_path + '/acc', 'w') as fout:
+        for t in target:
+            fout.write(t.name+'\n')
