@@ -21,6 +21,7 @@ from fleetx.dataset.bert_dataset import load_bert_dataset
 from fleetx.dataset.transformer_dataset import transformer_data_generator
 from fleetx.version import fleetx_version
 from fleetx.dataset.ctr_data_generator import get_dataloader
+from fleetx import utils
 
 
 class ModelBase(object):
@@ -50,8 +51,7 @@ class ModelBase(object):
 
 def download_model(fleet_path, model_name):
     version = fleetx_version.replace('-', '')
-    gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
-    if gpu_id == 0:
+    if utils.is_first_worker():
         if not os.path.exists(fleet_path + model_name):
             if not os.path.exists(fleet_path + model_name + '.tar.gz'):
                 os.system(
