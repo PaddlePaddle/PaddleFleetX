@@ -81,7 +81,7 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
     entry_points={
-        'console_scripts': ['fleetx = fleetx.utils.submitter:submitter']
+        'console_scripts': ['fleetsub = fleetx.utils.submitter:submitter']
     },
     license='Apache 2.0',
     keywords=('paddlepaddle distributed-training deep-learning'))
