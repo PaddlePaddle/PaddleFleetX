@@ -63,6 +63,8 @@ class PaddleCloudSubmitter(Submitter):
         pip_src = "--index-url=http://pip.baidu.com/pypi/simple --trusted-host pip.baidu.com"
         if "pip_src" in yml_cfg:
             pip_src = yml_cfg["pip_src"]
+        if "proxy" in yml_cfg:
+            proxy = yml_cfg['proxy']
         wheel_list = []
         get_wheel_cmd_list = []
         if "wheels" in yml_cfg:
@@ -77,7 +79,8 @@ class PaddleCloudSubmitter(Submitter):
             "each wheel should have download source"
         job_sh = ""
         if yml_cfg['use_dali']:
-            job_sh += "export https_proxy=http://172.19.56.199:3128/\nexport http_proxy=http://172.19.56.199:3128/\n"
+            job_sh += "export https_proxy={}\nexport http_proxy={}\n".format(
+                proxy, proxy)
             job_sh += "pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly/cuda/10.0 nvidia-dali-nightly==0.18.0.dev20191220 \n"
         job_sh += "unset http_proxy\nunset https_proxy\n"
         job_sh += "pip uninstall paddlepaddle -y\n"
