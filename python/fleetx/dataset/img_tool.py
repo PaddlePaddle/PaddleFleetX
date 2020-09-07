@@ -89,8 +89,8 @@ def crop_image(img, target_size, center):
     height, width = img.shape[:2]
     size = target_size
     if center == True:
-        w_start = (width - size) / 2
-        h_start = (height - size) / 2
+        w_start = (width - size) // 2
+        h_start = (height - size) // 2
     else:
         w_start = random.randint(0, width - size)
         h_start = random.randint(0, height - size)
