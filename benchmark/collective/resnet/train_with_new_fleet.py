@@ -35,9 +35,7 @@ import utils.reader_cv2 as reader
 from utils.utility import add_arguments, print_arguments, check_gpu
 import utils.utility as utility
 from utils.learning_rate import cosine_decay_with_warmup, lr_warmup
-#from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
-import paddle.fluid.incubate.fleet.base.role_maker as role_maker
-import paddle.fleet as fleet
+import paddle.distributed.fleet as fleet
 from paddle.fluid import compiler
 import paddle.fluid.profiler as profiler
 
@@ -316,9 +314,6 @@ def build_program(is_train, main_prog, startup_prog, args, dist_strategy=None, d
                     dist_strategy.amp_configs = {
                         'init_loss_scaling': args.scale_loss,
                         'use_dynamic_loss_scaling': args.use_dynamic_loss_scaling}
-                    #optimizer = fluid.contrib.mixed_precision.decorate(optimizer,
-                    #                                                   init_loss_scaling=args.scale_loss,
-                    #                                                   use_dynamic_loss_scaling=args.use_dynamic_loss_scaling)
                 if args.use_dgc:
                     dist_strategy.dgc = True
                     dist_strategy.dgc_configs = {'rampup_begin_step': args.rampup_begin_step}
@@ -364,17 +359,19 @@ def train(args):
     exec_strategy.num_threads = args.num_threads
     exec_strategy.num_iteration_per_drop_scope = args.num_iteration_per_drop_scope
 
-    dist_strategy = fleet.DistributedStrategy()
-    dist_strategy.exec_strategy = exec_strategy
-    dist_strategy.enable_inplace = args.with_inplace
+    build_strategy = fluid.BuildStrategy()
+    build_strategy.enable_inplace = args.with_inplace
     if not args.fuse:
-        dist_strategy.fuse_all_reduce_ops = False
-    dist_strategy.nccl_comm_num = args.nccl_comm_num
-    dist_strategy.fuse_elewise_add_act_ops=args.fuse_elewise_add_act_ops
-    dist_strategy.fuse_bn_act_ops = args.fuse_bn_act_ops
+        build_strategy.fuse_all_reduce_ops = False
+    build_strategy.nccl_comm_num = args.nccl_comm_num
+    build_strategy.fuse_elewise_add_act_ops=args.fuse_elewise_add_act_ops
+    build_strategy.fuse_bn_act_ops = args.fuse_bn_act_ops
 
-    role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-    fleet.init(role)
+    dist_strategy = fleet.DistributedStrategy()
+    dist_strategy.execution_strategy = exec_strategy
+    dist_strategy.build_strategy = build_strategy
+
+    fleet.init(is_collective=True)
 
     b_out = build_program(
                      is_train=True,
