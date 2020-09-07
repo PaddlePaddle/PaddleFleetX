@@ -48,6 +48,16 @@ class ModelBase(object):
     def main_program(self):
         return self.main_prog
 
+    def load_params(self, file_path):
+        place = fluid.CPUPlace()
+        exe = fluid.Executor(place)
+        fluid.io.load_params(exe, file_path)
+
+    def save_params(self, target_path):
+        place = fluid.CPUPlace()
+        exe = fluid.Executor(place)
+        fluid.io.save_params(exe, target_path)
+
 
 def download_model(fleet_path, model_name):
     version = fleetx_version.replace('-', '')
@@ -64,10 +74,14 @@ def download_model(fleet_path, model_name):
 
 
 class Resnet50(ModelBase):
-    def __init__(self):
+    def __init__(self, data_layout='NCHW'):
+        self.data_layout = data_layout
         super(Resnet50, self).__init__()
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
-        model_name = 'resnet50'
+        if data_layout == 'NCHW':
+            model_name = 'resnet50_nchw'
+        else:
+            model_name = 'resnet50_nhwc'
         download_model(fleet_path, model_name)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
             fleet_path + model_name)
@@ -77,18 +91,17 @@ class Resnet50(ModelBase):
         self.loss = loss
         self.checkpoints = checkpoints
         self.target = target
-        self.use_dali = False
 
     def load_imagenet_from_file(self,
                                 filelist,
                                 batch_size=32,
                                 phase='train',
                                 shuffle=True,
-                                use_dali=False,
-                                data_layout='NHWC'):
+                                use_dali=False):
         if phase != 'train':
             shuffle = False
         self.use_dali = use_dali
+        data_layout = self.data_layout
         return image_dataloader_from_filelist(
             filelist,
             self.inputs,
