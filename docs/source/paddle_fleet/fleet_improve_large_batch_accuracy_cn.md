@@ -18,6 +18,7 @@ FleetX 实现了这两种优化策略, 并提供简单易用API 接口. 通过�
 使用 LARS 可以在超大 batch 并行（batch size>= 8k）时达到达到一下效果：
  * 如果目标是收敛精度： 达到 76.3 % 的 resnet50 state of art 精度
  * 如果目标是收敛速度优先：60 epoch 内收敛 75.9% Top1 （MLperf）
+ 
 |resnet50 imagenet |Global batch size|epoch| top1 |
 |:---:|:---:|:---:|:---:|
 |[Goyal et al](https://arxiv.org/abs/1706.02677)| 8k | 90 | 76.3% |
@@ -66,13 +67,17 @@ loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
 LARS 优化算法的公式如下:
 
 
-& local\\\_learning\\\_rate = learning\\\_rate \* lars\\\_coeff \* \\
-\\frac{\|\|param\|\|}{\|\|gradient\|\| + lars\\\_weight\\\_decay \* \|\|param\|\|}\\\\
+$$     
+locallearningrate=learningrate  \times  larscoeff \times \frac{||param||}{||gradient||+larsweightdecay \times ||param||}     
+velocity=mu \times velocity+locallearningrate \times (gradient+larsweightdecay \times param)  
+param=param−velocity   
+$$     
 
-& velocity = mu \* velocity + local\\\_learning\\\_rate \* (gradient + lars\\\_weight\\\_decay \* param)\\\\
+$$ m_t = \beta_1 m_{t - 1}+ (1 - \beta_1)g_t $$   
+$$ v_t = \beta_2 v_{t - 1}  + (1 - \beta_2)g_t^2 $$   
+$$ r_t = \frac{m_t}{\sqrt{v_t}+\epsilon} $$
 
-& param = param - velocity
-
+$$ w_t = w_{t-1} -\eta_t \frac{||w_{t-1}||}{||r_t + \lambda w_{t-1}||} (r_t + \lambda w_{t-1}) $$
 
 
 可以看到LARS 其实是在 带`weight decay` 的`momentum` 优化器的基础上加入了`local learning rate` 的逻辑, 对每一层的`learning rate` 进行了放缩. 
@@ -164,18 +169,10 @@ loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
 #### 定义分布式及LARS 相关策略
 LAMB 优化算法的公式如下:
 
-$$\\begin{aligned}
-m_t &= \\\\beta_1 m\_{t - 1}+ (1 - \\\\beta_1)g_t
-\\end{aligned}$$
-$$\\begin{aligned}
-v_t &= \\\\beta_2 v\_{t - 1}  + (1 - \\\\beta_2)g_t^2
-\\end{aligned}$$
-$$\\begin{aligned}
-r_t &= \\\\frac{m_t}{\\\\sqrt{v_t}+\\\\epsilon}
-\\end{aligned}$$
-$$\\begin{aligned}
-w_t &= w\_{t-1} -\\\\eta_t \\\\frac{\\\\left \\\| w\_{t-1}\\\\right \\\|}{\\\\left \\\| r_t + \\\\lambda w\_{t-1}\\\\right \\\|} (r_t + \\\\lambda w\_{t-1})
-\\end{aligned}$$
+$$ m_t = \beta_1 m_{t - 1}+ (1 - \beta_1)g_t $$   
+$$ v_t = \beta_2 v_{t - 1}  + (1 - \beta_2)g_t^2 $$   
+$$ r_t = \frac{m_t}{\sqrt{v_t}+\epsilon} $$
+$$ w_t = w_{t-1} -\eta_t \frac{||w_{t-1}||}{||r_t + \lambda w_{t-1}||} (r_t + \lambda w_{t-1}) $$
 
 在公式中 `m` 是一阶 moment, 而`v` 是二阶moment, `\eta` 和 `\lambda` 分别是 LAMB `learning rate`  和 `weight decay rate`.
 

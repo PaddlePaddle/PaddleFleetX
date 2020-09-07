@@ -26,9 +26,11 @@
 
    paddle_fleet/fleet_ps_sync_and_async
    paddle_fleet/fleet_ps_geo_async
-   paddle_fleet/fleet_collective_training_scalability
-   paddle_fleet/fleet_dgc_on_cloud
+   paddle_fleet/fleet_collective_training_practices
+   paddle_fleet/fleet_collective_training_speedup_with_amp
+   paddle_fleet/fleet_on_cloud
    paddle_fleet/fleet_large_batch_training_techniques
+   paddle_fleet/fleet_improve_large_batch_accuracy
    paddle_fleet/fleet_and_edl_for_distillation
    paddle_fleet/fleet_model_parallel
    paddle_fleet/fleet_pipeline_parallel
