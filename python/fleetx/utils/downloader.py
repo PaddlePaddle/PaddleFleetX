@@ -119,7 +119,6 @@ class ImageNetDownloader(Downloader):
             set_lists[process] = []
         for num in range(62):
             set_lists[num % 10].append(num)
-        print(set_lists)
         procs = []
         for i in range(10):
             p = multiprocessing.Process(
