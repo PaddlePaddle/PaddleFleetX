@@ -42,6 +42,8 @@ NV#  = Connection traversing a bonded set of # NVLinks
 
 - VGG
 
+- Bert 
+
 - Bert Large
 
 - Transformer
