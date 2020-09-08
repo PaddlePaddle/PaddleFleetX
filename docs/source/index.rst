@@ -12,6 +12,7 @@
    paddle_fleet/install_cn
    paddle_fleet/fleet_quick_start_cn
    paddle_fleet/fleet_lightning_cn
+   paddle_fleet/fleetrun_usage_cn
    paddle_fleet/fleet_benchmark_cn
 
 .. toctree::
