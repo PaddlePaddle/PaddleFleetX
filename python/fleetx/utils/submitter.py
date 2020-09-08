@@ -139,6 +139,10 @@ def _parse_args():
 def submitter():
     args = _parse_args()
     submitter = PaddleCloudSubmitter()
+    if args.f == "":
+        print("You should specify a yaml file for cloud submission")
+        print("fleetsub -f cloud.yaml")
+        exit(0)
     submitter.submit(args.f)
 
 
