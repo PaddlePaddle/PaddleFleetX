@@ -57,6 +57,7 @@ NV#  = Connection traversing a bonded set of # NVLinks
 - cpu cores : 32
 - paddle version : release 1.8.5
 - total memory : 256GB
+- Ethernet: 10Gbps
 
 ### Parameter Server Training
 
