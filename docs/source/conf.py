@@ -36,7 +36,7 @@ import sphinx_rtd_theme
 
 # -- Project information -----------------------------------------------------
 
-project = 'Fleet'
+project = 'FleetX'
 copyright = '2020, PaddlePaddle'
 author = 'PaddlePaddle'
 
