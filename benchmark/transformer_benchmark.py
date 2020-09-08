@@ -28,8 +28,7 @@ import paddle.distributed.fleet.base.role_maker as role_maker
 # if you want to learn how to write a model, FleetX is not for you
 # focus more on engineering staff in fleet-x
 configs = X.parse_train_configs()
-role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-fleet.init(role)
+fleet.init(is_collective=True)
 model = X.applications.Transformer()
 
 data_loader = model.load_wmt16_dataset_from_file(
