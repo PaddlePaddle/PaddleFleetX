@@ -13,6 +13,7 @@
 # limitations under the License.
 from paddle.fluid.contrib.utils import HDFSClient, multi_download
 import time
+from env import is_first_worker
 import multiprocessing
 import yaml
 import os
@@ -28,6 +29,8 @@ class ImageNetDownloader(Downloader):
         super(ImageNetDownloader, self).__init__()
 
     def download_from_hdfs(self, fs_yaml, local_path="./", hdfs_path=None):
+        if not is_first_worker():
+            return local_path
         _, ext = os.path.splitext(fs_yaml)
         assert ext in ['.yml', '.yaml'], "only support yaml files for now"
         with open(fs_yaml) as f:
@@ -91,8 +94,7 @@ class ImageNetDownloader(Downloader):
         return local_path
 
     def download_from_bos(self, local_path="./"):
-        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
-        if gpu_id != 0:
+        if not is_first_worker():
             return local_path
         print("Start download data")
         os.system(
