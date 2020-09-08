@@ -81,10 +81,17 @@ static inline void devptr_check(const void* pointer, int devid, const char* ptrn
   if (attr.devicePointer == NULL) {
     LOGERR("%s is not a valid pointer", ptrname);
   } 
-  if (attr.memoryType == cudaMemoryTypeDevice && attr.device != devid) {
-    LOGERR("%s allocated on device %d mismatchs with current device %d",
-            ptrname, attr.device, devid);
-  }
+#if CUDART_VERSION < 11000
+      if (attr.memoryType == cudaMemoryTypeDevice && attr.device != devid) {
+        LOGERR("%s allocated on device %d mismatchs with current device %d",
+                ptrname, attr.device, devid);
+      }
+#else
+      if (attr.type  == cudaMemoryTypeDevice && attr.device != devid) {
+        LOGERR("%s allocated on device %d mismatchs with current device %d",
+                ptrname, attr.device, devid);
+      }
+#endif
 }
 
 #define MAX_THREADS 256
