@@ -51,7 +51,8 @@ class PaddleCloudSubmitter(Submitter):
         log_output_path = yml_cfg['log_output_path']
         if 'afs' in log_fs_name:
             storage_type = 'afs'
-        config = "fs_name = \"{}\"\n".format(log_fs_name)
+        config = "storage_type = \"{}\"\n".format(storage_type)
+        config += "fs_name = \"{}\"\n".format(log_fs_name)
         config += "fs_ugi = \"{}\"\n".format(log_fs_ugi)
         config += "output_path = \"{}\"\n".format(log_output_path)
         config += "FLAGS_rpc_deadline=3000000\n"
