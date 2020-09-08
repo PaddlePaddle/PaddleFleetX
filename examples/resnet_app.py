@@ -20,8 +20,7 @@ configs = X.parse_train_configs()
 fleet.init(is_collective=True)
 model = X.applications.Resnet50()
 imagenet_downloader = X.utils.ImageNetDownloader()
-local_path = imagenet_downloader.download_from_bos(
-    local_path='/ssd2/jingqinghe/ImageNet')
+local_path = imagenet_downloader.download_from_bos(local_path='./data')
 loader = model.load_imagenet_from_file(
     "{}/train.txt".format(local_path), batch_size=32)
 
