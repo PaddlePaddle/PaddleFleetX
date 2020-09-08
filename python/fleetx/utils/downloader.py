@@ -13,7 +13,7 @@
 # limitations under the License.
 from paddle.fluid.contrib.utils import HDFSClient, multi_download
 import time
-from env import is_first_worker
+from .env import is_first_worker
 import multiprocessing
 import yaml
 import os

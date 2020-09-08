@@ -40,20 +40,21 @@ class PaddleCloudSubmitter(Submitter):
                           "--job-name {} " \
                           "--start-cmd 'sh start_job.sh' " \
                           "--job-conf config.ini " \
-                          "--files start_job.sh {} " \
+                          "--files start_job.sh{} " \
                           "--k8s-trainers {} {} " \
                           "--k8s-cpu-cores 35"
 
     def get_start_job(self, yml_cfg):
         # set up config.ini
-        fs_name = yml_cfg['fs_name']
-        fs_ugi = yml_cfg['fs_ugi']
-        output_path = yml_cfg['output_path']
-        storage_type = yml_cfg['storage_type']
+        log_fs_name = yml_cfg['log_fs_name']
+        log_fs_ugi = yml_cfg['log_fs_ugi']
+        log_output_path = yml_cfg['log_output_path']
+        if 'afs' in log_fs_name:
+            storage_type = 'afs'
         config = "storage_type = \"{}\"\n".format(storage_type)
-        config += "fs_name = \"{}\"\n".format(fs_name)
-        config += "fs_ugi = \"{}\"\n".format(fs_ugi)
-        config += "output_path = \"{}\"\n".format(output_path)
+        config += "fs_name = \"{}\"\n".format(log_fs_name)
+        config += "fs_ugi = \"{}\"\n".format(log_fs_ugi)
+        config += "output_path = \"{}\"\n".format(log_output_path)
         config += "FLAGS_rpc_deadline=3000000\n"
         config += "NCCL_DEBUG=INFO\n"
         with open("config.ini", "w") as fout:
@@ -78,10 +79,6 @@ class PaddleCloudSubmitter(Submitter):
         assert len(wheel_list) == len(get_wheel_cmd_list), \
             "each wheel should have download source"
         job_sh = ""
-        if yml_cfg['use_dali']:
-            job_sh += "export https_proxy={}\nexport http_proxy={}\n".format(
-                proxy, proxy)
-            job_sh += "pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly/cuda/10.0 nvidia-dali-nightly==0.18.0.dev20191220 \n"
         job_sh += "unset http_proxy\nunset https_proxy\n"
         job_sh += "pip uninstall paddlepaddle -y\n"
         job_sh += "pip uninstall paddlepaddle-gpu -y\n"
@@ -117,14 +114,17 @@ class PaddleCloudSubmitter(Submitter):
         assert "group_name" in cfg, "group_name should be configured"
         group_name = cfg["group_name"]
         self.get_start_job(cfg)
-        if 'download_yaml' in cfg:
-            cfg['job_script'] += " " + cfg['download_yaml']
+        if "upload_files" in cfg:
+            file_list = cfg['upload_files']
+        job_script = ''
+        for item in file_list:
+            job_script += " " + item
         distribute_suffix = " --k8s-not-local --distribute-job-type NCCL2" \
                             if int(num_trainers) > 1 else ""
         pcloud_submit_cmd = self.submit_str.format(
             server, port, image_addr, cluster_name, group_name, num_cards,
             "{}_N{}C{}".format(job_prefix, num_trainers, num_cards),
-            cfg['job_script'], num_trainers, distribute_suffix)
+            job_script, num_trainers, distribute_suffix)
         print(pcloud_submit_cmd)
         os.system(pcloud_submit_cmd)
 
