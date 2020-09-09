@@ -20,6 +20,7 @@ import io
 import six
 import os
 import gzip
+import random
 import paddle.fluid as fluid
 import numpy as np
 
@@ -48,6 +49,29 @@ def load_bert_dataset(data_dir,
     data_loader.set_batch_generator(data_reader.data_generator(), places)
     return data_loader
 
+def load_bert_datasetv2(data_dir,
+                      vocab_path,
+                      inputs,
+                      batch_size,
+                      max_seq_len=512,
+                      in_tokens=True,
+                      generate_neg_sample=True,
+                      voc_size=30522):
+    data_loader = fluid.io.DataLoader.from_generator(
+        feed_list=inputs, capacity=70, iterable=True)
+    data_reader = DataReaderV2(
+        data_dir=data_dir,
+        batch_size=batch_size,
+        in_tokens=in_tokens,
+        vocab_path=vocab_path,
+        voc_size=voc_size,
+        epoch=1,
+        max_seq_len=max_seq_len,
+        generate_neg_sample=generate_neg_sample)
+
+    places = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+    data_loader.set_batch_generator(data_reader.data_generator(), places)
+    return data_loader
 
 class DataReader(object):
     def __init__(self,

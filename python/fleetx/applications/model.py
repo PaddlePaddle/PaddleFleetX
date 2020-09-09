@@ -17,7 +17,7 @@ from .util import *
 import sysconfig
 import paddle.distributed.fleet as fleet
 from fleetx.dataset.image_dataset import image_dataloader_from_filelist
-from fleetx.dataset.bert_dataset import load_bert_dataset
+from fleetx.dataset.bert_dataset import load_bert_dataset, load_bert_datasetv2
 from fleetx.dataset.transformer_dataset import transformer_data_generator
 from fleetx.version import fleetx_version
 from fleetx.dataset.ctr_data_generator import get_dataloader
@@ -215,7 +215,21 @@ class BertLarge(ModelBase):
             max_seq_len=max_seq_len,
             in_tokens=in_tokens)
 
+    def load_digital_dataset_from_file_v2(
+        self,
+        data_dir,
+        vocab_path,
+        batch_size=16,
+        max_seq_len=128,
+        in_tokens=False):
 
+        return load_bert_datasetv2(
+            data_dir,
+            vocab_path,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens)
 class BertHuge(ModelBase):
     def __init__(self):
         super(BertHuge, self).__init__()
@@ -292,6 +306,21 @@ class BertGiant(ModelBase):
             max_seq_len=max_seq_len,
             in_tokens=in_tokens)
 
+    def load_digital_dataset_from_file_v2(
+        self,
+        data_dir,
+        vocab_path,
+        batch_size=16,
+        max_seq_len=128,
+        in_tokens=False):
+
+        return load_bert_datasetv2(
+            data_dir,
+            vocab_path,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens)
 
 class BertBase(ModelBase):
     def __init__(self, lang='ch'):
@@ -325,6 +354,21 @@ class BertBase(ModelBase):
             max_seq_len=max_seq_len,
             in_tokens=in_tokens)
 
+    def load_digital_dataset_from_file_v2(
+        self,
+        data_dir,
+        vocab_path,
+        batch_size=16,
+        max_seq_len=128,
+        in_tokens=False):
+
+        return load_bert_datasetv2(
+            data_dir,
+            vocab_path,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens)
 
 class MultiSlotCTR(ModelBase):
     def __init__(self):
