@@ -20,7 +20,7 @@ import os
 
 
 def check_exists(local_path):
-    if os.path.exists("{}/data_info.txt".format(local_path)):
+    if not os.path.exists("{}/data_info.txt".format(local_path)):
         return True
     with open("{}/data_info.txt".format(local_path)) as fin:
         for line in fin:
@@ -45,7 +45,7 @@ def untar_files_with_check(local_path, trainer_id, trainer_num,
                     if os.path.exists("{}/{}".format(local_path, ff)):
                         ready_filelist.append("{}/{}".format(local_path, ff))
                 if len(ready_filelist) == len(filelist):
-                    num_per_trainer = len(ready_filelist) / trainer_num
+                    num_per_trainer = (len(ready_filelist) / trainer_num) + 1
                     if (trainer_id + 1
                         ) * num_per_trainer < len(ready_filelist):
                         sub_list = ready_filelist[trainer_id * num_per_trainer:
