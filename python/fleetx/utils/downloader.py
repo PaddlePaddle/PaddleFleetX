@@ -19,6 +19,51 @@ import yaml
 import os
 
 
+def check_exists(local_path):
+    if os.path.exists("{}/data_info.txt".format(local_path)):
+        return True
+    with open("{}/data_info.txt".format(local_path)) as fin:
+        for line in fin:
+            current_file = line[:-1]
+            if not os.path.exists("{}/{}".format(local_path, current_file)):
+                print("{}/{}".format(local_path, current_file))
+                return True
+        return False
+
+
+def untar_files_with_check(local_path, trainer_id, trainer_num,
+                           process_num=10):
+    print("Waiting others to finish download......")
+    while True:
+        if os.path.exists("{}/data_info.txt".format(local_path)):
+            filelist = []
+            ready_filelist = []
+            with open("{}/data_info.txt".format(local_path)) as fin:
+                for line in fin:
+                    filelist.append(line[:-1])
+                for ff in filelist:
+                    if os.path.exists("{}/{}".format(local_path, ff)):
+                        ready_filelist.append("{}/{}".format(local_path, ff))
+                if len(ready_filelist) == len(filelist):
+                    num_per_trainer = len(ready_filelist) / trainer_num
+                    if (trainer_id + 1
+                        ) * num_per_trainer < len(ready_filelist):
+                        sub_list = ready_filelist[trainer_id * num_per_trainer:
+                                                  (trainer_id + 1
+                                                   ) * num_per_trainer]
+                        print(sub_list)
+                        return sub_list
+                    else:
+                        sub_list = ready_filelist[trainer_id *
+                                                  num_per_trainer:]
+                        print(sub_list)
+                        return sub_list
+                else:
+                    time.sleep(2)
+        else:
+            time.sleep(2)
+
+
 class Downloader(object):
     def __init__(self):
         pass
@@ -29,8 +74,6 @@ class ImageNetDownloader(Downloader):
         super(ImageNetDownloader, self).__init__()
 
     def download_from_hdfs(self, fs_yaml, local_path="./", hdfs_path=None):
-        if not is_first_worker():
-            return local_path
         _, ext = os.path.splitext(fs_yaml)
         assert ext in ['.yml', '.yaml'], "only support yaml files for now"
         with open(fs_yaml) as f:
@@ -58,21 +101,18 @@ class ImageNetDownloader(Downloader):
         else:
             print("WARNING: imagenet default path is empty")
 
-        def untar_files(local_path, process_num=10):
+        def untar_files(local_path, tar_list, process_num=10):
             def _subprocess_untar(files):
                 for ff in files:
                     if "shard" in ff and ff.endswith(".tar"):
-                        cmd = "tar -xf {} -C {}".format(local_path + "/" + ff,
-                                                        local_path)
+                        cmd = "tar -xf {} -C {}".format(ff, local_path)
                         os.system(cmd)
 
-            filelist = os.listdir(local_path)
-            full_filelist = [x for x in filelist]
-            dir_per_process = len(full_filelist) / process_num
+            dir_per_process = len(tar_list) / process_num
 
             procs = []
             for i in range(process_num):
-                process_filelist = full_filelist[i::process_num]
+                process_filelist = tar_list[i::process_num]
                 p = multiprocessing.Process(
                     target=_subprocess_untar, args=(process_filelist, ))
                 procs.append(p)
@@ -81,21 +121,28 @@ class ImageNetDownloader(Downloader):
             for proc in procs:
                 proc.join()
 
-            cmd = "tar -xf {}/val.tar".format(local_path)
-            os.system(cmd)
-
         if hdfs_path == None:
             hdfs_path = self.default_path
         client = HDFSClient(self.hadoop_home, self.hdfs_configs)
-        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
-        num_trainers = int(os.environ.get('PADDLE_TRAINERS_NUM', 0))
-        multi_download(client, hdfs_path, local_path, gpu_id, num_trainers, 12)
-        untar_files(local_path)
+        PADDLE_TRAINER_ENDPOINTS = os.environ.get('PADDLE_TRAINER_ENDPOINTS')
+        endpoints = PADDLE_TRAINER_ENDPOINTS.split(",")
+        current_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
+        need_download = check_exists(local_path)
+        if need_download:
+            multi_download(client, hdfs_path, local_path,
+                           endpoints.index(current_endpoint),
+                           len(endpoints), 12)
+        tar_list = untar_files_with_check(local_path,
+                                          endpoints.index(current_endpoint),
+                                          len(endpoints))
+        if os.path.exists("{}/train".format(lcoal_path)):
+            print(
+                "Warning: You may already have imagenet dataset in {}, please check!".
+                format(local_path))
+        untar_files(local_path, tar_list)
         return local_path
 
     def download_from_bos(self, local_path="./"):
-        if not is_first_worker():
-            return local_path
         print("Start download data")
         os.system(
             'wget -q -P {} --no-check-certificate https://fleet.bj.bcebos.com/small_datasets/imagenet/val.txt'.
