@@ -1,4 +1,5 @@
-## Distributed Training Benchmark For PaddlePaddle
+
+<h1 align="center">Distributed Training Benchmark For PaddlePaddle</h1>
 
 
 <h2 align="center">GPU Environment</h2>
