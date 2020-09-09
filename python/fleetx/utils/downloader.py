@@ -26,6 +26,7 @@ def check_exists(local_path):
         for line in fin:
             current_file = line[:-1]
             if not os.path.exists("{}/{}".format(local_path, current_file)):
+                print("{}/{}".format(local_path, current_file))
                 return True
         return False
 
@@ -134,6 +135,10 @@ class ImageNetDownloader(Downloader):
         tar_list = untar_files_with_check(local_path,
                                           endpoints.index(current_endpoint),
                                           len(endpoints))
+        if os.path.exists("{}/train".format(lcoal_path)):
+            print(
+                "Warning: You may already have imagenet dataset in {}, please check!".
+                format(local_path))
         untar_files(local_path, tar_list)
         return local_path
 
