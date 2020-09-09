@@ -135,7 +135,7 @@ class ImageNetDownloader(Downloader):
         tar_list = untar_files_with_check(local_path,
                                           endpoints.index(current_endpoint),
                                           len(endpoints))
-        if os.path.exists("{}/train".format(lcoal_path)):
+        if os.path.exists("{}/train".format(local_path)):
             print(
                 "Warning: You may already have imagenet dataset in {}, please check!".
                 format(local_path))
