@@ -321,3 +321,39 @@ class MultiSlotCTR(ModelBase):
             sparse_feature_dim=sparse_feature_dim,
             batch_size=batch_size,
             shuffle=shuffle)
+
+
+class Resnet50_mlperf(ModelBase):
+    def __init__(self):
+        self.data_layout = "NHWC"
+        model_name = 'resnet50_mlperf'
+        super(Resnet50_mlperf, self).__init__()
+        fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
+        download_model(fleet_path, model_name)
+        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
+            fleet_path + model_name)
+        self.startup_prog = startup
+        self.main_prog = main
+        self.inputs = inputs
+        self.loss = loss
+        self.checkpoints = checkpoints
+        self.target = target
+
+    def load_imagenet_from_file(self,
+                                filelist,
+                                batch_size=32,
+                                phase='train',
+                                shuffle=True,
+                                use_dali=False):
+        if phase != 'train':
+            shuffle = False
+        self.use_dali = use_dali
+        data_layout = self.data_layout
+        return image_dataloader_from_filelist(
+            filelist,
+            self.inputs,
+            batch_size,
+            phase,
+            shuffle,
+            use_dali,
+            data_layout=data_layout)
