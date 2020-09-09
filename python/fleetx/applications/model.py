@@ -231,12 +231,14 @@ class BertHuge(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_digital_dataset_from_file(self,
-                                       data_dir,
-                                       vocab_path,
-                                       batch_size=16,
-                                       max_seq_len=128,
-                                       in_tokens=False):
+    def load_digital_dataset_from_file(
+        self,
+        data_dir,
+        vocab_path,
+        batch_size=16,
+        max_seq_len=128,
+        in_tokens=False):
+
         return load_bert_dataset(
             data_dir,
             vocab_path,
@@ -245,6 +247,21 @@ class BertHuge(ModelBase):
             max_seq_len=max_seq_len,
             in_tokens=in_tokens)
 
+    def load_digital_dataset_from_file_v2(
+        self,
+        data_dir,
+        vocab_path,
+        batch_size=16,
+        max_seq_len=128,
+        in_tokens=False):
+
+        return load_bert_datasetv2(
+            data_dir,
+            vocab_path,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens)
 
 class BertGiant(ModelBase):
     def __init__(self):
