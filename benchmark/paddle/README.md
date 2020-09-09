@@ -61,3 +61,12 @@ NV#  = Connection traversing a bonded set of # NVLinks
 
 ### Parameter Server Training
 
+- Word2Vec on 1-Billion Dataset
+<p align="center">
+<img  src="images/w2v_ps.png" height="240px" width="450px">
+</p>
+
+- CTR on Criteo Dataset
+<p align="center">
+<img  src="images/ctr_ps.png" height="240px" width="450px">
+</p>
