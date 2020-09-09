@@ -24,46 +24,46 @@
    :caption: 进阶1: 参数服务器训练
    :name: advanced-doc-parameter-server
 
-   fleet_ps_sync_and_async_cn
-   fleet_ps_geo_async_cn
+   paddle_fleet/fleet_ps_sync_and_async_cn
+   paddle_fleet/fleet_ps_geo_async_cn
 
 .. toctree::
    :maxdepth: 1
    :caption: 进阶2: GPU多机多卡训练
    :name: advanced-doc-collective-training
 
-   fleet_collective_training_practices_cn
-   fleet_collective_training_speedup_with_amp_cn
-   fleet_large_batch_training_techniques_cn
-   fleet_improve_large_batch_accuracy_cn.md
+   paddle_fleet/fleet_collective_training_practices_cn
+   paddle_fleet/fleet_collective_training_speedup_with_amp_cn
+   paddle_fleet/fleet_large_batch_training_techniques_cn
+   paddle_fleet/fleet_improve_large_batch_accuracy_cn.md
 
 .. toctree::
    :maxdepth: 1
    :caption: 进阶3: 弹性分布式训练
    :name: advanced-doc-elastic-training
 
-   fleet_and_edl_for_distillation_cn
+   paddle_fleet/fleet_and_edl_for_distillation_cn
 
 .. toctree::
    :maxdepth: 1
    :caption: 进阶4: 模型并行训练
    :name: advanced-doc-model-parallel
 
-   fleet_model_parallel_cn
+   paddle_fleet/fleet_model_parallel_cn
 
 .. toctree::
    :maxdepth: 1
    :caption: 进阶5: 流水线并行训练
    :name: advanced-doc-pipeline-parallel
 
-   fleet_pipeline_parallel_cn
+   paddle_fleet/fleet_pipeline_parallel_cn
 
 .. toctree::
    :maxdepth: 1
    :caption: 进阶6: 公有云环境训练
    :name: advanced-doc-training-on-cloud
 
-   fleet_on_cloud_cn
+   paddle_fleet/fleet_on_cloud_cn
 
 .. toctree::
    :maxdepth: 1
