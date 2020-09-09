@@ -9,17 +9,22 @@
 ## 使用说明
 ####  GPU场景
 - **GPU单机单卡训练**
-
-```
- fleetrun --gpus=0 train.py
+多机单卡有两种方式：一种可直接使用`python`执行，也可以使用`fleetrun`执行。**推荐使用`fleetrun`启动方法** 
+【方法一】直接使用`python`执行
+```sh
+ export CUDA_VISIBLE_DEVICES=0
  python train.py
 ```
-
+【方法二】使用`fleetrun`执行
+```
+ fleetrun --gpus=0 train.py
+```
 注：如果指定了`export CUDA_VISIBLE_DEVICES=0` ，则可以直接使用：
 ```
 export CUDA_VISIBLE_DEVICES=0
 fleetrun train.py
 ```
+
 
 - **GPU单机4卡训练**
 
@@ -113,17 +118,17 @@ import paddle.distributed.fleet as fleet
 configs = X.parse_train_configs()
 
 model = X.applications.Resnet50()
-imagenet_downloader = X.utils.ImageNetDownloader()
-local_path = imagenet_downloader.download_from_bos(local_path='./data')
+#imagenet_downloader = X.utils.ImageNetDownloader()
+#local_path = imagenet_downloader.download_from_bos(local_path='./data')
+local_path = "./data/"
 loader = model.load_imagenet_from_file(
     "{}/train.txt".format(local_path), batch_size=32)
 
 fleet.init(is_collective=True)
 
-optimizer = paddle.optimizer.Momentum(
+optimizer = fluid.optimizer.Momentum(
     learning_rate=configs.lr,
-    momentum=configs.momentum,
-    regularization=paddle.fluid.regularizer.L2Decay(0.0001))
+    momentum=configs.momentum)
 optimizer = fleet.distributed_optimizer(optimizer)
 optimizer.minimize(model.loss)
 
