@@ -23,7 +23,7 @@ import gzip
 import random
 import paddle.fluid as fluid
 import numpy as np
-
+import paddle
 
 def load_bert_dataset(data_dir,
                       vocab_path,
@@ -385,17 +385,14 @@ class DataReaderV2(object):
             labels.extend(to_int_array(group[6]))
 
         src_ids = np.array(src_ids).reshape(batch_size,
-                                            self.max_seq_len,
-                                            1)
+                                            self.max_seq_len)
         sent_ids = np.array(sent_ids).reshape(batch_size,
-                                              self.max_seq_len,
-                                              1)
+                                              self.max_seq_len)
         input_mask = \
                 np.array(input_mask).astype("int64").reshape(
                     batch_size, self.max_seq_len)
         labels = np.array(labels).astype("int64").reshape(batch_size, 1)
-        pos_ids = input_mask * pos_ids
-        pos_ids = np.expand_dims(pos_ids, axis=-1).astype("int64")
+        pos_ids = (input_mask * pos_ids).astype("int64")
         input_mask = np.expand_dims(input_mask, axis=-1).astype("float32")
         
         masked_lm_weight = np.array(masked_lm_weight).reshape(batch_size, -1).astype("float32")
