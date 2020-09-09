@@ -145,8 +145,8 @@ trainer.fit(model, loader, epoch=10)
 export CUDA_VISIBLE_DEVICES=0
 python res_app.py
 ```
-可以看见终端上将打印日志：
-```
+可以看见终端上打印日志信息：
+```sh
 --202X-0X-0X 06:42:53--  https://fleet.bj.bcebos.com/models/0.0.4/resnet50_nchw.tar.gz
 Connecting to 172.19.57.45:3128... connected.
 Proxy request sent, awaiting response... 200 OK
@@ -173,7 +173,7 @@ fleetrun res_app.py
 ```
 训练日志可以在终端上查看，也可稍后在./log/目录下查看每个卡的日志。
 终端可以看到显示日志如下：
-```
+```sh
 -----------  Configuration Arguments -----------
 gpus: 0,1,2,3
 ips: 127.0.0.1
