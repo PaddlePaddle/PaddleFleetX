@@ -21,7 +21,7 @@ export CUDA_VISIBLE_DEVICES=0
 fleetrun train.py
 ```
 
--  **GPU单机4卡训练 **
+- **GPU单机4卡训练**
 
 ```
 fleetrun --gpus=0,1,2,3 train.py
@@ -33,54 +33,56 @@ export CUDA_VISIBLE_DEVICES=0,1,2,3
 fleetrun train.py
 ```
 
--   **GPU多机多卡训练 **
- 	- 2机8卡 (每个节点4卡)
-```
+- **GPU多机多卡训练**
+	- 2机8卡 (每个节点4卡)
+```sh
 fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" --gpus=0,1,2,3 train.py
 ```
 注：如果每台机器均指定了```export CUDA_VISIBLE_DEVICES=0,1,2,3``` ，则可以直接使用：
-```
+```sh
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 ```
 
 	- 2机16卡（每个节点8卡，假设每台机器均有8卡可使用）
-```
+```sh
 fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 ```
 
-- ** GPU 在PaddleCloud上提交任务 **
+- **GPU 在PaddleCloud上提交任务**
+
 **PaddleCloud**是百度开源的云上任务提交工具，提供云端训练资源，打通⽤户云端资源账号，并且支持以命令行形式进行任务提交、查看、终止等多种功能。PaddleCloud更多详情：[PaddleCloud](https://github.com/PaddlePaddle/PaddleCloud "PaddleCloud")
 
   在PaddleCloud上启动分布式任务十分方便，无论执行单机单卡还是多机多卡任务，只需使用：
-```
+```sh
 fleetrun  train.py 
 ```
 
 ####  CPU场景
 
--  **参数服务器训练 - 单机训练（0个服务节点，1个训练节点） **
+- **参数服务器训练 - 单机训练（0个服务节点，1个训练节点）**
 
-```
+```sh
 python train.py
 ```
 
--  **参数服务器训练 - 单机模拟分布式训练（1个服务节点，4个训练节点）**
+- **参数服务器训练 - 单机模拟分布式训练（1个服务节点，4个训练节点）**
 
-```
+```sh
 fleetrun --server_num=1 --worker_num=4 train.py
 ```
 
--  **参数服务器训练 - 多机训练（2台节点，每台节点均有1个服务节点，4个训练节点） **
+- **参数服务器训练 - 多机训练（2台节点，每台节点均有1个服务节点，4个训练节点）**
 
-```
+```sh
  # 2个servers 8个workers
  fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,xx.xx.xx.xx:6173,xx.xx.xx.xx:6174,xx.xx.xx.xx:6175,yy.yy.yy.yy:6176,yy.yy.yy.yy:6177,yy.yy.yy.yy:6178,yy.yy.yy.yy:6179" train.py
 ```
 
-- **参数服务器训练 - 在PaddleCloud上提交任务 **
+- **参数服务器训练 - 在PaddleCloud上提交任务**
+
 由于Paddlecloud对参数服务器训练做了比较完备的封装，因此可以直接使用：
-```
+```sh
 python train.py
 ```
 
@@ -95,7 +97,7 @@ python train.py
 	- servers（str, 可选）： 多机分布式任务中，指定参数服务器服务节点的IP和端口
 	- workers（str, 可选）： 多机分布式任务中，指定参数服务器训练节点的IP和端口
 
-- 公用：
+- 其他：
 	- log_dir（str, 可选）： 指定分布式任务训练日志的保存路径，默认保存在"./log/"目录。
 
 
@@ -129,15 +131,66 @@ trainer.fit(model, loader, epoch=10)
 ```
 #### 单机单卡训练
 将上述代码保存在`res_app.py`代码中，单机单卡训练十分的简单，只需要：
-```
+```sh
 export CUDA_VISIBLE_DEVICES=0
 python res_app.py
 ```
+可以看见终端上将打印日志：
+```
+--202X-0X-0X 06:42:53--  https://fleet.bj.bcebos.com/models/0.0.4/resnet50_nchw.tar.gz
+Connecting to 172.19.57.45:3128... connected.
+Proxy request sent, awaiting response... 200 OK
+Length: 29733 (29K) [application/x-gzip]
+Saving to: ‘/usr/local/lib/python2.7/dist-packages/fleetx/applications/resnet50_nchw.tar.gz’
+
+resnet50_nchw.tar.gz                          100%[==============================================================================================>]  29.04K   127KB/s    in 0.2s
+
+202X-0X-0X 06:42:56 (127 KB/s) - ‘/usr/local/lib/python2.7/dist-packages/fleetx/applications/resnet50_nchw.tar.gz’ saved [29733/29733]
+('reader shuffle seed', 0)
+('trainerid, trainer_count', 0, 1)
+read images from 0, length: 61700, lines length: 61700, total: 61700
+worker_index: 0, step11, train_loss: 7.020836, total time cost = 0.286696, step per second: 3.488016, speed: 3.488016
+worker_index: 0, step12, train_loss: 6.972931, total time cost = 0.319859, step per second: 6.252759, speed: 30.154240
+worker_index: 0, step13, train_loss: 6.851268, total time cost = 0.423936, step per second: 7.076546, speed: 9.608284
+worker_index: 0, step14, train_loss: 7.111120, total time cost = 0.527876, step per second: 7.577542, speed: 9.620934
+...
+```
 #### 单机多卡训练
 从单机单卡训练到单机多卡训练不需要改动`res_app.py`代码，只需改一行启动命令：
-```
+```sh
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 fleetrun res_app.py
 ```
 训练日志可以在终端上查看，也可稍后在./log/目录下查看每个卡的日志。
-
+终端可以看到显示日志如下：
+```
+-----------  Configuration Arguments -----------
+gpus: 0,1,2,3
+ips: 127.0.0.1
+log_dir: log
+server_num: None
+servers:
+training_script: fleetx_res.py
+training_script_args: []
+worker_num: None
+workers:
+------------------------------------------------
+INFO 202X-0X-0X 06:09:36,185 launch_utils.py:425] Local start 4 processes. First process distributed environment info (Only For Debug):
+=======================================================================================
+            Distributed Envs              Value
+---------------------------------------------------------------------------------------
+PADDLE_CURRENT_ENDPOINT                   127.0.0.1:33360
+PADDLE_TRAINERS_NUM                       4
+FLAGS_selected_gpus                       0
+PADDLE_TRAINER_ENDPOINTS                  ... 0.1:11330,127.0.0.1:54803,127.0.0.1:49294
+PADDLE_TRAINER_ID                         0
+=======================================================================================
+('download_model path:', '/usr/local/lib/python2.7/dist-packages/fleetx/applications/resnet50')
+('reader shuffle seed', 0)
+('trainerid, trainer_count', 0, 4)
+read images from 0, length: 15425, lines length: 15425, total: 61700
+worker_index: 0, step11, train_loss: 7.081496, total time cost = 0.113786, step per second: 8.788429, speed: 8.788429
+worker_index: 0, step12, train_loss: 7.012076, total time cost = 0.228058, step per second: 8.769704, speed: 8.751059
+worker_index: 0, step13, train_loss: 6.998970, total time cost = 0.349108, step per second: 8.593330, speed: 8.261041
+.....
+```
