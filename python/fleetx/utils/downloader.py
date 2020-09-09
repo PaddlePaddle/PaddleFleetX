@@ -23,14 +23,7 @@ class Downloader(object):
     def __init__(self):
         pass
 
-
-class ImageNetDownloader(Downloader):
-    def __init__(self):
-        super(ImageNetDownloader, self).__init__()
-
-    def download_from_hdfs(self, fs_yaml, local_path="./", hdfs_path=None):
-        if not is_first_worker():
-            return local_path
+    def _read_yaml(self, fs_yaml):
         _, ext = os.path.splitext(fs_yaml)
         assert ext in ['.yml', '.yaml'], "only support yaml files for now"
         with open(fs_yaml) as f:
@@ -43,7 +36,6 @@ class ImageNetDownloader(Downloader):
         elif os.system('which hadoop') == 0:
             path = os.popen("which hadoop").readlines()[0].rstrip()
             self.hadoop_home = os.path.dirname(os.path.dirname(path))
-
         if self.hadoop_home:
             print("HADOOP_HOME: " + self.hadoop_home)
 
@@ -52,6 +44,16 @@ class ImageNetDownloader(Downloader):
                     "fs.default.name": cfg["fs.default.name"],
                     "hadoop.job.ugi": cfg["hadoop.job.ugi"]
                 }
+        return cfg
+
+class ImageNetDownloader(Downloader):
+    def __init__(self):
+        super(ImageNetDownloader, self).__init__()
+
+    def download_from_hdfs(self, fs_yaml, local_path="./", hdfs_path=None):
+        if not is_first_worker():
+            return local_path
+        cfg = self._read_yaml(fs_yaml)
 
         if "imagenet_path" in cfg:
             self.default_path = cfg["imagenet_path"]
@@ -136,66 +138,57 @@ class ImageNetDownloader(Downloader):
 
 
 class WikiDataDownloader(Downloader):
-    def __init__(self):
+    def __init__(self, language="cn", data_size="small"):
         super(WikiDataDownloader, self).__init__()
+        assert(language in ["en", "cn"])
+        assert(data_size in ["normal", "small"])
+        self.language = language
+        self.data_size = data_size
+        self.wiki_path = None
 
     def download_from_hdfs(self, fs_yaml, local_path="./", hdfs_path=None):
-        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
-        if gpu_id != 0:
+        if not is_first_worker():
             time.sleep(3)
             return local_path
-        _, ext = os.path.splitext(fs_yaml)
-        assert ext in ['.yml', '.yaml'], "only support yaml files for now"
-        with open(fs_yaml) as f:
-            cfg = yaml.load(f, Loader=yaml.Loader)
-
-        if "hadoop_home" in cfg:
-            self.hadoop_home = cfg["hadoop_home"]
-        elif "HADOOP_HOME" in os.environ:
-            self.hadoop_home = os.environ['HADOOP_HOME']
-        elif os.system('which hadoop') == 0:
-            path = os.popen("which hadoop").readlines()[0].rstrip()
-            self.hadoop_home = os.path.dirname(os.path.dirname(path))
-
-        if self.hadoop_home:
-            print("HADOOP_HOME: " + self.hadoop_home)
-
-            if "fs.default.name" in cfg and "hadoop.job.ugi" in cfg:
-                self.hdfs_configs = {
-                    "fs.default.name": cfg["fs.default.name"],
-                    "hadoop.job.ugi": cfg["hadoop.job.ugi"]
-                }
-
+        cfg = self._read_yaml(fs_yaml)
         if "wiki_path" in cfg:
-            self.default_path = cfg["wiki_path"]
+            self.wiki_path = cfg["wiki_path"]
         else:
-            print("WARNING: imagenet default path is empty")
-
+            print("WARNING: wikipedia default path is empty")
+        
+        dirname = "{}_{}".format(self.language, self.data_size)
         if hdfs_path == None:
-            hdfs_path = self.default_path
+            hdfs_path = os.path.join(self.wiki_path, dirname)
         client = HDFSClient(self.hadoop_home, self.hdfs_configs)
         multi_download(client, hdfs_path, local_path, 0, 1, 2)
-        os.system('tar -xf {}/train_data.tar.gz -C {}'.format(local_path,
-                                                              local_path))
+        if dirname == "cn_small":
+            os.system('tar -xf {}/train_data.tar.gz -C {}'.format(local_path,
+                                                              local_path))            
         return local_path
 
     def download_from_bos(self, local_path):
-        gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
-        if gpu_id != 0:
+        if not is_first_worker():
             time.sleep(3)
             return local_path
         print("Start download data")
-        os.system(
-            'wget -q -P {} --no-check-certificate https://fleet.bj.bcebos.com/small_datasets/wiki/vocab.txt'.
-            format(local_path))
-        os.system(
-            'wget -q -P {} --no-check-certificate https://fleet.bj.bcebos.com/small_datasets/wiki/train_data.tar.gz'.
-            format(local_path))
-        os.system('tar -xf {}/train_data.tar.gz -C {}'.format(local_path,
+        dirname = "{}_{}".format(self.language, self.data_size)
+        if dirname == "cn_small":
+            os.system(
+                'wget -q -P {} --no-check-certificate https://fleet.bj.bcebos.com/small_datasets/wiki/cn_small/vocab.txt'.
+                format(local_path))
+            os.system(
+                'wget -q -P {} --no-check-certificate https://fleet.bj.bcebos.com/small_datasets/wiki/cn_small/train_data.tar.gz'.
+                format(local_path))
+            os.system('tar -xf {}/train_data.tar.gz -C {}'.format(local_path,
                                                               local_path))
-
+        elif dirname == "en_small":
+            os.system(
+                'wget -q -P {} --no-check-certificate https://fleet.bj.bcebos.com/small_datasets/wiki/en_small/part-9-9.txt'.
+                format(local_path))
+        else:
+            raise ValueError("this type of dataset is not supported: "
+                 "language: {}, data_size: {}".format(self.language, self.data_size))
         return local_path
-
 
 class WMTDataDownloader(Downloader):
     def __init__(self):
