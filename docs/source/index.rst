@@ -10,9 +10,7 @@
    :name: new-users
 
    paddle_fleet/install_cn
-   paddle_fleet/fleet_quick_start_cn
-   paddle_fleet/fleet_lightning_cn
-   paddle_fleet/fleet_benchmark_cn
+   paddle_fleet/quick_start
 
 .. toctree::
    :maxdepth: 1
@@ -26,20 +24,24 @@
    :caption: 进阶用法
    :name: advanced-users
 
-   paddle_fleet/fleet_ps_sync_and_async_cn
-   paddle_fleet/fleet_ps_geo_async_cn
-   paddle_fleet/fleet_collective_training_practices_cn
-   paddle_fleet/fleet_collective_training_speedup_with_amp_cn
-   paddle_fleet/fleet_on_cloud_cn
-   paddle_fleet/fleet_large_batch_training_techniques_cn
-   paddle_fleet/fleet_improve_large_batch_accuracy_cn.md
-   paddle_fleet/fleet_and_edl_for_distillation_cn
-   paddle_fleet/fleet_model_parallel_cn
-   paddle_fleet/fleet_pipeline_parallel_cn
+   paddle_fleet/ps_index
+   paddle_fleet/collective_index
+   paddle_fleet/elastic_index
+   paddle_fleet/model_parallel
+   paddle_fleet/pipeline_index
+   paddle_fleet/training_on_cloud
+
+.. toctree::
+   :maxdepth: 1
+   :caption: 飞桨分布式训练性能基准
+   :name: benchmark
+
+   paddle_fleet/fleet_benchmark_cn
 
 .. toctree::
    :maxdepth: 1
    :caption: 大规模场景应用案例
+   :name: applications
 
    paddle_fleet/fleet_from_training_to_serving_cn
 
@@ -53,8 +55,8 @@
 
     team_cn.rst
 
-飞桨团队
+飞桨并行训练团队
 
 =======
 
-Fleet使用Apache License 2.0开源协议
+FleetX使用Apache License 2.0开源协议

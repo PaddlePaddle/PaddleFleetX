@@ -1,0 +1,1 @@
+fleet_static_quick_start
