@@ -41,14 +41,24 @@ NV#  = Connection traversing a bonded set of # NVLinks
 <h2 align="center">Collective Training</h2>
 
 - Resnet50
+<p align="left">
+<img  src="images/r50_collective.png" height="240px" width="450px">
+</p>
 
 - VGG
-
-- Bert Base
+<p align="left">
+<img  src="images/vgg_collective.png" height="240px" width="450px">
+</p>
 
 - Bert Large
+<p align="left">
+<img  src="images/bert_large_collective.png" height="240px" width="450px">
+</p>
 
 - Transformer
+<p align="left">
+<img  src="images/transformer_collective.png" height="240px" width="450px">
+</p>
 
 
 <h2 align="center">CPU Environment</h2>
