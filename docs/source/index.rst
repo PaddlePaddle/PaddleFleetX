@@ -1,7 +1,5 @@
 :github_url: https://github.com/PaddlePaddle/Fleet
 
-:math:`\sigma_{1}`
-
 .. mdinclude:: common/title_cn.md
 
 .. toctree::
@@ -16,7 +14,7 @@
 
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: 2. GPU多机多卡训练
    :name: advanced-doc-collective-training
 
@@ -26,7 +24,7 @@
    paddle_fleet/fleet_improve_large_batch_accuracy_cn.md
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: 3. 参数服务器训练
    :name: advanced-doc-parameter-server
 
@@ -34,7 +32,7 @@
    paddle_fleet/fleet_ps_geo_async_cn
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: 4: 模型并行与流水线并行
    :name: advanced-model-parallel-pipeline-parallel
 
@@ -42,7 +40,7 @@
    paddle_fleet/fleet_pipeline_parallel_cn
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: 5: 云端训练实践
    :name: advanced-doc-model-parallel
 
