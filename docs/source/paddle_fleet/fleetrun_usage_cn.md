@@ -34,6 +34,7 @@ fleetrun train.py
 ```
 
 - **GPU多机多卡训练**
+
 **[示例一]** 2机8卡 (每个节点4卡)
 ```sh
 fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" --gpus=0,1,2,3 train.py
@@ -44,7 +45,7 @@ export CUDA_VISIBLE_DEVICES=0,1,2,3
 fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 ```
 
-	**[示例二]**  2机16卡（每个节点8卡，假设每台机器均有8卡可使用）
+**[示例二]**  2机16卡（每个节点8卡，假设每台机器均有8卡可使用）
 ```sh
 fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 ```
@@ -193,3 +194,4 @@ worker_index: 0, step12, train_loss: 7.012076, total time cost = 0.228058, step 
 worker_index: 0, step13, train_loss: 6.998970, total time cost = 0.349108, step per second: 8.593330, speed: 8.261041
 .....
 ```
+
