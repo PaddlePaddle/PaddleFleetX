@@ -34,17 +34,17 @@ fleetrun train.py
 ```
 
 - **GPU多机多卡训练**
-	- 2机8卡 (每个节点4卡)
+**[示例一]** 2机8卡 (每个节点4卡)
 ```sh
 fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" --gpus=0,1,2,3 train.py
 ```
-注：如果每台机器均指定了```export CUDA_VISIBLE_DEVICES=0,1,2,3``` ，则可以直接使用：
+注：如果每台机器均指定了```export CUDA_VISIBLE_DEVICES=0,1,2,3``` ，则可以直接在每台节点上启动：
 ```sh
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 ```
 
-	- 2机16卡（每个节点8卡，假设每台机器均有8卡可使用）
+	**[示例二]**  2机16卡（每个节点8卡，假设每台机器均有8卡可使用）
 ```sh
 fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 ```
@@ -55,7 +55,7 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 
   在PaddleCloud上启动分布式任务十分方便，无论执行单机单卡还是多机多卡任务，只需使用：
 ```sh
-fleetrun  train.py 
+fleetrun train.py 
 ```
 
 ####  CPU场景
@@ -106,7 +106,7 @@ python train.py
 FleetX提供非常简单易用的代码来实现Imagenet数据集上训练ResNet50模型。
 ```py
 import fleetx as X
-import paddle
+import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
 
 configs = X.parse_train_configs()
@@ -185,7 +185,6 @@ FLAGS_selected_gpus                       0
 PADDLE_TRAINER_ENDPOINTS                  ... 0.1:11330,127.0.0.1:54803,127.0.0.1:49294
 PADDLE_TRAINER_ID                         0
 =======================================================================================
-('download_model path:', '/usr/local/lib/python2.7/dist-packages/fleetx/applications/resnet50')
 ('reader shuffle seed', 0)
 ('trainerid, trainer_count', 0, 4)
 read images from 0, length: 15425, lines length: 15425, total: 61700
