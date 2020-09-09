@@ -1,1 +1,2 @@
-fleet_static_quick_start
+## 飞桨静态图分布式训练
+TBA
