@@ -206,6 +206,28 @@ cast op 虽然会带来额外的开销， 但是在诸如 Vgg、ResNet 等主要
 * 模型组网中有较多黑名单 op 的模型
 * 对数据精度敏感的任务（Adversarial Attacking in ML）
 
+#### 图像 Input Layout 格式
+CV 模型训练时了达到最佳速度，不同场景下推荐使用不同[图像 Layout](https://docs.nvidia.com/deeplearning/performance/dl-performance-convolutional/index.html)：
+
+* FP32：`NCHW`
+* 自动混合精度： `NHWC`
+
+```python
+# when build dataloader 
+loader = model.load_imagenet_from_file("./ImageNet/train.txt",
+                                        batch_size=args.batch_size,
+                                        data_layout="NHWC")
+
+# when build model  
+if data_format == "NHWC":
+    img_shape = [None, 224, 224, 3]
+else:
+    img_shape = [None, 3, 224, 224]
+image = fluid.data( name="feed_image", shape=img_shape, dtype="float32", lod_level=0)
+conv = fluid.layers.conv2d(input=input, data_format= "NHWC")
+```
+
+
 ## 推荐阅读:
 如果需要对自动混合精度做定制化修改,或更深入理解AMP中原理和实现推荐阅读:
 
