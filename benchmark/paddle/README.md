@@ -1,6 +1,8 @@
-## Distributed Training Benchmark For PaddlePaddle
 
-### GPU Environment
+<h1 align="center">Distributed Training Benchmark For PaddlePaddle</h1>
+
+
+<h2 align="center">GPU Environment</h2>
 
 - Tesla V100-SXM2-32GB x 8
 - InfiniBand 100 Gb/sec (4X EDR)， Mellanox Technologies MT27700 Family
@@ -35,21 +37,39 @@ PXB  = Connection traversing multiple PCIe switches (without traversing the PCIe
 PIX  = Connection traversing a single PCIe switch
 NV#  = Connection traversing a bonded set of # NVLinks
 ```
-
-### Collective Training
+ 
+<h2 align="center">Collective Training</h2>
 
 - Resnet50
+<p align="left">
+<img  src="images/r50_collective.png" height="240px" width="450px">
+</p>
+
+[Resnet50 Source](https://github.com/PaddlePaddle/FleetX/blob/develop/benchmark/paddle/resnet_benchmark_without_amp.py)
 
 - VGG
+<p align="left">
+<img  src="images/vgg_collective.png" height="240px" width="450px">
+</p>
 
-- Bert Base
+[VGG16 Source](https://github.com/PaddlePaddle/FleetX/blob/develop/benchmark/paddle/vgg_benchmark.py)
 
 - Bert Large
+<p align="left">
+<img  src="images/bert_large_collective.png" height="240px" width="450px">
+</p>
+
+[Bert Large Source](https://github.com/PaddlePaddle/FleetX/blob/develop/benchmark/paddle/bert_benchmark.py)
 
 - Transformer
+<p align="left">
+<img  src="images/transformer_collective.png" height="240px" width="450px">
+</p>
+
+[Transformer Source](https://github.com/PaddlePaddle/FleetX/blob/develop/benchmark/paddle/transformer_benchmark.py)
 
 
-### CPU Environment
+<h2 align="center">CPU Environment</h2>
 
 - AMD EPYC 7551P 32-Core Processor
 - cpu MHz : 2000.00
@@ -59,5 +79,14 @@ NV#  = Connection traversing a bonded set of # NVLinks
 - total memory : 256GB
 - Ethernet: 10Gbps
 
-### Parameter Server Training
+<h2 align="center">Parameter Server Training</h2>
 
+- Word2Vec on 1-Billion Dataset
+<p align="left">
+<img  src="images/w2v_ps.png" height="240px" width="450px">
+</p>
+
+- CTR on Criteo Dataset
+<p align="left">
+<img  src="images/ctr_ps.png" height="240px" width="450px">
+</p>
