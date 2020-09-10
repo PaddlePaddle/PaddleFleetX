@@ -337,7 +337,7 @@ class MultiSlotCTR(ModelBase):
             shuffle=shuffle)
 
 
-class Resnet50_mlperf(ModelBase):
+class Resnet50Mlperf(ModelBase):
     def __init__(self):
         self.data_layout = "NHWC"
         model_name = 'resnet50_mlperf'
