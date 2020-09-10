@@ -42,7 +42,8 @@ class PaddleCloudSubmitter(Submitter):
                           "--job-conf config.ini " \
                           "--files start_job.sh{} " \
                           "--k8s-trainers {} {} " \
-                          "--k8s-cpu-cores 35"
+                          "--k8s-cpu-cores 35 " \
+                          "--is-auto-over-sell {}"
 
     def get_start_job(self, yml_cfg):
         # set up config.ini
@@ -64,8 +65,6 @@ class PaddleCloudSubmitter(Submitter):
         pip_src = "--index-url=http://pip.baidu.com/pypi/simple --trusted-host pip.baidu.com"
         if "pip_src" in yml_cfg:
             pip_src = yml_cfg["pip_src"]
-        if "proxy" in yml_cfg:
-            proxy = yml_cfg['proxy']
         wheel_list = []
         get_wheel_cmd_list = []
         if "wheels" in yml_cfg:
@@ -116,6 +115,10 @@ class PaddleCloudSubmitter(Submitter):
         self.get_start_job(cfg)
         if "upload_files" in cfg:
             file_list = cfg['upload_files']
+        if "over_sell" in cfg:
+            over_sell = cfg['over_sell']
+        else:
+            over_sell = 1
         job_script = ''
         for item in file_list:
             job_script += " " + item
@@ -124,7 +127,7 @@ class PaddleCloudSubmitter(Submitter):
         pcloud_submit_cmd = self.submit_str.format(
             server, port, image_addr, cluster_name, group_name, num_cards,
             "{}_N{}C{}".format(job_prefix, num_trainers, num_cards),
-            job_script, num_trainers, distribute_suffix)
+            job_script, num_trainers, distribute_suffix, over_sell)
         print(pcloud_submit_cmd)
         os.system(pcloud_submit_cmd)
 
