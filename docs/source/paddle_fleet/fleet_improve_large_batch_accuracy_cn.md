@@ -67,19 +67,6 @@ loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
 LARS 优化算法的公式如下:
 
 
-$$     
-locallearningrate=learningrate  \times  larscoeff \times \frac{||param||}{||gradient||+larsweightdecay \times ||param||}     
-velocity=mu \times velocity+locallearningrate \times (gradient+larsweightdecay \times param)  
-param=param−velocity   
-$$     
-
-$$ m_t = \beta_1 m_{t - 1}+ (1 - \beta_1)g_t $$   
-$$ v_t = \beta_2 v_{t - 1}  + (1 - \beta_2)g_t^2 $$   
-$$ r_t = \frac{m_t}{\sqrt{v_t}+\epsilon} $$
-
-$$ w_t = w_{t-1} -\eta_t \frac{||w_{t-1}||}{||r_t + \lambda w_{t-1}||} (r_t + \lambda w_{t-1}) $$
-
-
 可以看到LARS 其实是在 带`weight decay` 的`momentum` 优化器的基础上加入了`local learning rate` 的逻辑, 对每一层的`learning rate` 进行了放缩. 
 FleetX 将 LARS实现为一个 fleet meta optimizer, 在使用时需要设置一下几点:
 
@@ -169,12 +156,6 @@ loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
 #### 定义分布式及LARS 相关策略
 LAMB 优化算法的公式如下:
 
-$$ m_t = \beta_1 m_{t - 1}+ (1 - \beta_1)g_t $$   
-$$ v_t = \beta_2 v_{t - 1}  + (1 - \beta_2)g_t^2 $$   
-$$ r_t = \frac{m_t}{\sqrt{v_t}+\epsilon} $$
-$$ w_t = w_{t-1} -\eta_t \frac{||w_{t-1}||}{||r_t + \lambda w_{t-1}||} (r_t + \lambda w_{t-1}) $$
-
-在公式中 `m` 是一阶 moment, 而`v` 是二阶moment, `\eta` 和 `\lambda` 分别是 LAMB `learning rate`  和 `weight decay rate`.
 
 和LARS 类似, LAMB 也是在内层优化器的基础上, 套了一个`local learning rate` 的逻辑, 对每一层的`learning rate` 进行了放缩. 
 FleetX 将 LAMB实现为一个 fleet meta optimizer, 在使用时需要设置一下几点:
