@@ -371,3 +371,4 @@ class Resnet50_mlperf(ModelBase):
             shuffle,
             use_dali,
             data_layout=data_layout)
+                                     
