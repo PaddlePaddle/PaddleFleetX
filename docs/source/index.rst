@@ -8,10 +8,10 @@
    :name: new-users
 
    paddle_fleet/install_cn
+   paddle_fleet/fleetrun_usage_cn
    paddle_fleet/fleet_static_quick_start
    paddle_fleet/fleet_dygraph_quick_start
    paddle_fleet/fleetx_quick_start
-
 
 .. toctree::
    :maxdepth: 1
