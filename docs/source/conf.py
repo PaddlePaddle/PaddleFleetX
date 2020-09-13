@@ -36,7 +36,7 @@ import sphinx_rtd_theme
 
 # -- Project information -----------------------------------------------------
 
-project = 'Fleet'
+project = 'FleetX'
 copyright = '2020, PaddlePaddle'
 author = 'PaddlePaddle'
 
@@ -81,6 +81,7 @@ html_show_sourcelink = False
 html_static_path = ['_static']
 
 # for latex bug
+latex_engine = 'xelatex'
 
 extensions = ['recommonmark']
 

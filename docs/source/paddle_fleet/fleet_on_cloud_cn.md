@@ -146,7 +146,6 @@ $$
 
 **注意**：
 
-* 使用DGC时需确保 fleet.DistributedStrategy.fuse_all_reduce_ops=False， 关闭fuse (现有fuse策略会造成DGC失效)。
 * 硬件环境要求： DGC目前只支持GPU多卡及分布式collective训练，需要有相应的cuda、cuDNN、nccl环境。
 * Paddle环境要求： DGC只支持GPU，所以需GPU版本的Paddle。
 

@@ -17,7 +17,6 @@ FleetX 并提供了简单易用的API 接口, 用户无须修改参数. 就可�
 
 中下文将通过一个简单例子介绍如如何通过 FleetX将实现混合精度的分布式训练, 另外给出我们使用 FleetX 进行同步训练加速的实践.
 
-
 ## FleetX 效果
 环境: 4 机 32卡 V100-32GB
 
@@ -205,6 +204,28 @@ cast op 虽然会带来额外的开销， 但是在诸如 Vgg、ResNet 等主要
 * RNN 为主的 NLP 模型
 * 模型组网中有较多黑名单 op 的模型
 * 对数据精度敏感的任务（Adversarial Attacking in ML）
+
+#### 图像 Input Layout 格式
+CV 模型训练时了达到最佳速度，不同场景下推荐使用不同[图像 Layout](https://docs.nvidia.com/deeplearning/performance/dl-performance-convolutional/index.html)：
+
+* FP32：`NCHW`
+* 自动混合精度： `NHWC`
+
+```python
+# when build dataloader 
+loader = model.load_imagenet_from_file("./ImageNet/train.txt",
+                                        batch_size=args.batch_size,
+                                        data_layout="NHWC")
+
+# when build model  
+if data_format == "NHWC":
+    img_shape = [None, 224, 224, 3]
+else:
+    img_shape = [None, 3, 224, 224]
+image = fluid.data( name="feed_image", shape=img_shape, dtype="float32", lod_level=0)
+conv = fluid.layers.conv2d(input=input, data_format= "NHWC")
+```
+
 
 ## 推荐阅读:
 如果需要对自动混合精度做定制化修改,或更深入理解AMP中原理和实现推荐阅读:

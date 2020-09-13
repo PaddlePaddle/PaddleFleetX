@@ -36,5 +36,10 @@ def parse_train_configs():
         type=float,
         default=1e-9,
         help="epsilon value for adam optimizer")
+    parser.add_argument(
+        "--download_config",
+        type=str,
+        default=None,
+        help="yaml file used for data download")
     args = parser.parse_args()
     return args
