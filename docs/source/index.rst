@@ -16,9 +16,10 @@
 
 .. toctree::
    :maxdepth: 1
-   :caption: 2. GPU多机多卡训练
-   :name: advanced-doc-collective-training
+   :caption: 2. 数据并行训练
+   :name: advanced-doc-data-parallel-training
 
+   paddle_fleet/fleet_ps_sync_and_async_cn
    paddle_fleet/fleet_collective_training_practices_cn
    paddle_fleet/fleet_collective_training_speedup_with_amp_cn
    paddle_fleet/fleet_large_batch_training_techniques_cn
@@ -26,15 +27,7 @@
 
 .. toctree::
    :maxdepth: 1
-   :caption: 3. 参数服务器训练
-   :name: advanced-doc-parameter-server
-
-   paddle_fleet/fleet_ps_sync_and_async_cn
-   paddle_fleet/fleet_ps_geo_async_cn
-
-.. toctree::
-   :maxdepth: 1
-   :caption: 4: 模型并行与流水线并行
+   :caption: 3: 模型并行与流水线并行
    :name: advanced-model-parallel-pipeline-parallel
 
    paddle_fleet/fleet_model_parallel_cn
@@ -42,37 +35,28 @@
 
 .. toctree::
    :maxdepth: 1
-   :caption: 5: 云端训练实践
+   :caption: 4: 云端训练实践
    :name: advanced-doc-model-parallel
 
+   paddle_fleet/fleet_ps_geo_async_cn	  
    paddle_fleet/fleet_and_edl_for_distillation_cn
    paddle_fleet/fleet_on_cloud_cn
+   paddle_fleet/fleet_local_sgd_for_large_batch_training
 
 .. toctree::
    :maxdepth: 1
-   :caption: 6. 飞桨分布式训练性能基准
+   :caption: 5. 飞桨分布式训练性能基准
    :name: benchmark
 
-   paddle_fleet/fleet_benchmark_cn
+   paddle_fleet/fleet_gpu_benchmark_cn
+   paddle_fleet/fleet_ps_benchmark_cn
 
 .. toctree::
    :maxdepth: 1
-   :caption: 7. 大规模场景应用案例
+   :caption: 6. 大规模场景应用案例
    :name: applications
 
    paddle_fleet/fleet_from_training_to_serving_cn
-
-
-团队
-========
-.. toctree::
-    :maxdepth: 1
-    :caption: 团队
-    :hidden:
-
-    team_cn.rst
-
-飞桨并行训练团队
 
 =======
 
