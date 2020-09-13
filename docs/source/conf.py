@@ -81,7 +81,8 @@ html_show_sourcelink = False
 html_static_path = ['_static']
 
 # for latex bug
-latex_engine = 'xelatex'
+#latex_engine = 'xelatex'
+latex_engine = 'pdflatex'
 
 extensions = ['recommonmark']
 
