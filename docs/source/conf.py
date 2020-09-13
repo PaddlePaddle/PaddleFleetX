@@ -82,8 +82,8 @@ html_static_path = ['_static']
 
 # for latex bug
 #latex_engine = 'xelatex'
-#latex_engine = 'pdflatex'
-latex_engine = "xelatex"
+latex_engine = 'pdflatex'
+#latex_engine = "xelatex"
 
 latex_elements={# The paper size ('letterpaper' or 'a4paper').
     'papersize':'a4paper',# The font size ('10pt', '11pt' or '12pt').
