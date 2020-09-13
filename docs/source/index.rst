@@ -12,6 +12,7 @@
    paddle_fleet/fleet_static_quick_start
    paddle_fleet/fleet_dygraph_quick_start
    paddle_fleet/fleetx_quick_start
+   paddle_fleet/fleetsub_quick_start
 
 .. toctree::
    :maxdepth: 1
