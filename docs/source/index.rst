@@ -62,7 +62,7 @@
    :maxdepth: 1
    :caption: 7. 分布式训练FAQ
 
-   paddle_fleet/fleet_user_faq
+   paddle_fleet/fleet_user_faq_cn
 
 .. toctree::
    :maxdepth
