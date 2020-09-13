@@ -58,6 +58,15 @@
 
    paddle_fleet/fleet_from_training_to_serving_cn
 
+.. toctree::
+   :maxdepth: 1
+   :caption: 7. 分布式训练FAQ
+
+   paddle_fleet/fleet_user_faq
+
+.. toctree::
+   :maxdepth
+
 =======
 
 FleetX使用Apache License 2.0开源协议
