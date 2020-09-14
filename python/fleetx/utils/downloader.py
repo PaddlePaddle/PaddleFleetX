@@ -104,7 +104,7 @@ class ImageNetDownloader(Downloader):
         def untar_files(local_path, tar_list, process_num=10):
             def _subprocess_untar(files):
                 for ff in files:
-                    if "shard" in ff and ff.endswith(".tar"):
+                    if ff.endswith(".tar"):
                         cmd = "tar -xf {} -C {}".format(ff, local_path)
                         os.system(cmd)
 
