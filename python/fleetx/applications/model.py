@@ -341,7 +341,7 @@ class Resnet50Mlperf(ModelBase):
     def __init__(self):
         self.data_layout = "NHWC"
         model_name = 'resnet50_mlperf'
-        super(Resnet50_mlperf, self).__init__()
+        super(Resnet50Mlperf, self).__init__()
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
         download_model(fleet_path, model_name)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
