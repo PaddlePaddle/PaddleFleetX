@@ -19,6 +19,23 @@ import yaml
 import os
 
 
+def check_images_ready(local_path):
+    while True:
+        with open("{}/train.txt".format(local_path)) as fin:
+            filelist = []
+            ready_list = []
+            for line in fin:
+                current_image = line.split(' ')
+                filelist.append(current_image)
+                image_path = "{}/train/{}".format(local_path, current_image[0])
+                if os.path.exists(image_path):
+                    ready_list.append(image_path)
+            if len(filelist) == len(ready_list):
+                return
+            else:
+                time.sleep(3)
+
+
 def check_exists(local_path):
     if not os.path.exists("{}/data_info.txt".format(local_path)):
         return True
@@ -141,6 +158,7 @@ class ImageNetDownloader(Downloader):
                 "Warning: You may already have imagenet dataset in {}, please check!".
                 format(local_path))
         untar_files(local_path, tar_list)
+        check_images_ready(local_path)
         return local_path
 
     def download_from_bos(self, local_path="./"):
