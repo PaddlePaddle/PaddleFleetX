@@ -58,7 +58,7 @@ def image_dataloader_from_filelist(filelist,
         loader.set_sample_list_generator(batch_reader, places)
     else:
         from . import dali
-        loader = dali.train(
+        loader = dali.build(
             filelist,
             batch_size,
             image_mean,
