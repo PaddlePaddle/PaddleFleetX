@@ -180,17 +180,7 @@ def build(filelist,
     #assert settings.use_gpu, "gpu training is required for DALI"
     #assert not settings.use_mixup, "mixup is not supported by DALI reader"
     #assert not settings.use_aa, "auto augment is not supported by DALI reader"
-    assert float(env.get('FLAGS_fraction_of_gpu_memory_to_use', 0.92)) < 0.9, \
-        "Please leave enough GPU memory for DALI workspace, e.g., by setting" \
-        " `export FLAGS_fraction_of_gpu_memory_to_use=0.8`"
 
-    a = open(filelist, 'r')
-    str = a.read()
-
-    str = str.replace('JPEG', 'jpeg')
-    b = open(filelist, 'w')
-    b.write(str)
-    b.close()
     for i in range(len(filelist)):
         if filelist[-i] == '/':
             file_root = filelist[:-i]
@@ -217,9 +207,9 @@ def build(filelist,
     interp = interp_map[interp]
 
     if mode != 'train':
+        file_root = os.path.join(file_root, 'val')
         if not os.path.exists(filelist):
             file_list = None
-            file_root = os.path.join(file_root, 'val')
         pipe = HybridValPipe(
             file_root,
             filelist,
