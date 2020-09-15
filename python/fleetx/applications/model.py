@@ -92,24 +92,19 @@ class Resnet50(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_imagenet_from_file(self,
-                                filelist,
-                                batch_size=32,
-                                phase='train',
-                                shuffle=True,
-                                use_dali=False):
-        if phase != 'train':
-            shuffle = False
-        self.use_dali = use_dali
-        data_layout = self.data_layout
-        return image_dataloader_from_filelist(
-            filelist,
-            self.inputs,
-            batch_size,
-            phase,
-            shuffle,
-            use_dali,
-            data_layout=data_layout)
+    def get_train_dataloader(self,
+                             local_path,
+                             batch_size=32,
+                             shuffle=True,
+                             use_dali=False):
+        pass
+
+    def get_val_dataloader(self,
+                           local_path,
+                           batch_size=32,
+                           shuffle=False,
+                           use_dali=False):
+        pass
 
 
 class VGG16(ModelBase):
@@ -133,25 +128,20 @@ class VGG16(ModelBase):
         self.target = target
         self.use_dali = False
 
-    def load_imagenet_from_file(self,
-                                filelist,
-                                batch_size=32,
-                                phase='train',
-                                shuffle=True,
-                                use_dali=False):
-        if phase != 'train':
-            shuffle = False
-        self.use_dali = use_dali
-        data_layout = self.data_layout
-        return image_dataloader_from_filelist(
-            filelist,
-            self.inputs,
-            batch_size,
-            phase,
-            shuffle,
-            use_dali,
-            data_layout=data_layout)
 
+    def get_train_dataloader(self,
+                             local_path,
+                             batch_size=32,
+                             shuffle=True,
+                             use_dali=False):
+        pass
+
+    def get_val_dataloader(self,
+                           local_path,
+                           batch_size=32,
+                           shuffle=False,
+                           use_dali=False):
+        pass
 
 class Transformer(ModelBase):
     def __init__(self):
@@ -168,19 +158,17 @@ class Transformer(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_wmt16_dataset_from_file(self,
-                                     src_vocab_fpath,
-                                     trg_vocab_fpath,
-                                     train_file_pattern,
-                                     batch_size=2048,
-                                     shuffle=True):
-        return transformer_data_generator(
-            src_vocab_fpath,
-            trg_vocab_fpath,
-            train_file_pattern,
-            inputs=self.inputs,
-            batch_size=batch_size,
-            shuffle=shuffle)
+    def get_train_dataloader(self,
+                             local_path,
+                             batch_size=2048,
+                             shuffle=True):
+        pass
+
+    def get_val_dataloader(self,
+                           local_path,
+                           batch_size=2048,
+                           shuffle=True):
+        pass
 
 
 class BertLarge(ModelBase):
@@ -201,19 +189,20 @@ class BertLarge(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_digital_dataset_from_file(self,
-                                       data_dir,
-                                       vocab_path,
-                                       batch_size=16,
-                                       max_seq_len=128,
-                                       in_tokens=False):
-        return load_bert_dataset(
-            data_dir,
-            vocab_path,
-            inputs=self.inputs,
-            batch_size=batch_size,
-            max_seq_len=max_seq_len,
-            in_tokens=in_tokens)
+    def get_train_dataloader(self,
+                             local_path,
+                             batch_size=16,
+                             max_seq_len=128,
+                             in_tokens=False):
+        pass
+
+
+    def get_val_dataloader(self,
+                           local_path,
+                           batch_size=16,
+                           max_seq_len=128,
+                           in_tokens=False):
+        pass
 
 
 class BertHuge(ModelBase):
@@ -231,20 +220,22 @@ class BertHuge(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_digital_dataset_from_file(self,
-                                       data_dir,
-                                       vocab_path,
-                                       batch_size=16,
-                                       max_seq_len=128,
-                                       in_tokens=False):
-        return load_bert_dataset(
-            data_dir,
-            vocab_path,
-            inputs=self.inputs,
-            batch_size=batch_size,
-            max_seq_len=max_seq_len,
-            in_tokens=in_tokens)
+    def get_train_dataloader(self,
+                             local_path,
+                             batch_size=16,
+                             max_seq_len=128,
+                             in_tokens=False):
+        # local_path: 
+        #   -- train.txt
+        #   -- val.txt
+        pass
 
+    def get_val_dataloader(self,
+                           local_path,
+                           batch_size=16,
+                           max_seq_len=128,
+                           in_tokens=False):
+        pass
 
 class BertGiant(ModelBase):
     def __init__(self):
@@ -261,19 +252,22 @@ class BertGiant(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_digital_dataset_from_file(self,
-                                       data_dir,
-                                       vocab_path,
-                                       batch_size=16,
-                                       max_seq_len=128,
-                                       in_tokens=False):
-        return load_bert_dataset(
-            data_dir,
-            vocab_path,
-            inputs=self.inputs,
-            batch_size=batch_size,
-            max_seq_len=max_seq_len,
-            in_tokens=in_tokens)
+    def get_train_dataloader(self,
+                             local_path,
+                             batch_size=16,
+                             max_seq_len=128,
+                             in_tokens=False):
+        # local_path: 
+        #   -- train.txt
+        #   -- val.txt
+        pass
+
+    def get_val_dataloader(self,
+                           local_path,
+                           batch_size=16,
+                           max_seq_len=128,
+                           in_tokens=False):
+        pass
 
 
 class BertBase(ModelBase):
@@ -294,19 +288,22 @@ class BertBase(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_digital_dataset_from_file(self,
-                                       data_dir,
-                                       vocab_path,
-                                       batch_size=4096,
-                                       max_seq_len=512,
-                                       in_tokens=True):
-        return load_bert_dataset(
-            data_dir,
-            vocab_path,
-            inputs=self.inputs,
-            batch_size=batch_size,
-            max_seq_len=max_seq_len,
-            in_tokens=in_tokens)
+    def get_train_dataloader(self,
+                             local_path,
+                             batch_size=16,
+                             max_seq_len=128,
+                             in_tokens=False):
+        # local_path: 
+        #   -- train.txt
+        #   -- val.txt
+        pass
+
+    def get_val_dataloader(self,
+                           local_path,
+                           batch_size=16,
+                           max_seq_len=128,
+                           in_tokens=False):
+        pass
 
 
 class MultiSlotCTR(ModelBase):
@@ -324,17 +321,17 @@ class MultiSlotCTR(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_criteo_from_file(self,
-                              train_files_path,
-                              sparse_feature_dim=1000001,
-                              batch_size=1000,
-                              shuffle=True):
-        return get_dataloader(
-            self.inputs,
-            train_files_path,
-            sparse_feature_dim=sparse_feature_dim,
-            batch_size=batch_size,
-            shuffle=shuffle)
+    def get_train_dataloader(self,
+                             local_path,
+                             batch_size=1000,
+                             shuffle=True):
+        pass
+
+    def get_val_dataloader(self,
+                           local_path,
+                           batch_size=1000,
+                           shuffle=False):
+        pass
 
 
 class Resnet50Mlperf(ModelBase):
@@ -353,21 +350,16 @@ class Resnet50Mlperf(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_imagenet_from_file(self,
-                                filelist,
-                                batch_size=32,
-                                phase='train',
-                                shuffle=True,
-                                use_dali=False):
-        if phase != 'train':
-            shuffle = False
-        self.use_dali = use_dali
-        data_layout = self.data_layout
-        return image_dataloader_from_filelist(
-            filelist,
-            self.inputs,
-            batch_size,
-            phase,
-            shuffle,
-            use_dali,
-            data_layout=data_layout)                 
+    def get_train_dataloader(self,
+                             local_path,
+                             batch_size=32,
+                             shuffle=True,
+                             use_dali=False):
+        pass
+
+    def get_val_dataloader(self,
+                           local_path,
+                           batch_size=32,
+                           shuffle=True,
+                           use_dali=False):
+        pass
