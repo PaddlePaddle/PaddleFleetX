@@ -41,14 +41,32 @@ NV#  = Connection traversing a bonded set of # NVLinks
 <h2 align="center">Collective Training</h2>
 
 - Resnet50
+<p align="left">
+<img  src="images/r50_collective.png" height="240px" width="450px">
+</p>
+
+[Resnet50 Source](https://github.com/PaddlePaddle/FleetX/blob/develop/benchmark/paddle/resnet_benchmark_without_amp.py)
 
 - VGG
+<p align="left">
+<img  src="images/vgg_collective.png" height="240px" width="450px">
+</p>
 
-- Bert Base
+[VGG16 Source](https://github.com/PaddlePaddle/FleetX/blob/develop/benchmark/paddle/vgg_benchmark.py)
 
 - Bert Large
+<p align="left">
+<img  src="images/bert_large_collective.png" height="240px" width="450px">
+</p>
+
+[Bert Large Source](https://github.com/PaddlePaddle/FleetX/blob/develop/benchmark/paddle/bert_benchmark.py)
 
 - Transformer
+<p align="left">
+<img  src="images/transformer_collective.png" height="240px" width="450px">
+</p>
+
+[Transformer Source](https://github.com/PaddlePaddle/FleetX/blob/develop/benchmark/paddle/transformer_benchmark.py)
 
 
 <h2 align="center">CPU Environment</h2>

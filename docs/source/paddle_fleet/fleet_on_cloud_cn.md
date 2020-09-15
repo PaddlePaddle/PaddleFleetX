@@ -27,6 +27,7 @@ DGC稀疏通信在低带宽通信瓶颈时会有较大的性能提升，但**在
 ### DGC 原理
 
 #### 梯度稀疏
+
 DGC的基本思路是通过只传送重要梯度，即只发送大于给定阈值的梯度来减少通信带宽的使用。为避免信息的丢失，DGC会将剩余梯度在局部累加起来，最终这些梯度会累加大到足以传输。
 换个角度，从理论依据上来看，局部梯度累加等同于随时间推移增加batch size，（DGC相当于每一个梯度有自己的batch size）。设定 $F(w)$ 为需要优化的loss函数，则有着N个训练节点的同步分布式SGD更新公式如下
 $$
@@ -146,7 +147,6 @@ $$
 
 **注意**：
 
-* 使用DGC时需确保 fleet.DistributedStrategy.fuse_all_reduce_ops=False， 关闭fuse (现有fuse策略会造成DGC失效)。
 * 硬件环境要求： DGC目前只支持GPU多卡及分布式collective训练，需要有相应的cuda、cuDNN、nccl环境。
 * Paddle环境要求： DGC只支持GPU，所以需GPU版本的Paddle。
 

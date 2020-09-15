@@ -20,6 +20,7 @@ from __future__ import print_function
 
 import platform
 
+from pkg_resources import DistributionNotFound, get_distribution
 from setuptools import find_packages
 from setuptools import setup
 from fleetx.version import fleetx_version
@@ -32,10 +33,20 @@ def python_version():
     return [int(v) for v in platform.python_version().split(".")]
 
 
+def get_dist(pkgname):
+    try:
+        return get_distribution(pkgname)
+    except DistributionNotFound:
+        return None
+
+
 #REQUIRED_PACKAGES = [
 #    'paddlepaddle >= 1.8.0', 'paddlepaddle-gpu >= 1.8', 'numpy>=1.10.0'
 #]
-REQUIRED_PACKAGES = ['paddlepaddle', 'paddlepaddle-gpu', 'numpy>=1.10.0']
+REQUIRED_PACKAGES = ['paddlepaddle', 'numpy>=1.10.0']
+if get_dist('paddlepaddle') is None and get_dist('paddlepaddle-gpu') is not None:
+    REQUIRED_PACKAGES.remove('paddlepaddle')
+
 
 packages = [
     'fleetx',
