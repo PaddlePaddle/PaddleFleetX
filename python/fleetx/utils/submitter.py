@@ -65,27 +65,19 @@ class PaddleCloudSubmitter(Submitter):
         pip_src = "--index-url=http://pip.baidu.com/pypi/simple --trusted-host pip.baidu.com"
         if "pip_src" in yml_cfg:
             pip_src = yml_cfg["pip_src"]
-        wheel_list = []
-        get_wheel_cmd_list = []
-        if "wheels" in yml_cfg:
-            wheel_list = yml_cfg["wheels"]
-        if "get_wheel_cmds" in yml_cfg:
-            get_wheel_cmd_list = yml_cfg["get_wheel_cmds"]
+        if "whl_install_commands" in yml_cfg:
+            whl_install_commands = yml_cfg['whl_install_commands']
         if "commands" not in yml_cfg:
             print("ERROR: you should specify training or inference command")
             exit(0)
         commands = yml_cfg["commands"]
-        assert len(wheel_list) == len(get_wheel_cmd_list), \
-            "each wheel should have download source"
         job_sh = ""
         job_sh += "unset http_proxy\nunset https_proxy\n"
         job_sh += "pip uninstall paddlepaddle -y\n"
         job_sh += "pip uninstall paddlepaddle-gpu -y\n"
         job_sh += "pip uninstall fleet-x -y\n"
-        for get_whl in get_wheel_cmd_list:
-            job_sh += "{}\n".format(get_whl)
-        for whl in wheel_list:
-            job_sh += "pip install {} {}\n".format(whl, pip_src)
+        for whl_cmd in whl_install_commands:
+            job_sh += "{}\n".format(whl_cmd)
         for cmd in commands:
             job_sh += "{}\n".format(cmd)
         with open("start_job.sh", "w") as fout:

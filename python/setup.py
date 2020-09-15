@@ -40,13 +40,10 @@ def get_dist(pkgname):
         return None
 
 
-#REQUIRED_PACKAGES = [
-#    'paddlepaddle >= 1.8.0', 'paddlepaddle-gpu >= 1.8', 'numpy>=1.10.0'
-#]
 REQUIRED_PACKAGES = ['paddlepaddle', 'numpy>=1.10.0']
-if get_dist('paddlepaddle') is None and get_dist('paddlepaddle-gpu') is not None:
+if get_dist('paddlepaddle') is None and get_dist(
+        'paddlepaddle-gpu') is not None:
     REQUIRED_PACKAGES.remove('paddlepaddle')
-
 
 packages = [
     'fleetx',
