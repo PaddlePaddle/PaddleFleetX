@@ -15,8 +15,8 @@
 
    paddle_fleet_rst/distributed_overview
    paddle_fleet_rst/install_cn
-   paddle_fleet_rst/fleetrun_usage_cn
    paddle_fleet_rst/fleetx_quick_start
+   paddle_fleet_rst/fleetrun_usage_cn
    paddle_fleet_rst/fleet_static_quick_start
    paddle_fleet_rst/fleet_dygraph_quick_start
    paddle_fleet_rst/fleetsub_quick_start

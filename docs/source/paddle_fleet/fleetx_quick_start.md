@@ -70,7 +70,8 @@ trainer.fit(model, loader, epoch=10)
 ```
 
 用户也可以采用Paddle原生的API进行训练流程的定义，代码如下：
-```
+
+``` python
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
 
@@ -85,3 +86,10 @@ for epoch_id in range(5):
                  % (fleet.worker_index(), epoch_id, step_id, cost_val[0]))
 ```	
 
+从Paddle 2.0 rc版本开始，我们统一采用fleetrun进行多卡训练的启动，方式如下：
+
+``` shell
+fleetrun --gpus 0,1,2,3 resnet_app.py
+```
+
+关于`fleetrun`命令，更详细的使用说明请参考[fleetrun](fleetrun_usage_cn.md)
