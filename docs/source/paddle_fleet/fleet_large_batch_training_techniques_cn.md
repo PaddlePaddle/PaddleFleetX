@@ -125,14 +125,14 @@ fleetrun --gpus 0,1,2,3,4,5,6,7 bert_recompute.py
 
 #### 效果测试
 
-我们在BERT模型上对recompute的效果进行了测试，使用Recompute后Batch size可以扩大至3倍。与混合精度一起使用时，Batch_size可以进一步扩大。
+我们在BERT模型上对recompute的效果进行了测试，使用Recompute后Batch size可以扩大至3倍。与混合精度一起使用时，Batch_size可以进一步扩大。其中，速度记录的是每张卡每秒可以训练的句子数。
 
 - **Bert_large**: 
 
 |Model|Baseline|Recompute| Recompute + mixed precision|
 |-----|-----|-----|-----|
 |Batch size| 14 | 53 | 87 |
-|speed|18.2 sents/s| 12.88 sents/s| 19.14 sents/s |
+|speed|9.10 sents/s| 6.44 sents/s| 9.57 sents/s |
 
 
 ### Gradient Merge
