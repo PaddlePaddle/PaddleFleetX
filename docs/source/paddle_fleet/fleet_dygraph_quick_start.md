@@ -1,17 +1,15 @@
 # 动态图分布式训练快速开始
 
-[**Paddle官方文档**](https://www.paddlepaddle.org.cn/documentation/docs/zh/2.0-beta/tutorial/quick_start/dynamic_graph/dynamic_graph.html "Paddle官方文档")中对动态图（命令式编程）做了比较详细的介绍。Fleet接口从Paddle 2.0-RC版本开始支持动态图分布式任务执行。本篇文章我们将介绍如何使用Fleet接口进行动态图分布式训练。
+[**Paddle官方文档**](https://www.paddlepaddle.org.cn/documentation/docs/zh/2.0-beta/tutorial/quick_start/dynamic_graph/dynamic_graph.html "Paddle官方文档")中对动态图（命令式编程）做了比较详细的介绍。Fleet接口从Paddle 2.0-RC版本开始支持动态图分布式任务执行。本篇文章我们将介绍如何使用Fleet接口进行动态图分布式训练。接下来我们以一个简单全连接网络实例为例，说明如何将单机单卡训练改成分布式单机多卡训练，再到多机多卡训练。
 
 
-## 使用要求
+## 版本要求
 
-- 安装 paddlepaddle 2.0-rc-gpu版本及以上
+- paddlepaddle 2.0-rc-gpu版本及以上
 
 
-## 单卡训练到多卡训练
-接下来我们以一个简单全连接网络实例为例，说明如何将单机单卡训练改成分布式单机多卡训练，再到多机多卡训练。
+## 单机单卡训练
 
-#### 动态图单机单卡代码示例
 下面是一个非常简单的动态图单机单卡程序。网络只有只有2层全连接层，用均方差误差（MSELoss）作为损失函数，Adam优化器进行参数的更新。循环迭代20轮中，每轮打印出当前网络具体的损失值。
 ```py
 import paddle
@@ -66,7 +64,7 @@ step:7	loss:[0.3647427]
 ...
 ```
 
-#### 动态图单机多卡代码示例
+## 单机单卡训练
 使用Fleet接口进行动态图分布式训练其实非常的简单，只需修改4个步骤：
 1. 导入`paddle.distributed.fleet`包
 ```py
@@ -165,15 +163,15 @@ workers:
 ------------------------------------------------
 INFO 2020-0X-XX 08:33:30,247 launch.py:441] Run collective gpu mode. gpu arguments:['--gpus'], cuda count:8
 INFO 2020-0X-XX 08:33:30,247 launch_utils.py:430] Local start 2 processes. First process distributed environment info (Only For Debug):
-=======================================================================================
-            Distributed Envs              Value
----------------------------------------------------------------------------------------
-PADDLE_CURRENT_ENDPOINT                   127.0.0.1:46509
-PADDLE_TRAINERS_NUM                       2
-FLAGS_selected_gpus                       0
-PADDLE_TRAINER_ENDPOINTS                  127.0.0.1:46509,127.0.0.1:10590
-PADDLE_TRAINER_ID                         0
-=======================================================================================
+   +=======================================================================================+
+   |                        Distributed Envs                      Value                    |
+   +---------------------------------------------------------------------------------------+
+   |                 PADDLE_CURRENT_ENDPOINT                 127.0.0.1:59664               |
+   |                     PADDLE_TRAINERS_NUM                        2                      |
+   |                     FLAGS_selected_gpus                        0                      |
+   |                PADDLE_TRAINER_ENDPOINTS         127.0.0.1:59664,127.0.0.1:48993       |
+   |                       PADDLE_TRAINER_ID                        0                      |
+   +=======================================================================================+
 step:0	loss:[1.3279431]
 step:1	loss:[2.5023699]
 step:2	loss:[3.3197324]
@@ -186,7 +184,8 @@ step:7	loss:[1.1434236]
 ```
 完整2卡的日志信息也可在`./log/`目录下查看。了解更多`fleetrun`的用法可参考左侧文档`fleetrun 启动分布式任务`。
 
-## 单机多卡到多机多卡训练
+
+## 多机多卡训练
 从单机多卡到多机多卡训练，在代码上并不需要做任何改动，只需修改启动命令，以2机4卡为例：
 ```sh
 fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" --gpus=0,1 dygraph_fleet.py
@@ -228,6 +227,6 @@ step:6	loss:[1.1998112]
 ```
 同样完整的日志信息也分别在xx.xx.xx.xx机器和yy.yy.yy.yy机器上的`./log/`目录下查看。
 
-## 总结
-至此，相信您已经通过4步口诀掌握了如何将一个普通的paddle动态图单卡任务转换为多卡任务。推荐使用单卡进行调试，真正执行训练时切换为多卡任务。我们也将在未来继续完善`fleet`动态图模块，通过与静态图类似的方式实现分布式训练任务在不同场景下的优化，敬请期待！
+## 小结
+至此，相信您已经通过4步口诀掌握了如何将一个普通的paddle动态图单卡任务转换为多卡任务。推荐使用单卡进行调试，真正执行训练时切换为多卡任务。我们也将在未来继续完善Fleet动态图模块，通过与静态图类似的方式实现分布式训练任务在不同场景下的优化，敬请期待！
 
