@@ -4,15 +4,18 @@
 `Paddle官方文档 <https://www.paddlepaddle.org.cn/documentation/docs/zh/2.0-beta/tutorial/quick_start/dynamic_graph/dynamic_graph.html>`__\ 中对动态图（命令式编程）做了比较详细的介绍。Fleet接口从Paddle
 2.0-RC版本开始支持动态图分布式任务执行。本篇文章我们将介绍如何使用Fleet接口进行动态图分布式训练。
 
+
 使用要求
 --------
 
 -  安装 paddlepaddle 2.0-rc-gpu版本及以上
 
+
 单卡训练到多卡训练
 ------------------
 
 接下来我们以一个简单全连接网络实例为例，说明如何将单机单卡训练改成分布式单机多卡训练，再到多机多卡训练。
+
 
 动态图单机单卡代码示例
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -73,11 +76,13 @@
    step:7  loss:[0.3647427]
    ...
 
+
 动态图单机多卡代码示例
 ^^^^^^^^^^^^^^^^^^^^^^
 
-使用Fleet接口进行动态图分布式训练其实非常的简单，只需修改4个步骤： 1.
-导入\ ``paddle.distributed.fleet``\ 包
+使用Fleet接口进行动态图分布式训练其实非常的简单，只需修改4个步骤： 
+
+1. 导入\ ``paddle.distributed.fleet``\ 包
 
 .. code:: py
 
@@ -104,7 +109,7 @@
    loss.backward()
    dp_layer.apply_collective_grads()
 
-根据我们最开始提供的单机单卡代码示例，再根据4步口诀进行修改，完整的单机多卡示例代码如下：
+基于我们最开始提供的单机单卡代码示例，再根据4步口诀进行修改，完整的单机多卡示例代码如下：
 
 .. code:: py
 
@@ -201,7 +206,10 @@
    step:7  loss:[1.1434236]
    ...
 
-完整2卡的日志信息也可在\ ``./log/``\ 目录下查看。了解更多\ ``fleetrun``\ 的用法可参考左侧文档\ ``fleetrun 启动分布式任务``\ 。
+完整2卡的日志信息也可在\ ``./log/``\ 目录下查看。了解更多\ ``fleetrun``\ 的用法可参考左侧文档 fleetrun 启动分布式任务_ 。
+
+.. _fleetrun 启动分布式任务: paddle_fleet_rst/fleetrun_usage_cn.rst
+
 
 单机多卡到多机多卡训练
 ----------------------
@@ -249,6 +257,7 @@
    ...
 
 同样完整的日志信息也分别在xx.xx.xx.xx机器和yy.yy.yy.yy机器上的\ ``./log/``\ 目录下查看。
+
 
 总结
 ----
