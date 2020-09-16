@@ -57,8 +57,8 @@ def image_dataloader_from_filelist(filelist,
         places = fluid.CUDAPlace(gpu_id)
         loader.set_sample_list_generator(batch_reader, places)
     else:
-        import dali
-        loader = dali.train(
+        from . import dali
+        loader = dali.build(
             filelist,
             batch_size,
             image_mean,
@@ -67,6 +67,7 @@ def image_dataloader_from_filelist(filelist,
             lower_scale,
             lower_ratio,
             upper_ratio,
+            mode=phase,
             trainer_id=trainer_id,
             trainers_num=num_trainers,
             gpu_id=gpu_id,

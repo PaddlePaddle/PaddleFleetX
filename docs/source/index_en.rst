@@ -10,6 +10,7 @@
    paddle_fleet/install
    paddle_fleet/fleet_quick_start
    paddle_fleet/fleet_lightning
+   paddle_fleet/fleetrun_usage
    paddle_fleet/fleet_benchmark
 
 .. toctree::

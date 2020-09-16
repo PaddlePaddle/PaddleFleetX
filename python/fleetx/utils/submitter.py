@@ -42,7 +42,8 @@ class PaddleCloudSubmitter(Submitter):
                           "--job-conf config.ini " \
                           "--files start_job.sh{} " \
                           "--k8s-trainers {} {} " \
-                          "--k8s-cpu-cores 35"
+                          "--k8s-cpu-cores 35 " \
+                          "--is-auto-over-sell {}"
 
     def get_start_job(self, yml_cfg):
         # set up config.ini
@@ -64,29 +65,19 @@ class PaddleCloudSubmitter(Submitter):
         pip_src = "--index-url=http://pip.baidu.com/pypi/simple --trusted-host pip.baidu.com"
         if "pip_src" in yml_cfg:
             pip_src = yml_cfg["pip_src"]
-        if "proxy" in yml_cfg:
-            proxy = yml_cfg['proxy']
-        wheel_list = []
-        get_wheel_cmd_list = []
-        if "wheels" in yml_cfg:
-            wheel_list = yml_cfg["wheels"]
-        if "get_wheel_cmds" in yml_cfg:
-            get_wheel_cmd_list = yml_cfg["get_wheel_cmds"]
+        if "whl_install_commands" in yml_cfg:
+            whl_install_commands = yml_cfg['whl_install_commands']
         if "commands" not in yml_cfg:
             print("ERROR: you should specify training or inference command")
             exit(0)
         commands = yml_cfg["commands"]
-        assert len(wheel_list) == len(get_wheel_cmd_list), \
-            "each wheel should have download source"
         job_sh = ""
         job_sh += "unset http_proxy\nunset https_proxy\n"
         job_sh += "pip uninstall paddlepaddle -y\n"
         job_sh += "pip uninstall paddlepaddle-gpu -y\n"
         job_sh += "pip uninstall fleet-x -y\n"
-        for get_whl in get_wheel_cmd_list:
-            job_sh += "{}\n".format(get_whl)
-        for whl in wheel_list:
-            job_sh += "pip install {} {}\n".format(whl, pip_src)
+        for whl_cmd in whl_install_commands:
+            job_sh += "{}\n".format(whl_cmd)
         for cmd in commands:
             job_sh += "{}\n".format(cmd)
         with open("start_job.sh", "w") as fout:
@@ -116,6 +107,10 @@ class PaddleCloudSubmitter(Submitter):
         self.get_start_job(cfg)
         if "upload_files" in cfg:
             file_list = cfg['upload_files']
+        if "over_sell" in cfg:
+            over_sell = cfg['over_sell']
+        else:
+            over_sell = 1
         job_script = ''
         for item in file_list:
             job_script += " " + item
@@ -124,7 +119,7 @@ class PaddleCloudSubmitter(Submitter):
         pcloud_submit_cmd = self.submit_str.format(
             server, port, image_addr, cluster_name, group_name, num_cards,
             "{}_N{}C{}".format(job_prefix, num_trainers, num_cards),
-            job_script, num_trainers, distribute_suffix)
+            job_script, num_trainers, distribute_suffix, over_sell)
         print(pcloud_submit_cmd)
         os.system(pcloud_submit_cmd)
 

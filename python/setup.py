@@ -20,6 +20,7 @@ from __future__ import print_function
 
 import platform
 
+from pkg_resources import DistributionNotFound, get_distribution
 from setuptools import find_packages
 from setuptools import setup
 from fleetx.version import fleetx_version
