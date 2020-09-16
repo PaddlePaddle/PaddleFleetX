@@ -79,19 +79,19 @@ fleet.init(is_collective=True)
 ```
 
 3. 通过fleet获取分布式优化器和分布式模型
-```
+```py
 adam = fleet.distributed_optimizer(adam)
 dp_layer = fleet.distributed_model(layer)
 ```
 
 4. 在执行反向（backward函数）前后进行损失缩放和反向梯度的聚合
-```
+```py
 loss = dp_layer.scale_loss(loss)
 loss.backward()
 dp_layer.apply_collective_grads()
 ```
 
-根据我们最开始提供的单机单卡代码示例，再根据4步秘诀进行修改，完整的单机多卡示例代码如下：
+根据我们最开始提供的单机单卡代码示例，再根据4步口诀进行修改，完整的单机多卡示例代码如下：
 ```py
 import paddle
 import paddle.nn as nn
@@ -163,8 +163,8 @@ training_script_args: []
 worker_num: None
 workers:
 ------------------------------------------------
-INFO 2020-09-15 08:33:30,247 launch.py:441] Run collective gpu mode. gpu arguments:['--gpus'], cuda count:8
-INFO 2020-09-15 08:33:30,247 launch_utils.py:430] Local start 2 processes. First process distributed environment info (Only For Debug):
+INFO 2020-0X-XX 08:33:30,247 launch.py:441] Run collective gpu mode. gpu arguments:['--gpus'], cuda count:8
+INFO 2020-0X-XX 08:33:30,247 launch_utils.py:430] Local start 2 processes. First process distributed environment info (Only For Debug):
 =======================================================================================
             Distributed Envs              Value
 ---------------------------------------------------------------------------------------
@@ -206,8 +206,8 @@ training_script_args: []
 worker_num: None
 workers:
 ------------------------------------------------
-INFO 2020-09-15 21:29:41,918 launch.py:434] Run collective gpu mode. gpu arguments:['--ips'], cuda count:2
-INFO 2020-09-15 21:29:41,919 launch_utils.py:426] Local start 2 processes. First process distributed environment info (Only For Debug):
+INFO 2020-0X-XX 21:29:41,918 launch.py:434] Run collective gpu mode. gpu arguments:['--ips'], cuda count:2
+INFO 2020-0X-XX 21:29:41,919 launch_utils.py:426] Local start 2 processes. First process distributed environment info (Only For Debug):
     +=======================================================================================+
     |                        Distributed Envs                      Value                    |
     +---------------------------------------------------------------------------------------+
@@ -229,5 +229,5 @@ step:6	loss:[1.1998112]
 同样完整的日志信息也分别在xx.xx.xx.xx机器和yy.yy.yy.yy机器上的`./log/`目录下查看。
 
 ## 总结
-至此，相信您已经通过4步秘诀掌握了如何将一个普通的paddle动态图单卡任务转换为多卡任务。推荐调试使用单卡任务，真正执行训练时切换为多卡任务。我们也将在未来继续完善`fleet`动态图模块，通过与静态图类似的方式实现分布式训练任务在不同场景下的优化，敬请期待！
+至此，相信您已经通过4步口诀掌握了如何将一个普通的paddle动态图单卡任务转换为多卡任务。推荐使用单卡进行调试，真正执行训练时切换为多卡任务。我们也将在未来继续完善`fleet`动态图模块，通过与静态图类似的方式实现分布式训练任务在不同场景下的优化，敬请期待！
 
