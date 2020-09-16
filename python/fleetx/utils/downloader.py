@@ -22,6 +22,7 @@ import yaml
 import os
 
 
+
 def barrier():
     fleet.init(is_collective=True)
     role = fleet._role_maker
