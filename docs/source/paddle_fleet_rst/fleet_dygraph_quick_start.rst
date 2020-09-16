@@ -187,15 +187,15 @@
    ------------------------------------------------
    INFO 2020-0X-XX 08:33:30,247 launch.py:441] Run collective gpu mode. gpu arguments:['--gpus'], cuda count:8
    INFO 2020-0X-XX 08:33:30,247 launch_utils.py:430] Local start 2 processes. First process distributed environment info (Only For Debug):
-    +=======================================================================================+
-    |                        Distributed Envs                      Value                    |
-    +---------------------------------------------------------------------------------------+
-    |                 PADDLE_CURRENT_ENDPOINT                 127.0.0.1:59664               |
-    |                     PADDLE_TRAINERS_NUM                        2                      |
-    |                     FLAGS_selected_gpus                        0                      |
-    |                PADDLE_TRAINER_ENDPOINTS         127.0.0.1:59664,127.0.0.1:48993       |
-    |                       PADDLE_TRAINER_ID                        0                      |
-    +=======================================================================================+
+       +=======================================================================================+
+       |                        Distributed Envs                      Value                    |
+       +---------------------------------------------------------------------------------------+
+       |                 PADDLE_CURRENT_ENDPOINT                 127.0.0.1:59664               |
+       |                     PADDLE_TRAINERS_NUM                        2                      |
+       |                     FLAGS_selected_gpus                        0                      |
+       |                PADDLE_TRAINER_ENDPOINTS         127.0.0.1:59664,127.0.0.1:48993       |
+       |                       PADDLE_TRAINER_ID                        0                      |
+       +=======================================================================================+
 
    step:0  loss:[1.3279431]
    step:1  loss:[2.5023699]
@@ -207,7 +207,7 @@
    step:7  loss:[1.1434236]
    ...
 
-完整2卡的日志信息也可在\ ``./log/``\ 目录下查看。了解更多\ ``fleetrun``\ 的用法可参考左侧文档 使用fleetrun启动分布式任务 。
+完整2卡的日志信息也可在\ ``./log/``\ 目录下查看。了解更多\ ``fleetrun``\ 的用法可参考左侧文档 使用fleetrun启动分布式任务_ 。
 
 .. _使用fleetrun启动分布式任务: paddle_fleet_rst/fleetrun_usage_cn.rst
 
