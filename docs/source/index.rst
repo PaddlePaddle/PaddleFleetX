@@ -5,7 +5,6 @@
 =========================================================
 
 - 欢迎您关注飞桨分布式训练，我们希望能帮助每一个用户走上大规模工业化生产之路！
-- 飞桨提供的分布式训练能力
 
 .. toctree::
    :maxdepth: 1
@@ -13,7 +12,7 @@
    :caption: 快速开始
    :name: new-users
 
-   paddle_fleet_rst/distributed_overview
+   paddle_fleet_rst/distributed_introduction
    paddle_fleet_rst/install_cn
    paddle_fleet_rst/fleetx_quick_start
    paddle_fleet_rst/fleetrun_usage_cn
