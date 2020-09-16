@@ -13,8 +13,6 @@
 # limitations under the License.
 
 from .lr_strategy import *
-from .downloader import ImageNetDownloader
-from .downloader import WikiDataDownloader
-from .downloader import WMTDataDownloader
+from .downloader import *
 from .submitter import *
 from .env import *

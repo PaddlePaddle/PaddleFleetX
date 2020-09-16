@@ -111,9 +111,8 @@ class DataReader(object):
         return [token_ids, sent_ids, pos_ids, label]
 
     def read_file(self, file):
-        assert file.endswith('.gz'), "[ERROR] %s is not a gzip file" % file
         file_path = self.data_dir + "/" + file
-        with gzip.open(file_path, "rb") as f:
+        with open(file_path, "rb") as f:
             for line in f:
                 parsed_line = self.parse_line(
                     line, max_seq_len=self.max_seq_len)
@@ -245,7 +244,7 @@ class DataReader(object):
         """
         data_generator
         """
-        files = os.listdir(self.data_dir)
+        files = ['demo_wiki_train', 'demo_wiki_train1', 'demo_wiki_train2']
         self.total_file = len(files)
         assert self.total_file > 0, "[Error] data_dir is empty"
 
