@@ -244,7 +244,7 @@ class DataReader(object):
         """
         data_generator
         """
-        files = ['demo_wiki_train', 'demo_wiki_train1', 'demo_wiki_train2']
+        files = os.listdir(self.data_dir)
         self.total_file = len(files)
         assert self.total_file > 0, "[Error] data_dir is empty"
 
