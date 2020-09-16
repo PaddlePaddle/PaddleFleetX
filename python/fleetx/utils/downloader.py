@@ -46,7 +46,6 @@ def check_exists(filelist, local_path):
                 if (not os.path.exists("{}/{}".format(
                         local_path, current_file))) or get_md5("{}/{}".format(
                             local_path, current_file)) != current_md5:
-                    os.system("rm -rf {}/*".format(local_path))
                     return True
         return False
 
@@ -160,12 +159,13 @@ class Downloader(object):
             print("you can find yaml examples in the following links: ")
         if not is_first_worker():
             fleet_util.barrier()
+            return local_path
         _, ext = os.path.splitext(fs_yaml)
         assert ext in ['.yml', '.yaml'], "only support yaml files for now"
         with open(fs_yaml) as f:
             cfg = yaml.load(f, Loader=yaml.Loader)
 
-        if 'data_path' in cfg:
+        if 'bos_path' in cfg:
             bos_path = cfg["bos_path"]
 
         def multi_download(bos_path, local_path, filelist, process_num=10):
@@ -173,14 +173,15 @@ class Downloader(object):
                 for ff in files:
                     os.system("wget -q -P {} --no-check-certificate {}/{}".
                               format(local_path, bos_path, ff))
-                    cmd = "tar -xf {} -C {}".format(ff, local_path)
+                    cmd = "tar -xf {}/{} -C {}".format(local_path, ff,
+                                                       local_path)
                     os.system(cmd)
 
-            dir_per_process = len(tar_list) / process_num
+            dir_per_process = len(filelist) / process_num
 
             procs = []
             for i in range(process_num):
-                process_filelist = tar_list[i::process_num]
+                process_filelist = filelist[i::process_num]
                 p = multiprocessing.Process(
                     target=_subprocess_download, args=(process_filelist, ))
                 procs.append(p)
