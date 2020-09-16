@@ -207,9 +207,9 @@
    step:7  loss:[1.1434236]
    ...
 
-完整2卡的日志信息也可在\ ``./log/``\ 目录下查看。了解更多\ ``fleetrun``\ 的用法可参考左侧文档 fleetrun 启动分布式任务_ 。
+完整2卡的日志信息也可在\ ``./log/``\ 目录下查看。了解更多\ ``fleetrun``\ 的用法可参考左侧文档 使用fleetrun启动分布式任务 。
 
-.. _fleetrun 启动分布式任务: paddle_fleet_rst/fleetrun_usage_cn.rst
+.. _使用fleetrun启动分布式任务: paddle_fleet_rst/fleetrun_usage_cn.rst
 
 
 单机多卡到多机多卡训练
