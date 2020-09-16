@@ -60,14 +60,12 @@ size，（DGC相当于每一个梯度有自己的batch size）。设定 :math:`F
 
 .. math::
 
-
    F(w)=\\frac{1}{\|\\chi\|}\\sum\_{x\\in\\chi}f(x, w), \\qquad w\_{t+1}=w\_{t}-\\eta\\frac{1}{N b}\\sum\_{k=1}^{N}\\sum\_{x\\in\\mathcal{B}\_{k,t}}\\nabla f\\left(x, w\_{t}\\right) \\tag{1}
 
 其中\ :math:`\chi`\ 是训练集，\ :math:`w`\ 是网络权值，\ :math:`f(x, w)`\ 是每个样本\ :math:`x \in \chi`\ 的loss，\ :math:`\eta`\ 是学习率，N是训练节点个数，\ :math:`\mathcal{B}\_{k, t}`\ 代表第\ :math:`k`\ 个节点在第\ :math:`t`\ 个迭代时的minibatch，大小为b。
 考虑权重的第i个值，在T次迭代后，可获得
 
 .. math::
-
 
    w\_{t+T}^{(i)}=w\_{t}^{(i)}-\\eta T \\cdot \\frac{1}{N b T} \\sum\_{k=1}^{N}\\left(\\sum\_{\\tau=0}^{T-1} \\sum\_{x \\in \\mathcal{B}\_{k, t+\\tau}} \\nabla^{(i)} f\\left(x, w\_{t+\\tau}\\right)\\right)  \\tag{2}
 
@@ -130,7 +128,6 @@ Correction)和局部梯度裁减(Local Gradient Clipping)来解决这个问题�
 
 .. math::
 
-
    u\_{t}=m u\_{t-1}+\\sum\_{k=1}^{N}\\left(\\nabla\_{k, t}\\right), \\quad w\_{t+1}=w\_{t}-\\eta u\_{t}  \\tag{3}
 
 其中\ :math:`m`\ 是动量因子，\ :math:`N`\ 是节点数，\ :math:`\\nabla\_{k, t}=\\frac{1}{N b} \\sum\_{x \\in \\mathcal{B}\_{k, t}} \\nabla f\\left(x, w\_{t}\\right)`\ 。
@@ -138,13 +135,11 @@ Correction)和局部梯度裁减(Local Gradient Clipping)来解决这个问题�
 
 .. math::
 
-
    w\_{t+T}^{(i)}=w\_{t}^{(i)}-\\eta\\left[\\cdots+\\left(\\sum\_{\\tau=0}^{T-2} m^{\\tau}\\right) \\nabla\_{k, t+1}^{(i)}+\\left(\\sum\_{\\tau=0}^{T-1} m^{\\tau}\\right) \\nabla\_{k, t}^{(i)}\\right]  \\tag{4}
 
 如果直接应用动量SGD到稀疏梯度更新中，则有公式，
 
 .. math::
-
 
    v\_{k, t}=v\_{k, t-1}+\\nabla\_{k, t}, \\quad u\_{t}=m u\_{t-1}+\\sum\_{k=1}^{N} \\operatorname{sparse}\\left(v\_{k, t}\\right), \\quad w\_{t+1}=w\_{t}-\\eta u\_{t} \\tag{5}
 
@@ -152,7 +147,6 @@ Correction)和局部梯度裁减(Local Gradient Clipping)来解决这个问题�
 :math:`w^{(i)}`\ 在T次稀疏更新后的权重为,
 
 .. math::
-
 
    w\_{t+T}^{(i)}=w\_{t}^{(i)}-\\eta\\left(\\cdots+\\nabla\_{k, t+1}^{(i)}+\\nabla\_{k, t}^{(i)}\\right) \\tag{6}
 
@@ -170,7 +164,6 @@ Correction)和局部梯度裁减(Local Gradient Clipping)来解决这个问题�
 
 .. math::
 
-
    u\_{k, t}=m u\_{k, t-1}+\\nabla\_{k, t}, \\quad v\_{k, t}=v\_{k, t-1}+u\_{k, t}, \\quad w\_{t+1}=w\_{t}-\\eta \\sum\_{k=1}^{N} \\operatorname{sparse}\\left(v\_{k, t}\\right)  \\tag{7}
 
 修正后，如上图(b)，方程可正常从A点到B点。除了传统动量方程修正，论文还给出了Nesterov动量SGD的修正方程。
@@ -181,7 +174,6 @@ Correction)和局部梯度裁减(Local Gradient Clipping)来解决这个问题�
 梯度修剪是防止梯度爆炸的常用方法。这方法由Pascanu等人在2013年提出，当梯度的l2-norms和大于给定阈值时，就对梯度rescale。正常梯度修剪在梯度聚合后使用，而DGC因为每个节点独立的进行局部梯度累加，所以DGC在使用\ :math:`G\_t`\ 累加前对其进行局部梯度修剪。阈值缩放为原来的\ :math:`N^{-1/2}`
 
 .. math::
-
 
    thr\_{G^{k}}=N^{-1 / 2} \\cdot thr\_{G}  \\tag{8}
 
@@ -194,7 +186,6 @@ Correction)和局部梯度裁减(Local Gradient Clipping)来解决这个问题�
 DGC中使用下面方程来掩藏动量因子减缓陈旧性问题。
 
 .. math::
-
 
    Mask \\leftarrow\\left|v\_{k, t}\\right|>t h r, \\quad v\_{k, t} \\leftarrow v\_{k, t} \\odot \\neg Mask, \\quad u\_{k, t} \\leftarrow u\_{k, t} \\odot \\neg Mask \\tag{9}
 
@@ -209,7 +200,6 @@ decay后公式为
 
 .. math::
 
-
    G\_{t}=\\sum\_{k=1}^{N}\\left(\\nabla\_{k, t}\\right)+\\lambda w\_{t}, \\quad  u\_{t}=m u\_{t-1}+G\_{t}, \\quad w\_{t+1}=w\_{t}-\\eta u\_{t} \\tag{10}
 
 其中\ :math:`\lambda`\ 为Weight
@@ -217,7 +207,6 @@ Decay系数，\ :math:`G\_{t}`\ 为添加L2Decay项之后的聚合梯度。由�
 Decay项。如下公式在局部梯度上添加局部Weight Decay项即可。
 
 .. math::
-
 
    \\nabla\_{k, t}=\\nabla\_{k, t}+\\frac{\\lambda}{N} w\_{t} \\tag{11}
 
@@ -227,7 +216,6 @@ decay系数为\ :math:`\frac{\lambda}{N}=\frac{10^{-4}}{32}=3.125\*10^{-6}`\ ，
 decay项进行数值修正。如下公式，
 
 .. math::
-
 
    \\nabla\_{k, t}^{'}=N \\nabla\_{k, t}+\\lambda w\_{t}, \\quad
    G\_{t}^{'}=\\sum\_{k=1}^{N}\\left(\\nabla\_{k, t}^{'}\\right)=N\\sum\_{k=1}^{N}\\left(\\nabla\_{k, t}\\right)+N\\lambda w\_{t}, \\quad
