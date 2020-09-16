@@ -35,7 +35,8 @@ def python_version():
 #REQUIRED_PACKAGES = [
 #    'paddlepaddle >= 1.8.0', 'paddlepaddle-gpu >= 1.8', 'numpy>=1.10.0'
 #]
-REQUIRED_PACKAGES = ['paddlepaddle', 'paddlepaddle-gpu', 'numpy>=1.10.0']
+# REQUIRED_PACKAGES = ['paddlepaddle', 'paddlepaddle-gpu', 'numpy>=1.10.0']
+REQUIRED_PACKAGES = []
 
 packages = [
     'fleetx',
