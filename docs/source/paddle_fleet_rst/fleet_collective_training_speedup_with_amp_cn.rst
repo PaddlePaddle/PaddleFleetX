@@ -11,28 +11,26 @@ Precision) 来进一步提升训练的速度.
 数据格式来存储模型参数、进行训练和预测. 在上述环节中使用半精度
 ``half-precision`` ``(FP16)``\ 来代替单精度. 可以带来以下好处:
 
-1. 减少对GPU memory 的需求:
-
-   -  降低显存读写时的带宽压力
-   -  GPU 显存不变情况下, 支持更大模型 / batch size
-
-2. 加速GPU 数学运算速度 (需要GPU
+1. 减少对GPU memory 的需求: GPU 显存不变情况下, 支持更大模型 / batch
+   size
+2. 降低显存读写时的带宽压力
+3. 加速GPU 数学运算速度 (需要GPU
    支持\ `[1] <https://docs.nvidia.com/deeplearning/performance/mixed-precision-training/index.html#tensorop>`__)
+4. GPU上 FP16 吞吐是FP32 的 2 - 8
+   倍\ `[2] <https://arxiv.org/abs/1710.03740>`__
 
-   -  GPU上 FP16 吞吐是FP32 的 2 - 8
-      倍\ `[2] <https://arxiv.org/abs/1710.03740>`__
-
-FleetX 支持自动混合精度计算, 并实现了 ``FP32 参数副本及更新``,
+Fleet 支持自动混合精度计算, 并实现了 ``自动维护FP32 、FP16参数副本``,
 ``Dynamic loss scaling``, ``op黑白名单`` 等功能来避免FP16
-因动态范围较小而可能带来的模型最终精度损失. FleetX 并提供了简单易用的API
-接口, 用户无须修改参数.
+因动态范围较小而可能带来的模型最终精度损失. Fleet 并提供了简单易用的API
+接口, 用户无需自定义“loss
+scaling”等参数，直接设置“dist\_strategy.amp=True”即可.
 就可将自动混合精度应用到原有的分布式训练中进一步提升训练速度.
 
-中下文将通过一个简单例子介绍如如何通过 FleetX将实现混合精度的分布式训练,
-另外给出我们使用 FleetX 进行同步训练加速的实践.
+中下文将通过一个简单例子介绍如如何通过 Fleet将实现混合精度的分布式训练,
+另外给出我们使用 Fleet 进行同步训练加速的实践.
 
-FleetX 效果
------------
+Fleet 效果
+----------
 
 环境: 4 机 32卡 V100-32GB
 
@@ -63,36 +61,45 @@ FleetX 效果
 AMP 快速开始
 ------------
 
-这里以在单机多卡上训练Resent50 为简单例子介绍FleetX 中 AMP的用法. ####
-AMP 简述
+这里以在单机多卡上训练Resent50 为简单例子介绍Fleet 中 AMP的用法.
+
+自动混合精度原理
+~~~~~~~~~~~~~~~~
 
 FP32 参数副本及更新
-'''''''''''''''''''
+^^^^^^^^^^^^^^^^^^^
+
+.. image:: ../paddle_fleet/img/AMP_1.png
+  :width: 400
+  :alt: weight 副本
 
 如上图所示, 在AMP 中, 模型参数 ``weight`` ,
 前向中间的结果\ ``activation``, 反向的\ ``gradient`` 都以FP16 形式存储,
-由此可以少显存所需空间和读写所需带宽. Paddle框架会为每一个\ ``weight``
-维护一个FP32副本, 用于参数更新. 上述点数据格式转换由 FleetX
-框架自动完成, 用户无须操心.
+由此可以减少模型占用的显存空间，同时提高计算和通信速度，也就是使得训练吞吐更大，训练更快.
+Paddle框架会为每一个\ ``weight`` 维护一个FP32副本, 用于参数更新.
 
 Loss scaling
-''''''''''''
+^^^^^^^^^^^^
+
+.. image:: ../paddle_fleet/img/AMP_2.png
+  :width: 600
+  :alt: weight 分布
 
 如上图所示, 实际情况中模型训练中的某些变量, 比如\ ``grad`` (特别是
-``activation`` 的 ``grad``), 可能会因小于 FP16
-所能表示的最小值而变成\ ``0``;
+``activation`` 的 ``grad``), 可能会因小于 FP16的精度低而变成\ ``0``;
 
 另一方面在FP16 的表示范围的中有很大的一部分(从最大值往左)
 却没有被利用到.
 
 对gradient 做一个整体的放大, 能够更充分的利用FP16 的表示范围.
 
-FleetX AMP 会在反向开始前对 loss 进行 up scaling, 并在执行任何
-gradient-related 操作(e.g. gradient-clip, update) 之前对 gredient 进行
-down scaling 恢复原来的大小.
+Fleet AMP 会在反向开始前对 loss 进行 up scaling,
+并在执行任何梯度相关操作(e.g. gradient-clip, update) 之前对 gredient
+进行 down scaling 恢复原来的大小.
 
-``scaling factor`` 的设置是 Lossing scaling 的关键, FleetX AMP 提供
-``Dynamic loss scaling`` 和 ``Constant loss scaling`` 两种scaling 策略:
+``scaling factor`` 的设置是 Lossing scaling 的关键, Fleet AMP 提供
+``Dynamic loss scaling`` （默认） 和 ``Constant loss scaling``
+两种scaling 策略:
 
 -  Constant loss scaling: 设置 ``use_dynamic_loss_scaling = False`` 和
    ``init_loss_scaling (float)``
@@ -107,7 +114,7 @@ down scaling 恢复原来的大小.
       增大\ ``incr_ratio(float)``\ 倍;
    -  当有连续\ ``decr_every_n_nan_or_inf(int)``\ 个batch 中gradient
       里出现 nan / inf时, scaling factor 缩小 ``decr_ratio(float)``\ 倍.
-   -  上述四个参数FleetX 提供的默认值可以满足绝大部分要求,
+   -  上述四个参数Fleet 提供的默认值可以满足绝大部分要求,
       用户通常不需要修改.
 
 如下图所示在 Dynamic loss scaling 中，框架在每一个 iteration
@@ -115,8 +122,12 @@ down scaling 恢复原来的大小.
 Dynamic loss scaling 参数来动态调整 loss scaling factor
 的大小，将gradient 尽量保持在 FP16 的表示范围之内。
 
+.. image:: ../paddle_fleet/img/AMP_3.png
+  :width: 600
+  :alt: Dynamic loss scaling
+
 OP 黑白名单
-'''''''''''
+^^^^^^^^^^^
 
 模型中的某些\ ``Operation (OP)`` 可能对精度较为敏感, 为了确保AMP
 中精度无损, 可以通过\ ``OP 黑白名单``\ 对具体OP 操作的精度做指定.
@@ -129,7 +140,7 @@ OP 黑白名单
    操作才在FP16精度下进行, 否着以FP 32进行. ``input / output``:
    和原始输入中的最高精度相同
 
-FleetX 已经预设了一个能够覆盖绝大多数模型OPs的黑白名单,
+Fleet 已经预设了一个能够覆盖绝大多数模型OPs的黑白名单,
 通常情况下用户并不需要修改, 但是如果任务对精度有特殊要求,
 或者希望新增自定义 OP, 用户可以通过
 paddle.distributed.fleet.DistributedStrategy.amp\_configs 中的
@@ -137,12 +148,15 @@ paddle.distributed.fleet.DistributedStrategy.amp\_configs 中的
 用户还可以通过\ ``custom_black_varnames``,
 来具体指定\ ``Paddle program`` 某一个 ``var``\ 必须使用FP32精度.
 
-我们将在文末的 appendix中 进一步介绍 FleetX 的黑白名单设置及其影响。
+我们将在文末的 appendix中 进一步介绍 Fleet 的黑白名单设置及其影响。
 
-构建模型
+开始训练
+~~~~~~~~
+
+添加依赖
 ^^^^^^^^
 
-首先我们要导入依赖和定义模型和 data loader, 这一步和FleetX
+首先我们要导入依赖和定义模型和 data loader, 这一步和Fleet
 下其他任务基本一致.
 
 .. code:: python
@@ -154,8 +168,23 @@ paddle.distributed.fleet.DistributedStrategy.amp\_configs 中的
     import time
     import paddle.distributed.fleet as fleet
 
+定义分布式模式并初始化
+^^^^^^^^^^^^^^^^^^^^^^
+
+.. code:: python
+
+    configs = X.parse_train_configs()
+    role = role_maker.PaddleCloudRoleMaker(is_collective=True)
+    fleet.init(role)
+
+加载模型及数据
+^^^^^^^^^^^^^^
+
+.. code:: python
+
     model = X.applications.Resnet50()
-    loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
+    batch_size = 32
+    data_loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt", batch_size=batch_size)
 
 定义分布式及AMP 相关策略
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -163,26 +192,13 @@ paddle.distributed.fleet.DistributedStrategy.amp\_configs 中的
 如上文描述, 用户可以选择设置 ``Loss scaling`` 和
 ``OP黑白名单``\ 等的参数.
 
-另外 FleetX 将AMP 实现为 meta optimizer, 用户需要指定其的
-``inner-optimizer``. FleetX AMP支持所有 paddle optimziers 和 FLeetX meta
+另外 Fleet 将AMP 实现为 meta optimizer, 用户需要指定其的
+``inner-optimizer``. Fleet AMP支持所有 paddle optimziers 和 FLeet meta
 otpimizers 作为其 inner-optimizer.
 
 .. code:: python
 
-    configs = X.parse_train_configs()
-    role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-    fleet.init(role)
     dist_strategy = fleet.DistributedStrategy()
-
-    optimizer = fluid.optimizer.Momentum(learning_rate=configs.lr, momentum=configs.momentum)
-
-    dist_strategy = fleet.DistributedStrategy()
-    dist_strategy.amp = True
-
-    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
-    optimizer.minimize(model.loss)
-
-    dist_strategy = paddle.distributed.fleet.DistributedStrategy()
     dist_strategy.amp = True
     dist_strategy.amp_configs = {
         "init_loss_scaling": 32768,
@@ -191,18 +207,18 @@ otpimizers 作为其 inner-optimizer.
         "incr_ratio": 2.0,
         "use_dynamic_loss_scaling": True,
         "decr_ratio": 0.5,
-        "custom_white_list": ['softmax'],
-        "custom_black_list": ['tanh'],
+        "custom_white_list": [],
+        "custom_black_list": [],
     }
 
-    optimizer = fluid.optimizer.Momentum(learning_rate=configs.lr, momentum=configs.momentum)
+    optimizer = fluid.optimizer.Momentum(learning_rate=0.01, momentum=0.9)
     optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
     optimizer.minimize(model.loss)
 
 开始训练
 ^^^^^^^^
 
-这一部分和FleetX 中其他任务基本相同:
+这一部分和Fleet 中其他任务基本相同:
 
 .. code:: python
 
@@ -210,18 +226,16 @@ otpimizers 作为其 inner-optimizer.
     exe = fluid.Executor(place)
     exe.run(fluid.default_startup_program())
 
-    total_time = 0
     for i, data in enumerate(data_loader()):
         start_time = time.time()
-        cost_val = exe.run(paddle.static.default_main_program(),
-                           feed=data,
-                           fetch_list=[model.loss.name])
+        cost_val = exe.run(model.main_prog,
+                            feed=data,
+                            fetch_list=[model.loss.name])
+                            
         end_time = time.time()
-        total_time += (end_time - start_time)
         print(
-            "worker_index: %d, step%d cost = %f, total time cost = %f, step per second: %f, speed: %f"
-            % (fleet.worker_index(), i, cost_val[0], total_time,
-               (i - 9) / total_time, 1 / (end_time - start_time))
+            "worker_index: %d, step%d cost = %f, speed: %f"
+            % (fleet.worker_index(), i, cost_val[0], batch_size / (end_time - start_time)))
 
 运行训练脚本
 ~~~~~~~~~~~~
@@ -230,13 +244,21 @@ otpimizers 作为其 inner-optimizer.
 
 .. code:: sh
 
-    fleetrun --gpus 0,1,2,3,4,5,6,7 resnet50_amp.py
+    fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log resnet50_amp.py
 
-FleetX 黑白名单设置
-~~~~~~~~~~~~~~~~~~~
+    # worker_index: 0, step0 cost = 6.895311, speed: 12.192901
+    # worker_index: 0, step1 cost = 6.964077, speed: 412.116618
+    # worker_index: 0, step2 cost = 7.049311, speed: 433.850506
+    # worker_index: 0, step3 cost = 7.006689, speed: 358.400410
+    # worker_index: 0, step4 cost = 7.000206, speed: 398.210745
+    # worker_index: 0, step5 cost = 7.088611, speed: 462.322357
+    # worker_index: 0, step6 cost = 7.022367, speed: 425.185013
 
-上文简要介绍了FleetX 中黑白名单的 API 接口， 下文将进一步介绍 FleetX
-中黑白名单的实现和可能对训练造成影响。 目前 FleetX 中 AMP
+Fleet 黑白名单设置
+~~~~~~~~~~~~~~~~~~
+
+上文简要介绍了Fleet 中黑白名单的 API 接口， 下文将进一步介绍 Fleet
+中黑白名单的实现和可能对训练造成影响。 目前 Fleet 中 AMP
 的默认黑白名单如下， 其他未列出的 op 都属于灰名单：
 
 .. code:: python
