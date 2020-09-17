@@ -60,8 +60,12 @@ size，（DGC相当于每一个梯度有自己的batch size）。设定 :math:`F
 
 .. math::
 
-   F(w)=\\frac{1}{\|\\chi\|}\\sum\_{x\\in\\chi}f(x, w), \\qquad w\_{t+1}=w\_{t}-\\eta\\frac{1}{N b}\\sum\_{k=1}^{N}\\sum\_{x\\in\\mathcal{B}\_{k,t}}\\nabla f\\left(x, w\_{t}\\right) \\tag{1}
+   $$ F(w)=\frac{1}{|\chi|}\sum_{x\in\chi}f(x, w), $$
 
+   $$ \\qquad w_{t+1}=w_{t}-\eta\frac{1}{N
+   b}\sum_{k=1}^{N}\sum_{x\in\mathcal{B}_{k,t}}\nabla f\left(x,
+   w_{t}\right) \\tag{1} $$
+   
 其中\ :math:`\chi`\ 是训练集，\ :math:`w`\ 是网络权值，\ :math:`f(x, w)`\ 是每个样本\ :math:`x \in \chi`\ 的loss，\ :math:`\eta`\ 是学习率，N是训练节点个数，\ :math:`\mathcal{B}\_{k, t}`\ 代表第\ :math:`k`\ 个节点在第\ :math:`t`\ 个迭代时的minibatch，大小为b。
 考虑权重的第i个值，在T次迭代后，可获得
 
@@ -259,7 +263,7 @@ DGC 快速开始
 
    configs = X.parse_train_configs()
    role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-   fleet.init(role)
+   fleet.init(role)  
 
 加载模型及数据
 ^^^^^^^^^^^^^^
@@ -269,7 +273,8 @@ DGC 快速开始
 .. code:: python
 
    model = X.applications.Resnet50()
-   loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
+   batch_size = 32
+   data_loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
 
 DGC 相关策略
 ^^^^^^^^^^^^
@@ -290,12 +295,12 @@ DGC 相关策略
 
    dist_strategy.lars = True
    dist_strategy.dgc_configs = {
-       "rampup_begin_step": 1252*2,
-       "rampup_step": 1252*3,
-       "sparsity": [0.984375, 0.996, 0.999]
+      "rampup_begin_step": 1252*2,
+      "rampup_step": 1252*3,
+      "sparsity": [0.984375, 0.996, 0.999]
    }
 
-   optimizer = paddle.optimizer.Momentum(learning_rate=0.01, momentum=0.9)
+   optimizer = fluid.optimizer.Momentum(learning_rate=0.01, momentum=0.9)
    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
    optimizer.minimize(model.loss)
 
@@ -310,18 +315,16 @@ DGC 相关策略
    exe = fluid.Executor(place)
    exe.run(fluid.default_startup_program())
 
-   total_time = 0
    for i, data in enumerate(data_loader()):
-       start_time = time.time()
-       cost_val = exe.run(paddle.static.default_main_program(),
-                          feed=data,
-                          fetch_list=[model.loss.name])
-       end_time = time.time()
-       total_time += (end_time - start_time)
-       print(
-           "worker_index: %d, step%d cost = %f, total time cost = %f, step per second: %f, speed: %f"
-           % (fleet.worker_index(), i, cost_val[0], total_time,
-              (i - 9) / total_time, 1 / (end_time - start_time))
+      start_time = time.time()
+      cost_val = exe.run(model.main_prog,
+                           feed=data,
+                           fetch_list=[model.loss.name])
+                           
+      end_time = time.time()
+      print(
+         "worker_index: %d, step%d cost = %f, speed: %f"
+         % (fleet.worker_index(), i, cost_val[0], batch_size / (end_time - start_time)))
 
 运行训练脚本
 ^^^^^^^^^^^^
@@ -330,7 +333,7 @@ DGC 相关策略
 
 .. code:: sh
 
-   fleetrun --gpus 0,1,2,3,4,5,6,7 resnet50_dgc.py
+   fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log ./resnet50_dgc.py 
 
 使用Local SGD 优化低带宽下分布式训练
 ------------------------------------

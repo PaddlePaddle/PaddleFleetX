@@ -30,9 +30,15 @@ DGC稀疏通信在低带宽通信瓶颈时会有较大的性能提升，但**在
 
 DGC的基本思路是通过只传送重要梯度，即只发送大于给定阈值的梯度来减少通信带宽的使用。为避免信息的丢失，DGC会将剩余梯度在局部累加起来，最终这些梯度会累加大到足以传输。
 换个角度，从理论依据上来看，局部梯度累加等同于随时间推移增加batch size，（DGC相当于每一个梯度有自己的batch size）。设定 $F(w)$ 为需要优化的loss函数，则有着N个训练节点的同步分布式SGD更新公式如下
+
 $$
-F(w)=\\frac{1}{\|\\chi\|}\\sum\_{x\\in\\chi}f(x, w), \\qquad w\_{t+1}=w\_{t}-\\eta\\frac{1}{N b}\\sum\_{k=1}^{N}\\sum\_{x\\in\\mathcal{B}\_{k,t}}\\nabla f\\left(x, w\_{t}\\right) \\tag{1}
+F(w)=\\frac{1}{\|\\chi\|}\\sum\_{x\\in\\chi}f(x, w), 
 $$
+
+$$
+\\qquad w\_{t+1}=w\_{t}-\\eta\\frac{1}{N b}\\sum\_{k=1}^{N}\\sum\_{x\\in\\mathcal{B}\_{k,t}}\\nabla f\\left(x, w\_{t}\\right) \\tag{1}
+$$
+
 其中$\chi$是训练集，$w$是网络权值，$f(x, w)$是每个样本$x \in \chi$的loss，$\eta$是学习率，N是训练节点个数，$\mathcal{B}\_{k, t}$代表第$k$个节点在第$t$个迭代时的minibatch，大小为b。
 考虑权重的第i个值，在T次迭代后，可获得
 $$
