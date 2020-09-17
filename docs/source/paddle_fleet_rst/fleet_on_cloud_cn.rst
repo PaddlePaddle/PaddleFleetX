@@ -370,7 +370,7 @@ SGD <https://arxiv.org/abs/1810.08313>`__
 策略，来减少参数同步频率降低带来的精度损失。 Synchronous SGD 和 Local
 SGD 在通信同步上的差异如下图所示。
 
-.. image:: ../paddle_fleet/img/localSGC_1.png
+.. image:: ../paddle_fleet/img/localSGD_1.png
   :width: 800
   :alt: Synchronous SGD 和 Local SGD
 
@@ -380,7 +380,7 @@ SGD 在通信同步上的差异如下图所示。
 SGD过程如下图所示。黄绿两条路径表示两个 workers 各自的 Local SGD
 更新过程，中间的蓝色路径表示同步后的模型所在的位置。
 
-.. image:: ../paddle_fleet/img/localSGC_2.png
+.. image:: ../paddle_fleet/img/localSGD_2.png
   :width: 600
   :alt: Local SGD
 
