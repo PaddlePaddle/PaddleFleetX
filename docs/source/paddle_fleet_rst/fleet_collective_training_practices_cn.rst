@@ -17,13 +17,9 @@
    会保存一份完整的模型，并使用一部分数据进行训练，然后向pserver发送梯度，最后从pserver拉取更新后的参数。
    pserver进程和trainer可以在不同的计算节点上，也可以在同一公用节点。一个分布式任务所需要的pserver进程个数通常需要根据实际情况调整，以达到最佳的性能，然而通常来说pserver的进程不会比trainer更多。
 
-.. raw:: html
-
-   <p align="center">
-
-.. raw:: html
-
-   </p>
+.. image:: ../paddle_fleet/img/practice_2.png
+  :width: 600
+  :alt: PServe
 
 -  在\ ``Collective模式``\ 中，集群中只存在多个地位平等的trainers。
    每个trainer进程都保存一份完整的模型参数。 前向和反向中每个 trainer
@@ -33,13 +29,9 @@
    同步梯度到所有trainers，最后每个 trainer
    使用同步后的梯度独立完成参数更新。
 
-.. raw:: html
-
-   <p align="center">
-
-.. raw:: html
-
-   </p>
+.. image:: ../paddle_fleet/img/practice_3.png
+  :width: 600
+  :alt: Collective
 
 相交于异步训练,
 同步训练的的优势在于Loss可以比较稳定的下降，缺点是整体速度的快慢取决于最慢的trainer.
@@ -51,7 +43,7 @@ Fleet Collective 同步训练优化
 -----------------------------
 
 Fleet 支持在 GPU (CUDA 版本 >= 7.5) 服务器集群上完成高性能分布式训练。
-用户可以通过\ ``环境变量``\ 和\ ``fleet.DistributedStrategy``
+用户可以通过 ``fleet.DistributedStrategy``
 设置许多与训练性能策略相关参数。目前Fleet
 为这些参数提供了一个较通用默认值，用户可以不去调整。但如果用户希望针对性调优分布式训练的性能，可以根据自身硬件和任务设置对应参数。
 
@@ -100,26 +92,23 @@ AllReduce
 操作。这样可以减少梯度同步时的通信耗时。
 
 此外，为支持更大粒度的参数梯度融合，Fleet
-提供了以下两个选项，用户可以在训练程序运行前在环境变量中设置：
+提供了以下两个选项，用户可以在训练程序运行前在DistributedStrategy中设置：
 
--  ``FLAGS_fuse_parameter_memory_size``:
+-  ``fuse_grad_size_in_MB``:
    指定每个AllReduce操作的梯度字节数，如该参数等于16
    则每次AllReduce调用传输16MB的梯度。
    该参数的经验值为总通信量的十分之一。
--  ``FLAGS_fuse_parameter_groups_size``:
+-  ``fuse_grad_size_in_TFLOPS``:
    指定每次AllReduce操作的最大层数，即到达该层数就进行AllReduce。如该参数等于50,
    则最多每50层做一次 fused AllReduce。
 
 注意： AllReduce融合目前不支持sparse参数梯度。
 
-.. code:: shell
-
-    export FLAGS_fuse_parameter_memory_size=16 
-    export FLAGS_fuse_parameter_groups_size=50
-
 .. code:: python
 
     dist_strategy = fleet.DistributedStrategy()
+    dist_strategy.fuse_grad_size_in_MB=32
+    dist_strategy.fuse_grad_size_in_TFLOPS=20
     dist_strategy.fuse_all_reduce_ops=True
 
 分层 AllReduce
@@ -127,6 +116,11 @@ AllReduce
 
 对于多机模式，针对小数据量的通信，Ring
 AllReduce通信效率低，采用Hierarchical AllReduce可以缓解这一问题。
+分层AllReduce 运行如下图所示：
+
+.. image:: ../paddle_fleet/img/practice_1.png
+  :width: 600
+  :alt: 分层 AllReduce
 
 .. code:: python
 
@@ -134,27 +128,16 @@ AllReduce通信效率低，采用Hierarchical AllReduce可以缓解这一问题�
     dist_strategy.use_hierarchical_allreduce = True
     dist_strategy.hierarchical_allreduce_inter_nranks = 8
 
-选择通信模式和执行模式
-~~~~~~~~~~~~~~~~~~~~~~
+使用同步Allreduce
+~~~~~~~~~~~~~~~~~
 
 Fleet 使用多进程+NCCL2模式（collective）以获得更好的性能。
 在多进程模式下，每台服务器的每个GPU卡都会对应启动一个训练进程，
 集群中的所有进程之间会互相通信完成训练。以此方式最大限度的降低进程内部资源抢占的开销。
-对比在单进程开启ParallelGraph方法，多进程模式不但可以获得更高性能，
-而且无需考虑reader在多卡下io性能不足的问题，直接使用多进程提升数据读取IO效率。
 
-使用ParallelGraph模式相对而言会减少多进程管理，并提升性能，而且可以无需修改代码，只需要开启下列开关即可：
+.. code:: python
 
-.. code:: shell
-
-    export FLAGS_enable_parallel_graph=1
-
-如果是单机多卡模式，同样可以通过开启ParallelGraph来提升性能：
-
-.. code:: shell
-
-    export FLAGS_enable_parallel_graph=1
-    export FLAGS_sync_nccl_allreduce=1
+    dist_strategy.sync_nccl_allreduce=True
 
 设置合适的nccl通信器数量
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -225,9 +208,9 @@ socket 的通信方式将成为训练速度的瓶颈， 使多节点训练无法
 0.7 是指 70%的显存会预先分配。设置的范围是0.0~1.0。注意，
 设置成0.0会让每次显存分配都调用 cudaMalloc 这样会极大的降低训练性能。
 
-.. code:: shell
+.. code:: python
 
-    export FLAGS_fraction_of_gpu_memory_to_use=0.7
+    os.environ['FLAGS_fraction_of_gpu_memory_to_use'] = "0.98"
 
 降低scope drop频率和fetch频率
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -675,15 +658,3 @@ ExecutionStrategy
 |        |        |        |        |
 |        |        |        | True   |
 +--------+--------+--------+--------+
-
-参考
-----
-
-https://www.paddlepaddle.org.cn/documentation/docs/zh/advanced\_guide/performance\_improving/multinode\_training\_improving/dist\_training\_gpu.html
-https://www.paddlepaddle.org.cn/documentation/docs/zh/1.5/user\_guides/howto/training/cluster\_howto.html
-https://www.paddlepaddle.org.cn/documentation/docs/zh/1.5/advanced\_usage/best\_practice/dist\_training\_gpu.html#id17
-https://www.paddlepaddle.org.cn/documentation/docs/zh/1.5/advanced\_usage/best\_practice/training\_best\_practice.html
-https://www.paddlepaddle.org.cn/documentation/docs/zh/api\_cn/fluid\_cn/BuildStrategy\_cn.html
-https://www.paddlepaddle.org.cn/documentation/docs/zh/advanced\_guide/distributed\_training/cluster\_quick\_start.html
-https://paddlepaddle.org.cn/documentation/docs/zh/1.5/user\_guides/howto/training/cluster\_quick\_start.html
-https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/api\_guides/low\_level/distributed/sync\_training.html#nccl2
