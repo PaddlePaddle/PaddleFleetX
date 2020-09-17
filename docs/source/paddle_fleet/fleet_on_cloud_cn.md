@@ -32,17 +32,15 @@ DGC的基本思路是通过只传送重要梯度，即只发送大于给定阈�
 换个角度，从理论依据上来看，局部梯度累加等同于随时间推移增加batch size，（DGC相当于每一个梯度有自己的batch size）。设定 $F(w)$ 为需要优化的loss函数，则有着N个训练节点的同步分布式SGD更新公式如下
 
 $$
-F(w)=\\frac{1}{\|\\chi\|}\\sum\_{x\\in\\chi}f(x, w), 
+F(w)=\frac{1}{\|\chi\|}\sum_{x\in\chi}f(x, w) \\
+
+\qquad w_{t+1}=w_{t}-\eta\frac{1}{N b}\sum_{k=1}^{N}\sum_{x\in\mathcal{B}_{k,t}}\nabla f\left(x, w_{t}\right)\\
 $$
 
-$$
-\\qquad w\_{t+1}=w\_{t}-\\eta\\frac{1}{N b}\\sum\_{k=1}^{N}\\sum\_{x\\in\\mathcal{B}\_{k,t}}\\nabla f\\left(x, w\_{t}\\right) \\tag{1}
-$$
-
-其中$\chi$是训练集，$w$是网络权值，$f(x, w)$是每个样本$x \in \chi$的loss，$\eta$是学习率，N是训练节点个数，$\mathcal{B}\_{k, t}$代表第$k$个节点在第$t$个迭代时的minibatch，大小为b。
+其中$\chi$是训练集，$w$是网络权值，$f(x, w)$是每个样本$x \in \chi$的loss，$\eta$是学习率，N是训练节点个数，$\mathcal{B}_{k, t}$代表第$k$个节点在第$t$个迭代时的minibatch，大小为b。
 考虑权重的第i个值，在T次迭代后，可获得
 $$
-w\_{t+T}^{(i)}=w\_{t}^{(i)}-\\eta T \\cdot \\frac{1}{N b T} \\sum\_{k=1}^{N}\\left(\\sum\_{\\tau=0}^{T-1} \\sum\_{x \\in \\mathcal{B}\_{k, t+\\tau}} \\nabla^{(i)} f\\left(x, w\_{t+\\tau}\\right)\\right)  \\tag{2}
+w_{t+T}^{(i)}=w_{t}^{(i)}-\eta T \cdot \frac{1}{N b T} \sum_{k=1}^{N}\left(\sum_{\tau=0}^{T-1} \sum_{x \in \mathcal{B}_{k, t+\tau}} \nabla^{(i)} f\left(x, w_{t+\tau}\right)\right) 
 $$
 等式2表明局部梯度累加可以被认为batch size从$Nb$增大为$NbT$，其中T是$w^{(i)}$两次更新的稀疏通信间隔。
 
@@ -85,39 +83,41 @@ strategy.dgc_configs = {
 
 ##### 动量修正
 有着N个节点分布式训练中vanilla momentum SGD公式，
+
 $$
-u\_{t}=m u\_{t-1}+\\sum\_{k=1}^{N}\\left(\\nabla\_{k, t}\\right), \\quad w\_{t+1}=w\_{t}-\\eta u\_{t}  \\tag{3}
+u_{t}=m u_{t-1}+\sum_{k=1}^{N}\left(\nabla_{k, t}\right), \quad w_{t+1}=w_{t}-\eta u_{t} 
 $$
-其中$m$是动量因子，$N$是节点数，$\\nabla\_{k, t}=\\frac{1}{N b} \\sum\_{x \\in \\mathcal{B}\_{k, t}} \\nabla f\\left(x, w\_{t}\\right)$。
+
+其中$m$是动量因子，$N$是节点数，$\nabla_{k, t}=\frac{1}{N b} \sum_{x \in \mathcal{B}_{k, t}} \nabla f\left(x, w_{t}\right)$。
 考虑第i个权重$w^{(i)}$，在T次迭代后，权重更新公式如下，
 $$
-w\_{t+T}^{(i)}=w\_{t}^{(i)}-\\eta\\left[\\cdots+\\left(\\sum\_{\\tau=0}^{T-2} m^{\\tau}\\right) \\nabla\_{k, t+1}^{(i)}+\\left(\\sum\_{\\tau=0}^{T-1} m^{\\tau}\\right) \\nabla\_{k, t}^{(i)}\\right]  \\tag{4}
+w_{t+T}^{(i)}=w_{t}^{(i)}-\eta\left[\cdots+\left(\sum_{\tau=0}^{T-2} m^{\tau}\right) \nabla_{k, t+1}^{(i)}+\left(\sum_{\tau=0}^{T-1} m^{\tau}\right) \nabla_{k, t}^{(i)}\right]  
 $$
 如果直接应用动量SGD到稀疏梯度更新中，则有公式，
 $$
-v\_{k, t}=v\_{k, t-1}+\\nabla\_{k, t}, \\quad u\_{t}=m u\_{t-1}+\\sum\_{k=1}^{N} \\operatorname{sparse}\\left(v\_{k, t}\\right), \\quad w\_{t+1}=w\_{t}-\\eta u\_{t} \\tag{5}
+v_{k, t}=v_{k, t-1}+\nabla_{k, t}, \quad u_{t}=m u_{t-1}+\sum_{k=1}^{N} \operatorname{sparse}\left(v_{k, t}\right), \quad w_{t+1}=w_{t}-\eta u_{t}
 $$
-其中$v\_k$是训练节点k上的局部梯度累加项，一旦$v\_k$大于某一阈值，则会在第二项中压缩梯度进行动量更新，并使用sparse()函数获得mask清空大于阈值的梯度。
+其中$v_k$是训练节点k上的局部梯度累加项，一旦$v_k$大于某一阈值，则会在第二项中压缩梯度进行动量更新，并使用sparse()函数获得mask清空大于阈值的梯度。
 $w^{(i)}$在T次稀疏更新后的权重为,
 $$
-w\_{t+T}^{(i)}=w\_{t}^{(i)}-\\eta\\left(\\cdots+\\nabla\_{k, t+1}^{(i)}+\\nabla\_{k, t}^{(i)}\\right) \\tag{6}
+w_{t+T}^{(i)}=w_{t}^{(i)}-\eta\left(\cdots+\nabla_{k, t+1}^{(i)}+\nabla_{k, t}^{(i)}\right) 
 $$
-相比传统动量SGD，方程6缺失了累积衰减因子$\sum\_{\tau=0}^{T-1} m^{\tau}$，会导致收敛精度的损失。如下图(a)，正常梯度更新从A点到B点，但是方程6则从A点到C点。当稀疏度很高时，会显著降低模型性能，所以需要在方程5基础上对梯度进行修正。
+相比传统动量SGD，方程6缺失了累积衰减因子$\sum_{\tau=0}^{T-1} m^{\tau}$，会导致收敛精度的损失。如下图(a)，正常梯度更新从A点到B点，但是方程6则从A点到C点。当稀疏度很高时，会显著降低模型性能，所以需要在方程5基础上对梯度进行修正。
 <p align="center">
 <img src="https://raw.githubusercontent.com/PaddlePaddle/FluidDoc/develop/doc/fluid/advanced_guide/performance_improving/multinode_training_improving/images/dgc_without_momentum_correction.png" width="320"/>
 <img src="https://raw.githubusercontent.com/PaddlePaddle/FluidDoc/develop/doc/fluid/advanced_guide/performance_improving/multinode_training_improving/images/dgc_with_momentum_correction.png" width="320"/>
 </p>
 
-若将方程3中速度项$u\_t$当作“梯度”，则方程3第二项可认为是在”梯度“$u\_t$上应用传统SGD，前面已经证明了局部梯度累加在传统SGD上是有效的。因此，可以使用方程3局部累加速度项$u\_t$而非累加真实的梯度$\nabla\_{k, t}$来修正方程5，
+若将方程3中速度项$u_t$当作“梯度”，则方程3第二项可认为是在”梯度“$u_t$上应用传统SGD，前面已经证明了局部梯度累加在传统SGD上是有效的。因此，可以使用方程3局部累加速度项$u_t$而非累加真实的梯度$\nabla_{k, t}$来修正方程5，
 $$
-u\_{k, t}=m u\_{k, t-1}+\\nabla\_{k, t}, \\quad v\_{k, t}=v\_{k, t-1}+u\_{k, t}, \\quad w\_{t+1}=w\_{t}-\\eta \\sum\_{k=1}^{N} \\operatorname{sparse}\\left(v\_{k, t}\\right)  \\tag{7}
+u_{k, t}=m u_{k, t-1}+\nabla_{k, t}, \quad v_{k, t}=v_{k, t-1}+u_{k, t}, \quad w_{t+1}=w_{t}-\eta \sum_{k=1}^{N} \operatorname{sparse}\left(v_{k, t}\right)  
 $$
 修正后，如上图(b)，方程可正常从A点到B点。除了传统动量方程修正，论文还给出了Nesterov动量SGD的修正方程。
 
 ##### 局部梯度修剪
-梯度修剪是防止梯度爆炸的常用方法。这方法由Pascanu等人在2013年提出，当梯度的l2-norms和大于给定阈值时，就对梯度rescale。正常梯度修剪在梯度聚合后使用，而DGC因为每个节点独立的进行局部梯度累加，所以DGC在使用$G\_t$累加前对其进行局部梯度修剪。阈值缩放为原来的$N^{-1/2}$
+梯度修剪是防止梯度爆炸的常用方法。这方法由Pascanu等人在2013年提出，当梯度的l2-norms和大于给定阈值时，就对梯度rescale。正常梯度修剪在梯度聚合后使用，而DGC因为每个节点独立的进行局部梯度累加，所以DGC在使用$G_t$累加前对其进行局部梯度修剪。阈值缩放为原来的$N^{-1/2}$
 $$
-thr\_{G^{k}}=N^{-1 / 2} \\cdot thr\_{G}  \\tag{8}
+thr_{G^{k}}=N^{-1 / 2} \cdot thr_{G} 
 $$
 #### 克服迟滞效应
 因为推迟了较小梯度更新权重的时间，所以会有权重陈旧性问题。稀疏度为99.9%时大部分参数需600到1000步更新一次。迟滞效应会减缓收敛并降低模型精度。DGC中采用动量因子掩藏和预热训练来解决这问题。
@@ -125,26 +125,25 @@ $$
 ##### 动量因子掩藏
 DGC中使用下面方程来掩藏动量因子减缓陈旧性问题。
 $$
-Mask \\leftarrow\\left|v\_{k, t}\\right|>t h r, \\quad v\_{k, t} \\leftarrow v\_{k, t} \\odot \\neg Mask, \\quad u\_{k, t} \\leftarrow u\_{k, t} \\odot \\neg Mask \\tag{9}
+Mask \leftarrow\left|v_{k, t}\right|>t h r, \quad v_{k, t} \leftarrow v_{k, t} \odot \neg Mask, \quad u_{k, t} \leftarrow u_{k, t} \odot \neg Mask 
 $$
 此掩码可以停止延迟梯度产生的动量，防止陈旧梯度把权重引入错误的方向。
 
 #### 正则化(Weight Decay)项修正
 Paddle框架以Weight Decay的形式实现正则化。以L2Decay为例，公式(3)中传统momentum添加weight decay后公式为
 $$
-G\_{t}=\\sum\_{k=1}^{N}\\left(\\nabla\_{k, t}\\right)+\\lambda w\_{t}, \\quad  u\_{t}=m u\_{t-1}+G\_{t}, \\quad w\_{t+1}=w\_{t}-\\eta u\_{t} \\tag{10}
+G_{t}=\sum_{k=1}^{N}\left(\nabla_{k, t}\right)+\lambda w_{t}, \quad  u_{t}=m u_{t-1}+G_{t}, \quad w_{t+1}=w_{t}-\eta u_{t} 
+其中$\lambda$为Weight Decay系数，$G_{t}$为添加L2Decay项之后的聚合梯度。由于在公式7中进行了局部动量修正，所以按照相同思路在局部梯度上运用修正的Weight Decay项。如下公式在局部梯度上添加局部Weight Decay项即可。
 $$
-其中$\lambda$为Weight Decay系数，$G\_{t}$为添加L2Decay项之后的聚合梯度。由于在公式7中进行了局部动量修正，所以按照相同思路在局部梯度上运用修正的Weight Decay项。如下公式在局部梯度上添加局部Weight Decay项即可。
-$$
-\\nabla\_{k, t}=\\nabla\_{k, t}+\\frac{\\lambda}{N} w\_{t} \\tag{11}
+\nabla_{k, t}=\nabla_{k, t}+\frac{\lambda}{N} w_{t} 
 $$
 在模型实际训练中，通常会设置weight decay的系数$\lambda=10^{-4}$，在卡数较多如4机32卡的情况下局部weight decay系数为$\frac{\lambda}{N}=\frac{10^{-4}}{32}=3.125\*10^{-6}$，在数值精度上偏低，测试训练时会损失一定精度。为此还需对局部weight decay项进行数值修正。如下公式，
 $$
-\\nabla\_{k, t}^{'}=N \\nabla\_{k, t}+\\lambda w\_{t}, \\quad
-G\_{t}^{'}=\\sum\_{k=1}^{N}\\left(\\nabla\_{k, t}^{'}\\right)=N\\sum\_{k=1}^{N}\\left(\\nabla\_{k, t}\\right)+N\\lambda w\_{t}, \\quad
-G\_{t}=\\frac{G\_{t}^{'}}{N}=\\sum\_{k=1}^{N}\\left(\\nabla\_{k, t}\\right)+\\lambda w\_{t} \\tag{12}
+\nabla_{k, t}^{'}=N \nabla_{k, t}+\lambda w_{t}, \quad
+G_{t}^{'}=\sum_{k=1}^{N}\left(\nabla_{k, t}^{'}\right)=N\sum_{k=1}^{N}\left(\nabla_{k, t}\right)+N\lambda w_{t}, \quad
+G_{t}=\frac{G_{t}^{'}}{N}=\sum_{k=1}^{N}\left(\nabla_{k, t}\right)+\lambda w_{t}
 $$
-具体做法为对局部梯度乘以卡数求得$\nabla\_{k, t}^{'}$，此时$\lambda$项则无需除以卡数，聚合梯度求得$G\_{t}^{'}$再对聚合梯度除以卡数得到$G\_{t}$即可。
+具体做法为对局部梯度乘以卡数求得$\nabla_{k, t}^{'}$，此时$\lambda$项则无需除以卡数，聚合梯度求得$G_{t}^{'}$再对聚合梯度除以卡数得到$G_{t}$即可。
 
 上述策略已经在框架中实现，用户无须设置。
 
@@ -182,6 +181,7 @@ fleet.init(role)
 用户可以通过`X.applications`接口加载我们预先定义好的模型，如：Resnet50、VGG16、BERT等。并使用定制化的data_loader加载模型，同时可以定义训练中使用的batch_size等参数。
 ```python
 model = X.applications.Resnet50()
+batch_size = 32
 loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
 ```
 
@@ -202,7 +202,7 @@ dist_strategy.dgc_configs = {
     "sparsity": [0.984375, 0.996, 0.999]
 }
 
-optimizer = paddle.optimizer.Momentum(learning_rate=0.01, momentum=0.9)
+optimizer = fluid.optimizer.Momentum(learning_rate=0.01, momentum=0.9)
 optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
 optimizer.minimize(model.loss)
 ```
@@ -215,25 +215,23 @@ place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
 
-total_time = 0
 for i, data in enumerate(data_loader()):
     start_time = time.time()
-    cost_val = exe.run(paddle.static.default_main_program(),
-                       feed=data,
-                       fetch_list=[model.loss.name])
+    cost_val = exe.run(model.main_prog,
+                        feed=data,
+                        fetch_list=[model.loss.name])
+                        
     end_time = time.time()
-    total_time += (end_time - start_time)
     print(
-        "worker_index: %d, step%d cost = %f, total time cost = %f, step per second: %f, speed: %f"
-        % (fleet.worker_index(), i, cost_val[0], total_time,
-           (i - 9) / total_time, 1 / (end_time - start_time))
+        "worker_index: %d, step%d cost = %f, speed: %f"
+        % (fleet.worker_index(), i, cost_val[0], batch_size / (end_time - start_time)))
 ```
 
 #### 运行训练脚本
 
 一行启动单机多卡分布式训练：
 ```sh
-fleetrun --gpus 0,1,2,3,4,5,6,7 resnet50_dgc.py
+fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log ./resnet50_dgc.py 
 ```
 
 

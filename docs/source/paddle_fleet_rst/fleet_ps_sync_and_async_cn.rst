@@ -21,25 +21,25 @@ Speech
 
 .. code:: sh
 
-   # 下载并解压数据，训练数据讲保存至名为 raw_data 的文件夹
-   wget --no-check-certificate https://fleet.bj.bcebos.com/ctr_data.tar.gz
-   tar -zxvf ctr_data.tar.gz
+    # 下载并解压数据，训练数据讲保存至名为 raw_data 的文件夹
+    wget --no-check-certificate https://fleet.bj.bcebos.com/ctr_data.tar.gz
+    tar -zxvf ctr_data.tar.gz
 
 实用样例
 --------
 
-下面我们来介绍如何用Fleet接口，完成参数服务器分布式训练（假设训练脚本为ctr_app.py）。
+下面我们来介绍如何用Fleet接口，完成参数服务器分布式训练（假设训练脚本为ctr\_app.py）。
 
 导入依赖
 ~~~~~~~~
 
 .. code:: python
 
-   import os
-   import fleetx as X
-   import paddle.fluid as fluid
-   import paddle.distributed.fleet as fleet
-   import paddle.distributed.fleet.base.role_maker as role_maker
+    import os
+    import fleetx as X
+    import paddle.fluid as fluid
+    import paddle.distributed.fleet as fleet
+    import paddle.distributed.fleet.base.role_maker as role_maker
 
 定义分布式模式并初始化
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -49,19 +49,19 @@ Speech
 
 .. code:: python
 
-   configs = X.parse_train_configs()
-   role = role_maker.PaddleCloudRoleMaker()
-   fleet.init(role)
+    configs = X.parse_train_configs()
+    role = role_maker.PaddleCloudRoleMaker()
+    fleet.init(role)
 
 加载模型及数据
 ~~~~~~~~~~~~~~
 
-用户可以通过\ ``X.applications``\ 接口加载我们预先定义好的模型。在这个例子中我们将使用CTR-DNN模型，同时用户可以为模型定制的data_loader接口加载数据.
+用户可以通过\ ``X.applications``\ 接口加载我们预先定义好的模型。在这个例子中我们将使用CTR-DNN模型，同时用户可以为模型定制的data\_loader接口加载数据.
 
 .. code:: python
 
-   model = X.applications.MultiSlotCTR()
-   loader = model.load_multislot_from_file('./train_data')
+    model = X.applications.MultiSlotCTR()
+    loader = model.load_multislot_from_file('./train_data')
 
 定义同步训练 Strategy 及 Optimizer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -73,12 +73,12 @@ API中，用户可以使用\ ``fleet.DistributedStrategy()``\ 接口定义自己
 
 .. code:: python
 
-   dist_strategy = fleet.DistributedStrategy()
-   dist_strategy.a_sync = False
+    dist_strategy = fleet.DistributedStrategy()
+    dist_strategy.a_sync = False
 
-   optimizer = fluid.optimizer.SGD(learning_rate=0.0001)
-   optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
-   optimizer.minimize(model.loss)
+    optimizer = fluid.optimizer.SGD(learning_rate=0.0001)
+    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
+    optimizer.minimize(model.loss)
 
 开始训练
 ~~~~~~~~
@@ -92,13 +92,13 @@ API中，用户可以使用\ ``fleet.DistributedStrategy()``\ 接口定义自己
 
 .. code:: python
 
-   if fleet.is_server():
-       fleet.init_server()
-       fleet.run_server()
-   else:
-       fleet.init_worker()
-       trainer = X.Trainer(fluid.CPUPlace())
-       trainer.fit(model, loader, epoch=10)
+    if fleet.is_server():
+        fleet.init_server()
+        fleet.run_server()
+    else:
+        fleet.init_worker()
+        trainer = X.Trainer(fluid.CPUPlace())
+        trainer.fit(model, loader, epoch=10)
 
 运行训练脚本
 ~~~~~~~~~~~~
@@ -108,4 +108,4 @@ API中，用户可以使用\ ``fleet.DistributedStrategy()``\ 接口定义自己
 
 .. code:: sh
 
-   fleetrun --server_num=1 --worker_num=2 ctr_app.py
+    fleetrun --server_num=1 --worker_num=2 ctr_app.py
