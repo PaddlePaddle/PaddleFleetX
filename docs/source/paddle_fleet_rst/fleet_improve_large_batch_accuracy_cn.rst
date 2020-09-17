@@ -93,10 +93,12 @@ LARS 优化算法的公式如下:
 .. math::
 
     local\_learning\_rate = learning\_rate * lars\_coeff * 
-        \frac{||param||}{||gradient|| + lars\_weight\_decay * ||param||} \\
+            \frac{||param||}{||gradient|| + lars\_weight\_decay * ||param||} 
 
+.. math::
     velocity = mu * velocity + local\_learning\_rate * (gradient + lars\_weight\_decay * param + epsilon) \\
 
+.. math::
     param = param - velocity \\
 
 可以看到LARS 其实是在 带\ ``weight decay`` 的\ ``momentum``
@@ -206,13 +208,19 @@ LAMB
 
 LAMB 优化算法的公式如下:
 
-..  math::
+.. math::
 
     m_t = \beta_1 m_{t - 1}+ (1 - \beta_1)g_t \\
 
+.. math::
+
     v_t = \beta_2 v_{t - 1}  + (1 - \beta_2)g_t^2 \\
 
+.. math::
+
     r_t = \frac{m_t}{\sqrt{v_t}+\epsilon} \\
+
+.. math::
 
     w_t = w_{t-1} -\eta_t \frac{\left \| w_{t-1}\right \|}{\left \| r_t + \lambda w_{t-1}\right \|} (r_t + \lambda w_{t-1}) \\
 
