@@ -2,7 +2,7 @@
 ===========================
 
 在网络带宽较低的训练场景（如：
-共有云上训练，联邦训练）中，梯度同步在低带宽网络下的延迟成为训练速度的主要瓶颈。
+公有云上训练，联邦训练）中，梯度同步在低带宽网络下的延迟成为训练速度的主要瓶颈。
 Fleet 实现了： ``Deep Gradient Compression`` 和 ``local SGD``
 两种训练策略来针对性解决这一问题。
 
@@ -15,7 +15,7 @@ DGC 简介
 大规模分布式训练需要较高的网络带宽以便进行梯度的聚合更新，这限制了多节点训练时的可扩展性同时也需要昂贵的高带宽设备。在低带宽云网络等环境下进行分布式训练会变得更加糟糕。
 `Deep Gradient Compression <https://arxiv.org/abs/1712.01887>`__
 发现：分布式SGD中有99.9%的梯度交换都是冗余的，可以使用深度梯度压缩选择重要梯度进行通信来减少通信量，降低对通信带宽的依赖。FleetX
-实现了DGC的稀疏通信方式，可有效在低配网络下进行GPU分布式训练。FleetX
+实现了DGC的稀疏通信方式，可有效在低配网络下进行GPU分布式训练。Fleet
 实现了 DGC 论文中的 ``预热训练 (warming up training)``,
 ``动量修正 (Momentum Correction)``,
 ``局部梯度修剪 (local gradient clipping)``,
@@ -23,7 +23,7 @@ DGC 简介
 ``正则化项修正 (Weight Decay Correction)``
 避免稀疏梯度通信训练带来的最终模型精度损失。
 
-下面将介绍 DGC 稀疏通信方式的适用场景及、基本原理，FleetX 中 DGC
+下面将介绍 DGC 稀疏通信方式的适用场景及、基本原理，Fleet 中 DGC
 的效果和使用方法。
 
 适用场景
@@ -31,7 +31,7 @@ DGC 简介
 
 DGC稀疏通信在低带宽通信瓶颈时会有较大的性能提升，但\ **在单机多卡及RDMA网络通信并非瓶颈情况下**\ ，并不会带来性能上的提升。同时由于AllGather的通信量会随卡数的增多而增大，所以DGC的多机训练规模也不宜过大。故DGC适用于低配网络，同时节点规模不宜过大，如>128张卡。在云网络或高带宽网络设备昂贵时，DGC可有效降低训练成本。
 
-FleetX 效果
+Fleet 效果
 ~~~~~~~~~~~
 
 -  模型：FasterRCNN
@@ -495,7 +495,7 @@ local SGD 中只有两个用户设置参数 ``auto`` 和
    dist_strategy.localsgd_configs = {
                        "k_steps": 1,
                    }
-   optimizer = paddle.fluid.optimizer.SGD(learning_rate=0.01)
+   optimizer = fluid.fluid.optimizer.SGD(learning_rate=0.01)
    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
    optimizer.minimize(model.loss)
 

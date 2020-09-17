@@ -14,6 +14,10 @@ Network》 <https://arxiv.org/abs/1503.02531>`__
 
 如下图所示，训练步骤可以分为两步：
 
+.. image:: ../paddle_fleet/img/distillation_1.png
+  :width: 1080
+  :alt: 蒸馏过程
+
 -  训练好一个Teacher模型。
 -  使用Teacher模型的知识来训练Student模型。
    所谓Teacher模型的知识是指Teacher模型的推理结果，我们称之为soft
@@ -72,6 +76,10 @@ DistillReader
 ``DistillReader``
 来封装Student模型与Teacher模型之间的通信，访问Teacher服务。
 
+.. image:: ../paddle_fleet/img/distillation_2.png
+  :width: 890
+  :alt: DistillReader
+
 DistillReader
 产生可供Student模型训练的数据reader。如上图所示，Student模型将训练样本和标签传入训练reader，DistillReader从训练reader中读取训练样本发送给Teacher模型，然后获取推理结果。
 
@@ -85,10 +93,14 @@ Serving将多个Teacher模型部署成服务，并注册服务到Redis数据库�
 
 STUDENT模型给TEACHER模型发送样本并获取推理结果，而TEACHER模型服务侧则可以随意增删，弹性调整。
 
+.. image:: ../paddle_fleet/img/distillation_3.png
+  :width: 1080
+  :alt: 可容错弹性服务
+
 快速开始
 --------
 
-下文通过训练图像分类模型来简单介绍FleetX服务型蒸馏训练的使用。
+下文通过训练图像分类模型来简单介绍Fleet服务型蒸馏训练的使用。
 
 为简单起见，使用的是单机环境，服务端和客户端部署在了同一个服务器上，服务端的IP地址是127.0.0.1。如果部署在不同设备上，修改下代码中的IP地址即可。
 
