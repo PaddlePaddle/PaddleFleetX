@@ -3,7 +3,7 @@
 
 在网络带宽较低的训练场景（如：
 共有云上训练，联邦训练）中，梯度同步在低带宽网络下的延迟成为训练速度的主要瓶颈。
-Fleet 实现了： ``Deep Gradient Compression`` 和 ``local SGD``
+Fleet 实现了： ``Deep Gradient Compression`` 和 ``Local SGD``
 两种训练策略来针对性解决这一问题。
 
 DGC 优化低配网络的分布式GPU训练
@@ -328,7 +328,7 @@ DGC 相关策略
 
     for i, data in enumerate(data_loader()):
         start_time = time.time()
-        cost_val = exe.run(model.default_main_program(),
+        cost_val = exe.run(model.main_prog,
                             feed=data,
                             fetch_list=[model.loss.name])
                             
@@ -346,6 +346,16 @@ DGC 相关策略
 
     fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log ./resnet50_dgc.py 
 
+    # reader shuffle seed 0
+    # trainerid, trainer_count 0 8
+    # read images from 0, length: 160146, lines length: 160146, total: 1281168
+    # worker_index: 0, step0 cost = 7.151402, speed: 37.698432
+    # worker_index: 0, step1 cost = 7.112389, speed: 101.518513
+    # worker_index: 0, step2 cost = 7.004275, speed: 111.062341
+    # worker_index: 0, step3 cost = 7.039385, speed: 62.173126
+    # worker_index: 0, step4 cost = 6.985911, speed: 104.058060
+    # ......
+
 使用Local SGD 优化低带宽下分布式训练
 ------------------------------------
 
@@ -355,20 +365,21 @@ Local SGD 简介
 在使用 distributed SGD
 进行数据并行的分布式训练时，常会遇到以下两个问题：
 
--  分布式训练的吞吐会受到集群中慢节点（straggling
-   node）和随机通信延迟的影响。
+-  分布式训练的吞吐会受到集群中随机慢节点（straggling
+   node）和通信延迟的影响。
 -  数据并行分布式增大了训练实际的batch size，过大的batch size
    会影响最终的训练精度。
 
-local SGD
+Local SGD
 通过延长节点间同步的间隔(局部异步训练)来减轻慢节点的影响和减少通信频率，以此提升训练的吞吐速度；另一方面，为了减小相对于本地训练（小batch
 size）的精度损失，\ `DON’T USE LARGE MINI-BATCHES, USE LOCAL
 SGD <https://arxiv.org/abs/1808.07217>`__ 和 `ADAPTIVE COMMUNICATION
 STRATEGIES TO ACHIEVE THE BEST ERROR-RUNTIME TRADE-OFF IN LOCAL-UPDATE
 SGD <https://arxiv.org/abs/1810.08313>`__
-分别提出了：\ ``post-local SGD`` 和
-``自适应步长 (Adaptive Communication)``
-策略，来减少参数同步频率降低带来的精度损失。
+分别提出了：\ ``post-Local SGD`` 和
+``自适应步长 (Adaptive Communication) Local SGD``
+策略，来减少参数同步频率降低带来的精度损失。 Synchronous SGD 和 Local
+SGD 在通信同步上的差异如下图所示。
 
 .. raw:: html
 
@@ -378,29 +389,40 @@ SGD <https://arxiv.org/abs/1810.08313>`__
 
    </p>
 
-在local SGD 训练中，集群中的每个 worker 各自会独立的进行 H 个连续的 SGD
+在Local SGD 训练中，集群中的每个 worker 各自会独立的进行 H 个连续的 SGD
 更新， 然后集群中的所有 worker 会进行通信，同步（averaging）所有 workers
-上的参数。一个双 workers，同步间隙为3 iterations 的local
-SGD过程如上图所示。黄绿两条路径表示两个 workers 各自的 local SGD
+上的参数。一个双 workers，同步间隙为3 iterations 的Local
+SGD过程如下图所示。黄绿两条路径表示两个 workers 各自的 Local SGD
 更新过程，中间的蓝色路径表示同步后的模型所在的位置。
 
-local
+.. raw:: html
+
+   <p align="center">
+
+.. raw:: html
+
+   </p>
+
+Local
 SGD中的一个关键问题是如何确定参数同步的间隔(频率)，以到达训练吞吐和训练精度间更好的平衡：
 
 -  增大参数同步的间隔可以减少 workers 间通信延迟的影响提高训练吞吐.
 -  但增大同步间隔可能会造成最终训练精度的损失。
    `[1] <https://arxiv.org/abs/1708.01012>`__
 
-post-local SGD 将训练过程分成两个阶段：第一阶段 wokers 间同步的间隔为 1
-iteration，即同步SGD，来保证最终训练精度；在第二阶段增大同步间隔到固定常数
-H iterations，来提升训练吞吐。其公式如下：
+以下两个策略从不同角度试图达到更好的平衡：
 
-Adaptive Communication local SGD
-通过动态的调整参数同步的间隔来尝试达到训练吞吐和精度间的更好的平衡。在训练初始或者上一段参数同步完成后，根据如下公式计算一下次参数同步的间隔（iteration）。详细的公式推导和参数定义请参考\ `原论文 <https://arxiv.org/abs/1808.07217>`__\ 。
+-  `Post Local SGD <https://arxiv.org/abs/1808.07217>`__
+   将训练过程分成两个阶段：第一阶段 wokers 间同步的间隔为 1
+   iteration，即同步SGD，来保证最终训练精度；在第二阶段增大同步间隔到固定常数
+   H iterations，来提升训练吞吐。其公式如下：
+-  `Adaptive Communication Local
+   SGD <https://arxiv.org/abs/1808.07217>`__
+   通过动态的调整参数同步的间隔来尝试达到训练吞吐和精度间的更好的平衡。在训练初始或者上一段参数同步完成后，根据如下公式计算一下次参数同步的间隔（iteration）。详细的公式推导和参数定义请参考原论文。
 
-Fleet 中实现了 ``Naive local SGD`` 和
-``Adaptive Communication local SGD`` 两种策略。 中下文将给出 Fleet中
-local SGD 的实践效果，并通过一个简单例子介绍如何在Fleet 中使用 local
+Fleet 中实现了 ``Post Local SGD`` 和
+``Adaptive Communication Local SGD`` 两种策略。 中下文将给出 Fleet中
+Local SGD 的实践效果，并通过一个简单例子介绍如何在Fleet 中使用 Local
 SGD。
 
 Fleet 效果
@@ -432,18 +454,18 @@ Fleet 效果
 | ADACOMM      | 8945.74   | 0.7555   | 0.9270   |
 +--------------+-----------+----------+----------+
 
-可以看到在 navie local SGD
+可以看到在 navie Local SGD
 （固定同步间隔）情况下，更新间隔越长训练的吞吐越高，但是模型的最终进度也会损失越大。
 当使用 ADAPTIVE COMMUNICATION
 策略后，训练在吞吐和精度间达到了一个更好的平衡。
 
-local SGD 快速开始
+Local SGD 快速开始
 ~~~~~~~~~~~~~~~~~~
 
-下文将以在单机8卡中训练 ResNet50 为例子简单介绍 Fleet 中 local SGD
+下文将以在单机8卡中训练 ResNet50 为例子简单介绍 Fleet 中 Local SGD
 的用法。 需要注意的是 单机八卡的通信都在同一节点内，
 一般情况下参数同步并不会成为训练的瓶颈， 这里只是以其为例子，介绍Fleet
-中 local SGD 参数的设置。
+中 Local SGD 参数的设置。
 
 添加依赖
 ^^^^^^^^
@@ -476,37 +498,55 @@ local SGD 快速开始
 .. code:: python
 
     model = X.applications.Resnet50()
+    batch_size = 32
     loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
 
-定义local SGD 相关策略
+定义Local SGD 相关策略
 ^^^^^^^^^^^^^^^^^^^^^^
 
 用户首先需要定义paddle SGD 对象，并在SGD 对象中设置学习率参数。Fleet
-local SGD 中只有两个用户设置参数 ``auto`` 和
+Local SGD 中只有两个用户设置参数 ``auto`` 和
 ``k_step``\ ，局部更新和参数同步都由框架自动完成：
 
--  在Naive local SGD 中： ``auto = Flase``\ ，
-   用户需要设置一个固定的常数 ``k_step``
-   作为训练过程中的全局参数更新间隔。
--  在 自适应步长 local SGD中： ``auto = True``\ ，
-   用户需要设置\ ``k_step``
-   作为第一次参数同步的间隔，之后的同步间隔将由上文中的公式动态确定，在学习率较大时，参数变化大，减小step，多进行通信从而保证快速收敛；在学习率较小时，参数变化小，增大step，减少通信次数，从而提升训练速度。
-   需要注意的是自适应步长策略中，系统会默认限制最大的同步间隔为
-   ``16 steps``\ ，当公式计算出的间隔大于16 时，按16 steps
-   进行参数同步。
+用户首先需要定义paddle SGD 对象，并在SGD 对象中设置学习率参数。目前local
+SGD和自适应步长 local SGD都仅支持SGD和Momentum两种优化器。
+
+-  在\ **Post Local SGD** 中，有两个用户设置参数 ``begin_step`` 和
+   ``k_steps``\ ，局部更新和参数同步都由框架自动完成。begin\_step
+   指定从第几个step之后进行local SGD算法，取值为大于0的整数；k\_step
+   指定训练过程中的全局参数更新间隔，取值为大于0的整数。
 
 .. code:: python
 
-    dist_strategy = fleet.DistributedStrategy()
+    dist_strategy = fleet.DistributedStrategy() 
+    dist_strategy.localsgd = True 
+    dist_strategy.localsgd_configs = { 
+    "k_steps": 1, 
+    "begin_step": 1, 
+    } 
 
-    dist_strategy.localsgd = True
-    dist_strategy.auto = True
-    dist_strategy.localsgd_configs = {
-                        "k_steps": 1,
-                    }
-    optimizer = paddle.fluid.optimizer.SGD(learning_rate=0.01)
-    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
+    optimizer = fluid.fluid.optimizer.SGD(learning_rate=0.01) 
+    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy) 
     optimizer.minimize(model.loss)
+
+-  在 **自适应步长 local SGD** 中，有两个用户设置参数 ``begin_step`` 和
+   ``init_k_steps``\ 。begin\_step 指定从第几个step之后进行自适应local
+   SGD算法，取值为大于0的整数；用户需要设置init\_k\_steps作为第一次参数同步的间隔，之后的同步间隔将由上文中的公式动态确定，在学习率较大时，参数变化大，减小step，多进行通信从而保证快速收敛；在学习率较小时，参数变化小，增大step，减少通信次数，从而提升训练速度。
+   需要注意的是自适应步长策略中，系统会默认限制最大的同步间隔为 16
+   step，当公式计算出的间隔大于16 时，按16 steps 进行参数同步。
+
+.. code:: python
+
+    dist_strategy = fleet.DistributedStrategy() 
+    dist_strategy.adaptive_localsgd = True 
+    dist_strategy.adaptive_localsgd_configs = { 
+    "init_k_steps": 1, 
+    "begin_step": 1, 
+    } 
+
+    optimizer = fluid.fluid.optimizer.SGD(learning_rate=0.01) 
+    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy) 
+    optimizer.minimize(model.loss) 
 
 开始训练
 ^^^^^^^^
@@ -519,18 +559,16 @@ local SGD 中只有两个用户设置参数 ``auto`` 和
     exe = fluid.Executor(place)
     exe.run(fluid.default_startup_program())
 
-    total_time = 0
     for i, data in enumerate(data_loader()):
         start_time = time.time()
-        cost_val = exe.run(paddle.static.default_main_program(),
-                           feed=data,
-                           fetch_list=[model.loss.name])
+        cost_val = exe.run(model.main_prog,
+                            feed=data,
+                            fetch_list=[model.loss.name])
+
         end_time = time.time()
-        total_time += (end_time - start_time)
         print(
-            "worker_index: %d, step%d cost = %f, total time cost = %f, step per second: %f, speed: %f"
-            % (fleet.worker_index(), i, cost_val[0], total_time,
-               (i - 9) / total_time, 1 / (end_time - start_time))
+            "worker_index: %d, step%d cost = %f, speed: %f"
+            % (fleet.worker_index(), i, cost_val[0], batch_size / (end_time - start_time)))
 
 运行训练脚本
 ^^^^^^^^^^^^
@@ -539,4 +577,14 @@ local SGD 中只有两个用户设置参数 ``auto`` 和
 
 .. code:: sh
 
-    fleetrun --gpus 0,1,2,3,4,5,6,7 resnet50_localsgd.py
+    fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log resnet50_localsgd.py
+
+    # reader shuffle seed 0
+    # trainerid, trainer_count 0 8
+    # read images from 0, length: 160146, lines length: 160146, total: 1281168
+    # worker_index: 0, step0 cost = 7.151402, speed: 37.698432
+    # worker_index: 0, step1 cost = 7.112389, speed: 101.518513
+    # worker_index: 0, step2 cost = 7.004275, speed: 111.062341
+    # worker_index: 0, step3 cost = 7.039385, speed: 62.173126
+    # worker_index: 0, step4 cost = 6.985911, speed: 104.058060
+    # ......
