@@ -20,6 +20,10 @@ Network》 <https://arxiv.org/abs/1503.02531>`__
    label，这个soft
    label将作为Student网络的训练目标，Student的推理结果需要尽可能接近Teacher的推理结果。
 
+.. image:: ../paddle_fleet/img/distillation_1.png
+  :width: 600
+  :alt: distillation
+
 服务型蒸馏训练
 ^^^^^^^^^^^^^^
 
@@ -74,6 +78,10 @@ DistillReader
 ``DistillReader``
 来封装Student模型与Teacher模型之间的通信，访问Teacher服务。
 
+.. image:: ../paddle_fleet/img/distillation_2.png
+  :width: 600
+  :alt: DistillReader
+
 DistillReader
 产生可供Student模型训练的数据reader。如上图所示，Student模型将训练样本和标签传入训练reader，DistillReader从训练reader中读取训练样本发送给Teacher模型，然后获取推理结果。
 
@@ -86,6 +94,10 @@ DistillReader
 Serving将多个Teacher模型部署成服务，并注册服务到Redis数据库中；Student模型则作为客户端从服务发现中查询所需的Teacher服务；服务发现从Redis数据库查询并按某种负载均衡策略返回客户端所需的Teacher列表；每当Teacher变化时，客户端就可以实时拿到最新Teacher列表，连接Teacher进行蒸馏训练，不用担心发生由于连接到被收回的Teacher资源而导致任务失败的请况。
 
 STUDENT模型给TEACHER模型发送样本并获取推理结果，而TEACHER模型服务侧则可以随意增删，弹性调整。
+
+.. image:: ../paddle_fleet/img/distillation_3.png
+  :width: 600
+  :alt: DistillReader
 
 快速开始
 --------
