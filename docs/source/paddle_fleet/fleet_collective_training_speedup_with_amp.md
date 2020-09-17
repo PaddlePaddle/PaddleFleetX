@@ -12,35 +12,35 @@
 2. 加速GPU 数学运算速度 (需要GPU 支持[[1]](https://docs.nvidia.com/deeplearning/performance/mixed-precision-training/index.html#tensorop))
     * GPU上 FP16 吞吐是FP32 的 2 - 8 倍[[2]](https://arxiv.org/abs/1710.03740)
 
-FleetX 支持自动混合精度计算, 并实现了 `FP32 参数副本及更新`,  `Dynamic loss scaling`,  `op黑白名单` 等功能来避免FP16 因动态范围较小而可能带来的模型最终精度损失. 
-FleetX 并提供了简单易用的API 接口, 用户无须修改参数. 就可将自动混合精度应用到原有的分布式训练中进一步提升训练速度.
+Fleet 支持自动混合精度计算, 并实现了 `FP32 参数副本及更新`,  `Dynamic loss scaling`,  `op黑白名单` 等功能来避免FP16 因动态范围较小而可能带来的模型最终精度损失. 
+Fleet 并提供了简单易用的API 接口, 用户无须修改参数. 就可将自动混合精度应用到原有的分布式训练中进一步提升训练速度.
 
-中下文将通过一个简单例子介绍如如何通过 FleetX将实现混合精度的分布式训练, 另外给出我们使用 FleetX 进行同步训练加速的实践.
+中下文将通过一个简单例子介绍如如何通过 Fleet 将实现混合精度的分布式训练, 另外给出我们使用 Fleet 进行同步训练加速的实践.
 
 
-## FleetX 效果
+## Fleet 效果
 环境: 4 机 32卡 V100-32GB
 
 | imagenet | 单卡 batch size | 速度 img/s | top1 |
 |:---:|:---:|:---:|:---:|
-|[VGG16-FP32](https://arxiv.org/abs/1708.03888)| 128 | TBA |  76.3% |
-|[VGG16-AMP](https://arxiv.org/abs/1708.03888)| 128 | TBA |  76.3% |
-|[VGG16-FP32](https://arxiv.org/abs/1708.03888)| 256 | OOM |  OOM |
-|[VGG16-AMP](https://arxiv.org/abs/1708.03888)| 256 | TBA |  76.3% |
+|[VGG16-FP32]| 32 | 4133 |  55.4 % |
+|[VGG16-AMP]| 32 | 7238 |  54.6 % |
+
 
 | imagenet | 单卡 batch size | 速度 img/s | top1 |
 |:---:|:---:|:---:|:---:|
-|[Resnet50-FP32](https://arxiv.org/abs/1708.03888)| 128 | 8410 |  TBA |
-|[Resnet50-AMP](https://arxiv.org/abs/1708.03888)| 128 | TBA |  76.3% |
-|[Resnet50-FP32](https://arxiv.org/abs/1708.03888)| 256 | OOM |  OOM |
-|[Resnet50-AMP](https://arxiv.org/abs/1708.03888)| 256 | 29440 |  76.3% |
+|[Resnet50-FP32]| 128 | 11126 |  76.2% |
+|[Resnet50-AMP]| 128 | 25591 |  76.2% |
+|[Resnet50-FP32]| 256 | OOM |  OOM |
+|[Resnet50-AMP]| 256 | 29440 |  76.2% |
 
 ## AMP 快速开始
 这里以在单机多卡上训练Resent50 为简单例子介绍FleetX 中 AMP的用法.
+
 #### AMP 简述
 
 ##### FP32 参数副本及更新
-
+https://github.com/PaddlePaddle/FleetX/blob/develop/docs/source/paddle_fleet/img/AMP_1.png
 <img src='./img/AMP_1.png' width = "952" height = "483" align="middle" description="xxxxxxxxxx" />
 
 如上图所示, 在AMP 中, 模型参数 `weight` , 前向中间的结果`activation`, 反向的`gradient` 都以FP16 形式存储, 由此可以少显存所需空间和读写所需带宽. 

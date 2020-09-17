@@ -10,26 +10,22 @@
 
 LARS[[3]](https://arxiv.org/abs/1708.03888) 和 LAMB[[4]](https://arxiv.org/abs/1904.00962) 两个优化策略常用来解决上述超大batch 训练中的收敛问题. 
 
-FleetX 实现了这两种优化策略, 并提供简单易用API 接口. 通过这两个优化策略, 我们在超大batch 场景中实现了更快的收敛速度和无损的精度, 结合FleetX 中其他的策略(e.g. [AMP](https://LINK_to_be_added)) 极大缩短的训练整体的time2train. 
+Fleet 实现了这两种优化策略, 并提供简单易用API 接口. 通过这两个优化策略, 我们在超大batch 场景中实现了更快的收敛速度和无损的精度, 结合FleetX 中其他的策略(e.g. [AMP](https://LINK_to_be_added)) 极大缩短的训练整体的time2train. 
 
-下文将通过一个简单例子介绍如何在Fleet 数据并行训练框架中使用 LARS 和LAMB, 另外给出我们使用 FleetX 实践的效果和代码.
+下文将通过一个简单例子介绍如何在Fleet 数据并行训练框架中使用 LARS 和LAMB, 另外给出我们使用 Fleet 实践的效果和代码.
 
-## FleetX 效果
+## Fleet 效果
 使用 LARS 可以在超大 batch 并行（batch size>= 8k）时达到达到一下效果：
  * 如果目标是收敛精度： 达到 76.3 % 的 resnet50 state of art 精度
  * 如果目标是收敛速度优先：60 epoch 内收敛 75.9% Top1 （MLperf）
  
 |resnet50 imagenet |Global batch size|epoch| top1 |
 |:---:|:---:|:---:|:---:|
-|[Goyal et al](https://arxiv.org/abs/1706.02677)| 8k | 90 | 76.3% |
-|[LARS](https://arxiv.org/abs/1708.03888)| 32k | 90 | 72.3% |
-|[FleetX: lars + amp](https://LINK_to_example_code) |16k | 60 | 75.9%|
-|[FleetX: lars + amp](https://LINK_to_example_code) |32k | TBA | TBA |
+|[Goyal et al]| 8k | 90 | 76.3% |
+|[LARS]| 32k | 90 | 72.3% |
+|[Fleet: lars + amp] |16k | 60 | 76.2%|
+|[Fleet: lars + amp] |32k | 62 | 75.9% |
 
-|bert en-de |Global batch size|epoch| top1 |
-|:---:|:---:|:---:|:---:|
-|[FleetX: lamb + amp](https://LINK_to_example_code) |TBA | TBA | TBA |
-|[FleetX: lamb + amp](https://LINK_to_example_code) |TBA | TBA | TBA |
 
 ## LARS 
 我们以在单机多卡上Resent50 训练为简单例子介绍FleetX 中 lars的用法.

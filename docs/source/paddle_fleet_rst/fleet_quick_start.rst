@@ -19,9 +19,9 @@ FleetX依赖Paddle
 
 ::
 
-   import paddle
-   import paddle.distributed.fleet as fleet
-   import fleetx as X
+    import paddle
+    import paddle.distributed.fleet as fleet
+    import fleetx as X
 
 2. 构建模型
 ~~~~~~~~~~~
@@ -31,14 +31,14 @@ FleetX依赖Paddle
 
 ::
 
-   # configs中记录了训练相关的参数，如学习率等
-   configs = X.parse_train_configs()
-   # 加载模型至model，并加载数据至dataloader
-   model = X.applications.Resnet50()
-   loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
+    # configs中记录了训练相关的参数，如学习率等
+    configs = X.parse_train_configs()
+    # 加载模型至model，并加载数据至dataloader
+    model = X.applications.Resnet50()
+    loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
 
-   # 定义优化器
-   optimizer = paddle.optimizer.Momentum(learning_rate=configs.lr, momentum=configs.momentum)
+    # 定义优化器
+    optimizer = paddle.optimizer.Momentum(learning_rate=configs.lr, momentum=configs.momentum)
 
 3. 定义分布式策略
 ~~~~~~~~~~~~~~~~~
@@ -47,13 +47,13 @@ FleetX依赖Paddle
 
 ::
 
-   # 使用collective GPU分布式模式
-   fleet.init(is_collective=True)
-   # 使用默认的分布式策略
-   dist_strategy = ifleet.DistributedStrategy()
-   # 将单机模型转换为分布式
-   optimizer = paddle.distributed.fleet.distributed_optimizer(optimizer, dist_strategy)
-   optimizer.minimize(model.loss)
+    # 使用collective GPU分布式模式
+    fleet.init(is_collective=True)
+    # 使用默认的分布式策略
+    dist_strategy = ifleet.DistributedStrategy()
+    # 将单机模型转换为分布式
+    optimizer = paddle.distributed.fleet.distributed_optimizer(optimizer, dist_strategy)
+    optimizer.minimize(model.loss)
 
 4. 开始训练
 ~~~~~~~~~~~
@@ -62,15 +62,15 @@ FleetX依赖Paddle
 
 ::
 
-   exe = fluid.Executor(place)
-   exe.run(fluid.default_startup_program())
+    exe = fluid.Executor(place)
+    exe.run(fluid.default_startup_program())
 
-   for epoch_id in range(5):
-       step_id = 0 
-       for data in loader:
-           cost_val = exe.run(paddle.default_main_program(),
-                          feed=data,
-                          fetch_list=[model.loss.name])
-           if step_id % 100 == 0:
-               print("worker index: %d, epoch: %d, step: %d, train loss: %f" 
-                    % (fleet.worker_index(), epoch_id, step_id, cost_val[0]))
+    for epoch_id in range(5):
+        step_id = 0 
+        for data in loader:
+            cost_val = exe.run(paddle.default_main_program(),
+                           feed=data,
+                           fetch_list=[model.loss.name])
+            if step_id % 100 == 0:
+                print("worker index: %d, epoch: %d, step: %d, train loss: %f" 
+                     % (fleet.worker_index(), epoch_id, step_id, cost_val[0]))

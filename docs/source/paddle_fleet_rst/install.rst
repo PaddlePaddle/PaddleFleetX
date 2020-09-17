@@ -8,4 +8,4 @@ Resnet50 without learning to write a Paddle Model.
 
 .. code:: bash
 
-   pip install fleet-lightning
+    pip install fleet-lightning

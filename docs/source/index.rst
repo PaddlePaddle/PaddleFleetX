@@ -50,7 +50,6 @@
    paddle_fleet_rst/fleet_ps_geo_async_cn	  
    paddle_fleet_rst/fleet_and_edl_for_distillation_cn
    paddle_fleet_rst/fleet_on_cloud_cn
-   paddle_fleet_rst/fleet_local_sgd_for_large_batch_training
 
 .. toctree::
    :maxdepth: 1
