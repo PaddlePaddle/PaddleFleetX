@@ -22,14 +22,6 @@ import yaml
 import os
 
 
-
-def barrier():
-    fleet.init(is_collective=True)
-    role = fleet._role_maker
-    fleet_util._set_role_maker(role)
-    fleet_util.barrier(comm_world='worker')
-
-
 def get_md5(file_path):
     hash_md5 = hashlib.md5()
     with open(file_path, "rb") as f:
@@ -52,6 +44,8 @@ def check_exists(filelist, local_path):
 
 
 def get_file_shard(node_id, node_num, local_path):
+    while not os.path.exists('{}/filelist.txt'.format(local_path)):
+        sleep(3)
     full_list = []
     with open("{}/filelist.txt".format(local_path), 'rb') as fin:
         for line in fin:
@@ -63,18 +57,47 @@ class Downloader(object):
     def __init__(self):
         pass
 
-    def download_from_hdfs(self, fs_yaml=None, local_path="./", sharded=True):
+    def download_from_hdfs(self,
+                           fs_yaml=None,
+                           local_path="./",
+                           shard_num=-1,
+                           shard_id=-1,
+                           process_num=10):
         """
         Download from hdfs
         The configurations are configured in fs_yaml file:
         TODO: add example and yaml argument fields introduction
         """
-        role = fleet.base.role_maker.PaddleCloudRoleMaker(is_collective=True)
-        fleet.init(role)
+
+        def multi_download(client,
+                           hdfs_path,
+                           local_path,
+                           filelist,
+                           process_num=process_num):
+            def _subprocess_download(files):
+                for ff in files:
+                    client.download('{}/{}'.format(hdfs_path, ff),
+                                    '{}/{}'.format(local_path, ff))
+                    cmd = "tar -xf {}/{} -C {}".format(local_path, ff,
+                                                       local_path)
+                    os.system(cmd)
+
+            dir_per_process = len(filelist) / process_num
+
+            procs = []
+            for i in range(process_num):
+                process_filelist = filelist[i::process_num]
+                p = multiprocessing.Process(
+                    target=_subprocess_download, args=(process_filelist, ))
+                procs.append(p)
+                p.start()
+
+            for proc in procs:
+                proc.join()
+
+        role = fleet._role_maker_()
         fleet_util._set_role_maker(role)
-        if not is_first_worker():
-            fleet_util.barrier()
-            return local_path
+
         _, ext = os.path.splitext(fs_yaml)
         assert ext in ['.yml', '.yaml'], "only support yaml files for now"
         with open(fs_yaml) as f:
@@ -103,73 +126,51 @@ class Downloader(object):
         if "data_path" in cfg:
             hdfs_path = cfg["data_path"]
 
-        def multi_download(client,
-                           hdfs_path,
-                           local_path,
-                           filelist,
-                           process_num=10):
-            def _subprocess_download(files):
-                for ff in files:
-                    client.download('{}/{}'.format(hdfs_path, ff),
-                                    '{}/{}'.format(local_path, ff))
-                    cmd = "tar -xf {}/{} -C {}".format(local_path, ff,
-                                                       local_path)
-                    os.system(cmd)
-
-            dir_per_process = len(filelist) / process_num
-
-            procs = []
-            for i in range(process_num):
-                process_filelist = filelist[i::process_num]
-                p = multiprocessing.Process(
-                    target=_subprocess_download, args=(process_filelist, ))
-                procs.append(p)
-                p.start()
-
-            for proc in procs:
-                proc.join()
-
         client = HDFSClient(self.hadoop_home, self.hdfs_configs)
-        client.download('{}/filelist.txt'.format(hdfs_path),
-                        '{}/filelist.txt'.format(local_path))
-        client.download('{}/meta.txt'.format(hdfs_path),
-                        '{}/meta.txt'.format(local_path))
-        with open('{}/meta.txt'.format(local_path), 'rb') as fin:
-            for line in fin:
-                current_file = line[:-1]
-                client.download('{}/{}'.format(hdfs_path, current_file),
-                                '{}/{}'.format(local_path, current_file))
+        if is_first_worker():
+            if not (client.is_exist('{}/meta.txt'.format(hdfs_path)) and
+                    client.is_exist('{}/filelist.txt'.format(hdfs_path))):
+                raise Exception(
+                    "ERROR: Your data dir should include filelist.txt and meta.txt"
+                )
+            client.download('{}/filelist.txt'.format(hdfs_path),
+                            '{}/filelist.txt'.format(local_path))
+            client.download('{}/meta.txt'.format(hdfs_path),
+                            '{}/meta.txt'.format(local_path))
+            with open('{}/meta.txt'.format(local_path), 'rb') as fin:
+                for line in fin:
+                    current_file = line.strip()
+                    client.download('{}/{}'.format(hdfs_path, current_file),
+                                    '{}/{}'.format(local_path, current_file))
 
-        if sharded:
-            node_id, node_num = get_node_info()
+        if shard_num > 0:
+            assert (
+                shard_id >= 0,
+                "Please provide worker index by fleet.worker_index() if you want to download sharded data on each machine"
+            )
+            self.filelist = get_file_shard(shard_id, shard_num, local_path)
+            need_download = check_exists(self.filelist, local_path)
+            if need_download:
+                multi_download(client, hdfs_path, local_path, self.filelist)
         else:
-            node_id, node_num = 0, 1
-        self.filelist = get_file_shard(node_id, node_num, local_path)
-        need_download = check_exists(self.filelist, local_path)
-        if need_download:
-            multi_download(client, hdfs_path, local_path, self.filelist)
+            if is_first_worker():
+                self.filelist = get_file_shard(0, 1, local_path)
+                need_download = check_exists(self.filelist, local_path)
+                if need_download:
+                    multi_download(client, hdfs_path, local_path,
+                                   self.filelist)
         fleet_util.barrier()
         return local_path
 
-    def download_from_bos(self, fs_yaml=None, local_path="./", sharded=True):
-        role = fleet.base.role_maker.PaddleCloudRoleMaker(is_collective=True)
-        fleet.init(role)
-        fleet_util._set_role_maker(role)
-        if fs_yaml == None:
-            print("Error: you should provide a yaml to download data from bos")
-            print("you can find yaml examples in the following links: ")
-        if not is_first_worker():
-            fleet_util.barrier()
-            return local_path
-        _, ext = os.path.splitext(fs_yaml)
-        assert ext in ['.yml', '.yaml'], "only support yaml files for now"
-        with open(fs_yaml) as f:
-            cfg = yaml.load(f, Loader=yaml.Loader)
-
-        if 'bos_path' in cfg:
-            bos_path = cfg["bos_path"]
-
-        def multi_download(bos_path, local_path, filelist, process_num=10):
+    def download_from_bos(self,
+                          fs_yaml=None,
+                          local_path="./",
+                          sharded=True,
+                          process_num=10):
+        def multi_download(bos_path,
+                           local_path,
+                           filelist,
+                           process_num=process_num):
             def _subprocess_download(files):
                 for ff in files:
                     os.system("wget -q -P {} --no-check-certificate {}/{}".
@@ -191,22 +192,59 @@ class Downloader(object):
             for proc in procs:
                 proc.join()
 
-        os.system("wget -q -P {} --no-check-certificate {}/filelist.txt".
-                  format(local_path, bos_path))
-        os.system("wget -q -P {} --no-check-certificate {}/meta.txt".format(
-            local_path, bos_path))
-        with open('{}/meta.txt'.format(local_path), 'rb') as fin:
-            for line in fin:
-                current_file = line[:-1]
-                os.system("wget -q -P {} --no-check-certificate {}/{}".format(
-                    local_path, bos_path, current_file))
-        if sharded:
-            node_id, node_num = get_node_info()
+        role = fleet._role_maker_()
+        fleet_util._set_role_maker(role)
+
+        if fs_yaml == None:
+            raise Exception(
+                "Error: you should provide a yaml to download data from bos, you can find yaml examples in the following links:"
+            )
+        os.system("wget -q --no-check-certificate {}".format(fs_yaml))
+        yaml_file = fs_yaml.split('/')
+        if os.path.exists(yaml_file):
+            raise Exception(
+                "Error: please check if your url is valid and is able to access. "
+            )
+
+        _, ext = os.path.splitext(fs_yaml)
+        assert ext in ['.yml', '.yaml'], "only support yaml files for now"
+        with open(fs_yaml) as f:
+            cfg = yaml.load(f, Loader=yaml.Loader)
+
+        if 'bos_path' in cfg:
+            bos_path = cfg["bos_path"]
+
+        if is_first_worker():
+            try:
+                os.system(
+                    "wget -q -P {} --no-check-certificate {}/filelist.txt".
+                    format(local_path, bos_path))
+                os.system("wget -q -P {} --no-check-certificate {}/meta.txt".
+                          format(local_path, bos_path))
+            except:
+                raise Exception(
+                    "ERROR: Your data dir should include filelist.txt and meta.txt"
+                )
+            with open('{}/meta.txt'.format(local_path), 'rb') as fin:
+                for line in fin:
+                    current_file = line[:-1]
+                    os.system("wget -q -P {} --no-check-certificate {}/{}".
+                              format(local_path, bos_path, current_file))
+        if shard_num > 0:
+            assert (
+                shard_id >= 0,
+                "Please provide worker index by fleet.worker_index() if you want to download sharded data on each machine"
+            )
+            self.filelist = get_file_shard(shard_id, shard_num, local_path)
+            need_download = check_exists(self.filelist, local_path)
+            if need_download:
+                multi_download(client, hdfs_path, local_path, self.filelist)
         else:
-            node_id, node_num = 0, 1
-        self.filelist = get_file_shard(node_id, node_num, local_path)
-        need_download = check_exists(self.filelist, local_path)
-        if need_download:
-            multi_download(bos_path, local_path, self.filelist)
+            if is_first_worker():
+                self.filelist = get_file_shard(0, 1, local_path)
+                need_download = check_exists(self.filelist, local_path)
+                if need_download:
+                    multi_download(client, hdfs_path, local_path,
+                                   self.filelist)
         fleet_util.barrier()
         return local_path
