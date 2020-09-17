@@ -20,6 +20,7 @@
 .. image:: ../paddle_fleet/img/practice_2.png
   :width: 600
   :alt: PServe
+  :align: center
 
 -  在\ ``Collective模式``\ 中，集群中只存在多个地位平等的trainers。
    每个trainer进程都保存一份完整的模型参数。 前向和反向中每个 trainer
@@ -32,6 +33,7 @@
 .. image:: ../paddle_fleet/img/practice_3.png
   :width: 600
   :alt: Collective
+  :align: center
 
 相交于异步训练,
 同步训练的的优势在于Loss可以比较稳定的下降，缺点是整体速度的快慢取决于最慢的trainer.
@@ -121,6 +123,7 @@ AllReduce通信效率低，采用Hierarchical AllReduce可以缓解这一问题�
 .. image:: ../paddle_fleet/img/practice_1.png
   :width: 600
   :alt: 分层 AllReduce
+  :align: center
 
 .. code:: python
 

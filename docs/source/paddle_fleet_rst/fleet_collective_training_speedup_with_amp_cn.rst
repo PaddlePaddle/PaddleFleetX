@@ -68,6 +68,7 @@ FP32 参数副本及更新
 .. image:: ../paddle_fleet/img/AMP_1.png
   :width: 400
   :alt: weight 副本
+  :align: center
 
 如上图所示, 在AMP 中, 模型参数 ``weight`` ,
 前向中间的结果\ ``activation``, 反向的\ ``gradient`` 都以FP16 形式存储,
@@ -80,6 +81,7 @@ Loss scaling
 .. image:: ../paddle_fleet/img/AMP_2.png
   :width: 600
   :alt: weight 分布
+  :align: center
 
 如上图所示, 实际情况中模型训练中的某些变量, 比如\ ``grad`` (特别是
 ``activation`` 的 ``grad``), 可能会因小于 FP16的精度低而变成\ ``0``;
@@ -121,6 +123,7 @@ Dynamic loss scaling 参数来动态调整 loss scaling factor
 .. image:: ../paddle_fleet/img/AMP_3.png
   :width: 600
   :alt: Dynamic loss scaling
+  :align: center
 
 OP 黑白名单
 ^^^^^^^^^^^

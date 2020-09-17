@@ -23,6 +23,7 @@ Network》 <https://arxiv.org/abs/1503.02531>`__
 .. image:: ../paddle_fleet/img/distillation_1.png
   :width: 600
   :alt: distillation
+  :align: center
 
 服务型蒸馏训练
 ^^^^^^^^^^^^^^
@@ -81,6 +82,7 @@ DistillReader
 .. image:: ../paddle_fleet/img/distillation_2.png
   :width: 600
   :alt: DistillReader
+  :align: center
 
 DistillReader
 产生可供Student模型训练的数据reader。如上图所示，Student模型将训练样本和标签传入训练reader，DistillReader从训练reader中读取训练样本发送给Teacher模型，然后获取推理结果。
@@ -98,6 +100,7 @@ STUDENT模型给TEACHER模型发送样本并获取推理结果，而TEACHER模�
 .. image:: ../paddle_fleet/img/distillation_3.png
   :width: 600
   :alt: DistillReader
+  :align: center
 
 快速开始
 --------
