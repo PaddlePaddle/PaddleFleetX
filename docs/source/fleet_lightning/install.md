@@ -1,3 +1,0 @@
-## Install Fleet-Lightning
-
-- TBA

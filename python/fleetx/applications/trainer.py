@@ -26,12 +26,12 @@ class Trainer(object):
 class CPUTrainer(Trainer):
     def __init__(self):
         super(CPUTrainer, self).__init__()
+        self.place = fluid.CPUPlace()
+        self.exe = fluid.Executor(self.place)
 
     def fit(self, model, dataloader, epoch, start_step=10):
         fleet.init_worker()
-        self.place = fluid.CPUPlace()
-        exe = fluid.Executor(self.place)
-        exe.run(fluid.default_startup_program())
+        self.exe.run(fluid.default_startup_program())
 
         for epoch_id in range(epoch):
             total_time = 0
@@ -39,9 +39,9 @@ class CPUTrainer(Trainer):
             for data in dataloader:
                 if step > start_step:
                     start_time = time.time()
-                loss = exe.run(fluid.default_main_program(),
-                               feed=data,
-                               fetch_list=[model.loss.name])
+                loss = self.exe.run(fluid.default_main_program(),
+                                    feed=data,
+                                    fetch_list=[model.loss.name])
                 if step > start_step:
                     end_time = time.time()
                     total_time += (end_time - start_time)
@@ -58,12 +58,12 @@ class CPUTrainer(Trainer):
 class MultiGPUTrainer(Trainer):
     def __init__(self):
         super(MultiGPUTrainer, self).__init__()
-
-    def fit(self, model, dataloader, epoch, use_dali=False, start_step=10):
         self.place = fluid.CUDAPlace(
             int(os.environ.get('FLAGS_selected_gpus', 0)))
-        exe = fluid.Executor(self.place)
-        exe.run(fluid.default_startup_program())
+        self.exe = fluid.Executor(self.place)
+
+    def fit(self, model, dataloader, epoch, use_dali=False, start_step=10):
+        self.exe.run(fluid.default_startup_program())
 
         for epoch_id in range(epoch):
             total_time = 0
@@ -71,9 +71,10 @@ class MultiGPUTrainer(Trainer):
             for data in dataloader:
                 if step > start_step:
                     start_time = time.time()
-                loss = exe.run(fluid.default_main_program(),
-                               feed=data,
-                               fetch_list=[model.loss.name])
+                loss = self.exe.run(fluid.default_main_program(),
+                                    feed=data,
+                                    fetch_list=[model.loss.name],
+                                    use_program_cache=True)
                 if step > start_step:
                     end_time = time.time()
                     total_time += (end_time - start_time)

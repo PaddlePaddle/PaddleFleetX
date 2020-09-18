@@ -11,45 +11,29 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
-
-os.environ['FLAGS_enable_parallel_graph'] = "0"
-os.environ['FLAGS_fraction_of_gpu_memory_to_use'] = "0.98"
-os.environ['FLAGS_sync_nccl_allreduce'] = "1"
-os.environ['FLAGS_eager_delete_tensor_gb'] = "0"
-os.environ['FLAGS_fuse_parameter_memory_size'] = "32"
-os.environ['FLAGS_fuse_parameter_groups_size'] = "50"
-
 import fleetx as X
-import paddle.fluid as fluid
+import paddle
 import paddle.distributed.fleet as fleet
-import paddle.distributed.fleet.base.role_maker as role_maker
-# FleetX help users to focus more on learning to train a large scale model
-# if you want to learn how to write a model, fleetx is not for you
-# focus more on engineering staff in fleet-x
 
 configs = X.parse_train_configs()
-role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-fleet.init(role)
-# load BertLarge / BertBase model
-#model = X.applications.BertLarge()
 model = X.applications.BertBase()
+wiki_downloader = X.utils.WikiDataDownloader()
+local_path = wiki_downloader.download_from_bos(local_path='./data')
 
-data_loader = model.load_digital_dataset_from_file(
-    data_dir='./train_data', vocab_path='./vocab.txt')
+loader = model.load_digital_dataset_from_file(
+    data_dir='{}/train_data'.format(local_path),
+    vocab_path='{}/vocab.txt'.format(local_path))
+
+fleet.init(is_collective=True)
+dist_strategy = fleet.DistributedStrategy()
+dist_strategy.amp = True
 
 learning_rate = X.utils.linear_warmup_decay(configs.lr, 4000, 1000000)
-exec_strategy = fluid.ExecutionStrategy()
-exec_strategy.num_threads = 2
-exec_strategy.num_iteration_per_drop_scope = 1
-dist_strategy = fleet.DistributedStrategy()
-dist_strategy.execution_strategy = exec_strategy
-dist_strategy.nccl_comm_num = 3
-
-optimizer = fluid.optimizer.Adam(learning_rate=learning_rate)
-optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
+clip = paddle.fluid.clip.GradientClipByGlobalNorm(clip_norm=1.0)
+optimizer = paddle.fluid.optimizer.Adam(
+    learning_rate=learning_rate, grad_clip=clip)
+optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
 optimizer.minimize(model.loss)
 
 trainer = X.MultiGPUTrainer()
-
-trainer.fit(model, data_loader, 10)
+trainer.fit(model, loader, epoch=10)

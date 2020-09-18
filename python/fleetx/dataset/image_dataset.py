@@ -36,9 +36,9 @@ def image_dataloader_from_filelist(filelist,
                                    lower_ratio=3. / 4,
                                    upper_ratio=4. / 3,
                                    data_layout='NHWC'):
-    trainer_id = int(os.environ.get('PADDLE_TRAINER_ID'))
+    trainer_id = int(os.environ.get('PADDLE_TRAINER_ID', '0'))
     num_trainers = int(os.environ.get('PADDLE_TRAINERS_NUM', 1))
-    gpu_id = int(os.environ.get('FLAGS_selected_gpus', 0))
+    gpu_id = int(os.environ.get('FLAGS_selected_gpus', '0'))
     if not use_dali:
         loader = create_data_loader(inputs, phase, use_mixup)
         reader = reader_creator(
@@ -57,8 +57,8 @@ def image_dataloader_from_filelist(filelist,
         places = fluid.CUDAPlace(gpu_id)
         loader.set_sample_list_generator(batch_reader, places)
     else:
-        import dali
-        loader = dali.train(
+        from . import dali
+        loader = dali.build(
             filelist,
             batch_size,
             image_mean,
@@ -67,6 +67,7 @@ def image_dataloader_from_filelist(filelist,
             lower_scale,
             lower_ratio,
             upper_ratio,
+            mode=phase,
             trainer_id=trainer_id,
             trainers_num=num_trainers,
             gpu_id=gpu_id,

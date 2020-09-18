@@ -21,6 +21,7 @@ from fleetx.dataset.bert_dataset import load_bert_dataset
 from fleetx.dataset.transformer_dataset import transformer_data_generator
 from fleetx.version import fleetx_version
 from fleetx.dataset.ctr_data_generator import get_dataloader
+from fleetx import utils
 
 
 class ModelBase(object):
@@ -47,11 +48,20 @@ class ModelBase(object):
     def main_program(self):
         return self.main_prog
 
+    def load_params(self, file_path):
+        place = fluid.CPUPlace()
+        exe = fluid.Executor(place)
+        fluid.io.load_params(exe, file_path)
+
+    def save_params(self, target_path):
+        place = fluid.CPUPlace()
+        exe = fluid.Executor(place)
+        fluid.io.save_params(exe, target_path)
+
 
 def download_model(fleet_path, model_name):
     version = fleetx_version.replace('-', '')
-    gpu_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
-    if gpu_id == 0:
+    if utils.is_first_worker():
         if not os.path.exists(fleet_path + model_name):
             if not os.path.exists(fleet_path + model_name + '.tar.gz'):
                 os.system(
@@ -64,10 +74,14 @@ def download_model(fleet_path, model_name):
 
 
 class Resnet50(ModelBase):
-    def __init__(self):
+    def __init__(self, data_layout='NCHW'):
+        self.data_layout = data_layout
         super(Resnet50, self).__init__()
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
-        model_name = 'resnet50'
+        if data_layout == 'NCHW':
+            model_name = 'resnet50_nchw'
+        else:
+            model_name = 'resnet50_nhwc'
         download_model(fleet_path, model_name)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
             fleet_path + model_name)
@@ -77,18 +91,17 @@ class Resnet50(ModelBase):
         self.loss = loss
         self.checkpoints = checkpoints
         self.target = target
-        self.use_dali = False
 
     def load_imagenet_from_file(self,
                                 filelist,
                                 batch_size=32,
                                 phase='train',
                                 shuffle=True,
-                                use_dali=False,
-                                data_layout='NHWC'):
+                                use_dali=False):
         if phase != 'train':
             shuffle = False
         self.use_dali = use_dali
+        data_layout = self.data_layout
         return image_dataloader_from_filelist(
             filelist,
             self.inputs,
@@ -100,10 +113,15 @@ class Resnet50(ModelBase):
 
 
 class VGG16(ModelBase):
-    def __init__(self):
+    def __init__(self, data_layout='NCHW'):
         super(VGG16, self).__init__()
+        self.data_layout = data_layout
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
         model_name = 'vgg16'
+        if data_layout == 'NCHW':
+            model_name = 'vgg16_nchw'
+        else:
+            model_name = 'vgg16_nhwc'
         download_model(fleet_path, model_name)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
             fleet_path + model_name)
@@ -120,11 +138,11 @@ class VGG16(ModelBase):
                                 batch_size=32,
                                 phase='train',
                                 shuffle=True,
-                                use_dali=False,
-                                data_layout='NHWC'):
+                                use_dali=False):
         if phase != 'train':
             shuffle = False
         self.use_dali = use_dali
+        data_layout = self.data_layout
         return image_dataloader_from_filelist(
             filelist,
             self.inputs,
@@ -166,10 +184,73 @@ class Transformer(ModelBase):
 
 
 class BertLarge(ModelBase):
-    def __init__(self):
+    def __init__(self, lang='ch'):
         super(BertLarge, self).__init__()
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
-        model_name = 'bert_large'
+        if lang == 'ch':
+            model_name = 'bert_large'
+        else:
+            model_name = 'bert_large_en'
+        download_model(fleet_path, model_name)
+        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
+            fleet_path + model_name)
+        self.startup_prog = startup
+        self.main_prog = main
+        self.inputs = inputs
+        self.loss = loss
+        self.checkpoints = checkpoints
+        self.target = target
+
+    def load_digital_dataset_from_file(self,
+                                       data_dir,
+                                       vocab_path,
+                                       batch_size=16,
+                                       max_seq_len=128,
+                                       in_tokens=False):
+        return load_bert_dataset(
+            data_dir,
+            vocab_path,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens)
+
+
+class BertHuge(ModelBase):
+    def __init__(self):
+        super(BertHuge, self).__init__()
+        fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
+        model_name = 'bert_huge'
+        download_model(fleet_path, model_name)
+        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
+            fleet_path + model_name)
+        self.startup_prog = startup
+        self.main_prog = main
+        self.inputs = inputs
+        self.loss = loss
+        self.checkpoints = checkpoints
+        self.target = target
+
+    def load_digital_dataset_from_file(self,
+                                       data_dir,
+                                       vocab_path,
+                                       batch_size=16,
+                                       max_seq_len=128,
+                                       in_tokens=False):
+        return load_bert_dataset(
+            data_dir,
+            vocab_path,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens)
+
+
+class BertGiant(ModelBase):
+    def __init__(self):
+        super(BertGiant, self).__init__()
+        fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
+        model_name = 'bert_giant'
         download_model(fleet_path, model_name)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
             fleet_path + model_name)
@@ -196,10 +277,13 @@ class BertLarge(ModelBase):
 
 
 class BertBase(ModelBase):
-    def __init__(self):
+    def __init__(self, lang='ch'):
         super(BertBase, self).__init__()
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
-        model_name = 'bert_base'
+        if lang == 'ch':
+            model_name = 'bert_base'
+        else:
+            model_name = 'bert_base_en'
         download_model(fleet_path, model_name)
         inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
             fleet_path + model_name)
@@ -251,3 +335,39 @@ class MultiSlotCTR(ModelBase):
             sparse_feature_dim=sparse_feature_dim,
             batch_size=batch_size,
             shuffle=shuffle)
+
+
+class Resnet50Mlperf(ModelBase):
+    def __init__(self):
+        self.data_layout = "NHWC"
+        model_name = 'resnet50_mlperf'
+        super(Resnet50Mlperf, self).__init__()
+        fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
+        download_model(fleet_path, model_name)
+        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
+            fleet_path + model_name)
+        self.startup_prog = startup
+        self.main_prog = main
+        self.inputs = inputs
+        self.loss = loss
+        self.checkpoints = checkpoints
+        self.target = target
+
+    def load_imagenet_from_file(self,
+                                filelist,
+                                batch_size=32,
+                                phase='train',
+                                shuffle=True,
+                                use_dali=False):
+        if phase != 'train':
+            shuffle = False
+        self.use_dali = use_dali
+        data_layout = self.data_layout
+        return image_dataloader_from_filelist(
+            filelist,
+            self.inputs,
+            batch_size,
+            phase,
+            shuffle,
+            use_dali,
+            data_layout=data_layout)                 
