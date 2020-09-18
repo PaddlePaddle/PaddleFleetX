@@ -138,7 +138,7 @@ class Downloader(object):
                             '{}/meta.txt'.format(local_path))
             with open('{}/meta.txt'.format(local_path), 'rb') as fin:
                 for line in fin:
-                    current_file = line.strip()
+                    current_file = line.decode().strip()
                     client.download('{}/{}'.format(hdfs_path, current_file),
                                     '{}/{}'.format(local_path, current_file))
 
