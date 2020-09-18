@@ -31,10 +31,10 @@ def get_md5(file_path):
 
 
 def check_exists(filelist, local_path):
-    with open("{}/filelist.txt".format(local_path)) as fin:
+    with open("{}/filelist.txt".format(local_path), 'r') as fin:
         for line in fin:
             current_file = line.split(' ')[0]
-            current_md5 = line.split(' ')[1][:-1]
+            current_md5 = line.split(' ')[1].strip()
             if current_file in filelist:
                 if (not os.path.exists("{}/{}".format(
                         local_path, current_file))) or get_md5("{}/{}".format(
@@ -47,7 +47,7 @@ def get_file_shard(node_id, node_num, local_path):
     while not os.path.exists('{}/filelist.txt'.format(local_path)):
         time.sleep(3)
     full_list = []
-    with open("{}/filelist.txt".format(local_path), 'rb') as fin:
+    with open("{}/filelist.txt".format(local_path), 'r') as fin:
         for line in fin:
             full_list.append(line.split(' ')[0])
     return full_list[node_id::node_num]
@@ -136,9 +136,9 @@ class Downloader(object):
                             '{}/filelist.txt'.format(local_path))
             client.download('{}/meta.txt'.format(hdfs_path),
                             '{}/meta.txt'.format(local_path))
-            with open('{}/meta.txt'.format(local_path), 'rb') as fin:
+            with open('{}/meta.txt'.format(local_path), 'r') as fin:
                 for line in fin:
-                    current_file = line.decode().strip()
+                    current_file = line.strip()
                     client.download('{}/{}'.format(hdfs_path, current_file),
                                     '{}/{}'.format(local_path, current_file))
 
@@ -223,7 +223,7 @@ class Downloader(object):
                 raise Exception(
                     "ERROR: Your data dir should include filelist.txt and meta.txt"
                 )
-            with open('{}/meta.txt'.format(local_path), 'rb') as fin:
+            with open('{}/meta.txt'.format(local_path), 'r') as fin:
                 for line in fin:
                     current_file = line[:-1]
                     os.system("wget -q -P {} --no-check-certificate {}/{}".
