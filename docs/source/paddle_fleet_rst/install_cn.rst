@@ -14,7 +14,7 @@ Paddle
 
 ::
 
-   pip install paddlepaddle-gpu
+    pip install paddlepaddle-gpu
 
 关于安装Paddle，\ `这里 <https://www.paddlepaddle.org.cn/install/quick>`__
 有更完备的安装指南供您参考。
@@ -31,4 +31,4 @@ FleetX
 
 .. code:: bash
 
-   pip install fleet-x
+    pip install fleet-x
