@@ -70,7 +70,8 @@ def download_model(fleet_path, model_name):
             os.system('tar -xf {}{}.tar.gz -C {}'.format(
                 fleet_path, model_name, fleet_path))
     else:
-        time.sleep(3)
+        while not os.path.exists(fleet_path + model_name):
+            time.sleep(3)
 
 
 class Resnet50(ModelBase):
@@ -370,4 +371,4 @@ class Resnet50Mlperf(ModelBase):
             phase,
             shuffle,
             use_dali,
-            data_layout=data_layout)                 
+            data_layout=data_layout)

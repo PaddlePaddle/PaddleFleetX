@@ -45,7 +45,7 @@ def check_exists(filelist, local_path):
 
 def get_file_shard(node_id, node_num, local_path):
     while not os.path.exists('{}/filelist.txt'.format(local_path)):
-        sleep(3)
+        time.sleep(3)
     full_list = []
     with open("{}/filelist.txt".format(local_path), 'rb') as fin:
         for line in fin:
@@ -97,7 +97,6 @@ class Downloader(object):
 
         role = fleet._role_maker_()
         fleet_util._set_role_maker(role)
-
         _, ext = os.path.splitext(fs_yaml)
         assert ext in ['.yml', '.yaml'], "only support yaml files for now"
         with open(fs_yaml) as f:
@@ -194,7 +193,6 @@ class Downloader(object):
 
         role = fleet._role_maker_()
         fleet_util._set_role_maker(role)
-
         if fs_yaml == None:
             raise Exception(
                 "Error: you should provide a yaml to download data from bos, you can find yaml examples in the following links:"
