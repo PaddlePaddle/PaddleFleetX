@@ -96,7 +96,6 @@ Forward Recomputation Backpropagation
     import fleetx as X
     import paddle.fluid as fluid
     import paddle.distributed.fleet as fleet
-    import paddle.distributed.fleet.base.role_maker as role_maker
 
 定义分布式模式并初始化
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -106,8 +105,7 @@ Forward Recomputation Backpropagation
 .. code:: python
 
     configs = X.parse_train_configs()
-    role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-    fleet.init(role)
+    fleet.init(is_collective=True)
 
 加载模型及数据
 ^^^^^^^^^^^^^^
@@ -117,7 +115,7 @@ Size（53）来进行训练。
 
 .. code:: python
 
-    model = X.applications.Bert_large()
+    model = X.applications.BertLarge()
 
     data_loader = model.load_digital_dataset_from_file(
         data_dir='./train_data',
@@ -159,10 +157,10 @@ Size（53）来进行训练。
 .. code:: python
 
     trainer = X.MultiGPUTrainer()
-    trainer.fit(model, data_loader, start_step=10)
+    trainer.fit(model, data_loader, epoch=10)
 
 运行训练脚本
-~~~~~~~~~~~~
+^^^^^^^^^^^^
 
 完成脚本的编写后我们就可以使用以下命令训练分布式模型：
 
@@ -173,8 +171,7 @@ Size（53）来进行训练。
 效果测试
 ^^^^^^^^
 
-我们在BERT模型上对recompute的效果进行了测试，使用Recompute后Batch
-size可以扩大至3倍。与混合精度一起使用时，Batch\_size可以进一步扩大。
+我们在BERT模型上对recompute的效果进行了测试，使用Recompute后Batch size可以扩大至3倍。与混合精度一起使用时，Batch_size可以进一步扩大。其中，速度记录的是每张卡每秒可以训练的句子数。
 
 -  **Bert\_large**:
 
@@ -183,7 +180,7 @@ size可以扩大至3倍。与混合精度一起使用时，Batch\_size可以进�
 +==============+================+=================+===============================+
 | Batch size   | 14             | 53              | 87                            |
 +--------------+----------------+-----------------+-------------------------------+
-| speed        | 18.2 sents/s   | 12.88 sents/s   | 19.14 sents/s                 |
+| speed        | 9.10 sents/s   | 6.44 sents/s    | 9.57 sents/s                  | 
 +--------------+----------------+-----------------+-------------------------------+
 
 Gradient Merge
