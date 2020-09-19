@@ -27,11 +27,11 @@
 
 .. code:: python
 
-    import os
-    import argparse
-    import time
-    import math 
-    import paddle.fluid as fluid
+   import os
+   import argparse
+   import time
+   import math 
+   import paddle.fluid as fluid
 
 定义模型
 ~~~~~~~~
@@ -44,115 +44,115 @@
 
 .. code:: python
 
-    def conv_bn_layer(input,
-                      num_filters,
-                      filter_size,
-                      stride=1,
-                      groups=1,
-                      act=None):
-        conv = fluid.layers.conv2d(input=input,
-                                   num_filters=num_filters,
-                                   filter_size=filter_size,
-                                   stride=stride,
-                                   padding=(filter_size-1)//2,
-                                   groups=groups,
-                                   act=None,
-                                   bias_attr=False)
-        return fluid.layers.batch_norm(input=conv,
-                                       act=act)
-     
-    def shortcut(input,
-                 ch_out,
-                 stride,
-                 is_first):
-        ch_in = input.shape[1]
-        if ch_in != ch_out or stride != 1 or is_first == True:
-            return conv_bn_layer(input,
-                                 ch_out,
-                                 1,
-                                 stride)
-        else:
-            return input
-     
-     
-    def bottleneck_block(input,
-                         num_filters,
-                         stride):
-        conv0 = conv_bn_layer(input=input,
-                              num_filters=num_filters,
-                              filter_size=1,
-                              act='relu')
-        conv1 = conv_bn_layer(input=conv0,
-                              num_filters=num_filters,
-                              filter_size=3,
-                              stride=stride,
-                              act='relu')
-        conv2 = conv_bn_layer(input=conv1,
-                              num_filters=num_filters*4,
-                              filter_size=1,
-                              act=None)
-     
-        short = shortcut(input,
-                         num_filters*4,
-                         stride,
-                         is_first=False)
-     
-        return fluid.layers.elementwise_add(x=short,
-                                            y=conv2,
-                                            act='relu')
+   def conv_bn_layer(input,
+                     num_filters,
+                     filter_size,
+                     stride=1,
+                     groups=1,
+                     act=None):
+       conv = fluid.layers.conv2d(input=input,
+                                  num_filters=num_filters,
+                                  filter_size=filter_size,
+                                  stride=stride,
+                                  padding=(filter_size-1)//2,
+                                  groups=groups,
+                                  act=None,
+                                  bias_attr=False)
+       return fluid.layers.batch_norm(input=conv,
+                                      act=act)
+    
+   def shortcut(input,
+                ch_out,
+                stride,
+                is_first):
+       ch_in = input.shape[1]
+       if ch_in != ch_out or stride != 1 or is_first == True:
+           return conv_bn_layer(input,
+                                ch_out,
+                                1,
+                                stride)
+       else:
+           return input
+    
+    
+   def bottleneck_block(input,
+                        num_filters,
+                        stride):
+       conv0 = conv_bn_layer(input=input,
+                             num_filters=num_filters,
+                             filter_size=1,
+                             act='relu')
+       conv1 = conv_bn_layer(input=conv0,
+                             num_filters=num_filters,
+                             filter_size=3,
+                             stride=stride,
+                             act='relu')
+       conv2 = conv_bn_layer(input=conv1,
+                             num_filters=num_filters*4,
+                             filter_size=1,
+                             act=None)
+    
+       short = shortcut(input,
+                        num_filters*4,
+                        stride,
+                        is_first=False)
+    
+       return fluid.layers.elementwise_add(x=short,
+                                           y=conv2,
+                                           act='relu')
 
-    def build_network(input,
-                      layers=50,
-                      class_dim=1000):
-        supported_layers = [50, 101, 152]
-        assert layers in supported_layers
-        depth = None
-        if layers == 50:
-            depth = [3, 4, 6, 3]
-        elif layers == 101:
-            depth = [3, 4, 23, 3]
-        elif layers == 152:
-            depth = [3, 8, 36, 3]
-        num_filters = [64, 128, 256, 512]
-         
-        # 指定层所在的设备
-        with fluid.device_guard("gpu:0"):
-            conv = conv_bn_layer(input=input,
-                                 num_filters=64,
-                                 filter_size=7,
-                                 stride=2,
-                                 act='relu')
-            conv = fluid.layers.pool2d(input=conv,
-                                       pool_size=3,
-                                       pool_stride=2,
-                                       pool_padding=1,
-                                       pool_type='max')
-            for block in range(len(depth)//2):
-                for i in range(depth[block]):
-                    conv = bottleneck_block(
-                                input=conv,
-                                num_filters=num_filters[block],
-                                stride=2 if i == 0 and block != 0 else 1)
-        # 指定网络层所在的设备
-        with fluid.device_guard("gpu:1"):    
-            for block in range(len(depth)//2, len(depth)):
-                for i in range(depth[block]):
-                    conv = bottleneck_block(
-                                input=conv,
-                                num_filters=num_filters[block],
-                                stride=2 if i == 0 and block != 0 else 1)
-     
-            pool = fluid.layers.pool2d(input=conv,
-                                       pool_size=7,
-                                       pool_type='avg',
-                                       global_pooling=True)
-            stdv = 1.0 / math.sqrt(pool.shape[1] * 1.0)
-            out = fluid.layers.fc(
-                        input=pool,
-                        size=class_dim,
-                        param_attr=fluid.param_attr.ParamAttr(
-                            initializer=fluid.initializer.Uniform(-stdv, stdv)))
-        return out
+   def build_network(input,
+                     layers=50,
+                     class_dim=1000):
+       supported_layers = [50, 101, 152]
+       assert layers in supported_layers
+       depth = None
+       if layers == 50:
+           depth = [3, 4, 6, 3]
+       elif layers == 101:
+           depth = [3, 4, 23, 3]
+       elif layers == 152:
+           depth = [3, 8, 36, 3]
+       num_filters = [64, 128, 256, 512]
+        
+       # 指定层所在的设备
+       with fluid.device_guard("gpu:0"):
+           conv = conv_bn_layer(input=input,
+                                num_filters=64,
+                                filter_size=7,
+                                stride=2,
+                                act='relu')
+           conv = fluid.layers.pool2d(input=conv,
+                                      pool_size=3,
+                                      pool_stride=2,
+                                      pool_padding=1,
+                                      pool_type='max')
+           for block in range(len(depth)//2):
+               for i in range(depth[block]):
+                   conv = bottleneck_block(
+                               input=conv,
+                               num_filters=num_filters[block],
+                               stride=2 if i == 0 and block != 0 else 1)
+       # 指定网络层所在的设备
+       with fluid.device_guard("gpu:1"):    
+           for block in range(len(depth)//2, len(depth)):
+               for i in range(depth[block]):
+                   conv = bottleneck_block(
+                               input=conv,
+                               num_filters=num_filters[block],
+                               stride=2 if i == 0 and block != 0 else 1)
+    
+           pool = fluid.layers.pool2d(input=conv,
+                                      pool_size=7,
+                                      pool_type='avg',
+                                      global_pooling=True)
+           stdv = 1.0 / math.sqrt(pool.shape[1] * 1.0)
+           out = fluid.layers.fc(
+                       input=pool,
+                       size=class_dim,
+                       param_attr=fluid.param_attr.ParamAttr(
+                           initializer=fluid.initializer.Uniform(-stdv, stdv)))
+       return out
 
 定义数据集及梯度更新策略
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -161,54 +161,54 @@
 
 .. code:: python
 
-    # 定义模型剩余部分
-    with fluid.device_guard("gpu:0"):
-        image_shape = [3, 224, 224]
-        image = fluid.layers.data(name="image",
-                                  shape=image_shape,
-                                  dtype="float32")
-        label = fluid.layers.data(name="label", shape=[1], dtype="int64")
-        data_loader = fluid.io.DataLoader.from_generator(
-                feed_list=[image, label],
-                capacity=64,
-                use_double_buffer=True,
-                iterable=False)
+   # 定义模型剩余部分
+   with fluid.device_guard("gpu:0"):
+       image_shape = [3, 224, 224]
+       image = fluid.layers.data(name="image",
+                                 shape=image_shape,
+                                 dtype="float32")
+       label = fluid.layers.data(name="label", shape=[1], dtype="int64")
+       data_loader = fluid.io.DataLoader.from_generator(
+               feed_list=[image, label],
+               capacity=64,
+               use_double_buffer=True,
+               iterable=False)
 
-    fc = build_network(image)
+   fc = build_network(image)
 
-    with fluid.device_guard("gpu:1"):
-        out, prob = fluid.layers.softmax_with_cross_entropy(logits=fc,
-                                                            label=label,
-                                                            return_softmax=True)
-        loss = fluid.layers.mean(out)
-        acc_top1 = fluid.layers.accuracy(input=prob, label=label, k=1)
-        acc_top5 = fluid.layers.accuracy(input=prob, label=label, k=5)
-     
-    opt = fluid.optimizer.Momentum(0.1, momentum=0.9)
-    opt = fluid.optimizer.PipelineOptimizer(
-                                opt,
-                                num_microbatches=args.microbatch_num)
-    opt.minimize(loss)
+   with fluid.device_guard("gpu:1"):
+       out, prob = fluid.layers.softmax_with_cross_entropy(logits=fc,
+                                                           label=label,
+                                                           return_softmax=True)
+       loss = fluid.layers.mean(out)
+       acc_top1 = fluid.layers.accuracy(input=prob, label=label, k=1)
+       acc_top5 = fluid.layers.accuracy(input=prob, label=label, k=5)
+    
+   opt = fluid.optimizer.Momentum(0.1, momentum=0.9)
+   opt = fluid.optimizer.PipelineOptimizer(
+                               opt,
+                               num_microbatches=args.microbatch_num)
+   opt.minimize(loss)
 
-    # 定义data loader；在该例子中，我们使用随机生成的数据。
-    def train_reader():
-        for _ in range(2560):
-            image = np.random.random([3, 224, 224]).astype('float32')
-            label = np.random.random([1]).astype('uint64')
-            yield image, label
-    place = fluid.CUDAPlace(0)
-    data_loader.set_sample_generator(train_reader,
-                                     batch_size=args.microbatch_size)
+   # 定义data loader；在该例子中，我们使用随机生成的数据。
+   def train_reader():
+       for _ in range(2560):
+           image = np.random.random([3, 224, 224]).astype('float32')
+           label = np.random.random([1]).astype('uint64')
+           yield image, label
+   place = fluid.CUDAPlace(0)
+   data_loader.set_sample_generator(train_reader,
+                                    batch_size=args.microbatch_size)
 
 开始训练
 ~~~~~~~~
 
 .. code:: python
 
-    exe = fluid.Executor(place)
-    exe.run(fluid.default_startup_program())
-    t1 = time.time()
-    data_loader.start()
-    exe.train_from_dataset(fluid.default_main_program())
-    t2 = time.time()
-    print("Execution time: {}".format(t2 - t1))
+   exe = fluid.Executor(place)
+   exe.run(fluid.default_startup_program())
+   t1 = time.time()
+   data_loader.start()
+   exe.train_from_dataset(fluid.default_main_program())
+   t2 = time.time()
+   print("Execution time: {}".format(t2 - t1))
