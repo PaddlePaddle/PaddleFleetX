@@ -164,7 +164,8 @@ class Downloader(object):
     def download_from_bos(self,
                           fs_yaml=None,
                           local_path="./",
-                          sharded=True,
+                          shard_num=-1,
+                          shard_id=-1,
                           process_num=10):
         def multi_download(bos_path,
                            local_path,
@@ -193,20 +194,22 @@ class Downloader(object):
 
         role = fleet._role_maker_()
         fleet_util._set_role_maker(role)
-        if fs_yaml == None:
-            raise Exception(
-                "Error: you should provide a yaml to download data from bos, you can find yaml examples in the following links:"
-            )
-        os.system("wget -q --no-check-certificate {}".format(fs_yaml))
-        yaml_file = fs_yaml.split('/')
-        if os.path.exists(yaml_file):
+        yaml_file = fs_yaml.split('/')[-1]
+        if not os.path.exists(yaml_file):
+            if fs_yaml == None:
+                raise Exception(
+                    "Error: you should provide a yaml to download data from bos, you can find yaml examples in the following links:"
+                )
+            if is_first_worker():
+                os.system("wget -q --no-check-certificate {}".format(fs_yaml))
+        if not os.path.exists(yaml_file):
             raise Exception(
                 "Error: please check if your url is valid and is able to access. "
             )
 
         _, ext = os.path.splitext(fs_yaml)
         assert ext in ['.yml', '.yaml'], "only support yaml files for now"
-        with open(fs_yaml) as f:
+        with open(yaml_file) as f:
             cfg = yaml.load(f, Loader=yaml.Loader)
 
         if 'bos_path' in cfg:
@@ -236,13 +239,12 @@ class Downloader(object):
             self.filelist = get_file_shard(shard_id, shard_num, local_path)
             need_download = check_exists(self.filelist, local_path)
             if need_download:
-                multi_download(client, hdfs_path, local_path, self.filelist)
+                multi_download(bos_path, local_path, self.filelist)
         else:
             if is_first_worker():
                 self.filelist = get_file_shard(0, 1, local_path)
                 need_download = check_exists(self.filelist, local_path)
                 if need_download:
-                    multi_download(client, hdfs_path, local_path,
-                                   self.filelist)
+                    multi_download(bos_path, local_path, self.filelist)
         fleet_util.barrier()
         return local_path
