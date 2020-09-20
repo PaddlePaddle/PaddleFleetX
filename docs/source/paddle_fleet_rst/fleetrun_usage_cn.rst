@@ -1,4 +1,4 @@
-.. toctree::
+.. contents:: :local:
 
 使用fleetrun启动分布式任务
 =======================
