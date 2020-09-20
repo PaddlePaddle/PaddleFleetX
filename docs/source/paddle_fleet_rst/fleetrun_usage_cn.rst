@@ -1,4 +1,5 @@
-.. contents:: :local:
+.. contents:: Table of Contents
+    :depth: 3
 
 使用fleetrun启动分布式任务
 =======================
