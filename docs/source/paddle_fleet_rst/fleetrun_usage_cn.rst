@@ -1,11 +1,10 @@
 
-.. contents:: Table of Contents
-    :depth: 3
-
 使用fleetrun启动分布式任务
 
 =======================
 
+.. contents:: Table of Contents
+    :depth: 3
 
 我们提供\ ``fleetrun``\ 命令，只需一行简单的启动命令，即可轻松地将Paddle
 Fleet GPU单机单卡任务切换为多机多卡任务，也可将参数服务器单节点任务切换为多个服务节点、多个训练节点的分布式任务。
