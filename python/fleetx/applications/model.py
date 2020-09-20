@@ -93,21 +93,34 @@ class Resnet50(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_imagenet_from_file(self,
-                                filelist,
-                                batch_size=32,
-                                phase='train',
-                                shuffle=True,
-                                use_dali=False):
-        if phase != 'train':
-            shuffle = False
-        self.use_dali = use_dali
+    def get_train_dataloader(self,
+                             local_path,
+                             batch_size=32,
+                             shuffle=True,
+                             use_dali=False):
+        filelist = local_path + '/train.txt'
         data_layout = self.data_layout
         return image_dataloader_from_filelist(
             filelist,
             self.inputs,
             batch_size,
-            phase,
+            phase='train',
+            shuffle,
+            use_dali,
+            data_layout=data_layout)
+
+    def get_val_dataloader(self,
+                           local_path,
+                           batch_size=32,
+                           shuffle=False,
+                           use_dali=False):
+        filelist = local_path + '/val.txt'
+        data_layout = self.data_layout
+        return image_dataloader_from_filelist(
+            filelist,
+            self.inputs,
+            batch_size,
+            phase='val',
             shuffle,
             use_dali,
             data_layout=data_layout)
