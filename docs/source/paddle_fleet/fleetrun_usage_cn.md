@@ -2,12 +2,21 @@
 
 我们提供`fleetrun`命令，只需一行简单的启动命令，即可轻松地将Paddle Fleet GPU单机单卡任务切换为多机多卡任务，也可将参数服务器单节点任务切换为多个服务节点、多个训练节点的分布式任务。
 
-## 使用要求
+## 内容导航
+1. [使用要求](#requirement)
+2. [使用说明](#guide)
+   1. [GPU多卡任务启动](#multigpu)
+   2. [CPU任务启动](#multicpu)
+   3. [fleetrun命令参数介绍](#fleetrunargs)
+   4. [使用fleetrun进行GPU多卡训练实例](#multigpuexample)
+
+   
+## 使用要求 <a name="requirement"></a>
 使用`fleetrun`命令的要求：
 - 安装 paddlepaddle 2.0-rc 及以上
 
-## 使用说明
-####  GPU场景
+## 使用说明 <a name="guide"></a>
+####  GPU场景 <a name="multigpu"></a>
 - **GPU单机单卡训练**
 
 多机单卡有两种方式：一种可直接使用`python`执行，也可以使用`fleetrun`执行。**推荐使用`fleetrun`启动方法** 
@@ -68,7 +77,7 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 fleetrun train.py 
 ```
 
-####  CPU场景
+####  CPU场景 <a name="multicpu"></a>
 
 - **参数服务器训练 - 单机训练（0个服务节点，1个训练节点）**
 
@@ -96,7 +105,7 @@ fleetrun --server_num=1 --worker_num=4 train.py
 python train.py
 ```
 
-## fleetrun参数介绍
+## fleetrun参数介绍 <a name="fleetrunargs"></a>
 - GPU模式相关参数:
 	- ips （str，可选）： 指定选择哪些节点IP进行训练，默认为『127.0.0.1』, 即会在本地执行单机单卡或多卡训练。
 	- gpus（str, 可选）： 指定选择哪些GPU卡进行训练，默认为None，即会选择`CUDA_VISIBLE_DEVICES`所显示的所有卡。
@@ -111,7 +120,7 @@ python train.py
 	- log_dir（str, 可选）： 指定分布式任务训练日志的保存路径，默认保存在"./log/"目录。
 
 
-## 利用fleetrun将单机单卡任务转换为单机多卡任务
+## 利用fleetrun将单机单卡任务转换为单机多卡任务 <a name="multigpuexample"></a>
 下面我们将通过例子，为您详细介绍如何利用`fleetrun`将单机单卡训练任务转换为单机多卡训练任务。
 FleetX提供非常简单易用的代码来实现Imagenet数据集上训练ResNet50模型。
 ```py
