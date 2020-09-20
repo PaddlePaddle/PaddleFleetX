@@ -27,11 +27,11 @@
 
 .. code:: python
 
-    import os
-    import argparse
-    import time
-    import math 
-    import paddle.fluid as fluid
+   import os
+   import argparse
+   import time
+   import math 
+   import paddle.fluid as fluid
 
 定义模型
 ~~~~~~~~
@@ -61,7 +61,6 @@
             fc = fluid.layers.fc(input=emb, size=10)
             loss = fluid.layers.mean(fc)
         return data_loader, loss
- 
 
 定义数据集及梯度更新策略
 ~~~~~~~~~~~~~~~~~~~~~~~~

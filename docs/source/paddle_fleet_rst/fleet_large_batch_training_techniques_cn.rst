@@ -73,13 +73,15 @@ GradientMerge
    Merge策略来增大BatchSize。
 
 下面我们来分别介绍FRB和Gradient
-Merge两种策略所对应脚本的编写方法。在开始之前，我们需要准备训练数据集（train\_data.tar.gz）及词表（vocab.txt）。
+Merge两种策略所对应脚本的编写方法。在开始之前，我们需要准备训练数据集（train_data.tar.gz）及词表（vocab.txt）。
 
 .. code:: sh
 
-    wget --no-check-certificate https://fleet.bj.bcebos.com/Bertdata/train_data.tar.gz
-    tar -xf train_data.tar.gz
-    wget --no-check-certificate https://fleet.bj.bcebos.com/Bertdata/vocab.txt
+   wget --no-check-certificate https://fleet.bj.bcebos.com/Bertdata/train_data.tar.gz
+   tar -xf train_data.tar.gz
+   wget --no-check-certificate https://fleet.bj.bcebos.com/Bertdata/vocab.txt
+
+.. _forward-recomputation-backpropagation-1:
 
 Forward Recomputation Backpropagation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -110,19 +112,19 @@ Forward Recomputation Backpropagation
 加载模型及数据
 ^^^^^^^^^^^^^^
 
-用户可以通过\ ``X.applications``\ 接口加载我们预先定义好的模型，如：Resnet50、VGG16、BERT等。并使用定制化的data\_loader加载模型，同时可以定义训练中使用的batch\_size等参数。下面的例子中，我们使用了recompute对Bert\_large模型所支持的最大Batch
-Size（53）来进行训练。
+用户可以通过\ ``X.applications``\ 接口加载我们预先定义好的模型，如：Resnet50、VGG16、BERT等。并使用定制化的data_loader加载模型，同时可以定义训练中使用的batch_size等参数。下面的例子中，我们使用了recompute对Bert_large模型所支持的最大Batch
+Size（130）来进行训练。
 
 .. code:: python
 
-    model = X.applications.BertLarge()
+   model = X.applications.BertLarge()
 
-    data_loader = model.load_digital_dataset_from_file(
-        data_dir='./train_data',
-        vocab_path='./vocab.txt',
-        max_seq_len=512,
-        batch_size=53,
-    )
+   data_loader = model.load_digital_dataset_from_file(
+       data_dir='./train_data',
+       vocab_path='./vocab.txt',
+       max_seq_len=512,
+       batch_size=130,
+   )
 
 定义Recompute Strategy 及 Optimizer
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -137,14 +139,14 @@ Size（53）来进行训练。
 
 .. code:: python
 
-    dist_strategy = fleet.DistributedStrategy()
-    # 使用Recompute，并设置checkpoints
-    dist_strategy.recompute = True
-    dist_strategy.recompute_configs = {"checkpoints": model.checkpoints}
+   dist_strategy = fleet.DistributedStrategy()
+   # 使用Recompute，并设置checkpoints
+   dist_strategy.recompute = True
+   dist_strategy.recompute_configs = {"checkpoints": model.checkpoints}
 
-    optimizer = fluid.optimizer.Adam(learning_rate=configs.lr)
-    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
-    optimizer.minimize(model.loss)
+   optimizer = fluid.optimizer.Adam(learning_rate=configs.lr)
+   optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
+   optimizer.minimize(model.loss)
 
 开始训练
 ^^^^^^^^
@@ -166,64 +168,69 @@ Size（53）来进行训练。
 
 .. code:: sh
 
-    fleetrun --gpus 0,1,2,3,4,5,6,7 bert_recompute.py
+   fleetrun --gpus 0,1,2,3,4,5,6,7 bert_recompute.py
 
 效果测试
 ^^^^^^^^
 
-我们在BERT模型上对recompute的效果进行了测试，使用Recompute后Batch size可以扩大至3倍。与混合精度一起使用时，Batch_size可以进一步扩大。其中，速度记录的是每张卡每秒可以训练的句子数。
+我们在BERT模型上对recompute的效果进行了测试，使用Recompute后Batch size可以扩大9倍多。与混合精度一起使用时，Batch_size可以进一步扩大。其中，速度记录的是分布式训练任务每秒可以训练的样本数。
 
--  **Bert\_large**:
 
 +--------------+----------------+-----------------+-------------------------------+
 | Model        | Baseline       | Recompute       | Recompute + mixed precision   |
 +==============+================+=================+===============================+
-| Batch size   | 14             | 53              | 87                            |
+| Batch size   | 14             | 130             | 145                           |
 +--------------+----------------+-----------------+-------------------------------+
-| speed        | 9.10 sents/s   | 6.44 sents/s    | 9.57 sents/s                  | 
+| speed        | 69.92 sents/s  | 45.76 sents/s   | 75.84 sents/s                 | 
 +--------------+----------------+-----------------+-------------------------------+
 
 Gradient Merge
 ~~~~~~~~~~~~~~
 
 下面，我们介绍如何使用 Gradient Merge 来扩大BERT模型分布式训练中的 Batch
-Size（假设脚本名称为bert\_gradient\_merge.py）：
+Size（假设脚本名称为bert_gradient_merge.py）：
 
 与 Forward Recompute Backpropagation
 相同，我们首先要添加依赖，定义分布式模式并加载模型及数据。
+
+.. _添加依赖-1:
 
 添加依赖
 ^^^^^^^^
 
 .. code:: python
 
-    import fleetx as X
-    import paddle.fluid
-    import paddle.distributed.fleet as fleet
-    import paddle.distributed.fleet.base.role_maker as role_maker
+   import fleetx as X
+   import paddle.fluid
+   import paddle.distributed.fleet as fleet
+   import paddle.distributed.fleet.base.role_maker as role_maker
+
+.. _定义分布式模式并初始化-1:
 
 定义分布式模式并初始化
 ^^^^^^^^^^^^^^^^^^^^^^
 
 .. code:: python
 
-    configs = X.parse_train_configs()
-    role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-    fleet.init(role)
+   configs = X.parse_train_configs()
+   role = role_maker.PaddleCloudRoleMaker(is_collective=True)
+   fleet.init(role)
+
+.. _加载模型及数据-1:
 
 加载模型及数据
 ^^^^^^^^^^^^^^
 
 .. code:: python
 
-    model = X.applications.Bert_large()
+   model = X.applications.Bert_large()
 
-    data_loader = model.load_digital_dataset_from_file(
-        data_dir='./train_data',
-        vocab_path='./vocab.txt',
-        max_seq_len=512,
-        batch_size=13,
-    )
+   data_loader = model.load_digital_dataset_from_file(
+       data_dir='./train_data',
+       vocab_path='./vocab.txt',
+       max_seq_len=512,
+       batch_size=13,
+   )
 
 定义Gradient Merge Strategy 及 Optimizer
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -238,13 +245,15 @@ True
 
 .. code:: python
 
-    dist_strategy = fleet.DistributedStrategy()
-    # 使用Gradient merge策略并设置相关参数
-    dist_strategy.gradient_merge = True
-    dist_strategy.gradient_merge_configs = {"k_steps": 4, "avg": True}
-    optimizer = fluid.optimizer.Adam(learning_rate=configs.lr)
-    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
-    optimizer.minimize(model.loss)
+   dist_strategy = fleet.DistributedStrategy()
+   # 使用Gradient merge策略并设置相关参数
+   dist_strategy.gradient_merge = True
+   dist_strategy.gradient_merge_configs = {"k_steps": 4, "avg": True}
+   optimizer = fluid.optimizer.Adam(learning_rate=configs.lr)
+   optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
+   optimizer.minimize(model.loss)
+
+.. _开始训练-1:
 
 开始训练
 ^^^^^^^^
@@ -254,12 +263,14 @@ Gradient Merge 的训练代码与 Recompute
 
 .. code:: python
 
-    trainer = X.MultiGPUTrainer()
-    trainer.fit(model, data_loader, start_step=10)
+   trainer = X.MultiGPUTrainer()
+   trainer.fit(model, data_loader, start_step=10)
+
+.. _运行训练脚本-1:
 
 运行训练脚本
 ^^^^^^^^^^^^
 
 .. code:: sh
 
-    fleetrun --gpus 0,1,2,3,4,5,6,7 bert_gradient_merge.py
+   fleetrun --gpus 0,1,2,3,4,5,6,7 bert_gradient_merge.py
