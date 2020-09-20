@@ -14,8 +14,8 @@ DGC 简介
 
 大规模分布式训练需要较高的网络带宽以便进行梯度的聚合更新，这限制了多节点训练时的可扩展性同时也需要昂贵的高带宽设备。在低带宽云网络等环境下进行分布式训练会变得更加糟糕。
 `Deep Gradient Compression <https://arxiv.org/abs/1712.01887>`__
-发现：分布式SGD中有99.9%的梯度交换都是冗余的，可以使用深度梯度压缩选择重要梯度进行通信来减少通信量，降低对通信带宽的依赖。FleetX
-实现了DGC的稀疏通信方式，可有效在低配网络下进行GPU分布式训练。FleetX
+发现：分布式SGD中有99.9%的梯度交换都是冗余的，可以使用深度梯度压缩选择重要梯度进行通信来减少通信量，降低对通信带宽的依赖。Fleet
+实现了DGC的稀疏通信方式，可有效在低配网络下进行GPU分布式训练。Fleet
 实现了 DGC 论文中的 ``预热训练 (warming up training)``,
 ``动量修正 (Momentum Correction)``,
 ``局部梯度修剪 (local gradient clipping)``,
@@ -23,7 +23,7 @@ DGC 简介
 ``正则化项修正 (Weight Decay Correction)``
 避免稀疏梯度通信训练带来的最终模型精度损失。
 
-下面将介绍 DGC 稀疏通信方式的适用场景及、基本原理，FleetX 中 DGC
+下面将介绍 DGC 稀疏通信方式的适用场景及、基本原理，Fleet 中 DGC
 的效果和使用方法。
 
 适用场景
@@ -31,7 +31,7 @@ DGC 简介
 
 DGC稀疏通信在低带宽通信瓶颈时会有较大的性能提升，但\ **在单机多卡及RDMA网络通信并非瓶颈情况下**\ ，并不会带来性能上的提升。同时由于AllGather的通信量会随卡数的增多而增大，所以DGC的多机训练规模也不宜过大。故DGC适用于低配网络，同时节点规模不宜过大，如>128张卡。在云网络或高带宽网络设备昂贵时，DGC可有效降低训练成本。
 
-FleetX 效果
+Fleet 效果
 ~~~~~~~~~~~
 
 -  模型：FasterRCNN
@@ -235,9 +235,9 @@ decay项进行数值修正。如下公式，
 DGC 快速开始
 ~~~~~~~~~~~~
 
-下文以单机八卡上训练ResNet50 为例子简单介绍 FleetX 中 DGC 的使用。 因为
+下文以单机八卡上训练ResNet50 为例子简单介绍 Fleet 中 DGC 的使用。 因为
 8张 GPU 的通信都在同一节点内， 一般情况下梯度通信并不会成为训练的瓶颈，
-这里只是以其为例子，介绍FleetX 中 DGC 参数的设置。
+这里只是以其为例子，介绍Fleet 中 DGC 参数的设置。
 
 **注意**\ ：
 
@@ -310,7 +310,7 @@ DGC 相关策略
 开始训练
 ^^^^^^^^
 
-这一部分和FleetX 中其他任务基本相同:
+这一部分和Fleet 中其他任务基本相同:
 
 .. code:: python
 
@@ -364,13 +364,10 @@ Local SGD 简介
 
 Local SGD
 通过延长节点间同步的间隔(局部异步训练)来减轻慢节点的影响和减少通信频率，以此提升训练的吞吐速度；另一方面，为了减小相对于本地训练（小batch
-size）的精度损失，\ `DON’T USE LARGE MINI-BATCHES, USE LOCAL
-SGD <https://arxiv.org/abs/1808.07217>`__ 和 `ADAPTIVE COMMUNICATION
-STRATEGIES TO ACHIEVE THE BEST ERROR-RUNTIME TRADE-OFF IN LOCAL-UPDATE
-SGD <https://arxiv.org/abs/1810.08313>`__
+size）的精度损失，\ `[1] <https://arxiv.org/abs/1808.07217>`__ 和 `[2] <https://arxiv.org/abs/1810.08313>`__
 分别提出了：\ ``post-Local SGD`` 和
 ``自适应步长 (Adaptive Communication) Local SGD``
-策略，来减少参数同步频率降低带来的精度损失。 Synchronous SGD 和 Local
+策略，来减少参数同步频率降低带来的精度损失。 同步SGD 和 Local
 SGD 在通信同步上的差异如下图所示。
 
 .. image:: ../paddle_fleet/img/localSGD_1.png
@@ -380,7 +377,7 @@ SGD 在通信同步上的差异如下图所示。
 
 在Local SGD 训练中，集群中的每个 worker 各自会独立的进行 H 个连续的 SGD
 更新， 然后集群中的所有 worker 会进行通信，同步（averaging）所有 workers
-上的参数。一个双 workers，同步间隙为3 iterations 的Local
+上的参数。一个双 workers，同步间隙为3 步长（iterations） 的Local
 SGD过程如下图所示。黄绿两条路径表示两个 workers 各自的 Local SGD
 更新过程，中间的蓝色路径表示同步后的模型所在的位置。
 
@@ -398,15 +395,15 @@ SGD中的一个关键问题是如何确定参数同步的间隔(频率)，以到
 
 以下两个策略从不同角度试图达到更好的平衡：
 
--  `Post Local SGD <https://arxiv.org/abs/1808.07217>`__
+-  `post Local SGD <https://arxiv.org/abs/1808.07217>`__
    将训练过程分成两个阶段：第一阶段 wokers 间同步的间隔为 1
-   iteration，即同步SGD，来保证最终训练精度；在第二阶段增大同步间隔到固定常数
-   H iterations，来提升训练吞吐。其公式如下：
+   个步长，即同步SGD，来保证最终训练精度；在第二阶段增大同步间隔到固定常数
+   H，来提升训练吞吐。
 -  `Adaptive Communication Local
    SGD <https://arxiv.org/abs/1808.07217>`__
    通过动态的调整参数同步的间隔来尝试达到训练吞吐和精度间的更好的平衡。在训练初始或者上一段参数同步完成后，根据如下公式计算一下次参数同步的间隔（iteration）。详细的公式推导和参数定义请参考原论文。
 
-Fleet 中实现了 ``Post Local SGD`` 和
+Fleet 中实现了 ``post Local SGD`` 和
 ``Adaptive Communication Local SGD`` 两种策略。 中下文将给出 Fleet中
 Local SGD 的实践效果，并通过一个简单例子介绍如何在Fleet 中使用 Local
 SGD。
@@ -440,7 +437,7 @@ Fleet 效果
 | ADACOMM      | 8945.74   | 0.7555   | 0.9270   |
 +--------------+-----------+----------+----------+
 
-可以看到在 navie Local SGD
+可以看到在 post Local SGD
 （固定同步间隔）情况下，更新间隔越长训练的吞吐越高，但是模型的最终进度也会损失越大。
 当使用 ADAPTIVE COMMUNICATION
 策略后，训练在吞吐和精度间达到了一个更好的平衡。
@@ -490,14 +487,10 @@ Local SGD 快速开始
 定义Local SGD 相关策略
 ^^^^^^^^^^^^^^^^^^^^^^
 
-用户首先需要定义paddle SGD 对象，并在SGD 对象中设置学习率参数。Fleet
-Local SGD 中只有两个用户设置参数 ``auto`` 和
-``k_step``\ ，局部更新和参数同步都由框架自动完成：
-
 用户首先需要定义paddle SGD 对象，并在SGD 对象中设置学习率参数。目前local
 SGD和自适应步长 local SGD都仅支持SGD和Momentum两种优化器。
 
--  在\ **Post Local SGD** 中，有两个用户设置参数 ``begin_step`` 和
+-  在\ **post Local SGD** 中，有两个用户设置参数 ``begin_step`` 和
    ``k_steps``\ ，局部更新和参数同步都由框架自动完成。begin\_step
    指定从第几个step之后进行local SGD算法，取值为大于0的整数；k\_step
    指定训练过程中的全局参数更新间隔，取值为大于0的整数。
@@ -507,8 +500,8 @@ SGD和自适应步长 local SGD都仅支持SGD和Momentum两种优化器。
     dist_strategy = fleet.DistributedStrategy() 
     dist_strategy.localsgd = True 
     dist_strategy.localsgd_configs = { 
-    "k_steps": 1, 
-    "begin_step": 1, 
+        "k_steps": 1, 
+        "begin_step": 1, 
     } 
 
     optimizer = fluid.fluid.optimizer.SGD(learning_rate=0.01) 
@@ -526,8 +519,8 @@ SGD和自适应步长 local SGD都仅支持SGD和Momentum两种优化器。
     dist_strategy = fleet.DistributedStrategy() 
     dist_strategy.adaptive_localsgd = True 
     dist_strategy.adaptive_localsgd_configs = { 
-    "init_k_steps": 1, 
-    "begin_step": 1, 
+        "init_k_steps": 1, 
+        "begin_step": 1, 
     } 
 
     optimizer = fluid.fluid.optimizer.SGD(learning_rate=0.01) 
@@ -537,7 +530,7 @@ SGD和自适应步长 local SGD都仅支持SGD和Momentum两种优化器。
 开始训练
 ^^^^^^^^
 
-这一部分和FleetX 中其他任务基本相同:
+这一部分和Fleet 中其他任务基本相同:
 
 .. code:: python
 
