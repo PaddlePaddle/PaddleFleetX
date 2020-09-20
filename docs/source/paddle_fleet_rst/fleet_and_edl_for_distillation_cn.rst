@@ -20,6 +20,11 @@ Network》 <https://arxiv.org/abs/1503.02531>`__
    label，这个soft
    label将作为Student网络的训练目标，Student的推理结果需要尽可能接近Teacher的推理结果。
 
+.. image:: ../paddle_fleet/img/distillation_1.png
+  :width: 600
+  :alt: distillation
+  :align: center
+
 服务型蒸馏训练
 ^^^^^^^^^^^^^^
 
@@ -51,15 +56,17 @@ Network》 <https://arxiv.org/abs/1503.02531>`__
 EDL 服务型弹性蒸馏效果
 ----------------------
 
-ResNet50_vd模型
+ResNet50\_vd模型
 
-================= ============ ============ ========== ==== ==== =====
-model             teacher 资源 student 资源 batch size acc1 acc5 speed
-================= ============ ============ ========== ==== ==== =====
-无蒸馏            none         8 \* V100    256        77.1 93.5 1828
-常规蒸馏          8 \* V100    8 \* V100    256        79.0 94.3 656
-EDL服务型弹性蒸馏 40 \* P40    8 \* V100    256        79.0 94.5 1514
-================= ============ ============ ========== ==== ==== =====
++---------------------+----------------+----------------+--------------+--------+--------+---------+
+| model               | teacher 资源   | student 资源   | batch size   | acc1   | acc5   | speed   |
++=====================+================+================+==============+========+========+=========+
+| 无蒸馏              | none           | 8 \* V100      | 256          | 77.1   | 93.5   | 1828    |
++---------------------+----------------+----------------+--------------+--------+--------+---------+
+| 常规蒸馏            | 8 \* V100      | 8 \* V100      | 256          | 79.0   | 94.3   | 656     |
++---------------------+----------------+----------------+--------------+--------+--------+---------+
+| EDL服务型弹性蒸馏   | 40 \* P40      | 8 \* V100      | 256          | 79.0   | 94.5   | 1514    |
++---------------------+----------------+----------------+--------------+--------+--------+---------+
 
 FleetX 服务型弹性蒸馏
 ---------------------
@@ -71,6 +78,11 @@ DistillReader
 将Teacher模型被部署为在线可容错弹性服务, 在Student模型一侧则通过
 ``DistillReader``
 来封装Student模型与Teacher模型之间的通信，访问Teacher服务。
+
+.. image:: ../paddle_fleet/img/distillation_2.png
+  :width: 600
+  :alt: DistillReader
+  :align: center
 
 DistillReader
 产生可供Student模型训练的数据reader。如上图所示，Student模型将训练样本和标签传入训练reader，DistillReader从训练reader中读取训练样本发送给Teacher模型，然后获取推理结果。
@@ -84,6 +96,11 @@ DistillReader
 Serving将多个Teacher模型部署成服务，并注册服务到Redis数据库中；Student模型则作为客户端从服务发现中查询所需的Teacher服务；服务发现从Redis数据库查询并按某种负载均衡策略返回客户端所需的Teacher列表；每当Teacher变化时，客户端就可以实时拿到最新Teacher列表，连接Teacher进行蒸馏训练，不用担心发生由于连接到被收回的Teacher资源而导致任务失败的请况。
 
 STUDENT模型给TEACHER模型发送样本并获取推理结果，而TEACHER模型服务侧则可以随意增删，弹性调整。
+
+.. image:: ../paddle_fleet/img/distillation_3.png
+  :width: 600
+  :alt: DistillReader
+  :align: center
 
 快速开始
 --------
@@ -100,41 +117,41 @@ Serving等相关依赖。
 
 .. code:: sh
 
-   docker pull hub.baidubce.com/paddle-edl/paddle_edl:latest-cuda9.0-cudnn7
-   nvidia-docker run -name paddle_edl hub.baidubce.com/paddle-edl/paddle_edl:latest-cuda9.0-cudnn7 /bin/bash
+    docker pull hub.baidubce.com/paddle-edl/paddle_edl:latest-cuda9.0-cudnn7
+    nvidia-docker run -name paddle_edl hub.baidubce.com/paddle-edl/paddle_edl:latest-cuda9.0-cudnn7 /bin/bash
 
 启动Teacher模型
 ^^^^^^^^^^^^^^^
 
-如下命令在1号GPU卡启动Teacher服务，其中Teacher模型为图像分类模型ResNeXt101_32x16d_wsl，服务的端口号为9898，并启动了内存优化功能。
+如下命令在1号GPU卡启动Teacher服务，其中Teacher模型为图像分类模型ResNeXt101\_32x16d\_wsl，服务的端口号为9898，并启动了内存优化功能。
 
 .. code:: sh
 
-   cd example/distill/resnet
+    cd example/distill/resnet
 
-   wget --no-check-certificate https://paddle-edl.bj.bcebos.com/distill_teacher_model/ResNeXt101_32x16d_wsl_model.tar.gz
-   tar -zxf ResNeXt101_32x16d_wsl_model.tar.gz
+    wget --no-check-certificate https://paddle-edl.bj.bcebos.com/distill_teacher_model/ResNeXt101_32x16d_wsl_model.tar.gz
+    tar -zxf ResNeXt101_32x16d_wsl_model.tar.gz
 
-   python -m paddle_serving_server_gpu.serve \
-     --model ResNeXt101_32x16d_wsl_model \
-     --mem_optim True \
-     --port 9898 \
-     --gpu_ids 1
+    python -m paddle_serving_server_gpu.serve \
+      --model ResNeXt101_32x16d_wsl_model \
+      --mem_optim True \
+      --port 9898 \
+      --gpu_ids 1
 
 启动Student模型训练
 ^^^^^^^^^^^^^^^^^^^
 
-如下命令在0号GPU卡启动Student模型，启动的student模型为ResNet50_vd。
-其中train_with_fleet.py是用于启动训练的脚本，用户需要在其中添加蒸馏训练相关的代码，如果用户想了解脚本的修改方法或可以参考如\ `github <https://github.com/elasticdeeplearning/edl/blob/develop/example/distill/README.md>`__\ 。
+如下命令在0号GPU卡启动Student模型，启动的student模型为ResNet50\_vd。
+其中train\_with\_fleet.py是用于启动训练的脚本，用户需要在其中添加蒸馏训练相关的代码，如果用户想了解脚本的修改方法或可以参考如\ `github <https://github.com/elasticdeeplearning/edl/blob/develop/example/distill/README.md>`__\ 。
 
 .. code:: sh
 
-   python -m paddle.distributed.launch --selected_gpus 0 \
-     ./train_with_fleet.py \
-     --model=ResNet50_vd \
-     --data_dir=./ImageNet \
-     --use_distill_service=True \
-     --distill_teachers=127.0.0.1:9898
+    python -m paddle.distributed.launch --selected_gpus 0 \
+      ./train_with_fleet.py \
+      --model=ResNet50_vd \
+      --data_dir=./ImageNet \
+      --use_distill_service=True \
+      --distill_teachers=127.0.0.1:9898
 
 推荐阅读:
 ---------

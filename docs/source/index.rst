@@ -5,7 +5,6 @@
 =========================================================
 
 - 欢迎您关注飞桨分布式训练，我们希望能帮助每一个用户走上大规模工业化生产之路！
-- 飞桨提供的分布式训练能力
 
 .. toctree::
    :maxdepth: 1
@@ -13,13 +12,14 @@
    :caption: 快速开始
    :name: new-users
 
-   paddle_fleet_rst/distributed_overview
+   paddle_fleet_rst/distributed_introduction
    paddle_fleet_rst/install_cn
-   paddle_fleet_rst/fleetx_quick_start
-   paddle_fleet_rst/fleetrun_usage_cn
    paddle_fleet_rst/fleet_static_quick_start
    paddle_fleet_rst/fleet_dygraph_quick_start
+   paddle_fleet_rst/fleetrun_usage_cn
+   paddle_fleet_rst/fleetx_quick_start
    paddle_fleet_rst/fleetsub_quick_start
+   paddle_fleet_rst/dataset_info
 
 .. toctree::
    :maxdepth: 1
@@ -51,7 +51,6 @@
    paddle_fleet_rst/fleet_ps_geo_async_cn	  
    paddle_fleet_rst/fleet_and_edl_for_distillation_cn
    paddle_fleet_rst/fleet_on_cloud_cn
-   paddle_fleet_rst/fleet_local_sgd_for_large_batch_training
 
 .. toctree::
    :maxdepth: 1

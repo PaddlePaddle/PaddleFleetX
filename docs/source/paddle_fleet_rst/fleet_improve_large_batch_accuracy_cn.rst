@@ -19,51 +19,32 @@ LARS\ `[3] <https://arxiv.org/abs/1708.03888>`__ 和
 LAMB\ `[4] <https://arxiv.org/abs/1904.00962>`__
 两个优化策略常用来解决上述超大batch 训练中的收敛问题.
 
-FleetX 实现了这两种优化策略, 并提供简单易用API 接口. 通过这两个优化策略,
+Fleet 实现了这两种优化策略, 并提供简单易用API 接口. 通过这两个优化策略,
 我们在超大batch 场景中实现了更快的收敛速度和无损的精度, 结合FleetX
-中其他的策略(e.g. `AMP <https://LINK_to_be_added>`__)
+中其他的策略(e.g. `AMP <https://LINK_to_be_added>`__)
 极大缩短的训练整体的time2train.
 
 下文将通过一个简单例子介绍如何在Fleet 数据并行训练框架中使用 LARS
-和LAMB, 另外给出我们使用 FleetX 实践的效果和代码.
+和LAMB, 另外给出我们使用 Fleet 实践的效果和代码.
 
-FleetX 效果
------------
+Fleet 效果
+----------
 
 使用 LARS 可以在超大 batch 并行（batch size>= 8k）时达到达到一下效果：
 \* 如果目标是收敛精度： 达到 76.3 % 的 resnet50 state of art 精度 \*
 如果目标是收敛速度优先：60 epoch 内收敛 75.9% Top1 （MLperf）
 
-+-------------------------+-------------------+-------+-------+
-| resnet50 imagenet       | Global batch size | epoch | top1  |
-+=========================+===================+=======+=======+
-| `Goyal et               | 8k                | 90    | 76.3% |
-| al <https://arxiv       |                   |       |       |
-| .org/abs/1706.02677>`__ |                   |       |       |
-+-------------------------+-------------------+-------+-------+
-| `LARS <https://arxiv    | 32k               | 90    | 72.3% |
-| .org/abs/1708.03888>`__ |                   |       |       |
-+-------------------------+-------------------+-------+-------+
-| `FleetX: lars +         | 16k               | 60    | 75.9% |
-| amp <https://L          |                   |       |       |
-| INK_to_example_code>`__ |                   |       |       |
-+-------------------------+-------------------+-------+-------+
-| `FleetX: lars +         | 32k               | TBA   | TBA   |
-| amp <https://L          |                   |       |       |
-| INK_to_example_code>`__ |                   |       |       |
-+-------------------------+-------------------+-------+-------+
-
-+-------------------------+-------------------+-------+------+
-| bert en-de              | Global batch size | epoch | top1 |
-+=========================+===================+=======+======+
-| `FleetX: lamb +         | TBA               | TBA   | TBA  |
-| amp <https://L          |                   |       |      |
-| INK_to_example_code>`__ |                   |       |      |
-+-------------------------+-------------------+-------+------+
-| `FleetX: lamb +         | TBA               | TBA   | TBA  |
-| amp <https://L          |                   |       |      |
-| INK_to_example_code>`__ |                   |       |      |
-+-------------------------+-------------------+-------+------+
++-----------------------+---------------------+---------+---------+
+| resnet50 imagenet     | Global batch size   | epoch   | top1    |
++=======================+=====================+=========+=========+
+| [Goyal et al]         | 8k                  | 90      | 76.3%   |
++-----------------------+---------------------+---------+---------+
+| `LARS <#lars>`__      | 32k                 | 90      | 72.3%   |
++-----------------------+---------------------+---------+---------+
+| [Fleet: lars + amp]   | 16k                 | 60      | 76.2%   |
++-----------------------+---------------------+---------+---------+
+| [Fleet: lars + amp]   | 32k                 | 62      | 75.9%   |
++-----------------------+---------------------+---------+---------+
 
 LARS
 ----
@@ -75,12 +56,12 @@ LARS
 
 .. code:: python
 
-   import os
-   import fleetx as X
-   import paddle.fluid as fluid
-   import paddle.distributed.fleet.base.role_maker as role_maker
-   import time
-   import paddle.distributed.fleet as fleet
+    import os
+    import fleetx as X
+    import paddle.fluid as fluid
+    import paddle.distributed.fleet.base.role_maker as role_maker
+    import time
+    import paddle.distributed.fleet as fleet
 
 定义分布式模式并初始化
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -89,57 +70,68 @@ LARS
 
 .. code:: python
 
-   configs = X.parse_train_configs()
-   role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-   fleet.init(role)
+    configs = X.parse_train_configs()
+    role = role_maker.PaddleCloudRoleMaker(is_collective=True)
+    fleet.init(role)
 
 加载模型及数据
 ^^^^^^^^^^^^^^
 
-用户可以通过\ ``X.applications``\ 接口加载我们预先定义好的模型，如：Resnet50、VGG16、BERT等。并使用定制化的data_loader加载模型，同时可以定义训练中使用的batch_size等参数。
+用户可以通过\ ``X.applications``\ 接口加载我们预先定义好的模型，如：Resnet50、VGG16、BERT等。并使用定制化的data\_loader加载模型，同时可以定义训练中使用的batch\_size等参数。
 
 .. code:: python
 
-   model = X.applications.Resnet50()
-   loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
+    model = X.applications.Resnet50()
+    batch_size = 32
+    data_loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
 
 定义分布式及LARS 相关策略
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 LARS 优化算法的公式如下:
 
+.. math::
+
+    local\_learning\_rate = learning\_rate * lars\_coeff * 
+            \frac{||param||}{||gradient|| + lars\_weight\_decay * ||param||} 
+
+.. math::
+    velocity = mu * velocity + local\_learning\_rate * (gradient + lars\_weight\_decay * param + epsilon) \\
+
+.. math::
+    param = param - velocity \\
+
 可以看到LARS 其实是在 带\ ``weight decay`` 的\ ``momentum``
 优化器的基础上加入了\ ``local learning rate`` 的逻辑,
-对每一层的\ ``learning rate`` 进行了放缩. FleetX 将 LARS实现为一个 fleet
+对每一层的\ ``learning rate`` 进行了放缩. Fleet 将 LARS实现为一个 fleet
 meta optimizer, 在使用时需要设置一下几点:
 
 1. LARS meta optimizer 的 inner optimizer 必须为 ``momentum``, 并在
    momentum 中定义 ``mu`` 和\ ``lr`` 参数.
-2. 在 fleet dist_strategy 定义LARS 特有的 ``lars_coeff`` 参数和
+2. 在 fleet dist\_strategy 定义LARS 特有的 ``lars_coeff`` 参数和
    ``lars_weight_decay`` 参数.
 
    -  LARS 已经将 ``weight decay`` 包含进公式中, 用户不需要再在
       optimizer中设置 ``regularization``.
-   -  FleetX 中还提供 lars_weight_decay 过滤策略,
+   -  Fleet 中还提供 lars\_weight\_decay 过滤策略,
       可以通过在\ ``exclude_from_weight_decay`` 参数加入对应layer 的
       ``name string``, 让这一 layer 的参数不进行 lars weight decay.
-      (通常我们将\ ``BN`` 参数 和 ``FC_bias`` 从lars weight decay
-      中过滤)
+      (通常我们将``BN`` 参数 和 ``FC_bias`` 从lars weight decay 中过滤)
 
 .. code:: python
 
-   dist_strategy = fleet.DistributedStrategy()
+    dist_strategy = fleet.DistributedStrategy()
 
-   dist_strategy.lars = True
-   dist_strategy.lars_configs = {
-                       "lars_coeff": 0.001,
-                       "lars_weight_decay": 0.0005,
-                       "exclude_from_weight_decay": ['batch_norm', '.b_0']
-                   }
+    dist_strategy.lars = True
+    dist_strategy.lars_configs = {
+                        "lars_coeff": 0.001,
+                        "lars_weight_decay": 0.0005,
+                        "exclude_from_weight_decay": ['batch_norm', '.b_0']
+                    }
 
-   optimizer = paddle.optimizer.Momentum(learning_rate=0.01, momentum=0.9)
-   optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
-   optimizer.minimize(model.loss)
+    optimizer = fluid.optimizer.Momentum(learning_rate=0.01, momentum=0.9)
+    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
+    optimizer.minimize(model.loss)
 
 开始训练
 ^^^^^^^^
@@ -148,22 +140,20 @@ meta optimizer, 在使用时需要设置一下几点:
 
 .. code:: python
 
-   place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
-   exe = fluid.Executor(place)
-   exe.run(fluid.default_startup_program())
+    place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+    exe = fluid.Executor(place)
+    exe.run(fluid.default_startup_program())
 
-   total_time = 0
-   for i, data in enumerate(data_loader()):
-       start_time = time.time()
-       cost_val = exe.run(paddle.static.default_main_program(),
-                          feed=data,
-                          fetch_list=[model.loss.name])
-       end_time = time.time()
-       total_time += (end_time - start_time)
-       print(
-           "worker_index: %d, step%d cost = %f, total time cost = %f, step per second: %f, speed: %f"
-           % (fleet.worker_index(), i, cost_val[0], total_time,
-              (i - 9) / total_time, 1 / (end_time - start_time))
+    for i, data in enumerate(data_loader()):
+        start_time = time.time()
+        cost_val = exe.run(model.main_prog,
+                            feed=data,
+                            fetch_list=[model.loss.name])
+                            
+        end_time = time.time()
+        print(
+            "worker_index: %d, step%d cost = %f, speed: %f"
+            % (fleet.worker_index(), i, cost_val[0], batch_size / (end_time - start_time)))
 
 运行训练脚本
 ~~~~~~~~~~~~
@@ -172,28 +162,24 @@ meta optimizer, 在使用时需要设置一下几点:
 
 .. code:: sh
 
-   fleetrun --gpus 0,1,2,3,4,5,6,7 resnet50_lars.py
+    fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log resnet50_lars.py
 
 LAMB
 ----
 
 我们以在单机多卡上Bert 训练为简单例子介绍FleetX 中LAMB 的用法.
 
-.. _添加依赖-1:
-
 添加依赖
 ^^^^^^^^
 
 .. code:: python
 
-   import os
-   import fleetx as X
-   import paddle.fluid as fluid
-   import paddle.distributed.fleet.base.role_maker as role_maker
-   import time
-   import paddle.distributed.fleet as fleet
-
-.. _定义分布式模式并初始化-1:
+    import os
+    import fleetx as X
+    import paddle.fluid as fluid
+    import paddle.distributed.fleet.base.role_maker as role_maker
+    import time
+    import paddle.distributed.fleet as fleet
 
 定义分布式模式并初始化
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -202,11 +188,9 @@ LAMB
 
 .. code:: python
 
-   configs = X.parse_train_configs()
-   role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-   fleet.init(role)
-
-.. _加载模型及数据-1:
+    configs = X.parse_train_configs()
+    role = role_maker.PaddleCloudRoleMaker(is_collective=True)
+    fleet.init(role)
 
 加载模型及数据
 ^^^^^^^^^^^^^^
@@ -215,48 +199,61 @@ LAMB
 
 .. code:: python
 
-   model = X.applications.Resnet50()
-   loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
-
-.. _定义分布式及lars-相关策略-1:
+    model = X.applications.Resnet50()
+    batch_size = 32
+    data_loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
 
 定义分布式及LARS 相关策略
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 LAMB 优化算法的公式如下:
 
+.. math::
+
+    m_t = \beta_1 m_{t - 1}+ (1 - \beta_1)g_t \\
+
+.. math::
+
+    v_t = \beta_2 v_{t - 1}  + (1 - \beta_2)g_t^2 \\
+
+.. math::
+
+    r_t = \frac{m_t}{\sqrt{v_t}+\epsilon} \\
+
+.. math::
+
+    w_t = w_{t-1} -\eta_t \frac{\left \| w_{t-1}\right \|}{\left \| r_t + \lambda w_{t-1}\right \|} (r_t + \lambda w_{t-1}) \\
+
 和LARS 类似, LAMB 也是在内层优化器的基础上,
 套了一个\ ``local learning rate`` 的逻辑, 对每一层的\ ``learning rate``
-进行了放缩. FleetX 将 LAMB实现为一个 fleet meta optimizer,
+进行了放缩. Fleet 将 LAMB实现为一个 fleet meta optimizer,
 在使用时需要设置一下几点:
 
 1. LAMB meta optimizer 的 inner optimizer 必须为 ``adam``, 并在 adam
    中定义 学习率\ ``lr``, 一阶 moment 的指数衰减率\ ``beta1``
    和二阶moment 的指数衰减率\ ``beta2`` 参数.
-2. 在 fleet dist_strategy 定义LAMB 特有的 ``lamb_weight_decay`` 参数.
+2. 在 fleet dist\_strategy 定义LAMB 特有的 ``lamb_weight_decay`` 参数.
 
    -  LAMB 已经将 ``weight decay`` 包含进公式中, 用户不需要再在
       optimizer中设置 ``regularization``.
-   -  FleetX 中还提供 lamb_weight_decay 过滤策略,
+   -  Fleet 中还提供 lamb\_weight\_decay 过滤策略,
       可以通过在\ ``exclude_from_weight_decay`` 参数加入对应layer 的
       ``name string``, 让这一 layer 的参数不进行 lars weight decay.
-      (通常我们将\ ``LN`` 从lamb weight decay 中过滤)
+      (通常我们将``LN`` 从lamb weight decay 中过滤)
 
 .. code:: python
 
-   dist_strategy = fleet.DistributedStrategy()
+    dist_strategy = fleet.DistributedStrategy()
 
-   dist_strategy.lamb = True
-   dist_strategy.lamb_configs = {
-                       'lamb_weight_decay': 0.01,
-                       'exclude_from_weight_decay': ['layer_norm'],
-                   }
+    dist_strategy.lamb = True
+    dist_strategy.lamb_configs = {
+                        'lamb_weight_decay': 0.01,
+                        'exclude_from_weight_decay': ['layer_norm'],
+                    }
 
-   optimizer = paddle.optimizer.Adam(learning_rate=0.01, beta1=0.9, beta2=0.999)
-   optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
-   optimizer.minimize(model.loss)
-
-.. _开始训练-1:
+    optimizer = paddle.optimizer.Adam(learning_rate=0.01, beta1=0.9, beta2=0.999)
+    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
+    optimizer.minimize(model.loss)
 
 开始训练
 ^^^^^^^^
@@ -265,24 +262,20 @@ LAMB 优化算法的公式如下:
 
 .. code:: python
 
-   place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
-   exe = fluid.Executor(place)
-   exe.run(fluid.default_startup_program())
+    place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+    exe = fluid.Executor(place)
+    exe.run(fluid.default_startup_program())
 
-   total_time = 0
-   for i, data in enumerate(data_loader()):
-       start_time = time.time()
-       cost_val = exe.run(paddle.static.default_main_program(),
-                          feed=data,
-                          fetch_list=[model.loss.name])
-       end_time = time.time()
-       total_time += (end_time - start_time)
-       print(
-           "worker_index: %d, step%d cost = %f, total time cost = %f, step per second: %f, speed: %f"
-           % (fleet.worker_index(), i, cost_val[0], total_time,
-              (i - 9) / total_time, 1 / (end_time - start_time))
-
-.. _运行训练脚本-1:
+    for i, data in enumerate(data_loader()):
+        start_time = time.time()
+        cost_val = exe.run(model.main_prog,
+                            feed=data,
+                            fetch_list=[model.loss.name])
+                            
+        end_time = time.time()
+        print(
+            "worker_index: %d, step%d cost = %f, speed: %f"
+            % (fleet.worker_index(), i, cost_val[0], batch_size / (end_time - start_time)))
 
 运行训练脚本
 ~~~~~~~~~~~~
@@ -291,4 +284,4 @@ LAMB 优化算法的公式如下:
 
 .. code:: sh
 
-   fleetrun --gpus 0,1,2,3,4,5,6,7 bert_lamb.py
+    fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log resnet50_lamb.py
