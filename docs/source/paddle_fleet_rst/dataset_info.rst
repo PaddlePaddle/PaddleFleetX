@@ -43,7 +43,7 @@
 
 - 默认情况下，每台机器会下载全量的数据
 
-- 若在数据并行的场景中，每台机器没有必要储存全量数据。\\用户可以修改接口中的 \ ``shard_num = fleet.worker_num()``\ 及 \ ``shard_id = fleet.worker_id()``\参数，使得每台机器下载分片的数据。
+- 若在数据并行的场景中，每台机器没有必要储存全量数据。用户可以修改接口中的 \ ``shard_num = fleet.worker_num()``\ 及 \ ``shard_id = fleet.worker_id()``\参数，使得每台机器下载分片的数据。
 
 .. code:: python
 
