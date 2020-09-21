@@ -1,6 +1,7 @@
 # fleetrun 启动分布式任务
 
-我们提供`fleetrun`命令，只需一行简单的启动命令，即可轻松地将Paddle Fleet GPU单机单卡任务切换为多机多卡任务，也可将参数服务器单节点任务切换为多个服务节点、多个训练节点的分布式任务。
+Paddle提供`fleetrun`命令，只需一行简单的启动命令，即可轻松地将Paddle Fleet GPU单机单卡任务切换为多机多卡任务，也可将参数服务器单节点任务切换为多个服务节点、多个训练节点的分布式任务。
+`fleetrun`在静态图和动态图场景下均可使用。
 
 ## 内容导航
 1. [使用要求](#requirement)
@@ -10,7 +11,7 @@
    3. [fleetrun命令参数介绍](#fleetrunargs)
    4. [使用fleetrun进行GPU多卡训练实例](#multigpuexample)
 
-   
+
 ## 使用要求 <a name="requirement"></a>
 使用`fleetrun`命令的要求：
 - 安装 paddlepaddle 2.0-rc 及以上
@@ -19,7 +20,7 @@
 ####  GPU场景 <a name="multigpu"></a>
 - **GPU单机单卡训练**
 
-多机单卡有两种方式：一种可直接使用`python`执行，也可以使用`fleetrun`执行。**推荐使用`fleetrun`启动方法** 
+多机单卡有两种方式：一种可直接使用`python`执行，也可以使用`fleetrun`执行。**推荐使用`fleetrun`启动方法**
 
 【方法一】直接使用`python`执行
 ```sh
@@ -39,7 +40,9 @@ fleetrun train.py
 ```
 
 
-- **GPU单机4卡训练**
+- **GPU单机多卡训练**
+
+若启动单机4卡的任务，只需通过\ ``--gpus``\ 指定空闲的4张卡即可。
 
 ```
 fleetrun --gpus=0,1,2,3 train.py
@@ -72,14 +75,16 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 
 **PaddleCloud**是百度开源的云上任务提交工具，提供云端训练资源，打通⽤户云端资源账号，并且支持以命令行形式进行任务提交、查看、终止等多种功能。PaddleCloud更多详情：[PaddleCloud](https://github.com/PaddlePaddle/PaddleCloud "PaddleCloud")
 
-  在PaddleCloud上启动分布式任务十分方便，无论执行单机单卡还是多机多卡任务，只需使用：
+百度内部用户在PaddleCloud上启动分布式任务十分方便，执行PaddleCloud启动任务时指定任务所需机器数和卡数，由 `-—k8s-trainers` 和 `—-k8s-gpu-cards` 决定。无论执行单机单卡还是多机多卡任务，只需在提交任务的运行脚本中使用：
 ```sh
-fleetrun train.py 
+fleetrun train.py
 ```
 
+使用开源版本的PaddleCloud启动分布式任务时，可以通过`instance_count`指定申请计算节点数目, `instance_count = 1` 时默认启动单机任务，`instance_count > 1` 时可启动多机任务。
 ####  CPU场景 <a name="multicpu"></a>
 
-- **参数服务器训练 - 单机训练（0个服务节点，1个训练节点）**
+- ** 单机训练（0个服务节点，1个训练节点）**
+Fleet支持参数服务器任务多机回退到单机任务，直接运行时程序将转换为一般的Paddle单机任务。
 
 ```sh
 python train.py
@@ -93,12 +98,19 @@ fleetrun --server_num=1 --worker_num=4 train.py
 
 - **参数服务器训练 - 多机训练（2台节点，每台节点均有1个服务节点，4个训练节点）**
 
+fleetrun启动时只指定服务节点的ip和端口列表`servers` 和 训练节点的ip和端口列表列表`workers` ，即可进行多机训练。
+下列示例中，xx.xx.xx.xx代表机器1，yy.yy.yy.yy代表机器2，6170代表随机指定的服务节点的端口。fleetrun将分别在2台机器上启动1个服务节点，4个训练节点。
 ```sh
  # 2个servers 8个workers
  fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,xx.xx.xx.xx:6173,xx.xx.xx.xx:6174,xx.xx.xx.xx:6175,yy.yy.yy.yy:6176,yy.yy.yy.yy:6177,yy.yy.yy.yy:6178,yy.yy.yy.yy:6179" train.py
 ```
 
+训练节点`workers` 的端口可以在启动时省略，此时fleetrun将会在启动训练任务前分配好端口给每个训练节点。
 - **参数服务器训练 - 在PaddleCloud上提交任务**
+```sh
+ # 2个servers 8个workers
+ fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx,xx.xx.xx.xx,xx.xx.xx.xx,xx.xx.xx.xx,yy.yy.yy.yy,yy.yy.yy.yy,yy.yy.yy.yy,yy.yy.yy.yy" train.py
+```
 
 由于Paddlecloud对参数服务器训练做了比较完备的封装，因此可以直接使用：
 ```sh
@@ -124,29 +136,59 @@ python train.py
 下面我们将通过例子，为您详细介绍如何利用`fleetrun`将单机单卡训练任务转换为单机多卡训练任务。
 FleetX提供非常简单易用的代码来实现Imagenet数据集上训练ResNet50模型。
 ```py
-import fleetx as X
-import paddle.fluid as fluid
-import paddle.distributed.fleet as fleet
+    import os
+    import time
+    import paddle
+    import paddle.distributed.fleet as fleet
+    import paddle.static.nn as nn
+    import paddle.fluid as fluid
 
-configs = X.parse_train_configs()
+    def mnist_on_mlp_model():
+        train_dataset = paddle.vision.datasets.MNIST(mode='train')
+        test_dataset = paddle.vision.datasets.MNIST(mode='test')
+        x = paddle.data(name="x", shape=[64, 1, 28, 28], dtype='float32')
+        y = paddle.data(name="y", shape=[64, 1], dtype='int64')
+        x_flatten = fluid.layers.reshape(x, [64, 784])
+        fc_1 = nn.fc(input=x_flatten, size=128, act='tanh')
+        fc_2 = nn.fc(input=fc_1, size=128, act='tanh')
+        prediction = nn.fc(input=[fc_2], size=10, act='softmax')
+        cost = fluid.layers.cross_entropy(input=prediction, label=y)
+        acc_top1 = fluid.layers.accuracy(input=prediction, label=y, k=1)
+        avg_cost = fluid.layers.mean(x=cost)
+        return train_dataset, test_dataset, x, y, avg_cost, acc_top1
 
-model = X.applications.Resnet50()
-imagenet_downloader = X.utils.ImageNetDownloader()
-local_path = imagenet_downloader.download_from_bos(local_path='./data')
-local_path = "./data/"
-loader = model.load_imagenet_from_file(
-    "{}/train.txt".format(local_path), batch_size=32)
+    train_data, test_data, x, y, cost, acc = mnist_on_mlp_model()
+    place = paddle.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+    train_dataloader = paddle.io.DataLoader(
+        train_data, feed_list=[x, y], drop_last=True,
+        places=place, batch_size=64, shuffle=True)
+    fleet.init(is_collective=True)
+    strategy = fleet.DistributedStrategy()
+    #optimizer = paddle.optimizer.Adam(learning_rate=0.01)
+    optimizer = fluid.optimizer.Adam(learning_rate=0.001)
+    optimizer = fleet.distributed_optimizer(optimizer, strategy=strategy)
+    optimizer.minimize(cost)
 
-fleet.init(is_collective=True)
+    exe = paddle.static.Executor(place)
+    exe.run(paddle.static.default_startup_program())
 
-optimizer = fluid.optimizer.Momentum(
-    learning_rate=configs.lr,
-    momentum=configs.momentum)
-optimizer = fleet.distributed_optimizer(optimizer)
-optimizer.minimize(model.loss)
-
-trainer = X.MultiGPUTrainer()
-trainer.fit(model, loader, epoch=10)
+    epoch = 10
+    for i in range(epoch):
+        total_time = 0
+        step = 0
+        for data in train_dataloader():
+            step += 1
+            start_time = time.time()
+            loss_val, acc_val = exe.run(
+              paddle.static.default_main_program(),
+              feed=data, fetch_list=[cost.name, acc.name])
+            if step % 200 == 0:
+                end_time = time.time()
+                total_time += (end_time - start_time)
+                print(
+                        "epoch: %d, step:%d, train_loss: %f, total time cost = %f, speed: %f"
+                    % (i, step, loss_val[0], total_time,
+                       1 / (end_time - start_time) ))
 ```
 #### 单机单卡训练
 将上述代码保存在`res_app.py`代码中，单机单卡训练十分的简单，只需要：
@@ -156,22 +198,17 @@ python res_app.py
 ```
 可以看见终端上打印日志信息：
 ```sh
---202X-0X-0X 06:42:53--  https://fleet.bj.bcebos.com/models/0.0.4/resnet50_nchw.tar.gz
-Connecting to 172.19.57.45:3128... connected.
-Proxy request sent, awaiting response... 200 OK
-Length: 29733 (29K) [application/x-gzip]
-Saving to: ‘/usr/local/lib/python2.7/dist-packages/fleetx/applications/resnet50_nchw.tar.gz’
-
-resnet50_nchw.tar.gz                          100%[==============================================================================================>]  29.04K   127KB/s    in 0.2s
-
-202X-0X-0X 06:42:56 (127 KB/s) - ‘/usr/local/lib/python2.7/dist-packages/fleetx/applications/resnet50_nchw.tar.gz’ saved [29733/29733]
-('reader shuffle seed', 0)
-('trainerid, trainer_count', 0, 1)
-read images from 0, length: 61700, lines length: 61700, total: 61700
-worker_index: 0, step11, train_loss: 7.020836, total time cost = 0.286696, step per second: 3.488016, speed: 3.488016
-worker_index: 0, step12, train_loss: 6.972931, total time cost = 0.319859, step per second: 6.252759, speed: 30.154240
-worker_index: 0, step13, train_loss: 6.851268, total time cost = 0.423936, step per second: 7.076546, speed: 9.608284
-worker_index: 0, step14, train_loss: 7.111120, total time cost = 0.527876, step per second: 7.577542, speed: 9.620934
+  epoch: 0, step:200, train_loss: 0.424425, total time cost = 0.000947, speed: 1055.967774
+  epoch: 0, step:400, train_loss: 0.273742, total time cost = 0.001725, speed: 1285.413423
+  epoch: 0, step:600, train_loss: 0.472131, total time cost = 0.002467, speed: 1347.784062
+  epoch: 0, step:800, train_loss: 0.445613, total time cost = 0.003184, speed: 1394.382979
+  epoch: 1, step:200, train_loss: 0.512807, total time cost = 0.000681, speed: 1468.593838
+  epoch: 1, step:400, train_loss: 0.571385, total time cost = 0.001344, speed: 1508.199928
+  epoch: 1, step:600, train_loss: 0.617232, total time cost = 0.002034, speed: 1449.310297
+  epoch: 1, step:800, train_loss: 0.392537, total time cost = 0.002813, speed: 1283.446756
+  epoch: 2, step:200, train_loss: 0.288508, total time cost = 0.000796, speed: 1256.155735
+  epoch: 2, step:400, train_loss: 0.448433, total time cost = 0.001531, speed: 1360.461888
+  epoch: 2, step:600, train_loss: 0.593330, total time cost = 0.002292, speed: 1314.005013
 ...
 ```
 #### 单机多卡训练
@@ -204,12 +241,13 @@ FLAGS_selected_gpus                       0
 PADDLE_TRAINER_ENDPOINTS                  ... 0.1:11330,127.0.0.1:54803,127.0.0.1:49294
 PADDLE_TRAINER_ID                         0
 =======================================================================================
-('reader shuffle seed', 0)
-('trainerid, trainer_count', 0, 4)
-read images from 0, length: 15425, lines length: 15425, total: 61700
-worker_index: 0, step11, train_loss: 7.081496, total time cost = 0.113786, step per second: 8.788429, speed: 8.788429
-worker_index: 0, step12, train_loss: 7.012076, total time cost = 0.228058, step per second: 8.769704, speed: 8.751059
-worker_index: 0, step13, train_loss: 6.998970, total time cost = 0.349108, step per second: 8.593330, speed: 8.261041
+ epoch: 0, step:200, train_loss: 0.306129, total time cost = 0.001170, speed: 854.759323
+ epoch: 0, step:400, train_loss: 0.287594, total time cost = 0.002226, speed: 947.009257
+ epoch: 0, step:600, train_loss: 0.179934, total time cost = 0.003201, speed: 1025.752996
+ epoch: 0, step:800, train_loss: 0.137214, total time cost = 0.005004, speed: 554.582044
+ epoch: 1, step:200, train_loss: 0.302534, total time cost = 0.000975, speed: 1025.752996
+ epoch: 1, step:400, train_loss: 0.375780, total time cost = 0.001934, speed: 1042.581158
+ epoch: 1, step:600, train_loss: 0.247651, total time cost = 0.002892, speed: 1043.878547
+ epoch: 1, step:800, train_loss: 0.086278, total time cost = 0.003845, speed: 1049.363022
 .....
 ```
-
