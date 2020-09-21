@@ -27,9 +27,7 @@
 
 接下来我们可以开始定义训练脚本（"resnet_app.py"）。
 
-因为FleetX中提供的\ ``Downloader``\ 接口需要依赖fleet在下载过程中对多进程进行同步，所以在下载数据之前需要导入\ ``fleet``\ 及 \ ``fleetx``\ 模块，并使用\ ``fleet.init()``\ 对fleet进行初始化。
-
-\ ``fleet.init()``\ 默认用户使用PS分布式模式，若用户想使用Collective模式需要将\ ``is_collective``\ 选项设置为True，具体代码如下：
+在下载之前我们需要引入\ ``fleet``\ 及 \ ``fleetx``\ 模块，并对fleet进行初始化。
 
 .. code:: python
 
