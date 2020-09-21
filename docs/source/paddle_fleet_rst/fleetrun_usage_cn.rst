@@ -144,12 +144,14 @@ fleetrun启动时只指定服务节点的ip和端口列表\ ``servers``\ 和 训
 下列示例中，xx.xx.xx.xx代表机器1，yy.yy.yy.yy代表机器2，6170代表随机指定的服务节点的端口。fleetrun将分别在2台机器上启动1个服务节点，4个训练节点。
 
 .. code:: sh
+
     # 2个servers 8个workers
     fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,xx.xx.xx.xx:6173,xx.xx.xx.xx:6174,xx.xx.xx.xx:6175,yy.yy.yy.yy:6176,yy.yy.yy.yy:6177,yy.yy.yy.yy:6178,yy.yy.yy.yy:6179" train.py
 
 训练节点 \ ``workers``\ 的端口可以在启动时省略，此时fleetrun将会在启动训练任务前分配好端口给每个训练节点。
 
 .. code:: sh
+    
     # 2个servers 8个workers
     fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx,xx.xx.xx.xx,xx.xx.xx.xx,xx.xx.xx.xx,yy.yy.yy.yy,yy.yy.yy.yy,yy.yy.yy.yy,yy.yy.yy.yy" train.py
 
@@ -228,7 +230,6 @@ fleetrun命令参数介绍
         places=place, batch_size=64, shuffle=True)
     fleet.init(is_collective=True)
     strategy = fleet.DistributedStrategy()
-    #optimizer = paddle.optimizer.Adam(learning_rate=0.01)
     optimizer = fluid.optimizer.Adam(learning_rate=0.001)
     optimizer = fleet.distributed_optimizer(optimizer, strategy=strategy)
     optimizer.minimize(cost)
@@ -276,9 +277,7 @@ fleetrun命令参数介绍
   epoch: 1, step:600, train_loss: 0.617232, total time cost = 0.002034, speed: 1449.310297
   epoch: 1, step:800, train_loss: 0.392537, total time cost = 0.002813, speed: 1283.446756
   epoch: 2, step:200, train_loss: 0.288508, total time cost = 0.000796, speed: 1256.155735
-  epoch: 2, step:400, train_loss: 0.448433, total time cost = 0.001531, speed: 1360.461888
-  epoch: 2, step:600, train_loss: 0.593330, total time cost = 0.002292, speed: 1314.005013
-    ...
+  ...
 
 单机多卡训练
 ^^^^^^^^^^^^
@@ -324,4 +323,4 @@ fleetrun命令参数介绍
    epoch: 1, step:400, train_loss: 0.375780, total time cost = 0.001934, speed: 1042.581158
    epoch: 1, step:600, train_loss: 0.247651, total time cost = 0.002892, speed: 1043.878547
    epoch: 1, step:800, train_loss: 0.086278, total time cost = 0.003845, speed: 1049.363022
-   .....
+   ...
