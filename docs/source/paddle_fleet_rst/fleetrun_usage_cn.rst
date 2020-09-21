@@ -11,27 +11,30 @@ GPU单机单卡任务切换为多机多卡任务，也可将参数服务器单�
 
 1. `使用要求 <#requirement>`__
 2. `使用说明 <#guide>`__
+   2.1. `GPU任务启动 <#multigpu>`__
+   2.2. `CPU任务启动 <#multicpu>`__
+3. `fleetrun命令参数介绍 <#fleetrunargs>`__
+4. `使用fleetrun进行GPU多卡训练实例 <#multigpuexample>`__
 
-   1. `GPU多卡任务启动 <#multigpu>`__
-   2. `CPU任务启动 <#multicpu>`__
-   3. `fleetrun命令参数介绍 <#fleetrunargs>`__
-   4. `使用fleetrun进行GPU多卡训练实例 <#multigpuexample>`__
-
+.. _requirement:
 使用要求 
 --------
 
-使用\ ``fleetrun``\ 命令的要求： 
+使用\ ``fleetrun``\ 命令的要求:
+
 - 安装 paddlepaddle 2.0-rc 及以上
 
+.. _guide:
 使用说明 
 --------
 
+.. _multigpu:
 GPU场景 
 ^^^^^^^
 
 -  **GPU单机单卡训练**
 
-单机单卡有两种方式：一种可直接使用\ ``python``\ 执行，也可以使用\ ``fleetrun``\ 执行。\ **推荐使用\ ``fleetrun``\ 启动方法**
+单机单卡有两种方式：一种可直接使用\ ``python``\ 执行，也可以使用\ ``fleetrun``\ 执行。**推荐使用\ ``fleetrun``\  启动方法**
 
 【方法一】直接使用\ ``python``\ 执行
 
@@ -48,13 +51,14 @@ GPU场景
 
 注：如果指定了\ ``export CUDA_VISIBLE_DEVICES=0`` ，则可以直接使用：
 
-::
+.. code:: sh
 
    export CUDA_VISIBLE_DEVICES=0
    fleetrun train.py
 
 -  **GPU单机多卡训练**
 
+若启动单机4卡的任务，只需通过\ ``--gpus``\ 指定4张卡即可。
 ::
 
    fleetrun --gpus=0,1,2,3 train.py
@@ -62,7 +66,7 @@ GPU场景
 注：如果指定了\ ``export CUDA_VISIBLE_DEVICES=0,1,2,3``
 ，则可以直接使用：
 
-::
+.. code:: sh
 
    export CUDA_VISIBLE_DEVICES=0,1,2,3
    fleetrun train.py
@@ -93,14 +97,25 @@ GPU场景
 
 **PaddleCloud**\ 是百度开源的云上任务提交工具，提供云端训练资源，打通⽤户云端资源账号，并且支持以命令行形式进行任务提交、查看、终止等多种功能。PaddleCloud更多详情：\ `PaddleCloud <https://github.com/PaddlePaddle/PaddleCloud>`__
 
-厂内用户在PaddleCloud上启动分布式任务十分方便，执行PaddleCloud启动任务时指定任务所需机器数和卡数，由\ ``-—k8s-trainers``\ 和 \ ``—-k8s-gpu-cards``\ 决定。无论执行单机单卡还是多机多卡任务，只需在提交任务的运行脚本中使用：
+百度内部用户在PaddleCloud上启动分布式任务十分方便，执行PaddleCloud启动任务时指定任务所需机器数和卡数，由\ ``-—k8s-trainers``\ 和 \ ``—-k8s-gpu-cards``\ 决定。无论执行单机单卡还是多机多卡任务，只需在提交任务的运行脚本中使用：
 
 .. code:: sh
 
    fleetrun train.py 
 
+使用开源版本的PaddleCloud启动分布式任务时，可以通过\ ``instance_count``\ 指定申请计算节点数目, \ ``instance_count = 1``\ 时默认启动单机任务，\ ``instance_count > 1``\ 时可启动多机任务
 
+.. code:: sh
 
+   paddlecloud submit_job --public_bos=0 --instance_count=2 --bos_url={bucket}.bj.bcebos.com/your/dir --start_cmd="sh run.sh" 
+
+在\ ``run.sh``\ 运行脚本中使用fleetrun即可：
+
+.. code:: sh
+
+   fleetrun train.py 
+
+.. _multicpu:
 CPU场景 
 ^^^^^^^
 
@@ -143,6 +158,7 @@ fleetrun启动时只指定服务节点的ip和端口列表\ ``servers``\ 和 训
 
    python train.py
 
+.. _fleetrunargs:
 fleetrun参数介绍 
 ----------------
 
@@ -168,7 +184,8 @@ fleetrun参数介绍
    -  log_dir（str, 可选）：
       指定分布式任务训练日志的保存路径，默认保存在“./log/”目录。
 
-利用fleetrun将单机单卡任务转换为单机多卡任务 
+.. _multigpuexample:
+使用fleetrun进行GPU多卡训练实例
 --------------------------------------------
 
 下面我们将通过例子，为您详细介绍如何利用\ ``fleetrun``\ 将单机单卡训练任务转换为单机多卡训练任务。
