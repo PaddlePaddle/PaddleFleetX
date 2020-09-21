@@ -95,6 +95,9 @@ class Downloader(object):
             for proc in procs:
                 proc.join()
 
+        if is_first_worker():
+            if not os.path.exists(local_path):
+                os.system('mkdir {}'.format(local_path))
         role = fleet._role_maker_()
         fleet_util._set_role_maker(role)
         _, ext = os.path.splitext(fs_yaml)
@@ -192,6 +195,9 @@ class Downloader(object):
             for proc in procs:
                 proc.join()
 
+        if is_first_worker():
+            if not os.path.exists(local_path):
+                os.system('mkdir {}'.format(local_path))
         role = fleet._role_maker_()
         fleet_util._set_role_maker(role)
         yaml_file = fs_yaml.split('/')[-1]
