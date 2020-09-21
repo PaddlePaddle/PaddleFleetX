@@ -81,23 +81,21 @@
 
 在HDFS/BOS上保存的数据，需要包含以下文件：
 
-.. toctree::
-   :maxdepth: 1
+.. code:: sh
 
-   filelist.txt
-   meta.txt
-   train.txt
-   val.txt
-   a.tar
-   b.tar
-   c.tar
-
+    |-- filelist.txt
+    |-- meta.txt
+    |-- train.txt
+    |-- val.txt
+    |-- a.tar
+    |-- b.tar
+    |-- c.tar
 
 其中，以\ ``.tar``\结尾的文件为分片保存的数据，全部解压后便可获得全量数据集，一般文件个数为8的倍数。
 
 \ ``filelist.txt``\中记录了所有上述的\ ``.tar``\文件，并记录了每个文件的md5值用于验证是否下载了全量的数据。
 
-可以用\ ``md5sum * | grep ".tar" | awk '{print $2, $1}' > filelist.txt``\命令生成
+可以用\ ``md5sum * | grep ".tar" | awk '{print $2, $1}' > filelist.txt``\命令生成。
 
 在这个例子中\ ``filelist.txt``\为：
 
@@ -113,3 +111,4 @@
 
 
 \ ``train.txt``\ 及 \ ``val.txt``\中分别记录了训练/数据的数据列表，在训练时dataloader会根据里面的信息读取数据。
+
