@@ -6,6 +6,8 @@ Fleetsub是什么
 
 我们提供 \ ``fleetsub`` \ 指令，只需要一行启动命令，就会将训练任务提交到PaddleCloud进行多机多卡分布式训练。
 
+目前该功能只支持百度公司内部云上的任务提交，使用fleetsub前需要先安装paddlecloud客户端，后续我们会支持更多的公有云任务提交。
+
 使用要求
 ~~~~~~~~
 
@@ -14,11 +16,13 @@ Fleetsub是什么
 【方法一】从pip源安装
 
 .. code:: sh 
+
    pip install fleet-x
 
 【方法二】下载whl包并在本地安装
 
 .. code:: sh
+
    # python2
    wget --no-check-certificate https://fleet.bj.bcebos.com/fleet_x-0.0.4-py2-none-any.whl
    pip install fleet_x-0.0.4-py2-none-any.whl
@@ -43,7 +47,7 @@ Fleetsub是什么
 
 - **job_prefix:** 任务的前缀。配合机器数及每台机器的卡数，会为用户生成任务的名字。如：任务的前缀为"test"，训练中使用单机八卡，则提交的任务名称为: "test_N1C8"。
 
-- **image_addr:** 训练中使用的镜像地址。我们为用户提供了不同python版本的\ `镜像<镜像链接>`__
+- **image_addr:** 训练中使用的镜像地址。我们为用户提供了不同python版本的\ `镜像 <镜像链接>`_
 
 - **group_name:** 机器群组的名称。
 
@@ -75,4 +79,10 @@ Fleetsub是什么
 定义完上述脚本后，用户即可使用\ ``fleetsub`` \命令向PaddleCloud 提交任务了：
 
 .. code:: sh
+
    fleetsub -f demo.yaml
+
+使用样例
+~~~~~~~
+
+具体的使用说明及样例代码请参考下面的\ `链接 <wiki>`_
