@@ -83,6 +83,7 @@
 
 .. code:: sh
 
+    .
     |-- filelist.txt
     |-- meta.txt
     |-- train.txt
