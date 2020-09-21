@@ -2,19 +2,20 @@ fleetrun 启动分布式任务
 =======================
 
 Paddle提供\ ``fleetrun``\ 命令，只需一行简单的启动命令，即可轻松地将Paddle
-Fleet
-GPU单机单卡任务切换为多机多卡任务，也可将参数服务器单节点任务切换为多个服务节点、多个训练节点的分布式任务。
+Fleet GPU单机单卡任务切换为多机多卡任务，也可将参数服务器单节点任务切换为多个服务节点、多个训练节点的分布式任务。
 \ ``fleetrun``\ 在静态图和动态图场景下均可使用。
 
 内容导航
 --------
 
-1. `使用要求 <#requirement>`__
-2. `使用说明 <#guide>`__
-   2.1. `GPU任务启动 <#multigpu>`__
-   2.2. `CPU任务启动 <#multicpu>`__
-3. `fleetrun命令参数介绍 <#fleetrunargs>`__
-4. `使用fleetrun进行GPU多卡训练实例 <#multigpuexample>`__
+1. `使用要求 <#requirement_>`__
+2. `使用说明 <#guide_>`__
+
+   2.1. `GPU任务启动 <#multigpu_>`__
+   2.2. `CPU任务启动 <#multicpu_>`__
+
+3. `fleetrun命令参数介绍 <#fleetrunargs_>`__
+4. `使用fleetrun进行GPU多卡训练实例 <#multigpuexample_>`__
 
 .. _requirement:
 使用要求 
@@ -34,7 +35,7 @@ GPU场景
 
 -  **GPU单机单卡训练**
 
-单机单卡有两种方式：一种可直接使用\ ``python``\ 执行，也可以使用\ ``fleetrun``\ 执行。**推荐使用\ ``fleetrun``\  启动方法**
+单机单卡有两种方式：一种可直接使用\ ``python``\ 执行，也可以使用\ ``fleetrun``\ 执行。推荐使用\ ``fleetrun``\  启动方法。
 
 【方法一】直接使用\ ``python``\ 执行
 

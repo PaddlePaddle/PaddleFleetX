@@ -1,24 +1,40 @@
 fleetrun 启动分布式任务
 =======================
 
-我们提供\ ``fleetrun``\ 命令，只需一行简单的启动命令，即可轻松地将Paddle
+Paddle提供\ ``fleetrun``\ 命令，只需一行简单的启动命令，即可轻松地将Paddle
 Fleet
-GPU单机单卡任务切换为多机多卡任务，也可将参数服务器单节点任务切换为多个服务节点、多个训练节点的分布式任务。\ ``fleetrun``\ 在静态图和动态图场景下均可使用。
+GPU单机单卡任务切换为多机多卡任务，也可将参数服务器单节点任务切换为多个服务节点、多个训练节点的分布式任务。
+\ ``fleetrun``\ 在静态图和动态图场景下均可使用。
 
-使用要求
+内容导航
 --------
 
-使用\ ``fleetrun``\ 命令的要求： - 安装 paddlepaddle 2.0-rc 及以上
+1. `使用要求 <#requirement>`__
+2. `使用说明 <#guide>`__
+   2.1. `GPU任务启动 <#multigpu>`__
+   2.2. `CPU任务启动 <#multicpu>`__
+3. `fleetrun命令参数介绍 <#fleetrunargs>`__
+4. `使用fleetrun进行GPU多卡训练实例 <#multigpuexample>`__
 
-使用说明
+.. _requirement:
+使用要求 
 --------
 
-GPU场景
+使用\ ``fleetrun``\ 命令的要求:
+
+- 安装 paddlepaddle 2.0-rc 及以上
+
+.. _guide:
+使用说明 
+--------
+
+.. _multigpu:
+GPU场景 
 ^^^^^^^
 
 -  **GPU单机单卡训练**
 
-多机单卡有两种方式：一种可直接使用\ ``python``\ 执行，也可以使用\ ``fleetrun``\ 执行。\ **推荐使用\ ``fleetrun``\ 启动方法**
+单机单卡有两种方式：一种可直接使用\ ``python``\ 执行，也可以使用\ ``fleetrun``\ 执行。**推荐使用\ ``fleetrun``\  启动方法**
 
 【方法一】直接使用\ ``python``\ 执行
 
@@ -35,13 +51,14 @@ GPU场景
 
 注：如果指定了\ ``export CUDA_VISIBLE_DEVICES=0`` ，则可以直接使用：
 
-::
+.. code:: sh
 
    export CUDA_VISIBLE_DEVICES=0
    fleetrun train.py
 
--  **GPU单机4卡训练**
+-  **GPU单机多卡训练**
 
+若启动单机4卡的任务，只需通过\ ``--gpus``\ 指定4张卡即可。
 ::
 
    fleetrun --gpus=0,1,2,3 train.py
@@ -49,7 +66,7 @@ GPU场景
 注：如果指定了\ ``export CUDA_VISIBLE_DEVICES=0,1,2,3``
 ，则可以直接使用：
 
-::
+.. code:: sh
 
    export CUDA_VISIBLE_DEVICES=0,1,2,3
    fleetrun train.py
@@ -80,23 +97,38 @@ GPU场景
 
 **PaddleCloud**\ 是百度开源的云上任务提交工具，提供云端训练资源，打通⽤户云端资源账号，并且支持以命令行形式进行任务提交、查看、终止等多种功能。PaddleCloud更多详情：\ `PaddleCloud <https://github.com/PaddlePaddle/PaddleCloud>`__
 
-在PaddleCloud上启动分布式任务十分方便，无论执行单机单卡还是多机多卡任务，只需使用：
+百度内部用户在PaddleCloud上启动分布式任务十分方便，执行PaddleCloud启动任务时指定任务所需机器数和卡数，由\ ``-—k8s-trainers``\ 和 \ ``—-k8s-gpu-cards``\ 决定。无论执行单机单卡还是多机多卡任务，只需在提交任务的运行脚本中使用：
 
 .. code:: sh
 
    fleetrun train.py 
 
-CPU场景
+使用开源版本的PaddleCloud启动分布式任务时，可以通过\ ``instance_count``\ 指定申请计算节点数目, \ ``instance_count = 1``\ 时默认启动单机任务，\ ``instance_count > 1``\ 时可启动多机任务
+
+.. code:: sh
+
+   paddlecloud submit_job --public_bos=0 --instance_count=2 --bos_url={bucket}.bj.bcebos.com/your/dir --start_cmd="sh run.sh" 
+
+在\ ``run.sh``\ 运行脚本中使用fleetrun即可：
+
+.. code:: sh
+
+   fleetrun train.py 
+
+.. _multicpu:
+CPU场景 
 ^^^^^^^
 
--  **参数服务器训练 - 单机训练（0个服务节点，1个训练节点）**
+-  **单机训练（0个服务节点，1个训练节点）**
 
+Fleet支持参数服务器任务多机回退到单机任务，直接运行时程序将转换为一般的Paddle单机任务。
 .. code:: sh
 
    python train.py
 
 -  **参数服务器训练 - 单机模拟分布式训练（1个服务节点，4个训练节点）**
 
+fleetrun启动时只指定服务节点数\ ``server_num``\ 和 训练节点数\ ``worker_num``\ ，即可进行本地模拟分布式训练，推荐使用此方法进行本地调试。
 .. code:: sh
 
    fleetrun --server_num=1 --worker_num=4 train.py
@@ -104,20 +136,30 @@ CPU场景
 -  **参数服务器训练 -
    多机训练（2台节点，每台节点均有1个服务节点，4个训练节点）**
 
-.. code:: sh
+fleetrun启动时只指定服务节点的ip和端口列表\ ``servers``\ 和 训练节点的ip和端口列表列表\ ``workers``\ ，即可进行多机训练。
+下列示例中，xx.xx.xx.xx代表机器1，yy.yy.yy.yy代表机器2，6170代表随机指定的服务节点的端口。fleetrun将分别在2台机器上启动1个服务节点，4个训练节点。
 
+.. code:: sh
     # 2个servers 8个workers
     fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,xx.xx.xx.xx:6173,xx.xx.xx.xx:6174,xx.xx.xx.xx:6175,yy.yy.yy.yy:6176,yy.yy.yy.yy:6177,yy.yy.yy.yy:6178,yy.yy.yy.yy:6179" train.py
 
+训练节点 \ ``workers``\ 的端口可以在启动时省略，此时fleetrun将会在启动训练任务前分配好端口给每个训练节点。
+.. code:: sh
+    # 2个servers 8个workers
+    fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx,xx.xx.xx.xx,xx.xx.xx.xx,xx.xx.xx.xx,yy.yy.yy.yy,yy.yy.yy.yy,yy.yy.yy.yy,yy.yy.yy.yy" train.py
+
 -  **参数服务器训练 - 在PaddleCloud上提交任务**
 
-由于Paddlecloud对参数服务器训练做了比较完备的封装，因此可以直接使用：
+由于厂内Paddlecloud对参数服务器训练做了比较完备的封装，在启动任务时根据配置的参数自动启动服务节点和训练节点。
+对于MPI任务，可以通过 \ ``--mpi-nodes``\ 指定服务节点和训练节点的个数；
+对于K8S任务，可以通过 \ ``--k8s-cpu-cores``\  和 \ ``—-k8s-ps-cores``\ 指定服务节点和训练节点的个数。启动命令\ ``—-start-cmd``\ 中可以直接使用：
 
 .. code:: sh
 
    python train.py
 
-fleetrun参数介绍
+.. _fleetrunargs:
+fleetrun参数介绍 
 ----------------
 
 -  GPU模式相关参数:
@@ -142,11 +184,11 @@ fleetrun参数介绍
    -  log_dir（str, 可选）：
       指定分布式任务训练日志的保存路径，默认保存在“./log/”目录。
 
-利用fleetrun将单机单卡任务转换为单机多卡任务
+.. _multigpuexample:
+使用fleetrun进行GPU多卡训练实例
 --------------------------------------------
 
 下面我们将通过例子，为您详细介绍如何利用\ ``fleetrun``\ 将单机单卡训练任务转换为单机多卡训练任务。
-FleetX提供非常简单易用的代码来实现Imagenet数据集上训练ResNet50模型。
 
 .. code:: py
 
