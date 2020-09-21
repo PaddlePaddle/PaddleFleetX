@@ -7,17 +7,26 @@ Fleet GPU单机单卡任务切换为多机多卡任务，也可将参数服务�
 
 内容导航
 --------
+1. 使用要求_
+2. 使用说明_
 
-1. `使用要求 <#requirement_>`__
-2. `使用说明 <#guide_>`__
+    2.1. GPU场景_
+    2.2. CPU场景_
 
-   2.1. `GPU任务启动 <#multigpu_>`__
-   2.2. `CPU任务启动 <#multicpu_>`__
+3. fleetrun命令参数介绍_
+4. 使用fleetrun进行GPU多卡训练实例_
 
-3. `fleetrun命令参数介绍 <#fleetrunargs_>`__
-4. `使用fleetrun进行GPU多卡训练实例 <#multigpuexample_>`__
 
-.. _requirement:
+1. `使用要求 <#requirement>`__
+2. `使用说明 <#guide>`__
+
+   2.1. `GPU任务启动 <#multigpu>`__
+   2.2. `CPU任务启动 <#multicpu>`__
+
+3. `fleetrun命令参数介绍 <#fleetrunargs>`__
+4. `使用fleetrun进行GPU多卡训练实例 <#multigpuexample>`__
+
+.. _使用要求:
 使用要求 
 --------
 
@@ -25,11 +34,11 @@ Fleet GPU单机单卡任务切换为多机多卡任务，也可将参数服务�
 
 - 安装 paddlepaddle 2.0-rc 及以上
 
-.. _guide:
+.. _使用说明:
 使用说明 
 --------
 
-.. _multigpu:
+.. _GPU场景:
 GPU场景 
 ^^^^^^^
 
@@ -116,7 +125,7 @@ GPU场景
 
    fleetrun train.py 
 
-.. _multicpu:
+.. _CPU场景:
 CPU场景 
 ^^^^^^^
 
@@ -159,8 +168,8 @@ fleetrun启动时只指定服务节点的ip和端口列表\ ``servers``\ 和 训
 
    python train.py
 
-.. _fleetrunargs:
-fleetrun参数介绍 
+.. _fleetrun命令参数介绍:
+fleetrun命令参数介绍
 ----------------
 
 -  GPU模式相关参数:
@@ -185,7 +194,7 @@ fleetrun参数介绍
    -  log_dir（str, 可选）：
       指定分布式任务训练日志的保存路径，默认保存在“./log/”目录。
 
-.. _multigpuexample:
+.. _使用fleetrun进行GPU多卡训练实例:
 使用fleetrun进行GPU多卡训练实例
 --------------------------------------------
 
