@@ -1,4 +1,4 @@
-fleetrun 启动分布式任务
+使用fleetrun启动分布式任务
 =======================
 
 Paddle提供命令行启动命令\ ``fleetrun``\ ，配合Paddle的分布式高级API\ ``paddle.distributed.fleet``
