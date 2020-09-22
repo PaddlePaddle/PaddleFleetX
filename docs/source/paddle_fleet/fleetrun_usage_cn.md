@@ -79,7 +79,8 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 ####  参数服务器训练 <a name="multicpu"></a>
 
 - **参数服务器训练 - 单机模拟分布式训练（1个服务节点，4个训练节点）**
-`fleetrun`启动时只指定服务节点数`--server_num`和 训练节点数`--worker_num`，即可进行本地模拟分布式训练，推荐使用此方法进行本地调试。
+
+`fleetrun`启动时只需指定服务节点数`--server_num`和 训练节点数`--worker_num`，即可进行本地模拟分布式训练，推荐使用此方法进行本地调试。
 ```sh
 fleetrun --server_num=1 --worker_num=4 train.py
 ```
@@ -87,7 +88,7 @@ fleetrun --server_num=1 --worker_num=4 train.py
 - **参数服务器训练 - 多机训练（2台节点，每台节点均有1个服务节点，4个训练节点）**
 
 `fleetrun`启动时只需指定服务节点的ip和端口列表`--servers` 和 训练节点的ip列表`--workers` ，即可进行多机训练。
-下列示例中，xx.xx.xx.xx代表机器1，yy.yy.yy.yy代表机器2，6170代表用户指定的服务节点的端口。fleetrun将分别在2台机器上启动1个服务节点，4个训练节点。
+下列示例中，xx.xx.xx.xx代表机器1，yy.yy.yy.yy代表机器2，6170代表用户指定的服务节点的端口。`fleetrun`将分别在2台机器上启动1个服务节点，4个训练节点。
 ```sh
  # 2个servers 8个workers
  fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx,xx.xx.xx.xx,xx.xx.xx.xx,xx.xx.xx.xx,yy.yy.yy.yy,yy.yy.yy.yy,yy.yy.yy.yy,yy.yy.yy.yy" train.py
