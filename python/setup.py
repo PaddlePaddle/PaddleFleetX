@@ -40,23 +40,26 @@ def get_dist(pkgname):
         return None
 
 
-REQUIRED_PACKAGES = ['paddlepaddle', 'numpy>=1.10.0']
-if get_dist('paddlepaddle') is None and get_dist(
-        'paddlepaddle-gpu') is not None:
-    REQUIRED_PACKAGES.remove('paddlepaddle')
+REQUIRED_PACKAGES = ['numpy>=1.10.0', 'grpcio', 'grpcio-tools']
+#REQUIRED_PACKAGES = ['paddlepaddle', 'numpy>=1.10.0']
+#if get_dist('paddlepaddle') is None and get_dist(
+#        'paddlepaddle-gpu') is not None:
+#    REQUIRED_PACKAGES.remove('paddlepaddle')
 
 packages = [
     'fleetx',
     'fleetx.applications',
     'fleetx.dataset',
     'fleetx.utils',
+    'fleetx.utils.grpc_service',
 ]
 
 package_dir = {
     'fleetx': './fleetx',
     'fleetx.applications': './fleetx/applications',
     'fleetx.dataset': './fleetx/dataset',
-    'fleetx.utils': './fleetx/utils'
+    'fleetx.utils': './fleetx/utils',
+    'fleetx.utils.grpc_service': './fleetx/utils/grpc_service'
 }
 
 setup(

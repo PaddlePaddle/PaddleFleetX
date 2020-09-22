@@ -16,3 +16,5 @@ from .lr_strategy import *
 from .downloader import *
 from .submitter import *
 from .env import *
+from . import grpc_service
+from .grpc_service import *

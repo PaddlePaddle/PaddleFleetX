@@ -15,8 +15,11 @@ from paddle.distributed.fleet.utils.fs import HDFSClient
 import time
 import paddle.distributed.fleet as fleet
 from paddle.distributed.fleet.base.util_factory import fleet_util
+import sys
+from fleetx.utils.grpc_service.barrier_client_impl import BarrierClient
 import hashlib
 from .env import is_first_worker, get_node_info
+import sysconfig
 import multiprocessing
 import yaml
 import os
@@ -43,6 +46,18 @@ def check_exists(filelist, local_path):
         return False
 
 
+def barrier(server_end):
+    client = BarrierClient()
+    client.server_endpoint = server_end
+    client.my_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
+    client.connect()
+    client.barrier()
+    print("barrier success")
+    if is_first_worker():
+        time.sleep(3)
+        client.exit()
+
+
 def get_file_shard(node_id, node_num, local_path):
     while not os.path.exists('{}/filelist.txt'.format(local_path)):
         time.sleep(3)
@@ -55,7 +70,28 @@ def get_file_shard(node_id, node_num, local_path):
 
 class Downloader(object):
     def __init__(self):
-        pass
+        service_path = sysconfig.get_paths()[
+            "purelib"] + '/fleetx/applications/fleetx/utils/grpc_service'
+        if not os.path.exists("{}/barrier_server_impl.py".format(
+                service_path)):
+            os.system(
+                "wget -q -P {} --no-check-certificate https://fleet.bj.bcebos.com/test/barrier_server_impl.py".
+                format(service_path))
+        endpoints = os.environ.get('PADDLE_TRAINER_ENDPOINTS').split(",")
+        current_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
+        server_endpoint = endpoints[0]
+        server_host, server_port = server_endpoint.split(":")
+        version = sys.version[0]
+        if version == '2':
+            python_cmd = 'python2'
+        else:
+            python_cmd = 'python3'
+        if current_endpoint == server_endpoint:
+            os.system("{} {}/barrier_server_impl.py {} {} &".format(
+                python_cmd, service_path, server_port, "-".join(endpoints)))
+        time.sleep(3)
+        self.grpc_service = server_endpoint
+        print(self.grpc_service)
 
     def download_from_hdfs(self,
                            fs_yaml=None,
@@ -98,8 +134,8 @@ class Downloader(object):
         if is_first_worker():
             if not os.path.exists(local_path):
                 os.system('mkdir {}'.format(local_path))
-        role = fleet._role_maker_()
-        fleet_util._set_role_maker(role)
+#        role = fleet._role_maker_()
+#        fleet_util._set_role_maker(role)
         _, ext = os.path.splitext(fs_yaml)
         assert ext in ['.yml', '.yaml'], "only support yaml files for now"
         with open(fs_yaml) as f:
@@ -161,7 +197,9 @@ class Downloader(object):
                 if need_download:
                     multi_download(client, hdfs_path, local_path,
                                    self.filelist)
-        fleet_util.barrier()
+
+#        fleet_util.barrier()
+        barrier(self.grpc_service)
         return local_path
 
     def download_from_bos(self,
