@@ -50,7 +50,6 @@ class BarrierClient(object):
             return
 
         while True:
-            print("here again")
             req = barrier_server_pb2.Request()
             req.endpoint = self.current_endpoint
             call_future = self.stub.ReadyToPass.future(req)
