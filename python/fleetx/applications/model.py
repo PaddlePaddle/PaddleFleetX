@@ -371,3 +371,32 @@ class Resnet50Mlperf(ModelBase):
             shuffle,
             use_dali,
             data_layout=data_layout)                 
+
+class Word2vec(ModelBase):
+    def __init__(self):
+        super(Word2vec, self).__init__()
+        fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
+        model_name = 'word2vec'
+        download_model(fleet_path, model_name)
+        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
+            fleet_path + model_name)
+        self.startup_prog = startup
+        self.main_prog = main
+        self.inputs = inputs
+        self.loss = loss
+        self.checkpoints = checkpoints
+        self.target = target
+
+    def load_dataset_from_file(self,
+                              train_files_path,
+                              dict_path,
+                              nce_num=5,
+                              batch_size=1000,
+                              shuffle=True):
+        return load_w2v_dataset(
+            self.inputs,
+            train_files_path,
+            dict_path=dict_path,
+            nce_num=nce_num,
+            batch_size=batch_size,
+            shuffle=shuffle)

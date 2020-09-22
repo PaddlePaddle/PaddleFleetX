@@ -1,7 +1,9 @@
 ## 动态图分布式训练快速开始
 
-[**Paddle官方文档**](https://www.paddlepaddle.org.cn/documentation/docs/zh/2.0-beta/tutorial/quick_start/dynamic_graph/dynamic_graph.html "Paddle官方文档")中对动态图（命令式编程）做了比较详细的介绍。Fleet接口从Paddle 2.0-RC版本开始支持动态图分布式任务执行。本篇文章我们将介绍如何使用Fleet接口进行动态图分布式训练。接下来我们以一个简单全连接网络实例为例，说明如何将单机单卡训练改成分布式单机多卡训练，再到多机多卡训练。
+[**Paddle官方文档**](https://www.paddlepaddle.org.cn/documentation/docs/zh/2.0-beta/tutorial/quick_start/dynamic_graph/dynamic_graph.html "Paddle官方文档")中对动态图（命令式编程）做了比较详细的介绍。
+Paddle的分布式高级API`paddle.distributed.fleet` 接口从Paddle 2.0-RC版本开始支持动态图分布式任务执行。本篇文章我们将介绍如何使用`paddle.distributed.fleet`接口进行动态图分布式训练。接下来我们以一个简单全连接网络实例为例，说明如何将单机单卡训练改成分布式单机多卡训练，再到多机多卡训练。
 
+注：目前`paddle.distributed.fleet` 启动动态图分布式训练仅支持集合通信（Colletive）模式，不支持参数服务器（Parameter-Server）模式。本文示例为集合通信（Colletive）模式任务。
 
 ### 版本要求
 
