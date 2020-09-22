@@ -20,7 +20,7 @@ Paddle提供命令行启动命令`fleetrun`，配合Paddle的分布式高级API`
 
 ## 使用说明 <a name="guide"></a>
 
-`fleetrun`使用场景主要分为集合通信训练（Collective Training）和参数服务器训练（Parameter Server Training。集合通信训练一般在GPU设备上运行，因此我们将介绍GPU单机单卡，单机多卡和多机多卡场景下使用`fleetrun`的方法。参数服务器训练包含服务节点和训练节点的启动，因此我们将介绍本地模拟分布式任务场景和多机环境下分布式训练场景下如何使用`fleetrun`。`fleetrun`支持在百度公司内部云PaddleCloud上提交任务，推荐结合`fleetsub`命令，一键快速提交集群任务。详情请参考`使用fleetsub提交集群任务 `。
+`fleetrun`使用场景主要分为集合通信训练（Collective Training）和参数服务器训练（Parameter Server Training）。集合通信训练一般在GPU设备上运行，因此我们将介绍GPU单机单卡，单机多卡和多机多卡场景下使用`fleetrun`的方法。参数服务器训练包含服务节点和训练节点的启动，因此我们将介绍本地模拟分布式任务场景和多机环境下分布式训练场景下如何使用`fleetrun`。`fleetrun`支持在百度公司内部云PaddleCloud上提交任务，推荐结合`fleetsub`命令，一键快速提交集群任务。详情请参考`使用fleetsub提交集群任务 `。
 
 #### 集合通信训练 <a name="multigpu"></a>
 - **GPU单机单卡训练**
