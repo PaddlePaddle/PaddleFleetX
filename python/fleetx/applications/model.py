@@ -70,7 +70,8 @@ def download_model(fleet_path, model_name):
             os.system('tar -xf {}{}.tar.gz -C {}'.format(
                 fleet_path, model_name, fleet_path))
     else:
-        time.sleep(3)
+        while not os.path.exists(fleet_path + model_name):
+            time.sleep(3)
 
 
 class Resnet50(ModelBase):
@@ -92,23 +93,36 @@ class Resnet50(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_imagenet_from_file(self,
-                                filelist,
-                                batch_size=32,
-                                phase='train',
-                                shuffle=True,
-                                use_dali=False):
-        if phase != 'train':
-            shuffle = False
-        self.use_dali = use_dali
+    def get_train_dataloader(self,
+                             local_path,
+                             batch_size=32,
+                             shuffle=True,
+                             use_dali=False):
+        filelist = local_path + '/train.txt'
         data_layout = self.data_layout
         return image_dataloader_from_filelist(
             filelist,
             self.inputs,
             batch_size,
-            phase,
-            shuffle,
-            use_dali,
+            phase='train',
+            shuffle=shuffle,
+            use_dali=use_dali,
+            data_layout=data_layout)
+
+    def get_val_dataloader(self,
+                           local_path,
+                           batch_size=32,
+                           shuffle=False,
+                           use_dali=False):
+        filelist = local_path + '/val.txt'
+        data_layout = self.data_layout
+        return image_dataloader_from_filelist(
+            filelist,
+            self.inputs,
+            batch_size,
+            phase='val',
+            shuffle=shuffle,
+            use_dali=use_dali,
             data_layout=data_layout)
 
 
@@ -133,23 +147,36 @@ class VGG16(ModelBase):
         self.target = target
         self.use_dali = False
 
-    def load_imagenet_from_file(self,
-                                filelist,
-                                batch_size=32,
-                                phase='train',
-                                shuffle=True,
-                                use_dali=False):
-        if phase != 'train':
-            shuffle = False
-        self.use_dali = use_dali
+    def get_train_dataloader(self,
+                             local_path,
+                             batch_size=32,
+                             shuffle=True,
+                             use_dali=False):
+        filelist = local_path + '/train.txt'
         data_layout = self.data_layout
         return image_dataloader_from_filelist(
             filelist,
             self.inputs,
             batch_size,
-            phase,
-            shuffle,
-            use_dali,
+            phase='train',
+            shuffle=shuffle,
+            use_dali=use_dali,
+            data_layout=data_layout)
+
+    def get_val_dataloader(self,
+                           local_path,
+                           batch_size=32,
+                           shuffle=False,
+                           use_dali=False):
+        filelist = local_path + '/val.txt'
+        data_layout = self.data_layout
+        return image_dataloader_from_filelist(
+            filelist,
+            self.inputs,
+            batch_size,
+            phase='val',
+            shuffle=shuffle,
+            use_dali=use_dali,
             data_layout=data_layout)
 
 
@@ -196,6 +223,7 @@ class BertLarge(ModelBase):
             fleet_path + model_name)
         self.startup_prog = startup
         self.main_prog = main
+        self.lang = lang
         self.inputs = inputs
         self.loss = loss
         self.checkpoints = checkpoints
@@ -204,14 +232,15 @@ class BertLarge(ModelBase):
     def load_digital_dataset_from_file(self,
                                        data_dir,
                                        vocab_path,
-                                       batch_size=16,
-                                       max_seq_len=128,
-                                       in_tokens=False):
+                                       batch_size=4096,
+                                       max_seq_len=512,
+                                       in_tokens=True):
         return load_bert_dataset(
             data_dir,
             vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
+            lang=self.lang,
             max_seq_len=max_seq_len,
             in_tokens=in_tokens)
 
@@ -226,6 +255,7 @@ class BertHuge(ModelBase):
             fleet_path + model_name)
         self.startup_prog = startup
         self.main_prog = main
+        self.lang = lang
         self.inputs = inputs
         self.loss = loss
         self.checkpoints = checkpoints
@@ -234,14 +264,15 @@ class BertHuge(ModelBase):
     def load_digital_dataset_from_file(self,
                                        data_dir,
                                        vocab_path,
-                                       batch_size=16,
-                                       max_seq_len=128,
-                                       in_tokens=False):
+                                       batch_size=4096,
+                                       max_seq_len=512,
+                                       in_tokens=True):
         return load_bert_dataset(
             data_dir,
             vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
+            lang=self.lang,
             max_seq_len=max_seq_len,
             in_tokens=in_tokens)
 
@@ -256,6 +287,7 @@ class BertGiant(ModelBase):
             fleet_path + model_name)
         self.startup_prog = startup
         self.main_prog = main
+        self.lang = lang
         self.inputs = inputs
         self.loss = loss
         self.checkpoints = checkpoints
@@ -264,14 +296,15 @@ class BertGiant(ModelBase):
     def load_digital_dataset_from_file(self,
                                        data_dir,
                                        vocab_path,
-                                       batch_size=16,
-                                       max_seq_len=128,
-                                       in_tokens=False):
+                                       batch_size=4096,
+                                       max_seq_len=512,
+                                       in_tokens=True):
         return load_bert_dataset(
             data_dir,
             vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
+            lang=self.lang,
             max_seq_len=max_seq_len,
             in_tokens=in_tokens)
 
@@ -289,6 +322,7 @@ class BertBase(ModelBase):
             fleet_path + model_name)
         self.startup_prog = startup
         self.main_prog = main
+        self.lang = lang
         self.inputs = inputs
         self.loss = loss
         self.checkpoints = checkpoints
@@ -305,6 +339,7 @@ class BertBase(ModelBase):
             vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
+            lang=self.lang,
             max_seq_len=max_seq_len,
             in_tokens=in_tokens)
 
@@ -370,33 +405,4 @@ class Resnet50Mlperf(ModelBase):
             phase,
             shuffle,
             use_dali,
-            data_layout=data_layout)                 
-
-class Word2vec(ModelBase):
-    def __init__(self):
-        super(Word2vec, self).__init__()
-        fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
-        model_name = 'word2vec'
-        download_model(fleet_path, model_name)
-        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
-            fleet_path + model_name)
-        self.startup_prog = startup
-        self.main_prog = main
-        self.inputs = inputs
-        self.loss = loss
-        self.checkpoints = checkpoints
-        self.target = target
-
-    def load_dataset_from_file(self,
-                              train_files_path,
-                              dict_path,
-                              nce_num=5,
-                              batch_size=1000,
-                              shuffle=True):
-        return load_w2v_dataset(
-            self.inputs,
-            train_files_path,
-            dict_path=dict_path,
-            nce_num=nce_num,
-            batch_size=batch_size,
-            shuffle=shuffle)
+            data_layout=data_layout)
