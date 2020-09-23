@@ -11,6 +11,11 @@
 原理
 ----
 
+.. image:: ../paddle_fleet/img/geosgd.png
+  :width: 600
+  :alt: heter_overview
+  :align: center
+
 在GeoSGD更新策略中，Trainer的参数更新也是在全异步的条件下进行的。但与异步参数服务器有以下不同：
 
 -  与普通的参数服务器不同，在GEO策略中，每个Trainer负责在本地维护自己的参数更新，在训练一定数量的步数后将本轮训练出的参数与上一轮结束后的参数做差。并除以Trainer的个数，将结果上传至Server。Server则负责为每个Trainer计算其参数与全局参数的diff。
