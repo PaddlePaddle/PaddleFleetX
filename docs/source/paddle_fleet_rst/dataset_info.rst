@@ -113,3 +113,14 @@
 
 \ ``train.txt``\ 及 \ ``val.txt``\中分别记录了训练/数据的数据列表，在训练时dataloader会根据里面的信息读取数据。
 
+
+BOS数据集
+^^^^^^^^
+
+下面是我们为您准备的BOS下载数据配置的地址，用于下载我们在BOS上传的小公开数据集：
+
+- *ImageNet：* https://fleet.bj.bcebos.com/small_datasets/yaml_example/imagenet.yaml
+
+- *Wiki 中文：* https://fleet.bj.bcebos.com/small_datasets/yaml_example/wiki_cn.yaml
+
+- *Wiki 英文：* https://fleet.bj.bcebos.com/small_datasets/yaml_example/wiki_en.yaml
