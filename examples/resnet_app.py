@@ -14,15 +14,16 @@
 import fleetx as X
 import paddle
 import paddle.distributed.fleet as fleet
-
+paddle.enable_static()
 configs = X.parse_train_configs()
 
 fleet.init(is_collective=True)
 model = X.applications.Resnet50()
-imagenet_downloader = X.utils.ImageNetDownloader()
-local_path = imagenet_downloader.download_from_bos(local_path='./data')
-loader = model.load_imagenet_from_file(
-    "{}/train.txt".format(local_path), batch_size=32)
+downloader = X.utils.Downloader()
+local_path = downloader.download_from_bos(
+    fs_yaml='https://fleet.bj.bcebos.com/test/loader/small_imagenet.yaml',
+    local_path='./data')
+loader = model.get_train_dataloader("{}".format(local_path), batch_size=32)
 
 dist_strategy = fleet.DistributedStrategy()
 dist_strategy.amp = True

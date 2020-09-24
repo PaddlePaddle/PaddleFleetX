@@ -196,12 +196,12 @@ class Transformer(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_wmt16_dataset_from_file(self,
-                                     src_vocab_fpath,
-                                     trg_vocab_fpath,
-                                     train_file_pattern,
-                                     batch_size=2048,
-                                     shuffle=True):
+    def get_train_dataloader(self,
+                             src_vocab_fpath,
+                             trg_vocab_fpath,
+                             train_file_pattern,
+                             batch_size=2048,
+                             shuffle=True):
         return transformer_data_generator(
             src_vocab_fpath,
             trg_vocab_fpath,
@@ -230,20 +230,37 @@ class BertLarge(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_digital_dataset_from_file(self,
-                                       data_dir,
-                                       vocab_path,
-                                       batch_size=4096,
-                                       max_seq_len=512,
-                                       in_tokens=True):
+    def get_train_dataloader(self,
+                             data_dir,
+                             batch_size=4096,
+                             max_seq_len=512,
+                             in_tokens=True,
+                             shuffle=True):
         return load_bert_dataset(
             data_dir,
-            vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
             lang=self.lang,
+            phase='train',
             max_seq_len=max_seq_len,
-            in_tokens=in_tokens)
+            in_tokens=in_tokens,
+            shuffle=shuffle)
+
+    def get_val_dataloader(self,
+                           data_dir,
+                           batch_size=4096,
+                           max_seq_len=512,
+                           in_tokens=True,
+                           shuffle=False):
+        return load_bert_dataset(
+            data_dir,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            lang=self.lang,
+            phase='val',
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens,
+            shuffle=shuffle)
 
 
 class BertHuge(ModelBase):
@@ -262,20 +279,37 @@ class BertHuge(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_digital_dataset_from_file(self,
-                                       data_dir,
-                                       vocab_path,
-                                       batch_size=4096,
-                                       max_seq_len=512,
-                                       in_tokens=True):
+    def get_train_dataloader(self,
+                             data_dir,
+                             batch_size=4096,
+                             max_seq_len=512,
+                             in_tokens=True,
+                             shuffle=True):
         return load_bert_dataset(
             data_dir,
-            vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
             lang=self.lang,
+            phase='train',
             max_seq_len=max_seq_len,
-            in_tokens=in_tokens)
+            in_tokens=in_tokens,
+            shuffle=shuffle)
+
+    def get_val_dataloader(self,
+                           data_dir,
+                           batch_size=4096,
+                           max_seq_len=512,
+                           in_tokens=True,
+                           shuffle=False):
+        return load_bert_dataset(
+            data_dir,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            lang=self.lang,
+            phase='val',
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens,
+            shuffle=shuffle)
 
 
 class BertGiant(ModelBase):
@@ -294,20 +328,37 @@ class BertGiant(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_digital_dataset_from_file(self,
-                                       data_dir,
-                                       vocab_path,
-                                       batch_size=4096,
-                                       max_seq_len=512,
-                                       in_tokens=True):
+    def get_train_dataloader(self,
+                             data_dir,
+                             batch_size=4096,
+                             max_seq_len=512,
+                             in_tokens=True,
+                             shuffle=True):
         return load_bert_dataset(
             data_dir,
-            vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
             lang=self.lang,
+            phase='train',
             max_seq_len=max_seq_len,
-            in_tokens=in_tokens)
+            in_tokens=in_tokens,
+            shuffle=shuffle)
+
+    def get_val_dataloader(self,
+                           data_dir,
+                           batch_size=4096,
+                           max_seq_len=512,
+                           in_tokens=True,
+                           shuffle=False):
+        return load_bert_dataset(
+            data_dir,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            lang=self.lang,
+            phase='val',
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens,
+            shuffle=shuffle)
 
 
 class BertBase(ModelBase):
@@ -329,20 +380,37 @@ class BertBase(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_digital_dataset_from_file(self,
-                                       data_dir,
-                                       vocab_path,
-                                       batch_size=4096,
-                                       max_seq_len=512,
-                                       in_tokens=True):
+    def get_train_dataloader(self,
+                             data_dir,
+                             batch_size=4096,
+                             max_seq_len=512,
+                             in_tokens=True,
+                             shuffle=True):
         return load_bert_dataset(
             data_dir,
-            vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
             lang=self.lang,
+            phase='train',
             max_seq_len=max_seq_len,
-            in_tokens=in_tokens)
+            in_tokens=in_tokens,
+            shuffle=shuffle)
+
+    def get_val_dataloader(self,
+                           data_dir,
+                           batch_size=4096,
+                           max_seq_len=512,
+                           in_tokens=True,
+                           shuffle=False):
+        return load_bert_dataset(
+            data_dir,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            lang=self.lang,
+            phase='val',
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens,
+            shuffle=shuffle)
 
 
 class MultiSlotCTR(ModelBase):
