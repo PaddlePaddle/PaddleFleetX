@@ -221,10 +221,13 @@ class Downloader(object):
                 )
             if is_first_worker():
                 os.system("wget -q --no-check-certificate {}".format(fs_yaml))
-            if not os.path.exists(yaml_file):
-                raise Exception(
-                    "Error: If you provide a url, please check if your url is valid and is able to access; otherwise, please check if the yaml file is exists in your local path."
-                )
+                if not os.path.exists(yaml_file):
+                    raise Exception(
+                        "Error: If you provide a url, please check if your url is valid and is able to access; otherwise, please check if the yaml file is exists in your local path."
+                    )
+            else:
+                while not os.path.exists(yaml_file):
+                    time.sleep(1)
 
         _, ext = os.path.splitext(fs_yaml)
         assert ext in ['.yml', '.yaml'], "only support yaml files for now"

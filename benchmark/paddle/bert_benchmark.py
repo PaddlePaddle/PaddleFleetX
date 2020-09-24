@@ -12,17 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-
-os.environ['FLAGS_enable_parallel_graph'] = "0"
-os.environ['FLAGS_fraction_of_gpu_memory_to_use'] = "0.98"
-os.environ['FLAGS_sync_nccl_allreduce'] = "1"
-os.environ['FLAGS_eager_delete_tensor_gb'] = "0"
-os.environ['FLAGS_fuse_parameter_memory_size'] = "32"
-os.environ['FLAGS_fuse_parameter_groups_size'] = "50"
-
 import fleetx as X
+import paddle
 import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
+paddle.enable_static()
 # FleetX help users to focus more on learning to train a large scale model
 # if you want to learn how to write a model, fleetx is not for you
 # focus more on engineering staff in fleet-x
@@ -32,9 +26,10 @@ fleet.init(is_collective=True)
 # load BertLarge / BertBase model
 model = X.applications.BertLarge()
 #model = X.applications.BertBase()
-
-data_loader = model.load_digital_dataset_from_file(
-    data_dir='./train_data', vocab_path='./vocab.txt')
+downloader = X.utils.Downloader()
+local_path = downloader.download_from_hdfs(
+    configs.download_config, local_path='./data')
+loader = model.get_train_dataloader(data_dir='{}'.format(local_path))
 
 learning_rate = X.utils.linear_warmup_decay(configs.lr, 4000, 1000000)
 exec_strategy = fluid.ExecutionStrategy()
