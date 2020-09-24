@@ -98,7 +98,6 @@ class Resnet50(ModelBase):
                              batch_size=32,
                              shuffle=True,
                              use_dali=False):
-<<<<<<< HEAD
         filelist = local_path + '/train.txt'
         data_layout = self.data_layout
         return image_dataloader_from_filelist(
@@ -109,16 +108,12 @@ class Resnet50(ModelBase):
             shuffle=shuffle,
             use_dali=use_dali,
             data_layout=data_layout)
-=======
-        pass
->>>>>>> change model interface for reader
 
     def get_val_dataloader(self,
                            local_path,
                            batch_size=32,
                            shuffle=False,
                            use_dali=False):
-<<<<<<< HEAD
         filelist = local_path + '/val.txt'
         data_layout = self.data_layout
         return image_dataloader_from_filelist(
@@ -129,9 +124,6 @@ class Resnet50(ModelBase):
             shuffle=shuffle,
             use_dali=use_dali,
             data_layout=data_layout)
-=======
-        pass
->>>>>>> change model interface for reader
 
 
 class VGG16(ModelBase):
@@ -155,7 +147,6 @@ class VGG16(ModelBase):
         self.target = target
         self.use_dali = False
 
-<<<<<<< HEAD
     def get_train_dataloader(self,
                              local_path,
                              batch_size=32,
@@ -187,22 +178,7 @@ class VGG16(ModelBase):
             shuffle=shuffle,
             use_dali=use_dali,
             data_layout=data_layout)
-=======
->>>>>>> change model interface for reader
 
-    def get_train_dataloader(self,
-                             local_path,
-                             batch_size=32,
-                             shuffle=True,
-                             use_dali=False):
-        pass
-
-    def get_val_dataloader(self,
-                           local_path,
-                           batch_size=32,
-                           shuffle=False,
-                           use_dali=False):
-        pass
 
 class Transformer(ModelBase):
     def __init__(self):
@@ -219,17 +195,19 @@ class Transformer(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def get_train_dataloader(self,
-                             local_path,
-                             batch_size=2048,
-                             shuffle=True):
-        pass
-
-    def get_val_dataloader(self,
-                           local_path,
-                           batch_size=2048,
-                           shuffle=True):
-        pass
+    def load_wmt16_dataset_from_file(self,
+                                     src_vocab_fpath,
+                                     trg_vocab_fpath,
+                                     train_file_pattern,
+                                     batch_size=2048,
+                                     shuffle=True):
+        return transformer_data_generator(
+            src_vocab_fpath,
+            trg_vocab_fpath,
+            train_file_pattern,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            shuffle=shuffle)
 
 
 class BertLarge(ModelBase):
@@ -251,7 +229,6 @@ class BertLarge(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-<<<<<<< HEAD
     def load_digital_dataset_from_file(self,
                                        data_dir,
                                        vocab_path,
@@ -266,22 +243,6 @@ class BertLarge(ModelBase):
             lang=self.lang,
             max_seq_len=max_seq_len,
             in_tokens=in_tokens)
-=======
-    def get_train_dataloader(self,
-                             local_path,
-                             batch_size=16,
-                             max_seq_len=128,
-                             in_tokens=False):
-        pass
-
-
-    def get_val_dataloader(self,
-                           local_path,
-                           batch_size=16,
-                           max_seq_len=128,
-                           in_tokens=False):
-        pass
->>>>>>> change model interface for reader
 
 
 class BertHuge(ModelBase):
@@ -300,7 +261,6 @@ class BertHuge(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-<<<<<<< HEAD
     def load_digital_dataset_from_file(self,
                                        data_dir,
                                        vocab_path,
@@ -316,24 +276,6 @@ class BertHuge(ModelBase):
             max_seq_len=max_seq_len,
             in_tokens=in_tokens)
 
-=======
-    def get_train_dataloader(self,
-                             local_path,
-                             batch_size=16,
-                             max_seq_len=128,
-                             in_tokens=False):
-        # local_path: 
-        #   -- train.txt
-        #   -- val.txt
-        pass
-
-    def get_val_dataloader(self,
-                           local_path,
-                           batch_size=16,
-                           max_seq_len=128,
-                           in_tokens=False):
-        pass
->>>>>>> change model interface for reader
 
 class BertGiant(ModelBase):
     def __init__(self):
@@ -350,22 +292,21 @@ class BertGiant(ModelBase):
         self.loss = loss
         self.checkpoints = checkpoints
         self.target = target
-    def get_train_dataloader(self,
-                             local_path,
-                             batch_size=16,
-                             max_seq_len=128,
-                             in_tokens=False):
-        # local_path: 
-        #   -- train.txt
-        #   -- val.txt
-        pass
 
-    def get_val_dataloader(self,
-                           local_path,
-                           batch_size=16,
-                           max_seq_len=128,
-                           in_tokens=False):
-        pass
+    def load_digital_dataset_from_file(self,
+                                       data_dir,
+                                       vocab_path,
+                                       batch_size=4096,
+                                       max_seq_len=512,
+                                       in_tokens=True):
+        return load_bert_dataset(
+            data_dir,
+            vocab_path,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            lang=self.lang,
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens)
 
 
 class BertBase(ModelBase):
@@ -387,22 +328,20 @@ class BertBase(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def get_train_dataloader(self,
-                             local_path,
-                             batch_size=16,
-                             max_seq_len=128,
-                             in_tokens=False):
-        # local_path: 
-        #   -- train.txt
-        #   -- val.txt
-        pass
-
-    def get_val_dataloader(self,
-                           local_path,
-                           batch_size=16,
-                           max_seq_len=128,
-                           in_tokens=False):
-        pass
+    def load_digital_dataset_from_file(self,
+                                       data_dir,
+                                       vocab_path,
+                                       batch_size=4096,
+                                       max_seq_len=512,
+                                       in_tokens=True):
+        return load_bert_dataset(
+            data_dir,
+            vocab_path,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            lang=self.lang,
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens)
 
 
 class MultiSlotCTR(ModelBase):
@@ -420,17 +359,17 @@ class MultiSlotCTR(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def get_train_dataloader(self,
-                             local_path,
-                             batch_size=1000,
-                             shuffle=True):
-        pass
-
-    def get_val_dataloader(self,
-                           local_path,
-                           batch_size=1000,
-                           shuffle=False):
-        pass
+    def load_criteo_from_file(self,
+                              train_files_path,
+                              sparse_feature_dim=1000001,
+                              batch_size=1000,
+                              shuffle=True):
+        return get_dataloader(
+            self.inputs,
+            train_files_path,
+            sparse_feature_dim=sparse_feature_dim,
+            batch_size=batch_size,
+            shuffle=shuffle)
 
 
 class Resnet50Mlperf(ModelBase):
@@ -449,16 +388,21 @@ class Resnet50Mlperf(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def get_train_dataloader(self,
-                             local_path,
-                             batch_size=32,
-                             shuffle=True,
-                             use_dali=False):
-        pass
-
-    def get_val_dataloader(self,
-                           local_path,
-                           batch_size=32,
-                           shuffle=True,
-                           use_dali=False):
-        pass
+    def load_imagenet_from_file(self,
+                                filelist,
+                                batch_size=32,
+                                phase='train',
+                                shuffle=True,
+                                use_dali=False):
+        if phase != 'train':
+            shuffle = False
+        self.use_dali = use_dali
+        data_layout = self.data_layout
+        return image_dataloader_from_filelist(
+            filelist,
+            self.inputs,
+            batch_size,
+            phase,
+            shuffle,
+            use_dali,
+            data_layout=data_layout)
