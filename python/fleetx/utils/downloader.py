@@ -63,7 +63,7 @@ class Downloader(object):
         current_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
         self.server_endpoint = endpoints[0]
         self.barrier_server = BarrierServer()
-        if is_first_worker():
+        if current_endpoint == self.server_endpoint:
             self.barrier_server.start_server_in_background(
                 endpoint=self.server_endpoint, worker_endpoints=endpoints)
 
@@ -175,7 +175,7 @@ class Downloader(object):
         client.my_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
         client.connect()
         client.barrier()
-        if is_first_worker():
+        if client.my_endpoint == self.server_endpoint:
             self.barrier_server.close_server()
         return local_path
 
