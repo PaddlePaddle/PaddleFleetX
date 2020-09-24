@@ -11,89 +11,103 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from paddle.fluid.contrib.utils import HDFSClient, multi_download
+from paddle.distributed.fleet.utils.fs import HDFSClient
 import time
-from .env import is_first_worker
+import paddle.distributed.fleet as fleet
+from paddle.distributed.fleet.base.util_factory import fleet_util
+import sys
+import hashlib
+from .barrier_server_impl import BarrierServer
+from .barrier_client_impl import BarrierClient
+from .env import is_first_worker, get_node_info
+import sysconfig
 import multiprocessing
 import yaml
 import os
 
 
-def check_images_ready(local_path):
-    while True:
-        with open("{}/train.txt".format(local_path)) as fin:
-            filelist = []
-            ready_list = []
-            for line in fin:
-                current_image = line.split(' ')
-                filelist.append(current_image)
-                image_path = "{}/train/{}".format(local_path, current_image[0])
-                if os.path.exists(image_path):
-                    ready_list.append(image_path)
-            if len(filelist) == len(ready_list):
-                return
-            else:
-                time.sleep(3)
+def get_md5(file_path):
+    hash_md5 = hashlib.md5()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
 
 
-def check_exists(local_path):
-    if not os.path.exists("{}/data_info.txt".format(local_path)):
-        return True
-    with open("{}/data_info.txt".format(local_path)) as fin:
+def check_exists(filelist, local_path):
+    with open("{}/filelist.txt".format(local_path), 'r') as fin:
         for line in fin:
-            current_file = line[:-1]
-            if not os.path.exists("{}/{}".format(local_path, current_file)):
-                print("{}/{}".format(local_path, current_file))
-                return True
+            current_file = line.split(' ')[0]
+            current_md5 = line.split(' ')[1].strip()
+            if current_file in filelist:
+                if (not os.path.exists("{}/{}".format(
+                        local_path, current_file))) or get_md5("{}/{}".format(
+                            local_path, current_file)) != current_md5:
+                    return True
         return False
 
 
-def untar_files_with_check(local_path, trainer_id, trainer_num,
-                           process_num=10):
-    print("Waiting others to finish download......")
-    while True:
-        if os.path.exists("{}/data_info.txt".format(local_path)):
-            filelist = []
-            ready_filelist = []
-            with open("{}/data_info.txt".format(local_path)) as fin:
-                for line in fin:
-                    filelist.append(line[:-1])
-                for ff in filelist:
-                    if os.path.exists("{}/{}".format(local_path, ff)):
-                        ready_filelist.append("{}/{}".format(local_path, ff))
-                if len(ready_filelist) == len(filelist):
-                    num_per_trainer = int(len(ready_filelist) /
-                                          trainer_num) + 1
-                    if (trainer_id + 1
-                        ) * num_per_trainer < len(ready_filelist):
-                        sub_list = ready_filelist[trainer_id * num_per_trainer:
-                                                  (trainer_id + 1
-                                                   ) * num_per_trainer]
-                        print(sub_list)
-                        return sub_list
-                    else:
-                        sub_list = ready_filelist[trainer_id *
-                                                  num_per_trainer:]
-                        print(sub_list)
-                        return sub_list
-                else:
-                    time.sleep(2)
-        else:
-            time.sleep(2)
+def get_file_shard(node_id, node_num, local_path):
+    while not os.path.exists('{}/filelist.txt'.format(local_path)):
+        time.sleep(3)
+    full_list = []
+    with open("{}/filelist.txt".format(local_path), 'r') as fin:
+        for line in fin:
+            full_list.append(line.split(' ')[0])
+    return full_list[node_id::node_num]
 
 
 class Downloader(object):
     def __init__(self):
-        pass
+        endpoints = os.environ.get('PADDLE_TRAINER_ENDPOINTS').split(",")
+        current_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
+        self.server_endpoint = endpoints[0]
+        self.barrier_server = BarrierServer()
+        if current_endpoint == self.server_endpoint:
+            self.barrier_server.start_server_in_background(
+                endpoint=self.server_endpoint, worker_endpoints=endpoints)
 
-    def download_from_hdfs(self, fs_yaml=None, local_path="./"):
+    def download_from_hdfs(self,
+                           fs_yaml=None,
+                           local_path="./",
+                           shard_num=-1,
+                           shard_id=-1,
+                           process_num=10):
         """
         Download from hdfs
         The configurations are configured in fs_yaml file:
-
         TODO: add example and yaml argument fields introduction
-
         """
+
+        def multi_download(client,
+                           hdfs_path,
+                           local_path,
+                           filelist,
+                           process_num=process_num):
+            def _subprocess_download(files):
+                for ff in files:
+                    client.download('{}/{}'.format(hdfs_path, ff),
+                                    '{}/{}'.format(local_path, ff))
+                    cmd = "tar -xf {}/{} -C {}".format(local_path, ff,
+                                                       local_path)
+                    os.system(cmd)
+
+            dir_per_process = len(filelist) / process_num
+
+            procs = []
+            for i in range(process_num):
+                process_filelist = filelist[i::process_num]
+                p = multiprocessing.Process(
+                    target=_subprocess_download, args=(process_filelist, ))
+                procs.append(p)
+                p.start()
+
+            for proc in procs:
+                proc.join()
+
+        if is_first_worker():
+            if not os.path.exists(local_path):
+                os.system('mkdir {}'.format(local_path))
         _, ext = os.path.splitext(fs_yaml)
         assert ext in ['.yml', '.yaml'], "only support yaml files for now"
         with open(fs_yaml) as f:
@@ -115,49 +129,147 @@ class Downloader(object):
                     "fs.default.name": cfg["fs.default.name"],
                     "hadoop.job.ugi": cfg["hadoop.job.ugi"]
                 }
+        java_home = ''
+        if "java_home" in cfg:
+            java_home = cfg['java_home']
+        os.environ['JAVA_HOME'] = java_home
+        if "data_path" in cfg:
+            hdfs_path = cfg["data_path"]
 
-        def untar_files(local_path, tar_list, process_num=10):
-            def _subprocess_untar(files):
+        client = HDFSClient(self.hadoop_home, self.hdfs_configs)
+        if is_first_worker():
+            if not (client.is_exist('{}/meta.txt'.format(hdfs_path)) and
+                    client.is_exist('{}/filelist.txt'.format(hdfs_path))):
+                raise Exception(
+                    "ERROR: Your data dir should include filelist.txt and meta.txt"
+                )
+            client.download('{}/filelist.txt'.format(hdfs_path),
+                            '{}/filelist.txt'.format(local_path))
+            client.download('{}/meta.txt'.format(hdfs_path),
+                            '{}/meta.txt'.format(local_path))
+            with open('{}/meta.txt'.format(local_path), 'r') as fin:
+                for line in fin:
+                    current_file = line.strip()
+                    client.download('{}/{}'.format(hdfs_path, current_file),
+                                    '{}/{}'.format(local_path, current_file))
+
+        if shard_num > 0:
+            assert (
+                shard_id >= 0,
+                "Please provide worker index by fleet.worker_index() if you want to download sharded data on each machine"
+            )
+            self.filelist = get_file_shard(shard_id, shard_num, local_path)
+            need_download = check_exists(self.filelist, local_path)
+            if need_download:
+                multi_download(client, hdfs_path, local_path, self.filelist)
+        else:
+            if is_first_worker():
+                self.filelist = get_file_shard(0, 1, local_path)
+                need_download = check_exists(self.filelist, local_path)
+                if need_download:
+                    multi_download(client, hdfs_path, local_path,
+                                   self.filelist)
+
+        client = BarrierClient()
+        client.server_endpoint = self.server_endpoint
+        client.my_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
+        client.connect()
+        client.barrier()
+        if client.my_endpoint == self.server_endpoint:
+            self.barrier_server.close_server()
+        return local_path
+
+    def download_from_bos(self,
+                          fs_yaml=None,
+                          local_path="./",
+                          shard_num=-1,
+                          shard_id=-1,
+                          process_num=10):
+        def multi_download(bos_path,
+                           local_path,
+                           filelist,
+                           process_num=process_num):
+            def _subprocess_download(files):
                 for ff in files:
-                    if ff.endswith(".tar"):
-                        cmd = "tar -xf {} -C {}".format(ff, local_path)
-                        os.system(cmd)
+                    os.system("wget -q -P {} --no-check-certificate {}/{}".
+                              format(local_path, bos_path, ff))
+                    cmd = "tar -xf {}/{} -C {}".format(local_path, ff,
+                                                       local_path)
+                    os.system(cmd)
 
-            dir_per_process = len(tar_list) / process_num
+            dir_per_process = len(filelist) / process_num
 
             procs = []
             for i in range(process_num):
-                process_filelist = tar_list[i::process_num]
+                process_filelist = filelist[i::process_num]
                 p = multiprocessing.Process(
-                    target=_subprocess_untar, args=(process_filelist, ))
+                    target=_subprocess_download, args=(process_filelist, ))
                 procs.append(p)
                 p.start()
 
             for proc in procs:
                 proc.join()
 
-        if hdfs_path == None:
-            hdfs_path = self.default_path
-        client = HDFSClient(self.hadoop_home, self.hdfs_configs)
-        PADDLE_TRAINER_ENDPOINTS = os.environ.get('PADDLE_TRAINER_ENDPOINTS')
-        endpoints = PADDLE_TRAINER_ENDPOINTS.split(",")
-        current_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
-        need_download = check_exists(local_path)
-        if need_download:
-            multi_download(client, hdfs_path, local_path,
-                           endpoints.index(current_endpoint),
-                           len(endpoints), 12)
-        tar_list = untar_files_with_check(local_path,
-                                          endpoints.index(current_endpoint),
-                                          len(endpoints))
-        if os.path.exists("{}/train".format(local_path)):
-            print(
-                "Warning: You may already have imagenet dataset in {}, please check!".
-                format(local_path))
-        untar_files(local_path, tar_list)
-        check_images_ready(local_path)
+        if is_first_worker():
+            if not os.path.exists(local_path):
+                os.system('mkdir {}'.format(local_path))
+        yaml_file = fs_yaml.split('/')[-1]
+        if not os.path.exists(yaml_file):
+            if fs_yaml == None:
+                raise Exception(
+                    "Error: you should provide a yaml to download data from bos, you can find yaml examples in the following links:"
+                )
+            if is_first_worker():
+                os.system("wget -q --no-check-certificate {}".format(fs_yaml))
+            if not os.path.exists(yaml_file):
+                raise Exception(
+                    "Error: If you provide a url, please check if your url is valid and is able to access; otherwise, please check if the yaml file is exists in your local path."
+                )
+
+        _, ext = os.path.splitext(fs_yaml)
+        assert ext in ['.yml', '.yaml'], "only support yaml files for now"
+        with open(yaml_file) as f:
+            cfg = yaml.load(f, Loader=yaml.Loader)
+
+        if 'bos_path' in cfg:
+            bos_path = cfg["bos_path"]
+
+        if is_first_worker():
+            try:
+                os.system(
+                    "wget -q -P {} --no-check-certificate {}/filelist.txt".
+                    format(local_path, bos_path))
+                os.system("wget -q -P {} --no-check-certificate {}/meta.txt".
+                          format(local_path, bos_path))
+            except:
+                raise Exception(
+                    "ERROR: Your data dir should include filelist.txt and meta.txt"
+                )
+            with open('{}/meta.txt'.format(local_path), 'r') as fin:
+                for line in fin:
+                    current_file = line[:-1]
+                    os.system("wget -q -P {} --no-check-certificate {}/{}".
+                              format(local_path, bos_path, current_file))
+        if shard_num > 0:
+            assert (
+                shard_id >= 0,
+                "Please provide worker index by fleet.worker_index() if you want to download sharded data on each machine"
+            )
+            self.filelist = get_file_shard(shard_id, shard_num, local_path)
+            need_download = check_exists(self.filelist, local_path)
+            if need_download:
+                multi_download(bos_path, local_path, self.filelist)
+        else:
+            if is_first_worker():
+                self.filelist = get_file_shard(0, 1, local_path)
+                need_download = check_exists(self.filelist, local_path)
+                if need_download:
+                    multi_download(bos_path, local_path, self.filelist)
+        client = BarrierClient()
+        client.server_endpoint = self.server_endpoint
+        client.my_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
+        client.connect()
+        client.barrier()
+        if client.my_endpoint == self.server_endpoint:
+            self.barrier_server.close_server()
         return local_path
-
-    def download_from_bos(self, fs_yaml=None, local_path="./"):
-        pass
-

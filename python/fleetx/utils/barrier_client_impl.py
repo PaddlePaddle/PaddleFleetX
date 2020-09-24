@@ -2,8 +2,8 @@
 from __future__ import print_function
 from concurrent import futures
 import grpc
-import barrier_server_pb2 as barrier_server_pb2
-import barrier_server_pb2_grpc as barrier_server_pb2_grpc
+from . import barrier_server_pb2 as barrier_server_pb2
+from . import barrier_server_pb2_grpc as barrier_server_pb2_grpc
 from concurrent import futures
 from multiprocessing import Process
 
@@ -42,7 +42,8 @@ class BarrierClient(object):
             print("try to connect {}".format(self.server_endpoint_))
             options = [('grpc.max_message_length', 1024 * 1024 * 1024),
                        ('grpc.max_receive_message_length', 1024 * 1024 * 1024)]
-            channel = grpc.insecure_channel(self.server_endpoint_, options=options)
+            channel = grpc.insecure_channel(
+                self.server_endpoint_, options=options)
             self.stub = barrier_server_pb2_grpc.BarrierServerStub(channel)
             try:
                 req = barrier_server_pb2.Request()
@@ -52,7 +53,7 @@ class BarrierClient(object):
             except:
                 print("not ready")
                 continue
-                
+
         print("connected")
 
     def barrier(self):
@@ -61,21 +62,15 @@ class BarrierClient(object):
             return
 
         while True:
-            #print("here again")
             req = barrier_server_pb2.Request()
-            #print("get request")
             req.endpoint = self.current_endpoint
-            #print("set endpoint")
             call_future = self.stub.ReadyToPass.future(req)
-            #print("call ReadtoPass")
             req_res = call_future.result()
-            #print("get result")
             if req_res.res_code == 0:
                 print("pass")
                 break
             else:
                 time.sleep(0.5)
-                #print("error")
         return
 
     def close_server(self):
