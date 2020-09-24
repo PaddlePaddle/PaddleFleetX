@@ -31,9 +31,11 @@
 
 .. code:: python
 
+    import paddle
     import paddle.distributed.fleet as fleet
     import fleetx as X
 
+    paddle.enable_static()
     fleet.init(is_collective=True)
 
 

@@ -95,6 +95,7 @@ Forward Recomputation Backpropagation
 
 .. code:: python
 
+    import paddle
     import fleetx as X
     import paddle.fluid as fluid
     import paddle.distributed.fleet as fleet
@@ -106,6 +107,7 @@ Forward Recomputation Backpropagation
 
 .. code:: python
 
+    paddle.enable_static()
     configs = X.parse_train_configs()
     fleet.init(is_collective=True)
 

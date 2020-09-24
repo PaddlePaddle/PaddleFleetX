@@ -46,6 +46,7 @@ GEO策略通过模型训练与节点通信同步进行的方式，在保证模�
 
 .. code:: python
 
+   import paddle
    import fleetx as X
    import paddle.fluid as fluid
    import paddle.distributed.fleet as fleet
@@ -58,6 +59,7 @@ GEO策略通过模型训练与节点通信同步进行的方式，在保证模�
 
 .. code:: python
 
+   paddle.enable_static()
    configs = X.parse_train_configs()
    role = role_maker.PaddleCloudRoleMaker()
    fleet.init(role)
