@@ -213,8 +213,6 @@ class Downloader(object):
         if is_first_worker():
             if not os.path.exists(local_path):
                 os.system('mkdir {}'.format(local_path))
-        role = fleet._role_maker_()
-        fleet_util._set_role_maker(role)
         yaml_file = fs_yaml.split('/')[-1]
         if not os.path.exists(yaml_file):
             if fs_yaml == None:
@@ -267,5 +265,11 @@ class Downloader(object):
                 need_download = check_exists(self.filelist, local_path)
                 if need_download:
                     multi_download(bos_path, local_path, self.filelist)
-        fleet_util.barrier()
+        client = BarrierClient()
+        client.server_endpoint = self.server_endpoint
+        client.my_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
+        client.connect()
+        client.barrier()
+        if client.my_endpoint == self.server_endpoint:
+            self.barrier_server.close_server()
         return local_path
