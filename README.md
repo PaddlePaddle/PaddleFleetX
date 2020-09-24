@@ -1,6 +1,17 @@
 
 <h1 align="center">FleetX</h1>
 
+
+
+<p align="center">
+    <br>
+    <img alt="Fork" src="https://img.shields.io/github/forks/PaddlePaddle/FleetX">
+    <img alt="Issues" src="https://img.shields.io/github/issues/PaddlePaddle/FleetX">
+    <img alt="License" src="https://img.shields.io/github/license/PaddlePaddle/FleetX">
+    <img alt="Star" src="https://img.shields.io/github/stars/PaddlePaddle/FleetX">
+    <br>
+<p>
+
 <p align="center"> Fully utilize your GPU Clusters with FleetX for your model pre-training. </p>
 
 <h2 align="center">What is it?</h2>
