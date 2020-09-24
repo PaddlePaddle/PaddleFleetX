@@ -95,6 +95,7 @@ Forward Recomputation Backpropagation
 
 .. code:: python
 
+    # -*- coding: UTF-8 -*-
     import fleetx as X
     import paddle.fluid as fluid
     import paddle.distributed.fleet as fleet
@@ -200,6 +201,7 @@ Size（假设脚本名称为bert_gradient_merge.py）：
 
 .. code:: python
 
+   # -*- coding: UTF-8 -*-
    import fleetx as X
    import paddle.fluid
    import paddle.distributed.fleet as fleet
