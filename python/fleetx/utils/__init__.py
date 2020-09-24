@@ -16,5 +16,7 @@ from .lr_strategy import *
 from .downloader import *
 from .submitter import *
 from .env import *
-from . import grpc_service
-from .grpc_service import *
+from .barrier_client_impl import *
+from .barrier_server_impl import *
+from .barrier_server_pb2_grpc import *
+from .barrier_server_pb2 import *

@@ -51,7 +51,6 @@ packages = [
     'fleetx.applications',
     'fleetx.dataset',
     'fleetx.utils',
-    'fleetx.utils.grpc_service',
 ]
 
 package_dir = {
@@ -59,7 +58,6 @@ package_dir = {
     'fleetx.applications': './fleetx/applications',
     'fleetx.dataset': './fleetx/dataset',
     'fleetx.utils': './fleetx/utils',
-    'fleetx.utils.grpc_service': './fleetx/utils/grpc_service'
 }
 
 setup(
