@@ -134,8 +134,6 @@ class Downloader(object):
         if is_first_worker():
             if not os.path.exists(local_path):
                 os.system('mkdir {}'.format(local_path))
-#        role = fleet._role_maker_()
-#        fleet_util._set_role_maker(role)
         _, ext = os.path.splitext(fs_yaml)
         assert ext in ['.yml', '.yaml'], "only support yaml files for now"
         with open(fs_yaml) as f:

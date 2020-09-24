@@ -107,4 +107,4 @@ rc版本开始，我们统一采用fleetrun进行多卡训练的启动，方式�
 
    fleetrun --gpus 0,1,2,3 resnet_app.py
 
-关于\ ``fleetrun``\ 命令，更详细的使用说明请参考\ `fleetrun <fleetrun_usage_cn.md>`__
+关于\ ``fleetrun``\ 命令，更详细的使用说明请参考\ `fleetrun <fleetrun_usage_cn.html>`__

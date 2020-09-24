@@ -65,7 +65,6 @@ wget --no-check-certificate https://fleet.bj.bcebos.com/Bertdata/vocab.txt
 import fleetx as X
 import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
-import paddle.distributed.fleet.base.role_maker as role_maker
 ```
 
 #### 定义分布式模式并初始化
@@ -73,8 +72,7 @@ import paddle.distributed.fleet.base.role_maker as role_maker
 通过`X.parse_train_configs()`接口，用户可以定义训练相关的参数，如：学习率、衰减率等。同时通过`fleet.init()`接口定义了分布式模型，下面代码中的`is_collective=True`表示采用集合通信的GPU分布式模式训练模型。
 ```python
 configs = X.parse_train_configs()
-role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-fleet.init(role)
+fleet.init(is_collective=True)
 ```
 
 #### 加载模型及数据
@@ -82,7 +80,7 @@ fleet.init(role)
 用户可以通过`X.applications`接口加载我们预先定义好的模型，如：Resnet50、VGG16、BERT等。并使用定制化的data_loader加载模型，同时可以定义训练中使用的batch_size等参数。下面的例子中，我们使用了recompute对Bert_large模型所支持的最大Batch Size（53）来进行训练。
 
 ```python
-model = X.applications.Bert_large()
+model = X.applications.BertLarge()
 
 data_loader = model.load_digital_dataset_from_file(
     data_dir='./train_data',
@@ -116,10 +114,10 @@ optimizer.minimize(model.loss)
 在 FleetX 中，我们为用户提供了`X.MultiGPUTrainer` 接口，用于GPU分布式训练。其中`model` 及 `data_loader` 分别为第二步中加载的模型及数据。`start_step` 表示开始打印训练log的步数，若用户想复现我们的模型训练速度数据建议设置成10或者更大的数；若用户想查看模型的收敛情况，则可设置成0。
 ```python
 trainer = X.MultiGPUTrainer()
-trainer.fit(model, data_loader, start_step=10)
+trainer.fit(model, data_loader, epoch=10)
 ```
 
-### 运行训练脚本
+#### 运行训练脚本
 完成脚本的编写后我们就可以使用以下命令训练分布式模型：
 ```sh
 fleetrun --gpus 0,1,2,3,4,5,6,7 bert_recompute.py
@@ -127,14 +125,14 @@ fleetrun --gpus 0,1,2,3,4,5,6,7 bert_recompute.py
 
 #### 效果测试
 
-我们在BERT模型上对recompute的效果进行了测试，使用Recompute后Batch size可以扩大至3倍。与混合精度一起使用时，Batch_size可以进一步扩大。
+我们在BERT模型上对recompute的效果进行了测试，使用Recompute后Batch size可以扩大至9倍多。与混合精度一起使用时，Batch_size可以进一步扩大。其中，速度记录的是分布式训练任务每秒可以训练的样本数。
 
 - **Bert_large**: 
 
 |Model|Baseline|Recompute| Recompute + mixed precision|
 |-----|-----|-----|-----|
-|Batch size| 14 | 53 | 87 |
-|speed|18.2 sents/s| 12.88 sents/s| 19.14 sents/s |
+|Batch size| 14 | 130 | 145 |
+|speed|69.92 sents/s| 45.76 sents/s| 75.84 sents/s |
 
 
 ### Gradient Merge

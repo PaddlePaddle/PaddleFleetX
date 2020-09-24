@@ -36,7 +36,7 @@ class CPUTrainer(Trainer):
         for epoch_id in range(epoch):
             total_time = 0
             step = 0
-            for data in dataloader:
+            for data in dataloader():
                 if step > start_step:
                     start_time = time.time()
                 loss = self.exe.run(fluid.default_main_program(),

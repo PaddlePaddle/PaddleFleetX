@@ -1,0 +1,17 @@
+syntax = "proto3";
+package barrier;
+
+message Request {
+   string endpoint = 1;
+}
+
+message Res {
+   int32 res_code = 1;
+}
+
+
+service BarrierServer {
+   rpc ReadyToPass(Request) returns (Res) {}
+   rpc Exit(Request) returns (Res) {}
+   rpc SayHello(Request) returns (Res) {}
+}

@@ -22,68 +22,52 @@ Precision) 来进一步提升训练的速度.
    -  GPU上 FP16 吞吐是FP32 的 2 - 8
       倍\ `[2] <https://arxiv.org/abs/1710.03740>`__
 
-FleetX 支持自动混合精度计算, 并实现了 ``FP32 参数副本及更新``,
+Fleet 支持自动混合精度计算, 并实现了 ``FP32 参数副本及更新``,
 ``Dynamic loss scaling``, ``op黑白名单`` 等功能来避免FP16
-因动态范围较小而可能带来的模型最终精度损失. FleetX 并提供了简单易用的API
+因动态范围较小而可能带来的模型最终精度损失. Fleet 并提供了简单易用的API
 接口, 用户无须修改参数.
 就可将自动混合精度应用到原有的分布式训练中进一步提升训练速度.
 
-中下文将通过一个简单例子介绍如如何通过 FleetX将实现混合精度的分布式训练,
-另外给出我们使用 FleetX 进行同步训练加速的实践.
+中下文将通过一个简单例子介绍如如何通过 Fleet 将实现混合精度的分布式训练,
+另外给出我们使用 Fleet 进行同步训练加速的实践.
 
-FleetX 效果
------------
+Fleet 效果
+----------
 
 环境: 4 机 32卡 V100-32GB
 
-+----------------------+-----------------+------------+-------+
-| imagenet             | 单卡 batch size | 速度 img/s | top1  |
-+======================+=================+============+=======+
-| `VGG16-FP            | 128             | TBA        | 76.3% |
-| 32 <https://arxiv.or |                 |            |       |
-| g/abs/1708.03888>`__ |                 |            |       |
-+----------------------+-----------------+------------+-------+
-| `VGG16-A             | 128             | TBA        | 76.3% |
-| MP <https://arxiv.or |                 |            |       |
-| g/abs/1708.03888>`__ |                 |            |       |
-+----------------------+-----------------+------------+-------+
-| `VGG16-FP            | 256             | OOM        | OOM   |
-| 32 <https://arxiv.or |                 |            |       |
-| g/abs/1708.03888>`__ |                 |            |       |
-+----------------------+-----------------+------------+-------+
-| `VGG16-A             | 256             | TBA        | 76.3% |
-| MP <https://arxiv.or |                 |            |       |
-| g/abs/1708.03888>`__ |                 |            |       |
-+----------------------+-----------------+------------+-------+
++----------------+-------------------+--------------+----------+
+| imagenet       | 单卡 batch size   | 速度 img/s   | top1     |
++================+===================+==============+==========+
+| [VGG16-FP32]   | 32                | 4133         | 55.4 %   |
++----------------+-------------------+--------------+----------+
+| [VGG16-AMP]    | 32                | 7238         | 54.6 %   |
++----------------+-------------------+--------------+----------+
 
-+----------------------+-----------------+------------+-------+
-| imagenet             | 单卡 batch size | 速度 img/s | top1  |
-+======================+=================+============+=======+
-| `Resnet50-FP         | 128             | 8410       | TBA   |
-| 32 <https://arxiv.or |                 |            |       |
-| g/abs/1708.03888>`__ |                 |            |       |
-+----------------------+-----------------+------------+-------+
-| `Resnet50-A          | 128             | TBA        | 76.3% |
-| MP <https://arxiv.or |                 |            |       |
-| g/abs/1708.03888>`__ |                 |            |       |
-+----------------------+-----------------+------------+-------+
-| `Resnet50-FP         | 256             | OOM        | OOM   |
-| 32 <https://arxiv.or |                 |            |       |
-| g/abs/1708.03888>`__ |                 |            |       |
-+----------------------+-----------------+------------+-------+
-| `Resnet50-A          | 256             | 29440      | 76.3% |
-| MP <https://arxiv.or |                 |            |       |
-| g/abs/1708.03888>`__ |                 |            |       |
-+----------------------+-----------------+------------+-------+
++-------------------+-------------------+--------------+---------+
+| imagenet          | 单卡 batch size   | 速度 img/s   | top1    |
++===================+===================+==============+=========+
+| [Resnet50-FP32]   | 128               | 11126        | 76.2%   |
++-------------------+-------------------+--------------+---------+
+| [Resnet50-AMP]    | 128               | 25591        | 76.2%   |
++-------------------+-------------------+--------------+---------+
+| [Resnet50-FP32]   | 256               | OOM          | OOM     |
++-------------------+-------------------+--------------+---------+
+| [Resnet50-AMP]    | 256               | 29440        | 76.2%   |
++-------------------+-------------------+--------------+---------+
 
 AMP 快速开始
 ------------
 
-这里以在单机多卡上训练Resent50 为简单例子介绍FleetX 中 AMP的用法. ####
+这里以在单机多卡上训练Resent50 为简单例子介绍FleetX 中 AMP的用法.
+
 AMP 简述
+^^^^^^^^
 
 FP32 参数副本及更新
 '''''''''''''''''''
+
+https://github.com/PaddlePaddle/FleetX/blob/develop/docs/source/paddle\_fleet/img/AMP\_1.png
 
 如上图所示, 在AMP 中, 模型参数 ``weight`` ,
 前向中间的结果\ ``activation``, 反向的\ ``gradient`` 都以FP16 形式存储,
@@ -104,7 +88,7 @@ Loss scaling
 对gradient 做一个整体的放大, 能够更充分的利用FP16 的表示范围.
 
 FleetX AMP 会在反向开始前对 loss 进行 up scaling, 并在执行任何
-gradient-related 操作(e.g. gradient-clip, update) 之前对 gredient 进行
+gradient-related 操作(e.g. gradient-clip, update) 之前对 gredient 进行
 down scaling 恢复原来的大小.
 
 ``scaling factor`` 的设置是 Lossing scaling 的关键, FleetX AMP 提供
@@ -148,7 +132,7 @@ OP 黑白名单
 FleetX 已经预设了一个能够覆盖绝大多数模型OPs的黑白名单,
 通常情况下用户并不需要修改, 但是如果任务对精度有特殊要求,
 或者希望新增自定义 OP, 用户可以通过
-paddle.distributed.fleet.DistributedStrategy.amp_configs 中的
+paddle.distributed.fleet.DistributedStrategy.amp\_configs 中的
 ``custom_white_list`` 和 ``custom_black_list`` 进行指定. 同是,
 用户还可以通过\ ``custom_black_varnames``,
 来具体指定\ ``Paddle program`` 某一个 ``var``\ 必须使用FP32精度.
@@ -163,15 +147,15 @@ paddle.distributed.fleet.DistributedStrategy.amp_configs 中的
 
 .. code:: python
 
-   import os
-   import fleetx as X
-   import paddle.fluid as fluid
-   import paddle.distributed.fleet.base.role_maker as role_maker
-   import time
-   import paddle.distributed.fleet as fleet
+    import os
+    import fleetx as X
+    import paddle.fluid as fluid
+    import paddle.distributed.fleet.base.role_maker as role_maker
+    import time
+    import paddle.distributed.fleet as fleet
 
-   model = X.applications.Resnet50()
-   loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
+    model = X.applications.Resnet50()
+    loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
 
 定义分布式及AMP 相关策略
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -185,35 +169,35 @@ otpimizers 作为其 inner-optimizer.
 
 .. code:: python
 
-   configs = X.parse_train_configs()
-   role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-   fleet.init(role)
-   dist_strategy = fleet.DistributedStrategy()
+    configs = X.parse_train_configs()
+    role = role_maker.PaddleCloudRoleMaker(is_collective=True)
+    fleet.init(role)
+    dist_strategy = fleet.DistributedStrategy()
 
-   optimizer = fluid.optimizer.Momentum(learning_rate=configs.lr, momentum=configs.momentum)
+    optimizer = fluid.optimizer.Momentum(learning_rate=configs.lr, momentum=configs.momentum)
 
-   dist_strategy = fleet.DistributedStrategy()
-   dist_strategy.amp = True
+    dist_strategy = fleet.DistributedStrategy()
+    dist_strategy.amp = True
 
-   optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
-   optimizer.minimize(model.loss)
+    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
+    optimizer.minimize(model.loss)
 
-   dist_strategy = paddle.distributed.fleet.DistributedStrategy()
-   dist_strategy.amp = True
-   dist_strategy.amp_configs = {
-       "init_loss_scaling": 32768,
-       "decr_every_n_nan_or_inf": 2,
-       "incr_every_n_steps": 1000,
-       "incr_ratio": 2.0,
-       "use_dynamic_loss_scaling": True,
-       "decr_ratio": 0.5,
-       "custom_white_list": ['softmax'],
-       "custom_black_list": ['tanh'],
-   }
+    dist_strategy = paddle.distributed.fleet.DistributedStrategy()
+    dist_strategy.amp = True
+    dist_strategy.amp_configs = {
+        "init_loss_scaling": 32768,
+        "decr_every_n_nan_or_inf": 2,
+        "incr_every_n_steps": 1000,
+        "incr_ratio": 2.0,
+        "use_dynamic_loss_scaling": True,
+        "decr_ratio": 0.5,
+        "custom_white_list": ['softmax'],
+        "custom_black_list": ['tanh'],
+    }
 
-   optimizer = fluid.optimizer.Momentum(learning_rate=configs.lr, momentum=configs.momentum)
-   optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
-   optimizer.minimize(model.loss)
+    optimizer = fluid.optimizer.Momentum(learning_rate=configs.lr, momentum=configs.momentum)
+    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
+    optimizer.minimize(model.loss)
 
 开始训练
 ^^^^^^^^
@@ -222,22 +206,22 @@ otpimizers 作为其 inner-optimizer.
 
 .. code:: python
 
-   place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
-   exe = fluid.Executor(place)
-   exe.run(fluid.default_startup_program())
+    place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+    exe = fluid.Executor(place)
+    exe.run(fluid.default_startup_program())
 
-   total_time = 0
-   for i, data in enumerate(data_loader()):
-       start_time = time.time()
-       cost_val = exe.run(paddle.static.default_main_program(),
-                          feed=data,
-                          fetch_list=[model.loss.name])
-       end_time = time.time()
-       total_time += (end_time - start_time)
-       print(
-           "worker_index: %d, step%d cost = %f, total time cost = %f, step per second: %f, speed: %f"
-           % (fleet.worker_index(), i, cost_val[0], total_time,
-              (i - 9) / total_time, 1 / (end_time - start_time))
+    total_time = 0
+    for i, data in enumerate(data_loader()):
+        start_time = time.time()
+        cost_val = exe.run(paddle.static.default_main_program(),
+                           feed=data,
+                           fetch_list=[model.loss.name])
+        end_time = time.time()
+        total_time += (end_time - start_time)
+        print(
+            "worker_index: %d, step%d cost = %f, total time cost = %f, step per second: %f, speed: %f"
+            % (fleet.worker_index(), i, cost_val[0], total_time,
+               (i - 9) / total_time, 1 / (end_time - start_time))
 
 运行训练脚本
 ~~~~~~~~~~~~
@@ -246,7 +230,7 @@ otpimizers 作为其 inner-optimizer.
 
 .. code:: sh
 
-   fleetrun --gpus 0,1,2,3,4,5,6,7 resnet50_amp.py
+    fleetrun --gpus 0,1,2,3,4,5,6,7 resnet50_amp.py
 
 FleetX 黑白名单设置
 ~~~~~~~~~~~~~~~~~~~
@@ -257,24 +241,24 @@ FleetX 黑白名单设置
 
 .. code:: python
 
-   white_list = {
-       'conv2d',
-       'matmul',
-       'mul',
-   }
-   black_list = {
-       'exp',
-       'square',
-       'log',
-       'mean',
-       'sum',
-       'cos_sim',
-       'softmax',
-       'softmax_with_cross_entropy',
-       'sigmoid_cross_entropy_with_logits',
-       'cross_entropy',
-       'cross_entropy2',
-   }
+    white_list = {
+        'conv2d',
+        'matmul',
+        'mul',
+    }
+    black_list = {
+        'exp',
+        'square',
+        'log',
+        'mean',
+        'sum',
+        'cos_sim',
+        'softmax',
+        'softmax_with_cross_entropy',
+        'sigmoid_cross_entropy_with_logits',
+        'cross_entropy',
+        'cross_entropy2',
+    }
 
 黑白名单设置
 ^^^^^^^^^^^^
@@ -308,9 +292,9 @@ cast op 虽然会带来额外的开销， 但是在诸如 Vgg、ResNet 等主要
 conv layer 串行的而成 CV 模型中， 只需要cast input 和
 每一层的param，并不需要cast 模型的中间结果，这样 cast
 操作带来的开销较少, 容易倍半精度计算带来的加速覆盖；但是如果模型的串行
-layers 序列中存在较多的黑名单 op（e.g. conv –> log –> conv –> square –>
-conv）， 这样模型的中间结果需要进行多次 FP32toFP16 和 FP16toFP32 cast，
-cast 开销将会急剧增大，从而抵消半精度带来的加速。
+layers 序列中存在较多的黑名单 op（e.g. conv --> log --> conv --> square
+--> conv）， 这样模型的中间结果需要进行多次 FP32toFP16 和 FP16toFP32
+cast， cast 开销将会急剧增大，从而抵消半精度带来的加速。
 
 可能不适用 AMP 加速的情况
 ^^^^^^^^^^^^^^^^^^^^^^^^^

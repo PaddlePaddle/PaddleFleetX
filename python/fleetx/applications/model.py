@@ -223,6 +223,7 @@ class BertLarge(ModelBase):
             fleet_path + model_name)
         self.startup_prog = startup
         self.main_prog = main
+        self.lang = lang
         self.inputs = inputs
         self.loss = loss
         self.checkpoints = checkpoints
@@ -231,14 +232,15 @@ class BertLarge(ModelBase):
     def load_digital_dataset_from_file(self,
                                        data_dir,
                                        vocab_path,
-                                       batch_size=16,
-                                       max_seq_len=128,
-                                       in_tokens=False):
+                                       batch_size=4096,
+                                       max_seq_len=512,
+                                       in_tokens=True):
         return load_bert_dataset(
             data_dir,
             vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
+            lang=self.lang,
             max_seq_len=max_seq_len,
             in_tokens=in_tokens)
 
@@ -253,6 +255,7 @@ class BertHuge(ModelBase):
             fleet_path + model_name)
         self.startup_prog = startup
         self.main_prog = main
+        self.lang = lang
         self.inputs = inputs
         self.loss = loss
         self.checkpoints = checkpoints
@@ -261,14 +264,15 @@ class BertHuge(ModelBase):
     def load_digital_dataset_from_file(self,
                                        data_dir,
                                        vocab_path,
-                                       batch_size=16,
-                                       max_seq_len=128,
-                                       in_tokens=False):
+                                       batch_size=4096,
+                                       max_seq_len=512,
+                                       in_tokens=True):
         return load_bert_dataset(
             data_dir,
             vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
+            lang=self.lang,
             max_seq_len=max_seq_len,
             in_tokens=in_tokens)
 
@@ -283,6 +287,7 @@ class BertGiant(ModelBase):
             fleet_path + model_name)
         self.startup_prog = startup
         self.main_prog = main
+        self.lang = lang
         self.inputs = inputs
         self.loss = loss
         self.checkpoints = checkpoints
@@ -291,14 +296,15 @@ class BertGiant(ModelBase):
     def load_digital_dataset_from_file(self,
                                        data_dir,
                                        vocab_path,
-                                       batch_size=16,
-                                       max_seq_len=128,
-                                       in_tokens=False):
+                                       batch_size=4096,
+                                       max_seq_len=512,
+                                       in_tokens=True):
         return load_bert_dataset(
             data_dir,
             vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
+            lang=self.lang,
             max_seq_len=max_seq_len,
             in_tokens=in_tokens)
 
@@ -316,6 +322,7 @@ class BertBase(ModelBase):
             fleet_path + model_name)
         self.startup_prog = startup
         self.main_prog = main
+        self.lang = lang
         self.inputs = inputs
         self.loss = loss
         self.checkpoints = checkpoints
@@ -332,6 +339,7 @@ class BertBase(ModelBase):
             vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
+            lang=self.lang,
             max_seq_len=max_seq_len,
             in_tokens=in_tokens)
 

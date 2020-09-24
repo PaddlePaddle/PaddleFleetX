@@ -92,4 +92,4 @@ for epoch_id in range(5):
 fleetrun --gpus 0,1,2,3 resnet_app.py
 ```
 
-关于`fleetrun`命令，更详细的使用说明请参考[fleetrun](fleetrun_usage_cn.md)
+关于`fleetrun`命令，更详细的使用说明请参考[fleetrun](fleetrun_usage_cn.html)
