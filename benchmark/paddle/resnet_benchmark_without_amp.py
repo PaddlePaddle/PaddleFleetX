@@ -24,29 +24,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
-os.environ['FLAGS_fraction_of_gpu_memory_to_use'] = "0.8"
-os.environ['FLAGS_sync_nccl_allreduce'] = "1"
-os.environ['FLAGS_eager_delete_tensor_gb'] = "0.0"
-os.environ['FLAGS_cudnn_exhaustive_search'] = "1"
-os.environ['FLAGS_conv_workspace_size_limit'] = "4000"
-os.environ['FLAGS_cudnn_batchnorm_spatial_persistent'] = "1"
-os.environ['FLAGS_fuse_parameter_memory_size'] = "16"
-os.environ['FLAGS_fuse_parameter_groups_size'] = "50"
-
-import math
 import fleetx as X
+import paddle
 import paddle.fluid as fluid
-import time
 import paddle.distributed.fleet as fleet
-# FleetX help users to focus more on learning to train a large scale model
-# if you want to learn how to write a model, FleetX is not for you
-# focus more on engineering staff in fleet-x
+paddle.enable_static()
 configs = X.parse_train_configs()
+
 fleet.init(is_collective=True)
-model = X.applications.Resnet50(data_layout='NCHW')
-loader = model.load_imagenet_from_file(
-    "/pathto/ImageNet/train.txt", batch_size=32)
+model = X.applications.Resnet50()
+downloader = X.utils.Downloader()
+local_path = downloader.download_from_hdfs(
+    configs.download_config, local_path='.')
+loader = model.get_train_dataloader("{}".format(local_path), batch_size=32)
+
 exec_strategy = fluid.ExecutionStrategy()
 dist_strategy = fleet.DistributedStrategy()
 exec_strategy.num_threads = 2
@@ -58,9 +49,13 @@ build_strategy.fuse_elewise_add_act_ops = True
 build_strategy.fuse_bn_act_ops = True
 dist_strategy.build_strategy = build_strategy
 dist_strategy.nccl_comm_num = 1
-optimizer = fluid.optimizer.Momentum(
-    learning_rate=configs.lr, momentum=configs.momentum)
+
+optimizer = paddle.fluid.optimizer.Momentum(
+    learning_rate=configs.lr,
+    momentum=configs.momentum,
+    regularization=paddle.fluid.regularizer.L2Decay(0.0001))
 optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
 optimizer.minimize(model.loss)
+
 trainer = X.MultiGPUTrainer()
-trainer.fit(model, loader, epoch=10, use_dali=True)
+trainer.fit(model, loader, epoch=10)

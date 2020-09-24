@@ -19,6 +19,7 @@ import paddle.distributed.fleet as fleet
 from fleetx.dataset.image_dataset import image_dataloader_from_filelist
 from fleetx.dataset.bert_dataset import load_bert_dataset
 from fleetx.dataset.transformer_dataset import transformer_data_generator
+from fleetx.dataset.word2vec_dataset import load_w2v_dataset
 from fleetx.version import fleetx_version
 from fleetx.dataset.ctr_data_generator import get_dataloader
 from fleetx import utils
@@ -70,7 +71,8 @@ def download_model(fleet_path, model_name):
             os.system('tar -xf {}{}.tar.gz -C {}'.format(
                 fleet_path, model_name, fleet_path))
     else:
-        time.sleep(3)
+        while not os.path.exists(fleet_path + model_name):
+            time.sleep(3)
 
 
 class Resnet50(ModelBase):
@@ -92,23 +94,36 @@ class Resnet50(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_imagenet_from_file(self,
-                                filelist,
-                                batch_size=32,
-                                phase='train',
-                                shuffle=True,
-                                use_dali=False):
-        if phase != 'train':
-            shuffle = False
-        self.use_dali = use_dali
+    def get_train_dataloader(self,
+                             local_path,
+                             batch_size=32,
+                             shuffle=True,
+                             use_dali=False):
+        filelist = local_path + '/train.txt'
         data_layout = self.data_layout
         return image_dataloader_from_filelist(
             filelist,
             self.inputs,
             batch_size,
-            phase,
-            shuffle,
-            use_dali,
+            phase='train',
+            shuffle=shuffle,
+            use_dali=use_dali,
+            data_layout=data_layout)
+
+    def get_val_dataloader(self,
+                           local_path,
+                           batch_size=32,
+                           shuffle=False,
+                           use_dali=False):
+        filelist = local_path + '/val.txt'
+        data_layout = self.data_layout
+        return image_dataloader_from_filelist(
+            filelist,
+            self.inputs,
+            batch_size,
+            phase='val',
+            shuffle=shuffle,
+            use_dali=use_dali,
             data_layout=data_layout)
 
 
@@ -133,23 +148,36 @@ class VGG16(ModelBase):
         self.target = target
         self.use_dali = False
 
-    def load_imagenet_from_file(self,
-                                filelist,
-                                batch_size=32,
-                                phase='train',
-                                shuffle=True,
-                                use_dali=False):
-        if phase != 'train':
-            shuffle = False
-        self.use_dali = use_dali
+    def get_train_dataloader(self,
+                             local_path,
+                             batch_size=32,
+                             shuffle=True,
+                             use_dali=False):
+        filelist = local_path + '/train.txt'
         data_layout = self.data_layout
         return image_dataloader_from_filelist(
             filelist,
             self.inputs,
             batch_size,
-            phase,
-            shuffle,
-            use_dali,
+            phase='train',
+            shuffle=shuffle,
+            use_dali=use_dali,
+            data_layout=data_layout)
+
+    def get_val_dataloader(self,
+                           local_path,
+                           batch_size=32,
+                           shuffle=False,
+                           use_dali=False):
+        filelist = local_path + '/val.txt'
+        data_layout = self.data_layout
+        return image_dataloader_from_filelist(
+            filelist,
+            self.inputs,
+            batch_size,
+            phase='val',
+            shuffle=shuffle,
+            use_dali=use_dali,
             data_layout=data_layout)
 
 
@@ -168,12 +196,12 @@ class Transformer(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_wmt16_dataset_from_file(self,
-                                     src_vocab_fpath,
-                                     trg_vocab_fpath,
-                                     train_file_pattern,
-                                     batch_size=2048,
-                                     shuffle=True):
+    def get_train_dataloader(self,
+                             src_vocab_fpath,
+                             trg_vocab_fpath,
+                             train_file_pattern,
+                             batch_size=2048,
+                             shuffle=True):
         return transformer_data_generator(
             src_vocab_fpath,
             trg_vocab_fpath,
@@ -196,24 +224,43 @@ class BertLarge(ModelBase):
             fleet_path + model_name)
         self.startup_prog = startup
         self.main_prog = main
+        self.lang = lang
         self.inputs = inputs
         self.loss = loss
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_digital_dataset_from_file(self,
-                                       data_dir,
-                                       vocab_path,
-                                       batch_size=16,
-                                       max_seq_len=128,
-                                       in_tokens=False):
+    def get_train_dataloader(self,
+                             data_dir,
+                             batch_size=4096,
+                             max_seq_len=512,
+                             in_tokens=True,
+                             shuffle=True):
         return load_bert_dataset(
             data_dir,
-            vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
+            lang=self.lang,
+            phase='train',
             max_seq_len=max_seq_len,
-            in_tokens=in_tokens)
+            in_tokens=in_tokens,
+            shuffle=shuffle)
+
+    def get_val_dataloader(self,
+                           data_dir,
+                           batch_size=4096,
+                           max_seq_len=512,
+                           in_tokens=True,
+                           shuffle=False):
+        return load_bert_dataset(
+            data_dir,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            lang=self.lang,
+            phase='val',
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens,
+            shuffle=shuffle)
 
 
 class BertHuge(ModelBase):
@@ -226,24 +273,43 @@ class BertHuge(ModelBase):
             fleet_path + model_name)
         self.startup_prog = startup
         self.main_prog = main
+        self.lang = lang
         self.inputs = inputs
         self.loss = loss
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_digital_dataset_from_file(self,
-                                       data_dir,
-                                       vocab_path,
-                                       batch_size=16,
-                                       max_seq_len=128,
-                                       in_tokens=False):
+    def get_train_dataloader(self,
+                             data_dir,
+                             batch_size=4096,
+                             max_seq_len=512,
+                             in_tokens=True,
+                             shuffle=True):
         return load_bert_dataset(
             data_dir,
-            vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
+            lang=self.lang,
+            phase='train',
             max_seq_len=max_seq_len,
-            in_tokens=in_tokens)
+            in_tokens=in_tokens,
+            shuffle=shuffle)
+
+    def get_val_dataloader(self,
+                           data_dir,
+                           batch_size=4096,
+                           max_seq_len=512,
+                           in_tokens=True,
+                           shuffle=False):
+        return load_bert_dataset(
+            data_dir,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            lang=self.lang,
+            phase='val',
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens,
+            shuffle=shuffle)
 
 
 class BertGiant(ModelBase):
@@ -256,24 +322,43 @@ class BertGiant(ModelBase):
             fleet_path + model_name)
         self.startup_prog = startup
         self.main_prog = main
+        self.lang = lang
         self.inputs = inputs
         self.loss = loss
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_digital_dataset_from_file(self,
-                                       data_dir,
-                                       vocab_path,
-                                       batch_size=16,
-                                       max_seq_len=128,
-                                       in_tokens=False):
+    def get_train_dataloader(self,
+                             data_dir,
+                             batch_size=4096,
+                             max_seq_len=512,
+                             in_tokens=True,
+                             shuffle=True):
         return load_bert_dataset(
             data_dir,
-            vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
+            lang=self.lang,
+            phase='train',
             max_seq_len=max_seq_len,
-            in_tokens=in_tokens)
+            in_tokens=in_tokens,
+            shuffle=shuffle)
+
+    def get_val_dataloader(self,
+                           data_dir,
+                           batch_size=4096,
+                           max_seq_len=512,
+                           in_tokens=True,
+                           shuffle=False):
+        return load_bert_dataset(
+            data_dir,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            lang=self.lang,
+            phase='val',
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens,
+            shuffle=shuffle)
 
 
 class BertBase(ModelBase):
@@ -289,24 +374,43 @@ class BertBase(ModelBase):
             fleet_path + model_name)
         self.startup_prog = startup
         self.main_prog = main
+        self.lang = lang
         self.inputs = inputs
         self.loss = loss
         self.checkpoints = checkpoints
         self.target = target
 
-    def load_digital_dataset_from_file(self,
-                                       data_dir,
-                                       vocab_path,
-                                       batch_size=4096,
-                                       max_seq_len=512,
-                                       in_tokens=True):
+    def get_train_dataloader(self,
+                             data_dir,
+                             batch_size=4096,
+                             max_seq_len=512,
+                             in_tokens=True,
+                             shuffle=True):
         return load_bert_dataset(
             data_dir,
-            vocab_path,
             inputs=self.inputs,
             batch_size=batch_size,
+            lang=self.lang,
+            phase='train',
             max_seq_len=max_seq_len,
-            in_tokens=in_tokens)
+            in_tokens=in_tokens,
+            shuffle=shuffle)
+
+    def get_val_dataloader(self,
+                           data_dir,
+                           batch_size=4096,
+                           max_seq_len=512,
+                           in_tokens=True,
+                           shuffle=False):
+        return load_bert_dataset(
+            data_dir,
+            inputs=self.inputs,
+            batch_size=batch_size,
+            lang=self.lang,
+            phase='val',
+            max_seq_len=max_seq_len,
+            in_tokens=in_tokens,
+            shuffle=shuffle)
 
 
 class MultiSlotCTR(ModelBase):
@@ -370,33 +474,4 @@ class Resnet50Mlperf(ModelBase):
             phase,
             shuffle,
             use_dali,
-            data_layout=data_layout)                 
-
-class Word2vec(ModelBase):
-    def __init__(self):
-        super(Word2vec, self).__init__()
-        fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
-        model_name = 'word2vec'
-        download_model(fleet_path, model_name)
-        inputs, loss, startup, main, unique_generator, checkpoints, target = load_program(
-            fleet_path + model_name)
-        self.startup_prog = startup
-        self.main_prog = main
-        self.inputs = inputs
-        self.loss = loss
-        self.checkpoints = checkpoints
-        self.target = target
-
-    def load_dataset_from_file(self,
-                              train_files_path,
-                              dict_path,
-                              nce_num=5,
-                              batch_size=1000,
-                              shuffle=True):
-        return load_w2v_dataset(
-            self.inputs,
-            train_files_path,
-            dict_path=dict_path,
-            nce_num=nce_num,
-            batch_size=batch_size,
-            shuffle=shuffle)
+            data_layout=data_layout)
