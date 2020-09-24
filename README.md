@@ -20,9 +20,12 @@
 
 <h2 align="center">Key Features</h2>
 
-- **Pre-defined Models for Training**: define a Bert-Large or GPT-2 with one line code, which is commonly used self-supervised training model.
-- **Friendly to User-defined Dataset**: plugin user-defined dataset and do training without much effort.
-- **Distributed Training Best Practices**: the most efficient way to do distributed training is provided.
+- **Pre-defined Models for Training**
+    - define a Bert-Large or GPT-2 with one line code, which is commonly used self-supervised training model.
+- **Friendly to User-defined Dataset**
+    - plugin user-defined dataset and do training without much effort.
+- **Distributed Training Best Practices**
+    - the most efficient way to do distributed training is provided.
 
 <h2 align="center">Installation</h2>
 
