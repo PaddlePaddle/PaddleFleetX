@@ -19,6 +19,7 @@ import paddle.distributed.fleet as fleet
 from fleetx.dataset.image_dataset import image_dataloader_from_filelist
 from fleetx.dataset.bert_dataset import load_bert_dataset
 from fleetx.dataset.transformer_dataset import transformer_data_generator
+from fleetx.dataset.word2vec_dataset import load_w2v_dataset
 from fleetx.version import fleetx_version
 from fleetx.dataset.ctr_data_generator import get_dataloader
 from fleetx import utils
