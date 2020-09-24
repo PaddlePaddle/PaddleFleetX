@@ -28,10 +28,10 @@ import paddle.distributed.fleet as fleet
 
 
 def load_bert_dataset(data_dir,
-                      vocab_path,
                       inputs,
                       batch_size,
                       lang='ch',
+                      phase='train',
                       max_seq_len=512,
                       in_tokens=True,
                       shuffle=True,
@@ -42,6 +42,7 @@ def load_bert_dataset(data_dir,
     if lang == 'en':
         data_reader = DataReaderV2(
             data_dir=data_dir,
+            phase=phase,
             batch_size=batch_size,
             in_tokens=in_tokens,
             max_seq_len=max_seq_len,
@@ -49,9 +50,10 @@ def load_bert_dataset(data_dir,
     else:
         data_reader = DataReader(
             data_dir=data_dir,
+            phase=phase,
             batch_size=batch_size,
             in_tokens=in_tokens,
-            vocab_path=vocab_path,
+            vocab_path="{}/vocab.txt".format(data_dir),
             voc_size=voc_size,
             epoch=1,
             max_seq_len=max_seq_len,
@@ -66,6 +68,7 @@ class DataReader(object):
     def __init__(self,
                  data_dir,
                  vocab_path,
+                 phase='train',
                  batch_size=4096,
                  in_tokens=True,
                  max_seq_len=512,
@@ -83,6 +86,7 @@ class DataReader(object):
         self.epoch = epoch
         self.current_epoch = 0
         self.current_file_index = 0
+        self.phase = phase
         self.total_file = 0
         self.current_file = None
         self.voc_size = voc_size
@@ -257,8 +261,10 @@ class DataReader(object):
         """
         data_generator
         """
-        #        files = os.listdir(self.data_dir)
-        files = get_filelist(self.data_dir)
+        if self.phase == 'train':
+            files = get_filelist(self.data_dir)
+        else:
+            files = get_val_filelist(self.data_dir)
         self.total_file = len(files)
         assert self.total_file > 0, "[Error] data_dir is empty"
 
@@ -320,6 +326,7 @@ class DataReader(object):
 class DataReaderV2(object):
     def __init__(self,
                  data_dir,
+                 phase='train',
                  batch_size=4096,
                  in_tokens=True,
                  max_seq_len=128,
@@ -329,7 +336,10 @@ class DataReaderV2(object):
                  epoch=100,
                  **kwargs):
         self.data_dir = data_dir
-        file_list = get_filelist(data_dir)
+        if phase == 'train':
+            file_list = get_filelist(data_dir)
+        else:
+            file_list = get_val_filelist(data_dir)
         self.file_list = [data_dir + "/" + x for x in file_list]
         self.batch_size = batch_size
         self.max_seq_len = max_seq_len
@@ -637,3 +647,17 @@ def get_filelist(datadir):
     print("files to train on this card: {}".format(total_list[
         current_id::total_local_cards]))
     return total_list[current_id::total_local_cards]
+
+
+def get_val_filelist(datadir):
+    if not os.path.exists("{}/val.txt".format(datadir)):
+        raise Exception("ERROR: Your data dir should include val.txt")
+
+    total_list = []
+    with open("{}/val.txt".format(datadir), 'r') as fin:
+        for line in fin:
+            current_file = line.strip()
+            if os.path.exists("{}/{}".format(datadir, current_file)):
+                total_list.append(current_file)
+
+    return total_list
