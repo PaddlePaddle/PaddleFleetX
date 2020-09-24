@@ -18,7 +18,6 @@ paddle.enable_static()
 fleet.init(is_collective=True)
 configs = X.parse_train_configs()
 model = X.applications.BertBase()
-print("dfdfadfadfafd", fleet.worker_num())
 downloader = X.utils.Downloader()
 local_path = downloader.download_from_bos(
     fs_yaml='https://fleet.bj.bcebos.com/small_datasets/yaml_example/wiki_cn.yaml',
