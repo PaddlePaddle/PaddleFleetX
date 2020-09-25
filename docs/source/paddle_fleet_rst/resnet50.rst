@@ -3,11 +3,13 @@ A Distributed Resnet50 Training Example
 
 .. code:: python
 
+   import paddle
    import fleet_lightning as lightning
    import paddle.fluid as fluid
    from paddle.fluid.incubate.fleet.collective import fleet, DistributedStrategy
    import paddle.fluid.incubate.fleet.base.role_maker as role_maker
 
+   paddle.enable_static()
    configs = lightning.parse_train_configs()
 
    role = role_maker.PaddleCloudRoleMaker(is_collective=True)

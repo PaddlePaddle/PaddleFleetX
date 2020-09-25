@@ -27,11 +27,14 @@
 
 .. code:: python
 
+   # -*- coding: UTF-8 -*-
    import os
    import argparse
+   import paddle
    import time
    import math 
    import paddle.fluid as fluid
+   paddle.enable_static()
 
 定义模型
 ~~~~~~~~

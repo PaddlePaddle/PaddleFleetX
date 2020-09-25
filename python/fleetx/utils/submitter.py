@@ -40,9 +40,9 @@ class PaddleCloudSubmitter(Submitter):
                           "--job-name {} " \
                           "--start-cmd 'sh start_job.sh' " \
                           "--job-conf config.ini " \
-                          "--files start_job.sh{} " \
                           "--k8s-trainers {} {} " \
                           "--k8s-cpu-cores 35 " \
+                          "--file-dir {} " \
                           "--is-auto-over-sell {}"
 
     def get_start_job(self, yml_cfg):
@@ -105,21 +105,20 @@ class PaddleCloudSubmitter(Submitter):
         assert "group_name" in cfg, "group_name should be configured"
         group_name = cfg["group_name"]
         self.get_start_job(cfg)
-        if "upload_files" in cfg:
-            file_list = cfg['upload_files']
+        file_dir = "./"
+        if "file_dir" in cfg:
+            file_dir = cfg["file_dir"]
         if "over_sell" in cfg:
             over_sell = cfg['over_sell']
         else:
             over_sell = 1
-        job_script = ''
-        for item in file_list:
-            job_script += " " + item
         distribute_suffix = " --k8s-not-local --distribute-job-type NCCL2" \
                             if int(num_trainers) > 1 else ""
         pcloud_submit_cmd = self.submit_str.format(
             server, port, image_addr, cluster_name, group_name, num_cards,
             "{}_N{}C{}".format(job_prefix, num_trainers, num_cards),
-            job_script, num_trainers, distribute_suffix, over_sell)
+            num_trainers, distribute_suffix, 
+            file_dir, over_sell)
         print(pcloud_submit_cmd)
         os.system(pcloud_submit_cmd)
 

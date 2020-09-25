@@ -31,6 +31,8 @@ FleetX依赖Paddle
 
 ::
 
+   # 开启静态图运行模式
+   paddle.enable_static()
    # configs中记录了训练相关的参数，如学习率等
    configs = X.parse_train_configs()
    # 加载模型至model，并加载数据至dataloader

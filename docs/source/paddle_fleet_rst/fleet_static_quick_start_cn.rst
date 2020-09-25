@@ -31,9 +31,9 @@ Training），接下来的例子会以同样的模型来说明两种架构的数
        fc_1 = nn.fc(input=x_flatten, size=128, act='tanh')
        fc_2 = nn.fc(input=fc_1, size=128, act='tanh')
        prediction = nn.fc(input=[fc_2], size=10, act='softmax')
-       cost = nn.cross_entropy(input=prediction, label=y)
-       acc_top1 = nn.accuracy(input=prediction, label=y, k=1)
-       avg_cost = nn.mean(x=cost)
+       cost = paddle.fluid.layers.cross_entropy(input=prediction, label=y)
+       acc_top1 = paddle.fluid.layers.accuracy(input=prediction, label=y, k=1)
+       avg_cost = paddle.fluid.layers.mean(x=cost)
        return train_dataset, test_dataset, x, y, avg_cost, acc_top1
 
        
@@ -88,18 +88,18 @@ Training），接下来的例子会以同样的模型来说明两种架构的数
 
 .. code:: python
 
+
    import paddle
    import paddle.distributed.fleet as fleet
    from model import mnist_on_mlp_model
 
+   paddle.enable_static()
+
    train_data, test_data, x, y, cost, acc = mnist_on_mlp_model()
-   places = paddle.fluid.cpu_places()
-   train_dataloader = paddle.io.DataLoader(
-      train_data, feed_list=[x, y], drop_last=True,
-      places=places, batch_size=64, shuffle=True)
+
    fleet.init()
    strategy = fleet.DistributedStrategy()
-   strategy.a_sync = False
+   strategy.a_sync = True
    optimizer = paddle.fluid.optimizer.Adam(learning_rate=0.001)
    optimizer = fleet.distributed_optimizer(optimizer, strategy)
    optimizer.minimize(cost)
@@ -108,15 +108,22 @@ Training），接下来的例子会以同样的模型来说明两种架构的数
       fleet.init_server()
       fleet.run_server()
    else:
-      fleet.init_worker()
-      exe = paddle.static.Executor(places[0])
+      place = paddle.CPUPlace()
+      exe = paddle.static.Executor(place)
       exe.run(paddle.static.default_startup_program())
-      epoch = 10
+      fleet.init_worker()
+
+      train_dataloader = paddle.io.DataLoader(
+         train_data, feed_list=[x, y], drop_last=True, places=place,
+         batch_size=64, shuffle=True)
+
+      epoch = 1
       for i in range(epoch):
          for data in train_dataloader():
             cost_val, acc_val = exe.run(
                paddle.static.default_main_program(),
                feed=data, fetch_list=[cost.name, acc.name])
+            print("loss: {}, acc: {}".format(cost_val, acc_val))
       fleet.stop_worker()
 
 -  两节点Server，两节点Worker的启动命令
