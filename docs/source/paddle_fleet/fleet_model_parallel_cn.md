@@ -1,8 +1,24 @@
-# 使用集合通信进行模型并行训练
+# 基于底层分布式API的模型并行训练
 
 ## 飞桨集合通信简介
 
-飞桨集合通信接口
+下表列出了飞桨支持的集合通信操作：
+
+| 设备           | CPU  | GPU  |
+| -------------- | ---- | ---- |
+| send           | 否   | 是   |
+| recv           | 否   | 是   |
+| broadcast      | 是   | 是   |
+| all_reduce     | 是   | 是   |
+| reduce         | 是   | 是   |
+| all_gather     | 是   | 是   |
+| gather         | 是   | 是   |
+| scatter        | 是   | 是   |
+| all_to_all     | 否   | 是   |
+| barrier        | 是   | 是   |
+| reduce_scatter | 是   | 是   |
+
+
 
 ## 模型并行简介
 
@@ -10,7 +26,9 @@
 
 使用模型并行可以将模型参数放置到多个计算设备，从而降低单个计算设备的显存或者内存消耗，使得大规模神经网络模型的训练成为可能。理论上讲，使用足够多的计算设备可以训练任意规模的模型。
 
-本文档介绍如何使用飞桨的底层集合通信API（如allreduce、alltoall）等实现模型并行训练。本文档使用下图所示的卷积网络模型作为说明示例：该模型包含三层卷积层合两层全连接层。具体地，卷积层采用数据并行，全连接层采用模型并行。
+本文档以简单的分类网络为例介绍如何使用飞桨的底层集合通信API（如allreduce、alltoall）实现模型并行训练。
+
+本文档使用的网络结构如下所示，底下三层为卷积层，其上为全连接层和损失计算层。其中，卷积层采用数据并行，全连接层采用模型并行，即将全连接层划分到多个设备上。
 
 
 
@@ -18,30 +36,76 @@
 
 
 
-## 工作流程
+## 朴素的模型并行
 
-仍然以上图为例，说明模型训练的前向计算过程：
+朴素的模型并行逻辑简单，简单地将全连接层切分到多个计算设备上。
 
-1. 每个worker获取完整训练数据集中的一部分数据，即一个batch的数据（假设每个batch的大小为*B*)；
-2. 每个worker使用其各自的训练数据逐层计算三个卷积层；
-3. 所有woker采用模型并行的方式方式计算每个全连接层的输出，存在多种方式可以完成全连接层计算：
-   1. 每个woker将其计算的最后一层卷积层的输出发送所有其它woker。每个woker进而将其接收到的数据组合成具有更大batch大小的数据（组合后的batch大小为*NB*)。该步骤的操作可以采用**allgather**操作实现。
-   2. 某个worker将其计算的最后一层卷层的输出发送到所有其它worker（**broadcast**）。所有worker使用接收到的*B*个样本计算全连接层输出，并开始计算梯度计算和反向传播。同时，另一个worker将其计算的最后一层卷层的输出发送到所有其它worker（**broadcast**），然后所有worker使用接收到的*B*个样本计算全连接层输出。
+```python
+def fully_connected(inputs,
+                    out_dims,
+                    num_gpus,
+                    gpu_id):
+    in_dims = inputs.shape[1]
+    all_inputs = []
+    paddle.distributed.all_gather(all_inputs, inputs)
+    all_inputs = paddle.concat(all_inputs, axis=0)
+    shard_dims = out_dims // num_gpus
+    if out_dims % num_gpus != 0:
+        if gpu_id == num_gpus - 1:
+            other_shard_dims = shard_dims
+            shard_dims = num_gpus % other_shard_dims
+    linear = Linear(in_dims, shard_dims)
+    out = linear(all_inputs)
+    return out
+```
 
-反向传播过程类似：
+```python
+def softmax_with_cross_entropy(shard_logit,
+                               shard_dims,
+                               shard_label,
+                               num_gpus):
+    out = paddle.reduce_max(shard_logit, dim=1, keep_dim=True)
+    paddle.distributed.all_reduce(out, paddle.distributed.ReduceOp.MAX)
+    shard_logit_new = paddle.elementwise_sub(shard_logit, out)
+    
+    shard_exp = paddle.exp(shard_logit_new)
+    shard_demon = paddle.reduce_sum(shard_exp, dim=1, keep_dim=True)
+    paddle.distributed.all_reduce(shard_demon, paddle.distributed.ReduceOp.SUM)
+    
+    global_log_demon = paddle.log(shard_demon)
+    shard_log_prob = shard_logit_new - global_log_demon
+    shard_prob = paddle.exp(shard_log_prob)
+    
+    shard_one_hot = paddle.nn.functional.one_hot(
+        shard_label, depth=shard_dims, allow_out_of_range=True)
+    target_log_prob = paddle.reduce_min(
+        shard_log_prob * shard_one_hot, dim=1, keep_dim=True)
+    shard_loss = paddle.scale(target_log_prob, scale=-1.0)
+    shard_loss = paddle.split(shard_loss, num_gpus, dim=0)
+    shape = shard_loss.shape
+    shape[0] = shape[0] // num_gpus
+    global_loss = paddle.zeros(shape)
+    paddle.distributed.reduce_scatter(global_loss, shard_loss)
+    return global_loss, shard_prob
+```
 
-1. 所有worker计算全连接层的梯度；
-
-2. 接下来的过程依赖于前向过程中选择的策略：
-
-   1. 所有worker得到整个*NB*样本的最后一层卷积层输出的梯度。所以，每个worker需要发送每个样本的梯度到前向过程中产生该样本的worker。随后，计算各个卷积层的梯度。
-   2. 所有worker得到*B*个样本的最后一层卷积层输出的梯度。随后，每个worker发送该梯度到前向过程中产生该批样本的worker。同时，所有worker开始计算下一个batch的全连接层前向过程。N个这样的前向-反向迭代后，梯度传播到卷积层。随后计算各个卷积层的梯度。
-
-   
-
-![示例模型](img/model_parallel_3.png)
-
-![示例模型](img/model_parallel_2.png)
-
-## 实现代码解析
+```python
+def softmax_classifier(inputs, out_dims, shard_dim, label, num_gpus, gpu_id):
+    all_label = []
+    paddle.distributed.all_gather(all_label, inputs)
+    all_lebel = paddle.concat(all_label, axis=0)
+    
+    shard_fc = fully_connected(inputs,
+                               out_dims,
+                               num_gpus,
+                               gpu_id)
+    shard_label = paddle.shard_index(all_label,
+                                     index_num=out_dims,
+                                     nshards=num_gpus,
+                                     shard_id=gpu_id,
+                                     ignore_value=-1)
+    global_loss, shard_prob = fully_connected(shard_fc, shard_dim, shard_label)
+    avg_loss = paddle.mean(global_loss)
+    return avg_loss
+```
 
