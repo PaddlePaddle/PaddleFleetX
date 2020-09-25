@@ -135,7 +135,8 @@ class Downloader(object):
         os.environ['JAVA_HOME'] = java_home
         if "data_path" in cfg:
             hdfs_path = cfg["data_path"]
-
+        else:
+            raise Exception("ERROR: Please figure your data path in AFS.")
         client = HDFSClient(self.hadoop_home, self.hdfs_configs)
         if is_first_worker():
             if not (client.is_exist('{}/meta.txt'.format(hdfs_path)) and
@@ -236,7 +237,8 @@ class Downloader(object):
 
         if 'bos_path' in cfg:
             bos_path = cfg["bos_path"]
-
+        else:
+            raise Exception("ERROR: Please figure your data path in BOS.")
         if is_first_worker():
             try:
                 os.system(
