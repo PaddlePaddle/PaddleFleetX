@@ -68,3 +68,20 @@ trainer.fit(model, loader, epoch=10)
 ``` shell
 fleetrun --gpus 0,1,2,3,4,5,6,7 resnet50_app.py
 ```
+<h2 align="center">Community</h2>
+
+### Slack
+
+To connect with other users and contributors, welcome to join our [Slack channel](https://fleetx.slack.com/archives/CUBPKHKMJ)
+
+### Contribution
+
+If you want to contribute code to Paddle Serving, please reference [Contribution Guidelines](doc/CONTRIBUTE.md)
+
+### Feedback
+
+For any feedback or to report a bug, please propose a [GitHub Issue](https://github.com/PaddlePaddle/FleetX/issues).
+
+### License
+
+[Apache 2.0 License](https://github.com/PaddlePaddle/FleetX/blob/develop/LICENSE)
