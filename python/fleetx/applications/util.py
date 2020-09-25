@@ -48,12 +48,13 @@ def load_program(program_input):
     with open(program_input + '/loss_name', 'r') as fin:
         loss_name = fin.read()
     if os.path.exists(program_input + '/acc'):
-        target = []
+        target = {}
         with open(program_input + '/acc', 'r') as fin:
             for line in fin:
+                cur_target = line.split(" ")[0]
                 for var in new_main.list_vars():
-                    if var.name == line[:-1]:
-                        target.append(var)
+                    if var.name == line.split(" ")[1].strip():
+                        target[cur_target] = var
     else:
         print("Please save your target first")
         target = None
@@ -182,4 +183,4 @@ def save_program(main_prog,
                 fout.write("%s\n" % ckpt.name)
     with open(program_path + '/acc', 'w') as fout:
         for t in target:
-            fout.write(t.name+'\n')
+            fout.write("{} {}\n".format(t, target[t]))
