@@ -1,24 +1,4 @@
-# 基于底层分布式API的模型并行训练
-
-## 飞桨集合通信简介
-
-下表列出了飞桨支持的集合通信操作：
-
-| 设备           | CPU  | GPU  |
-| -------------- | ---- | ---- |
-| send           | 否   | 是   |
-| recv           | 否   | 是   |
-| broadcast      | 是   | 是   |
-| all_reduce     | 是   | 是   |
-| reduce         | 是   | 是   |
-| all_gather     | 是   | 是   |
-| gather         | 是   | 是   |
-| scatter        | 是   | 是   |
-| all_to_all     | 否   | 是   |
-| barrier        | 是   | 是   |
-| reduce_scatter | 是   | 是   |
-
-
+# 1. 基于底层分布式API的模型并行训练
 
 ## 模型并行简介
 
@@ -41,71 +21,102 @@
 朴素的模型并行逻辑简单，简单地将全连接层切分到多个计算设备上。
 
 ```python
-def fully_connected(inputs,
-                    out_dims,
-                    num_gpus,
-                    gpu_id):
-    in_dims = inputs.shape[1]
-    all_inputs = []
-    paddle.distributed.all_gather(all_inputs, inputs)
-    all_inputs = paddle.concat(all_inputs, axis=0)
-    shard_dims = out_dims // num_gpus
-    if out_dims % num_gpus != 0:
-        if gpu_id == num_gpus - 1:
-            other_shard_dims = shard_dims
-            shard_dims = num_gpus % other_shard_dims
-    linear = Linear(in_dims, shard_dims)
-    out = linear(all_inputs)
-    return out
+# -*- coding: UTF-8 -*-
+import paddle
+import paddle.nn as nn
+
+# 定义模型并行的全连接网络，需要继承自nn.Layer
+class ModelParallelLinear(nn.Layer):
+    def __init__(self,
+                 in_dim,
+                 rank_num,
+                 rank_id,
+                 class_num):
+        super(ModelParallelLinear, self).__init__()
+        if class_num % rank_num:
+            raise ValueError("Number of classes must be divisible "
+                             "the number of ranks.")
+        shard_dims = class_num // rank_num
+        self.linear = nn.Linear(in_dim, shard_dims)
+    
+    def forward(self, x):
+        global_x_list = []
+        paddle.distributed.all_gather(global_x_list, x)
+        global_x = paddle.concat(global_x, axis=0)
+        out = self.linear(global_x)
+        global_out_list = []
+        paddle.distributed.all_gather(global_out_list, out)
+        all_outs = paddle.concat(global_out_list, axis=1)
+        out = paddle.split(global_out_list, rank_num)[rank_id]
+        return out
 ```
 
 ```python
-def softmax_with_cross_entropy(shard_logit,
-                               shard_dims,
-                               shard_label,
-                               num_gpus):
-    out = paddle.reduce_max(shard_logit, dim=1, keep_dim=True)
-    paddle.distributed.all_reduce(out, paddle.distributed.ReduceOp.MAX)
-    shard_logit_new = paddle.elementwise_sub(shard_logit, out)
-    
-    shard_exp = paddle.exp(shard_logit_new)
-    shard_demon = paddle.reduce_sum(shard_exp, dim=1, keep_dim=True)
-    paddle.distributed.all_reduce(shard_demon, paddle.distributed.ReduceOp.SUM)
-    
-    global_log_demon = paddle.log(shard_demon)
-    shard_log_prob = shard_logit_new - global_log_demon
-    shard_prob = paddle.exp(shard_log_prob)
-    
-    shard_one_hot = paddle.nn.functional.one_hot(
-        shard_label, depth=shard_dims, allow_out_of_range=True)
-    target_log_prob = paddle.reduce_min(
-        shard_log_prob * shard_one_hot, dim=1, keep_dim=True)
-    shard_loss = paddle.scale(target_log_prob, scale=-1.0)
-    shard_loss = paddle.split(shard_loss, num_gpus, dim=0)
-    shape = shard_loss.shape
-    shape[0] = shape[0] // num_gpus
-    global_loss = paddle.zeros(shape)
-    paddle.distributed.reduce_scatter(global_loss, shard_loss)
-    return global_loss, shard_prob
-```
+# -*- coding: UTF-8 -*-
+import paddle
+import paddle.nn as nn
+import paddle.nn.functional as F
+#分布式step 1: 导入paddle.distributed.fleet包
+from paddle.distributed import fleet
 
-```python
-def softmax_classifier(inputs, out_dims, shard_dim, label, num_gpus, gpu_id):
-    all_label = []
-    paddle.distributed.all_gather(all_label, inputs)
-    all_lebel = paddle.concat(all_label, axis=0)
+# 定义全连接网络，需继承自nn.Layer
+class SimpleModelParallelClassifierNet(nn.Layer):
+    def __init__(self,
+                 emb_size,
+                 class_num,
+                 rank_num,
+                 rank_id):
+        super(SimpleModelParallelClassifierNet, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=6, kernel_size=5, stride=1, padding=2)
+        self.max_pool1 = nn.MaxPool2d(kernel_size=2,  stride=2)
+        self.conv2 = nn.Conv2d(in_channels=6, out_channels=16, kernel_size=5, stride=1)
+        self.max_pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.model_parallel_linear = ModelParallelLinear(emb_size,
+                                                         rank_num,
+                                                         rank_id,
+                                                         class_num)
     
-    shard_fc = fully_connected(inputs,
-                               out_dims,
-                               num_gpus,
-                               gpu_id)
-    shard_label = paddle.shard_index(all_label,
-                                     index_num=out_dims,
-                                     nshards=num_gpus,
-                                     shard_id=gpu_id,
-                                     ignore_value=-1)
-    global_loss, shard_prob = fully_connected(shard_fc, shard_dim, shard_label)
-    avg_loss = paddle.mean(global_loss)
-    return avg_loss
+    def forward(x):
+        x = self.conv1(x)
+        x = F.relu(x)
+        x = self.max_pool1(x)
+        x = F.relu(x)
+        x = self.conv2(x)
+        x = self.max_pool2(x)
+        x = paddle.flatten(x, start_axis=1,stop_axis=-1)
+        out = self.model_parallel_linear(x)
+        return out
+
+# 分布式step 2: 初始化fleet
+fleet.init(is_collective=True)
+
+# 1. 定义网络对象，损失函数和优化器
+layer = SimpleModelParallelClassifierNet()
+adam = paddle.optimizer.Adam(learning_rate=0.001,
+                             parameters=layer.parameters())
+
+# 分布式step 3: 通过fleet获取分布式优化器和分布式模型
+adam = fleet.distributed_optimizer(adam)
+dp_layer = fleet.distributed_model(layer)
+
+
+for step in range(20):
+    # 2. 执行前向网络
+    image = paddle.randn([28, 28], 'float32')
+    label = paddle.randint(low=0, high=10)
+    output = dp_layer(image)
+    loss = F.softmax_with_cross_entropy(output, label)
+    loss = paddle.mean(loss)
+
+    print("step:{}\tloss:{}".format(step, loss.numpy()))
+
+    # 3. 执行反向计算和参数更新
+    # 分布式step 4: 在执行反向（backward函数）前后进行损失缩放和反向梯度的聚合
+    loss = dp_layer.scale_loss(loss)
+    loss.backward()
+    dp_layer.apply_collective_grads()
+
+    adam.step()
+    adam.clear_grad()
 ```
 
