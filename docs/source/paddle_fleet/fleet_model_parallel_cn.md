@@ -1,14 +1,14 @@
 # 1. 基于底层分布式API的模型并行训练
 
-## 模型并行简介
+## 1.1 模型并行简介
 
 研究表明，随着模型规模的扩大，往往能够取得更好的任务性能。然而，随着模型采用更深、更宽的网络层，模型的参数规模也随之增长，甚至是超过计算设备的显存或者内存容量。
 
 使用模型并行可以将模型参数放置到多个计算设备，从而降低单个计算设备的显存或者内存消耗，使得大规模神经网络模型的训练成为可能。理论上讲，使用足够多的计算设备可以训练任意规模的模型。
 
-本文档以简单的分类网络为例介绍如何使用飞桨的底层集合通信API（如allreduce、alltoall）实现模型并行训练。
+本文档以简单的分类网络为例介绍如何使用飞桨的底层集合通信API实现模型并行训练。
 
-本文档使用的网络结构如下所示，底下三层为卷积层，其上为全连接层和损失计算层。其中，卷积层采用数据并行，全连接层采用模型并行，即将全连接层划分到多个设备上。
+本文档使用的网络结构如下所示，主要包含三层为卷积层和一层全连接层。
 
 
 
@@ -16,9 +16,23 @@
 
 
 
-## 朴素的模型并行
+## 1.2 模型并行原理和实现
 
-朴素的模型并行逻辑简单，简单地将全连接层切分到多个计算设备上。
+### 1.2.1 版本要求
+
+* paddlepaddle 2.0-rc-gpu版本及以上
+
+### 1.2.2 实现原理
+
+在分布式训练过程中，综合采用数据并行和模型并行，具体地，卷积层采用数据并行，全连接层采用模型并行，即将全连接层划分到多个计算设备上，每个设备负责各自独立部分地全连接层计算。
+
+![全连接层模型并行示例](img/model_parallel_2.png)
+
+模型并行逻辑简单，简单地将全连接层参数按列切分到多个计算设备上，如上图所示。图例中，M(n)表示将矩阵M按行切分为N块，并取第n个分块；M[N]表示将矩阵M按列切分为N块，并取第n个分块。
+
+具体地讲，各个计算设备分别以各自地样本逐层计算卷积层输出，分别得到最后一层卷积层地输出X(0, X(1) ..., X(N-1)。全连接层计算过程如下：
+
+1. 首先，
 
 ```python
 # -*- coding: UTF-8 -*-
@@ -58,32 +72,32 @@ import paddle.nn as nn
 import paddle.nn.functional as F
 #分布式step 1: 导入paddle.distributed.fleet包
 from paddle.distributed import fleet
+from model_parallel_linear import ModelParallelLinear
 
 # 定义全连接网络，需继承自nn.Layer
 class SimpleModelParallelClassifierNet(nn.Layer):
     def __init__(self,
-                 emb_size,
                  class_num,
                  rank_num,
                  rank_id):
         super(SimpleModelParallelClassifierNet, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=6, kernel_size=5, stride=1, padding=2)
-        self.max_pool1 = nn.MaxPool2d(kernel_size=2,  stride=2)
-        self.conv2 = nn.Conv2d(in_channels=6, out_channels=16, kernel_size=5, stride=1)
-        self.max_pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.model_parallel_linear = ModelParallelLinear(emb_size,
+        self.conv1 = nn.Conv2D(num_channels=1, num_filters=6, filter_size=5, act='sigmoid')
+        self.max_pool1 = nn.Pool2D(pool_size=2, pool_stride=2, pool_type='max')
+        self.conv2 = nn.Conv2D(num_channels=6, num_filters=16, filter_size=5, act='sigmoid')
+        self.max_pool2 = nn.Pool2D(pool_size=2, pool_stride=2, pool_type='max')
+        self.conv3 = nn.Conv2D(num_channels=16, num_filters=120, filter_size=4, act='sigmoid')
+        self.model_parallel_linear = ModelParallelLinear(120,
                                                          rank_num,
                                                          rank_id,
                                                          class_num)
     
     def forward(x):
         x = self.conv1(x)
-        x = F.relu(x)
         x = self.max_pool1(x)
-        x = F.relu(x)
         x = self.conv2(x)
         x = self.max_pool2(x)
-        x = paddle.flatten(x, start_axis=1,stop_axis=-1)
+        x = self.conv3(x)
+        x = paddle.reshape(x, [x.shape[0], -1])
         out = self.model_parallel_linear(x)
         return out
 
@@ -91,7 +105,9 @@ class SimpleModelParallelClassifierNet(nn.Layer):
 fleet.init(is_collective=True)
 
 # 1. 定义网络对象，损失函数和优化器
-layer = SimpleModelParallelClassifierNet()
+layer = SimpleModelParallelClassifierNet(class_num=10,
+                                         rank_num=fleet.worker_num,
+                                         rank_id=fleet.worker_index)
 adam = paddle.optimizer.Adam(learning_rate=0.001,
                              parameters=layer.parameters())
 
@@ -102,7 +118,7 @@ dp_layer = fleet.distributed_model(layer)
 
 for step in range(20):
     # 2. 执行前向网络
-    image = paddle.randn([28, 28], 'float32')
+    image = paddle.randn([32, 32], 'float32')
     label = paddle.randint(low=0, high=10)
     output = dp_layer(image)
     loss = F.softmax_with_cross_entropy(output, label)
@@ -118,5 +134,11 @@ for step in range(20):
 
     adam.step()
     adam.clear_grad()
+```
+
+将上述代码保存为train.py，假设要运行2卡任务，那么只需要在命令行执行下面的命令：
+
+```shell
+fleetrun --gpus=0,1 tain.py
 ```
 
