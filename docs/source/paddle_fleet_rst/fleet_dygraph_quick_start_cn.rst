@@ -18,6 +18,7 @@
 
 .. code:: py
 
+   # -*- coding: UTF-8 -*-
    import paddle
    import paddle.nn as nn
 
@@ -107,6 +108,7 @@
 
 .. code:: py
 
+   # -*- coding: UTF-8 -*-
    import paddle
    import paddle.nn as nn
    #分布式step 1: 导入paddle.distributed.fleet包

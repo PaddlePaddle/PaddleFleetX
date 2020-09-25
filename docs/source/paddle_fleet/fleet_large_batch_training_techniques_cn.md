@@ -62,6 +62,7 @@ wget --no-check-certificate https://fleet.bj.bcebos.com/Bertdata/vocab.txt
 首先我们需要添加训练中所用到的python模块，`fleetx` 可以用于加载我们为用户封装的接口如：加载模型及数据，模型训练等。`paddle.distributed.fleet` 中定义了丰富的分布式策略供用户使用。
 
 ```python
+# -*- coding: UTF-8 -*-
 import fleetx as X
 import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
@@ -144,6 +145,7 @@ fleetrun --gpus 0,1,2,3,4,5,6,7 bert_recompute.py
 #### 添加依赖
 
 ```python
+# -*- coding: UTF-8 -*-
 import fleetx as X
 import paddle.fluid
 import paddle.distributed.fleet as fleet

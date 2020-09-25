@@ -24,3 +24,16 @@ def is_first_worker():
     hostname, _ = current_endpoint.split(":")
     host_endpoints = [x for x in endpoints if x.split(":")[0] == hostname]
     return host_endpoints[0] == current_endpoint
+
+def get_node_info():
+    PADDLE_TRAINER_ENDPOINTS = os.environ.get('PADDLE_TRAINER_ENDPOINTS')
+    endpoints = PADDLE_TRAINER_ENDPOINTS.split(",")
+    hosts = []
+    current_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
+    current_host = current_endpoint.split(":")[0]
+    for endpoint in endpoints:
+        hostname, _ = endpoint.split(":")
+        if hostname not in hosts:
+            hosts.append(hostname)
+    return hosts.index(current_host), len(hosts)
+

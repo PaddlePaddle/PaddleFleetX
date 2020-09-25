@@ -27,15 +27,15 @@
 
 接下来我们可以开始定义训练脚本（"resnet_app.py"）。
 
-因为FleetX中提供的\ ``Downloader``\ 接口需要依赖fleet在下载过程中对多进程进行同步，所以在下载数据之前需要导入\ ``fleet``\ 及 \ ``fleetx``\ 模块，并使用\ ``fleet.init()``\ 对fleet进行初始化。
-
-\ ``fleet.init()``\ 默认用户使用PS分布式模式，若用户想使用Collective模式需要将\ ``is_collective``\ 选项设置为True，具体代码如下：
+在下载之前我们需要引入\ ``fleet``\ 及 \ ``fleetx``\ 模块，并对fleet进行初始化。
 
 .. code:: python
 
+    import paddle
     import paddle.distributed.fleet as fleet
     import fleetx as X
 
+    paddle.enable_static()
     fleet.init(is_collective=True)
 
 
@@ -115,3 +115,14 @@
 
 \ ``train.txt``\ 及 \ ``val.txt``\中分别记录了训练/数据的数据列表，在训练时dataloader会根据里面的信息读取数据。
 
+
+BOS数据集
+^^^^^^^^
+
+下面是我们为您准备的BOS下载数据配置的地址，用于下载我们在BOS上传的小公开数据集：
+
+- *ImageNet：* https://fleet.bj.bcebos.com/small_datasets/yaml_example/imagenet.yaml
+
+- *Wiki 中文：* https://fleet.bj.bcebos.com/small_datasets/yaml_example/wiki_cn.yaml
+
+- *Wiki 英文：* https://fleet.bj.bcebos.com/small_datasets/yaml_example/wiki_en.yaml

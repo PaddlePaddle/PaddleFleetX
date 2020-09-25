@@ -14,17 +14,16 @@
 import fleetx as X
 import paddle
 import paddle.distributed.fleet as fleet
-
+paddle.enable_static()
+fleet.init(is_collective=True)
 configs = X.parse_train_configs()
 model = X.applications.BertBase()
-wiki_downloader = X.utils.WikiDataDownloader()
-local_path = wiki_downloader.download_from_bos(local_path='./data')
+downloader = X.utils.Downloader()
+local_path = downloader.download_from_bos(
+    fs_yaml='https://fleet.bj.bcebos.com/small_datasets/yaml_example/wiki_cn.yaml',
+    local_path='./data')
+loader = model.get_train_dataloader(data_dir='{}'.format(local_path))
 
-loader = model.load_digital_dataset_from_file(
-    data_dir='{}/train_data'.format(local_path),
-    vocab_path='{}/vocab.txt'.format(local_path))
-
-fleet.init(is_collective=True)
 dist_strategy = fleet.DistributedStrategy()
 dist_strategy.amp = True
 

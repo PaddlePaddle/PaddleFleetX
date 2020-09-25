@@ -17,23 +17,24 @@ import paddle.distributed.fleet as fleet
 # FleetX help users to focus more on learning to train a large scale model
 # if you want to learn how to write a model, FleetX is not for you
 # focus more on engineering staff in fleet-x
-
+paddle.enable_static()
+fleet.init(is_collective=True)
 configs = X.parse_train_configs()
 
 model = X.applications.VGG16()
-imagenet_downloader = X.utils.ImageNetDownloader()
-local_path = imagenet_downloader.download_from_bos(local_path='./data')
-loader = model.load_imagenet_from_file(
-    "{}/train.txt".format(local_path), data_layout='NCHW')
+downloader = X.utils.Downloader()
+local_path = downloader.download_from_bos(
+    fs_yaml='https://fleet.bj.bcebos.com/test/loader/small_imagenet.yaml',
+    local_path='./data')
+loader = model.get_train_dataloader("{}".format(local_path), batch_size=32)
 
-fleet.init(is_collective=True)
 dist_strategy = fleet.DistributedStrategy()
 dist_strategy.amp = True
 
-optimizer = paddle.optimizer.Momentum(
+optimizer = paddle.fluid.optimizer.Momentum(
     learning_rate=configs.lr,
     momentum=configs.momentum,
-    weight_decay=paddle.fluid.regularizer.L2Decay(0.0001))
+    regularization=paddle.fluid.regularizer.L2Decay(0.0001))
 optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
 optimizer.minimize(model.loss)
 
