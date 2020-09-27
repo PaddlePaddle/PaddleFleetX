@@ -14,7 +14,6 @@
 from paddle.distributed.fleet.utils.fs import HDFSClient
 import time
 import paddle.distributed.fleet as fleet
-from paddle.distributed.fleet.base.util_factory import fleet_util
 import sys
 import hashlib
 from .barrier_server_impl import BarrierServer
