@@ -58,13 +58,16 @@ def get_file_shard(node_id, node_num, local_path):
 
 class Downloader(object):
     def __init__(self):
-        endpoints = os.environ.get('PADDLE_TRAINER_ENDPOINTS').split(",")
-        current_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
-        self.server_endpoint = endpoints[0]
-        self.barrier_server = BarrierServer()
-        if current_endpoint == self.server_endpoint:
-            self.barrier_server.start_server_in_background(
-                endpoint=self.server_endpoint, worker_endpoints=endpoints)
+        self.need_barrier = False
+        if os.environ.get('PADDLE_TRAINER_ENDPOINTS') is not None:
+            endpoints = os.environ.get('PADDLE_TRAINER_ENDPOINTS').split(",")
+            current_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
+            self.server_endpoint = endpoints[0]
+            self.barrier_server = BarrierServer()
+            if current_endpoint == self.server_endpoint:
+                self.barrier_server.start_server_in_background(
+                    endpoint=self.server_endpoint, worker_endpoints=endpoints)
+            self.need_barrier = True
 
     def download_from_hdfs(self,
                            fs_yaml=None,
@@ -169,14 +172,14 @@ class Downloader(object):
                 if need_download:
                     multi_download(client, hdfs_path, local_path,
                                    self.filelist)
-
-        client = BarrierClient()
-        client.server_endpoint = self.server_endpoint
-        client.my_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
-        client.connect()
-        client.barrier()
-        if client.my_endpoint == self.server_endpoint:
-            self.barrier_server.close_server()
+        if self.need_barrier:
+            client = BarrierClient()
+            client.server_endpoint = self.server_endpoint
+            client.my_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
+            client.connect()
+            client.barrier()
+            if client.my_endpoint == self.server_endpoint:
+                self.barrier_server.close_server()
         return local_path
 
     def download_from_bos(self,
@@ -269,11 +272,12 @@ class Downloader(object):
                 need_download = check_exists(self.filelist, local_path)
                 if need_download:
                     multi_download(bos_path, local_path, self.filelist)
-        client = BarrierClient()
-        client.server_endpoint = self.server_endpoint
-        client.my_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
-        client.connect()
-        client.barrier()
-        if client.my_endpoint == self.server_endpoint:
-            self.barrier_server.close_server()
+        if self.need_barrier:
+            client = BarrierClient()
+            client.server_endpoint = self.server_endpoint
+            client.my_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
+            client.connect()
+            client.barrier()
+            if client.my_endpoint == self.server_endpoint:
+                self.barrier_server.close_server()
         return local_path
