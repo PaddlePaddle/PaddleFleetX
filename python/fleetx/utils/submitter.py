@@ -40,9 +40,9 @@ class PaddleCloudSubmitter(Submitter):
                           "--job-name {} " \
                           "--start-cmd 'sh start_job.sh' " \
                           "--job-conf config.ini " \
-                          "--files {}" \
                           "--k8s-trainers {} {} " \
                           "--k8s-cpu-cores 35 " \
+                          "--file-dir {}" \
                           "--is-auto-over-sell {}"
 
     def get_start_job(self, yml_cfg):
@@ -108,10 +108,6 @@ class PaddleCloudSubmitter(Submitter):
         file_dir = "./"
         if "file_dir" in cfg:
             file_dir = cfg["file_dir"]
-        files = os.listdir(file_dir)
-        job_scripts = ''
-        for file in files:
-            job_scripts += file + ' '
         if "over_sell" in cfg:
             over_sell = cfg['over_sell']
         else:
@@ -121,7 +117,7 @@ class PaddleCloudSubmitter(Submitter):
         pcloud_submit_cmd = self.submit_str.format(
             server, port, image_addr, cluster_name, group_name, num_cards,
             "{}_N{}C{}".format(job_prefix, num_trainers, num_cards),
-            job_scripts, num_trainers, distribute_suffix, over_sell)
+            num_trainers, distribute_suffix, file_dir, over_sell)
         print(pcloud_submit_cmd)
         os.system(pcloud_submit_cmd)
 
