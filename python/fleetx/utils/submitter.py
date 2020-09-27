@@ -42,7 +42,7 @@ class PaddleCloudSubmitter(Submitter):
                           "--job-conf config.ini " \
                           "--k8s-trainers {} {} " \
                           "--k8s-cpu-cores 35 " \
-                          "--file-dir {}" \
+                          "--file-dir {} " \
                           "--is-auto-over-sell {}"
 
     def get_start_job(self, yml_cfg):
