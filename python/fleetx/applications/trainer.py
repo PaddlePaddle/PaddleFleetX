@@ -80,8 +80,8 @@ class MultiGPUTrainer(Trainer):
                     end_time = time.time()
                     total_time += (end_time - start_time)
                     print(
-                        "worker_index: %d, step%d, train_loss: %f, total time cost = %f, step per second: %f, speed: %f"
-                        % (fleet.worker_index(), step, loss[0], total_time,
+                        "epoch id: %d, step%d, train_loss: %f, total time cost = %f, step per second: %f, speed: %f"
+                        % (epoch_id, step, loss[0], total_time,
                            (step - start_step) / total_time,
                            1 / (end_time - start_time)))
                 step += 1
