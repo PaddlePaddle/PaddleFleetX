@@ -26,6 +26,14 @@ from fleetx import utils
 
 
 class ModelBase(object):
+    """
+    Base class for loading models.
+
+    After loading the model we saved, you can get the following info of a model: 
+    
+    main_program, startup_program, loss, inputs, checkpoints for recompute, etc. 
+    """
+
     def __init__(self):
         self.inputs = []
         self.startup_prog = None
@@ -61,6 +69,9 @@ class ModelBase(object):
 
 
 def download_model(fleet_path, model_name):
+    """
+    Download pre-saved model if it does not exist in your local path. 
+    """
     version = fleetx_version.replace('-', '')
     if utils.is_first_worker():
         if not os.path.exists(fleet_path + model_name):
@@ -77,6 +88,30 @@ def download_model(fleet_path, model_name):
 
 class Resnet50(ModelBase):
     def __init__(self, data_layout='NCHW'):
+        """
+        Load pre-saved Resnet50 model. 
+
+        Args:
+            data_layout: data layout of image inputs. 
+                         NCHW: [3, 224, 224]
+                         NHWC: [224, 224, 3]
+
+        Example:
+
+        ..code:: python
+
+            import paddle
+            import fleetx as X
+            import paddle.distributed.fleet as fleet
+            paddle.enable_static()
+            
+            configs = X.parse_train_configs()
+            fleet.init(is_collective=True)
+            model = X.applications.Resnet50()
+            optimizer = paddle.fluid.optimizer.Momentum(learning_rate=configs.lr)
+            optimizer = fleet.distributed_optimizer(optimizer)
+            optimizer.minimize(model.loss)
+        """
         self.data_layout = data_layout
         super(Resnet50, self).__init__()
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
@@ -99,6 +134,9 @@ class Resnet50(ModelBase):
                              batch_size=32,
                              shuffle=True,
                              use_dali=False):
+        """
+        Load train imagenet data from local_path. 
+        """
         filelist = local_path + '/train.txt'
         data_layout = self.data_layout
         return image_dataloader_from_filelist(
@@ -115,6 +153,9 @@ class Resnet50(ModelBase):
                            batch_size=32,
                            shuffle=False,
                            use_dali=False):
+        """
+        Load val imagenet data from local_path. 
+        """
         filelist = local_path + '/val.txt'
         data_layout = self.data_layout
         return image_dataloader_from_filelist(
@@ -129,6 +170,30 @@ class Resnet50(ModelBase):
 
 class VGG16(ModelBase):
     def __init__(self, data_layout='NCHW'):
+        """
+        Load pre-saved VGG16 model.
+
+        Args:
+            data_layout: data layout of image inputs.
+                         NCHW: [3, 224, 224]
+                         NHWC: [224, 224, 3]
+
+        Example:
+
+        ..code:: python
+
+            import paddle
+            import fleetx as X
+            import paddle.distributed.fleet as fleet
+            paddle.enable_static()
+
+            configs = X.parse_train_configs()
+            fleet.init(is_collective=True)
+            model = X.applications.VGG16()
+            optimizer = paddle.fluid.optimizer.Momentum(learning_rate=configs.lr)
+            optimizer = fleet.distributed_optimizer(optimizer)
+            optimizer.minimize(model.loss)
+        """
         super(VGG16, self).__init__()
         self.data_layout = data_layout
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
@@ -153,6 +218,9 @@ class VGG16(ModelBase):
                              batch_size=32,
                              shuffle=True,
                              use_dali=False):
+        """
+        Load train imagenet data from local_path.
+        """
         filelist = local_path + '/train.txt'
         data_layout = self.data_layout
         return image_dataloader_from_filelist(
@@ -169,6 +237,9 @@ class VGG16(ModelBase):
                            batch_size=32,
                            shuffle=False,
                            use_dali=False):
+        """
+        Load val imagenet data from local_path.
+        """
         filelist = local_path + '/val.txt'
         data_layout = self.data_layout
         return image_dataloader_from_filelist(
@@ -183,6 +254,25 @@ class VGG16(ModelBase):
 
 class Transformer(ModelBase):
     def __init__(self):
+        """
+        Load pre-saved Transformer model.
+
+        Example:
+
+        ..code:: python
+
+            import paddle
+            import fleetx as X
+            import paddle.distributed.fleet as fleet
+            paddle.enable_static()
+
+            configs = X.parse_train_configs()
+            fleet.init(is_collective=True)
+            model = X.applications.Transformer()
+            optimizer = paddle.fluid.optimizer.Adam(learning_rate=configs.lr)
+            optimizer = fleet.distributed_optimizer(optimizer)
+            optimizer.minimize(model.loss)
+        """
         super(Transformer, self).__init__()
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
         model_name = 'transformer'
@@ -202,6 +292,9 @@ class Transformer(ModelBase):
                              train_file_pattern,
                              batch_size=2048,
                              shuffle=True):
+        """
+        Load WMT data from local path. 
+        """
         return transformer_data_generator(
             src_vocab_fpath,
             trg_vocab_fpath,
@@ -213,6 +306,28 @@ class Transformer(ModelBase):
 
 class BertLarge(ModelBase):
     def __init__(self, lang='ch'):
+        """
+        Load pre-saved BertLarge model.
+
+        Args:
+            lang: language of your training data, currently wo support chinese and english. 
+
+        Example:
+
+        ..code:: python
+
+            import paddle
+            import fleetx as X
+            import paddle.distributed.fleet as fleet
+            paddle.enable_static()
+
+            configs = X.parse_train_configs()
+            fleet.init(is_collective=True)
+            model = X.applications.BertLarge()
+            optimizer = paddle.fluid.optimizer.Adam(learning_rate=configs.lr)
+            optimizer = fleet.distributed_optimizer(optimizer)
+            optimizer.minimize(model.loss)
+        """
         super(BertLarge, self).__init__()
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
         if lang == 'ch':
@@ -236,6 +351,11 @@ class BertLarge(ModelBase):
                              max_seq_len=512,
                              in_tokens=True,
                              shuffle=True):
+        """
+        Load train Wiki data of language defined in model from local path.
+        """
+        if not in_tokens:
+            batch_size = batch_size / max_seq_len
         return load_bert_dataset(
             data_dir,
             inputs=self.inputs,
@@ -252,6 +372,11 @@ class BertLarge(ModelBase):
                            max_seq_len=512,
                            in_tokens=True,
                            shuffle=False):
+        """
+        Load val Wiki data of language defined in model from local path.
+        """
+        if not in_tokens:
+            batch_size = batch_size / max_seq_len
         return load_bert_dataset(
             data_dir,
             inputs=self.inputs,
@@ -264,8 +389,30 @@ class BertLarge(ModelBase):
 
 
 class BertHuge(ModelBase):
-    def __init__(self):
+    def __init__(self, lang='ch'):
+        """
+        Load pre-saved BertHuge model.
+
+        Example:
+
+        ..code:: python
+
+            import paddle
+            import fleetx as X
+            import paddle.distributed.fleet as fleet
+            paddle.enable_static()
+
+            configs = X.parse_train_configs()
+            fleet.init(is_collective=True)
+            model = X.applications.BertHuge()
+            optimizer = paddle.fluid.optimizer.Adam(learning_rate=configs.lr)
+            optimizer = fleet.distributed_optimizer(optimizer)
+            optimizer.minimize(model.loss)
+        """
         super(BertHuge, self).__init__()
+        if lang == 'en':
+            raise Exception(
+                "English model is not supported currently in BertHuge")
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
         model_name = 'bert_huge'
         download_model(fleet_path, model_name)
@@ -285,6 +432,11 @@ class BertHuge(ModelBase):
                              max_seq_len=512,
                              in_tokens=True,
                              shuffle=True):
+        """
+        Load train Wiki data of language defined in model from local path.
+        """
+        if not in_tokens:
+            batch_size = batch_size / max_seq_len
         return load_bert_dataset(
             data_dir,
             inputs=self.inputs,
@@ -301,6 +453,11 @@ class BertHuge(ModelBase):
                            max_seq_len=512,
                            in_tokens=True,
                            shuffle=False):
+        """
+        Load val Wiki data of language defined in model from local path.
+        """
+        if not in_tokens:
+            batch_size = batch_size / max_seq_len
         return load_bert_dataset(
             data_dir,
             inputs=self.inputs,
@@ -313,8 +470,30 @@ class BertHuge(ModelBase):
 
 
 class BertGiant(ModelBase):
-    def __init__(self):
+    def __init__(self, lang='ch'):
+        """
+        Load pre-saved BertGiant model.
+
+        Example:
+
+        ..code:: python
+
+            import paddle
+            import fleetx as X
+            import paddle.distributed.fleet as fleet
+            paddle.enable_static()
+
+            configs = X.parse_train_configs()
+            fleet.init(is_collective=True)
+            model = X.applications.BertGiant()
+            optimizer = paddle.fluid.optimizer.Adam(learning_rate=configs.lr)
+            optimizer = fleet.distributed_optimizer(optimizer)
+            optimizer.minimize(model.loss)
+        """
         super(BertGiant, self).__init__()
+        if lang == 'en':
+            raise Exception(
+                "English model is not supported currently in BertGiant")
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
         model_name = 'bert_giant'
         download_model(fleet_path, model_name)
@@ -334,6 +513,11 @@ class BertGiant(ModelBase):
                              max_seq_len=512,
                              in_tokens=True,
                              shuffle=True):
+        """
+        Load train Wiki data of language defined in model from local path.
+        """
+        if not in_tokens:
+            batch_size = batch_size / max_seq_len
         return load_bert_dataset(
             data_dir,
             inputs=self.inputs,
@@ -350,6 +534,11 @@ class BertGiant(ModelBase):
                            max_seq_len=512,
                            in_tokens=True,
                            shuffle=False):
+        """
+        Load val Wiki data of language defined in model from local path.
+        """
+        if not in_tokens:
+            batch_size = batch_size / max_seq_len
         return load_bert_dataset(
             data_dir,
             inputs=self.inputs,
@@ -363,6 +552,28 @@ class BertGiant(ModelBase):
 
 class BertBase(ModelBase):
     def __init__(self, lang='ch'):
+        """
+        Load pre-saved BertBase model.
+
+        Args:
+            lang: language of your training data, currently wo support chinese and english.
+
+        Example:
+
+        ..code:: python
+
+            import paddle
+            import fleetx as X
+            import paddle.distributed.fleet as fleet
+            paddle.enable_static()
+
+            configs = X.parse_train_configs()
+            fleet.init(is_collective=True)
+            model = X.applications.BertBase()
+            optimizer = paddle.fluid.optimizer.Adam(learning_rate=configs.lr)
+            optimizer = fleet.distributed_optimizer(optimizer)
+            optimizer.minimize(model.loss)
+        """
         super(BertBase, self).__init__()
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
         if lang == 'ch':
@@ -386,6 +597,11 @@ class BertBase(ModelBase):
                              max_seq_len=512,
                              in_tokens=True,
                              shuffle=True):
+        """
+        Load train Wiki data of language defined in model from local path.
+        """
+        if not in_tokens:
+            batch_size = batch_size / max_seq_len
         return load_bert_dataset(
             data_dir,
             inputs=self.inputs,
@@ -402,6 +618,11 @@ class BertBase(ModelBase):
                            max_seq_len=512,
                            in_tokens=True,
                            shuffle=False):
+        """
+        Load train Wiki data of language defined in model from local path.
+        """
+        if not in_tokens:
+            batch_size = batch_size / max_seq_len
         return load_bert_dataset(
             data_dir,
             inputs=self.inputs,
@@ -415,6 +636,25 @@ class BertBase(ModelBase):
 
 class MultiSlotCTR(ModelBase):
     def __init__(self):
+        """
+        Load pre-saved MultiSlotCTR model.
+
+        Example:
+
+        ..code:: python
+
+            import paddle
+            import fleetx as X
+            import paddle.distributed.fleet as fleet
+            paddle.enable_static()
+
+            configs = X.parse_train_configs()
+            fleet.init()
+            model = X.applications.MultiSlotCTR()
+            optimizer = paddle.fluid.optimizer.Adam(learning_rate=configs.lr)
+            optimizer = fleet.distributed_optimizer(optimizer)
+            optimizer.minimize(model.loss)
+        """
         super(MultiSlotCTR, self).__init__()
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
         model_name = 'ctr'
@@ -443,6 +683,9 @@ class MultiSlotCTR(ModelBase):
 
 class Resnet50Mlperf(ModelBase):
     def __init__(self):
+        """
+        Special resnet50 model prepared for MLPerf.
+        """
         self.data_layout = "NHWC"
         model_name = 'resnet50_mlperf'
         super(Resnet50Mlperf, self).__init__()

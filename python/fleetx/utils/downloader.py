@@ -179,6 +179,7 @@ class Downloader(object):
             client.connect()
             client.barrier()
             if client.my_endpoint == self.server_endpoint:
+                time.sleep(10)
                 self.barrier_server.close_server()
         return local_path
 
