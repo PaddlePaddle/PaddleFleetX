@@ -76,8 +76,9 @@
 单机多卡训练
 ~~~~~~~~~~~~
 
-使用Fleet接口进行动态图分布式训练其实非常的简单，只需修改4个步骤： 1.
-导入\ ``paddle.distributed.fleet``\ 包
+使用Fleet接口进行动态图分布式训练其实非常的简单，只需修改4个步骤：
+
+1. 导入\ ``paddle.distributed.fleet``\ 包
 
 .. code:: py
 
@@ -93,8 +94,11 @@
 
 .. code:: py
 
-   adam = fleet.distributed_optimizer(adam)
+   strategy = fleet.DistributedStrategy()
+   adam = fleet.distributed_optimizer(adam, strategy=strategy)
    dp_layer = fleet.distributed_model(layer)
+
+说明：目前静态图\ ``DistributedStrategy``\ 下的分布式策略正逐步向动态图场景迁移中，敬请期待！
 
 4. 在执行反向（backward函数）前后进行损失缩放和反向梯度的聚合
 
@@ -135,10 +139,11 @@
    layer = LinearNet()
    loss_fn = nn.MSELoss()
    adam = paddle.optimizer.Adam(
-   learning_rate=0.001, parameters=layer.parameters())
+       learning_rate=0.001, parameters=layer.parameters())
 
    # 分布式step 3: 通过fleet获取分布式优化器和分布式模型
-   adam = fleet.distributed_optimizer(adam)
+   strategy = fleet.DistributedStrategy()
+   adam = fleet.distributed_optimizer(adam, strategy=strategy)
    dp_layer = fleet.distributed_model(layer)
 
 
