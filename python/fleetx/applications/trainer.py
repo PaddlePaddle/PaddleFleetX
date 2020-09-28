@@ -112,6 +112,6 @@ class MultiGPUTrainer(Trainer):
         for item in target_list:
             log_info += ", {} = {}".format(item, np.mean(results[item]))
         if current_epoch > 0:
-            print("Test Epoch {}{}").format(current_epoch, log_info)
+            print("Test Epoch {}{}".format(current_epoch, log_info))
         else:
-            print("Test Result {}").format(log_info)
+            print("Test Result {}".format(log_info))

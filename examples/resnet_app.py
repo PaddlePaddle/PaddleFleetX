@@ -23,8 +23,7 @@ downloader = X.utils.Downloader()
 local_path = downloader.download_from_bos(
     fs_yaml='https://fleet.bj.bcebos.com/test/loader/small_imagenet.yaml',
     local_path='./data')
-loader = model.get_train_dataloader("{}".format(local_path), batch_size=32)
-
+loader = model.get_train_dataloader(local_path, batch_size=32)
 dist_strategy = fleet.DistributedStrategy()
 dist_strategy.amp = True
 

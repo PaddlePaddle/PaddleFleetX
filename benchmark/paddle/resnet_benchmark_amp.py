@@ -34,11 +34,9 @@ configs = X.parse_train_configs()
 fleet.init(is_collective=True)
 model = X.applications.Resnet50('NHWC')
 downloader = X.utils.Downloader()
-#local_path = downloader.download_from_hdfs(configs.download_config, local_path='/ssd2/jingqinghe/test')
 local_path = downloader.download_from_hdfs(
     configs.download_config, local_path='.')
-loader = model.get_train_dataloader(
-    "{}".format(local_path), batch_size=256, use_dali=True)
+loader = model.get_train_dataloader(local_path, batch_size=256, use_dali=True)
 
 exec_strategy = fluid.ExecutionStrategy()
 dist_strategy = fleet.DistributedStrategy()

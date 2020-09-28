@@ -29,7 +29,7 @@ model = X.applications.BertLarge()
 downloader = X.utils.Downloader()
 local_path = downloader.download_from_hdfs(
     configs.download_config, local_path='./data')
-loader = model.get_train_dataloader(data_dir='{}'.format(local_path))
+loader = model.get_train_dataloader(local_path)
 
 learning_rate = X.utils.linear_warmup_decay(configs.lr, 4000, 1000000)
 exec_strategy = fluid.ExecutionStrategy()
