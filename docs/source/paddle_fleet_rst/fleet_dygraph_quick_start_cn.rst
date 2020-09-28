@@ -139,10 +139,11 @@
    layer = LinearNet()
    loss_fn = nn.MSELoss()
    adam = paddle.optimizer.Adam(
-   learning_rate=0.001, parameters=layer.parameters())
+       learning_rate=0.001, parameters=layer.parameters())
 
    # 分布式step 3: 通过fleet获取分布式优化器和分布式模型
-   adam = fleet.distributed_optimizer(adam)
+   strategy = fleet.DistributedStrategy()
+   adam = fleet.distributed_optimizer(adam, strategy=strategy)
    dp_layer = fleet.distributed_model(layer)
 
 
