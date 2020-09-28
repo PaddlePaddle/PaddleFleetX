@@ -21,6 +21,9 @@ import paddle.distributed.fleet as fleet
 
 class Trainer(object):
     def __init__(self):
+        """
+        
+        """
         self.place = None
 
 
@@ -88,7 +91,12 @@ class MultiGPUTrainer(Trainer):
             if use_dali:
                 dataloader.reset()
 
-    def val(self, model, dataloader, target_list, current_epoch=-1):
+    def val(self,
+            model,
+            dataloader,
+            target_list,
+            current_epoch=-1,
+            use_dali=False):
         self.test_program = model.main_prog.clone(for_test=True)
         fetch_target = []
         results = {}
@@ -115,3 +123,5 @@ class MultiGPUTrainer(Trainer):
             print("Test Epoch {}{}".format(current_epoch, log_info))
         else:
             print("Test Result {}".format(log_info))
+        if use_dali:
+            dataloader.reset()
