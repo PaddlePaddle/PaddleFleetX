@@ -29,6 +29,7 @@ import json
 os.environ['FLAGS_sync_nccl_allreduce'] = "1"
 
 import numpy as np
+import paddle
 import paddle.fluid as fluid
 
 import reader
@@ -607,6 +608,8 @@ def train_loop(args,
 def train(args):
     # priority: ENV > args > config
     logging.info(args)
+
+    paddle.enable_static()
 
     gpu_id = int(os.environ.get('FLAGS_selected_gpus', 0))
     place = fluid.CUDAPlace(gpu_id)
