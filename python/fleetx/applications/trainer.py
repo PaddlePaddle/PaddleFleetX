@@ -15,11 +15,15 @@ import os
 import time
 import paddle
 import paddle.fluid as fluid
+import numpy as np
 import paddle.distributed.fleet as fleet
 
 
 class Trainer(object):
     def __init__(self):
+        """
+        
+        """
         self.place = None
 
 
@@ -61,9 +65,9 @@ class MultiGPUTrainer(Trainer):
         self.place = fluid.CUDAPlace(
             int(os.environ.get('FLAGS_selected_gpus', 0)))
         self.exe = fluid.Executor(self.place)
+        self.exe.run(fluid.default_startup_program())
 
     def fit(self, model, dataloader, epoch, use_dali=False, start_step=10):
-        self.exe.run(fluid.default_startup_program())
 
         for epoch_id in range(epoch):
             total_time = 0
@@ -79,10 +83,45 @@ class MultiGPUTrainer(Trainer):
                     end_time = time.time()
                     total_time += (end_time - start_time)
                     print(
-                        "worker_index: %d, step%d, train_loss: %f, total time cost = %f, step per second: %f, speed: %f"
-                        % (fleet.worker_index(), step, loss[0], total_time,
+                        "epoch id: %d, step%d, train_loss: %f, total time cost = %f, step per second: %f, speed: %f"
+                        % (epoch_id, step, loss[0], total_time,
                            (step - start_step) / total_time,
                            1 / (end_time - start_time)))
                 step += 1
             if use_dali:
                 dataloader.reset()
+
+    def val(self,
+            model,
+            dataloader,
+            target_list,
+            current_epoch=-1,
+            use_dali=False):
+        self.test_program = model.main_prog.clone(for_test=True)
+        fetch_target = []
+        results = {}
+        for item in target_list:
+            if item in model.target.keys():
+                fetch_target.append(model.target[item].name)
+                results[item] = []
+            else:
+                raise Exception("ERROR: Current model only support target: {}".
+                                format(model.target.keys()))
+
+        for data in dataloader:
+            result = self.exe.run(self.test_program,
+                                  feed=data,
+                                  fetch_list=fetch_target,
+                                  use_program_cache=True)
+            for item in target_list:
+                results[item].append(np.mean(result[target_list.index(item)]))
+
+        log_info = ""
+        for item in target_list:
+            log_info += ", {} = {}".format(item, np.mean(results[item]))
+        if current_epoch > 0:
+            print("Test Epoch {}{}".format(current_epoch, log_info))
+        else:
+            print("Test Result {}".format(log_info))
+        if use_dali:
+            dataloader.reset()

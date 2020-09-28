@@ -23,7 +23,7 @@ model = X.applications.VGG16()
 downloader = X.utils.Downloader()
 local_path = downloader.download_from_hdfs(
     configs.download_config, local_path='.')
-loader = model.get_train_dataloader("{}".format(local_path), batch_size=32)
+loader = model.get_train_dataloader(local_path, batch_size=32)
 
 exec_strategy = fluid.ExecutionStrategy()
 dist_strategy = fleet.DistributedStrategy()

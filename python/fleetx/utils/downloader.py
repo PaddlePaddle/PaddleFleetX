@@ -14,7 +14,6 @@
 from paddle.distributed.fleet.utils.fs import HDFSClient
 import time
 import paddle.distributed.fleet as fleet
-from paddle.distributed.fleet.base.util_factory import fleet_util
 import sys
 import hashlib
 from .barrier_server_impl import BarrierServer
@@ -59,13 +58,16 @@ def get_file_shard(node_id, node_num, local_path):
 
 class Downloader(object):
     def __init__(self):
-        endpoints = os.environ.get('PADDLE_TRAINER_ENDPOINTS').split(",")
-        current_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
-        self.server_endpoint = endpoints[0]
-        self.barrier_server = BarrierServer()
-        if current_endpoint == self.server_endpoint:
-            self.barrier_server.start_server_in_background(
-                endpoint=self.server_endpoint, worker_endpoints=endpoints)
+        self.need_barrier = False
+        if os.environ.get('PADDLE_TRAINER_ENDPOINTS') is not None:
+            endpoints = os.environ.get('PADDLE_TRAINER_ENDPOINTS').split(",")
+            current_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
+            self.server_endpoint = endpoints[0]
+            self.barrier_server = BarrierServer()
+            if current_endpoint == self.server_endpoint:
+                self.barrier_server.start_server_in_background(
+                    endpoint=self.server_endpoint, worker_endpoints=endpoints)
+            self.need_barrier = True
 
     def download_from_hdfs(self,
                            fs_yaml=None,
@@ -135,7 +137,8 @@ class Downloader(object):
         os.environ['JAVA_HOME'] = java_home
         if "data_path" in cfg:
             hdfs_path = cfg["data_path"]
-
+        else:
+            raise Exception("ERROR: Please figure your data path in AFS.")
         client = HDFSClient(self.hadoop_home, self.hdfs_configs)
         if is_first_worker():
             if not (client.is_exist('{}/meta.txt'.format(hdfs_path)) and
@@ -169,14 +172,14 @@ class Downloader(object):
                 if need_download:
                     multi_download(client, hdfs_path, local_path,
                                    self.filelist)
-
-        client = BarrierClient()
-        client.server_endpoint = self.server_endpoint
-        client.my_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
-        client.connect()
-        client.barrier()
-        if client.my_endpoint == self.server_endpoint:
-            self.barrier_server.close_server()
+        if self.need_barrier:
+            client = BarrierClient()
+            client.server_endpoint = self.server_endpoint
+            client.my_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
+            client.connect()
+            client.barrier()
+            if client.my_endpoint == self.server_endpoint:
+                self.barrier_server.close_server()
         return local_path
 
     def download_from_bos(self,
@@ -236,7 +239,8 @@ class Downloader(object):
 
         if 'bos_path' in cfg:
             bos_path = cfg["bos_path"]
-
+        else:
+            raise Exception("ERROR: Please figure your data path in BOS.")
         if is_first_worker():
             try:
                 os.system(
@@ -268,11 +272,12 @@ class Downloader(object):
                 need_download = check_exists(self.filelist, local_path)
                 if need_download:
                     multi_download(bos_path, local_path, self.filelist)
-        client = BarrierClient()
-        client.server_endpoint = self.server_endpoint
-        client.my_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
-        client.connect()
-        client.barrier()
-        if client.my_endpoint == self.server_endpoint:
-            self.barrier_server.close_server()
+        if self.need_barrier:
+            client = BarrierClient()
+            client.server_endpoint = self.server_endpoint
+            client.my_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
+            client.connect()
+            client.barrier()
+            if client.my_endpoint == self.server_endpoint:
+                self.barrier_server.close_server()
         return local_path
