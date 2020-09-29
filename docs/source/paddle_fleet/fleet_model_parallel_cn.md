@@ -37,6 +37,8 @@
 3. 各个计算设备将全连接层输出发送到其它所有卡；各个计算设备汇聚收到地信息，得到所有样本的全连接层输出**Y**；
 4. 各个计算设备获取自己样本地全连接层输出。
 
+### 1.2.3 动态图实现
+
 上述过程描述地完整前向计算过程实现代码如下：
 
 ```python
@@ -148,5 +150,76 @@ for step in range(20):
 
 ```shell
 fleetrun --gpus=0,1 tain.py
+```
+
+### 1.2.4 静态图实现
+
+```PYTHON
+# -*- coding: UTF-8 -*-
+import os
+import numpy
+import paddle
+import paddle.static.nn as nn
+import paddle.distributed.fleet as fleet
+
+paddle.enable_static()
+
+fleet.init(is_collective=True)
+
+def simple_model_parallel_net(image,
+                              label,
+                              class_num,
+                              rank_num,
+                              rank_id):
+    conv1 = nn.conv2d(image, num_filters=6, filter_size=5, act='sigmoid')
+    max_pool1 = paddle.nn.functional.pool2d(conv1, pool_size=2, pool_type='max', pool_stride=2)
+    conv2 = nn.conv2d(max_pool1, num_filters=16, filter_size=5, act='sigmoid')
+    max_pool2 = paddle.nn.functional.pool2d(conv2, pool_size=2, pool_type='max', pool_stride=2)
+    conv3 = nn.conv2d(max_pool2, num_filters=120, filter_size=4, act='sigmoid')
+    conv3 = paddle.reshape(conv3, [conv3.shape[0], -1])
+
+    if class_num % rank_num:
+        raise ValueError("Number of classes must be divisible "
+                         "the number of ranks.")
+    shard_dims = class_num // rank_num
+    global_x_list = []
+    paddle.distributed.all_gather(global_x_list, conv3)
+    global_x = paddle.concat(global_x_list, axis=0)
+    out = nn.fc(global_x, size=shard_dims)
+    global_out_list = []
+    paddle.distributed.all_gather(global_out_list, out)
+    all_outs = paddle.concat(global_out_list, axis=1)
+    out = paddle.split(all_outs, rank_num)[rank_id]
+    out = paddle.nn.functional.loss.cross_entropy(input=out, label=label)
+    loss = paddle.mean(out)
+    return loss
+  
+image = paddle.data(name="image", shape=[1, 1, 32, 32], dtype='float32')
+label = paddle.data(name="label", shape=[1, 1], dtype='int64')
+
+
+cost = simple_model_parallel_net(image,
+                                 label,
+                                 class_num=10,
+                                 rank_num=fleet.worker_num(),
+                                 rank_id=fleet.worker_index())
+
+place = paddle.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+strategy = fleet.DistributedStrategy()
+optimizer = paddle.fluid.optimizer.Adam(learning_rate=0.001)
+optimizer = fleet.distributed_optimizer(optimizer, strategy=strategy)
+optimizer.minimize(cost)
+
+exe = paddle.static.Executor(place)
+exe.run(paddle.static.default_startup_program())
+
+step = 20
+for i in range(step):
+    image_np = numpy.random.randn(1, 1, 32, 32).astype('float32')
+    label_np = numpy.random.randint(low=0, high=10, size=[1,1])
+    [loss] = exe.run(paddle.static.default_main_program(),
+                     feed={'image': image_np, 'label': label_np},
+                     fetch_list=[cost.name])
+    print("step:{}\tloss:{}".format(i, loss))
 ```
 
