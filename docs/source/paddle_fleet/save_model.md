@@ -36,7 +36,7 @@ with fluid.program_guard(train_program, startup_prog):
             hidden_vars=None,
             loss=total_loss,
             generator_info=generator.ids,
-            target=[next_sent_acc, mask_lm_loss],
+            target={"next_sent_acc":next_sent_acc, "mask_lm_loss": mask_lm_loss},
             checkpoints=None,
             learning_rate=None)
 ```

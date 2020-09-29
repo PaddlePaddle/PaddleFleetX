@@ -11,28 +11,35 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+import os
 import fleetx as X
+
 import paddle
+import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
-paddle.enable_static()
-fleet.init(is_collective=True)
-configs = X.parse_train_configs()
-model = X.applications.BertBase()
-downloader = X.utils.Downloader()
-local_path = downloader.download_from_bos(
-    fs_yaml='https://fleet.bj.bcebos.com/small_datasets/yaml_example/wiki_cn.yaml',
-    local_path='./data')
-loader = model.get_train_dataloader(data_dir=local_path)
+
+role = fleet.PaddleCloudRoleMaker()
+fleet.init(role)
+
+model = X.applications.Word2vec()
+
+"""
+need config loader correctly.
+"""
+
+loader = model.load_dataset_from_file(train_files_path=[], dict_path="")
 
 dist_strategy = fleet.DistributedStrategy()
-dist_strategy.amp = True
+dist_strategy.a_sync = True
 
-learning_rate = X.utils.linear_warmup_decay(configs.lr, 4000, 1000000)
-clip = paddle.fluid.clip.GradientClipByGlobalNorm(clip_norm=1.0)
-optimizer = paddle.fluid.optimizer.Adam(
-    learning_rate=learning_rate, grad_clip=clip)
-optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
+optimizer = fluid.optimizer.SGD(learning_rate=0.0001)
+optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
 optimizer.minimize(model.loss)
 
-trainer = X.MultiGPUTrainer()
-trainer.fit(model, loader, epoch=10)
+if fleet.is_server():
+    fleet.init_server()
+    fleet.run_server()
+else:
+    trainer = X.CPUTrainer()
+    trainer.fit(model, loader, epoch=10)

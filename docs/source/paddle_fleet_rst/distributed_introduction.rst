@@ -30,10 +30,10 @@
 
 -  整体内容：我们推荐您直接根据\ `主页 <../index.html>`__\ ，按照章节顺序逐个浏览学习，如果有任何疑问都可以在\ `Paddle <https://github.com/PaddlePaddle/Paddle>`__\ 、\ `FleetX <https://github.com/PaddlePaddle/FleetX/>`__\ 提交issue提问
 -  FAQ：对于高频出现的问题，我们会定期整理相关内容到\ `FAQ <fleet_user_faq_cn.html>`__
--  快速上手：如果想最低成本的了解飞桨的分布式训练，我们推荐阅读\ `静态图并行训练快速开始 <fleet_static_quick_start.html>`__\ 和\ `动态图并行训练快速开始 <fleet_dygraph_quick_start.html>`__
+-  快速上手：如果想最低成本的了解飞桨的分布式训练，我们推荐阅读\ `静态图并行训练快速开始 <fleet_static_quick_start_cn.html>`__\ 和\ `动态图并行训练快速开始 <fleet_dygraph_quick_start_cn.html>`__
 -  GPU多机训练：如果您已经开始使用GPU进行多机多卡训练，\ `数据并行同步训练实践 <fleet_collective_training_practices_cn.html>`__\ 是很好的参考。
 -  参数服务器：信息检索、推荐系统领域常用的并行训练方式，可以参考\ `使用Fleet进行参数服务器训练 <fleet_ps_sync_and_async_cn.html>`__\ 。
--  公有云环境实践：如果您在公有云上跑自己的GPU多卡任务，性能不佳，\ `优化低配网络的分布式GPU训练 <fleet_on_cloud.html>`__\ 是调优性能的好方法
+-  公有云环境实践：如果您在公有云上跑自己的GPU多卡任务，性能不佳，\ `优化低配网络的分布式GPU训练 <fleet_on_cloud_cn.html>`__\ 是调优性能的好方法
 -  弹性训练：如果对如何利用云端弹性资源进行大规模蒸馏训练有兴趣，可以阅读\ `EDL
    服务型弹性蒸馏 <fleet_and_edl_for_distillation_cn.html>`__
 

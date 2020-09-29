@@ -35,9 +35,9 @@ FleetX依赖Paddle
 
 .. code:: python
 
-    import paddle
-    import paddle.distributed.fleet as fleet
-    import fleetx as X
+   import paddle
+   import paddle.distributed.fleet as fleet
+   import fleetx as X
 
 2. 构建模型
 ^^^^^^^^^^^
@@ -47,16 +47,13 @@ FleetX依赖Paddle
 
 .. code:: python
 
-    import paddle
-    import paddle.distributed.fleet as fleet
-    import fleetx as X
+   paddle.enable_static()
+   configs = X.parse_train_configs()
 
-    configs = X.parse_train_configs()
-
-    model = X.applications.Resnet50()
-    downloader = X.utils.Downloader()
-    local_path = downloader.download_from_bos(fs_yml="https://xxx.xx.xx.xx/full_imagenet_bos.yml", local_path='./data')
-    loader = model.get_train_dataloader(local_path, batch_size=32)
+   model = X.applications.Resnet50()
+   downloader = X.utils.Downloader()
+   local_path = downloader.download_from_bos(fs_yml="https://xxx.xx.xx.xx/full_imagenet_bos.yml", local_path='./data')
+   loader = model.get_train_dataloader(local_path, batch_size=32)
 
 3. 定义分布式策略
 ^^^^^^^^^^^^^^^^^
@@ -65,13 +62,13 @@ FleetX依赖Paddle
 
 .. code:: python
 
-    # 使用paddle.distributed.fleet进行collective training
-    fleet.init(is_collective=True)
-    # 定义DistributedStrategy
-    dist_strategy = fleet.DistributedStrategy()
-    # 装饰单机optimizer为分布式optimizer
-    optimizer = paddle.distributed.fleet.distributed_optimizer(optimizer, dist_strategy)
-    optimizer.minimize(model.loss)
+   # 使用paddle.distributed.fleet进行collective training
+   fleet.init(is_collective=True)
+   # 定义DistributedStrategy
+   dist_strategy = fleet.DistributedStrategy()
+   # 装饰单机optimizer为分布式optimizer
+   optimizer = paddle.distributed.fleet.distributed_optimizer(optimizer, dist_strategy)
+   optimizer.minimize(model.loss)
 
 4. 开始训练
 ^^^^^^^^^^^
@@ -80,31 +77,31 @@ FleetX依赖Paddle
 
 .. code:: python
 
-    trainer = X.MultiGPUTrainer()
-    trainer.fit(model, loader, epoch=10)
+   trainer = X.MultiGPUTrainer()
+   trainer.fit(model, loader, epoch=10)
 
 用户也可以采用Paddle原生的API进行训练流程的定义，代码如下：
 
 .. code:: python
 
-    exe = fluid.Executor(place)
-    exe.run(fluid.default_startup_program())
+   exe = fluid.Executor(place)
+   exe.run(fluid.default_startup_program())
 
-    for epoch_id in range(5):
-        step_id = 0
-        for data in loader:
-            cost_val = exe.run(paddle.default_main_program(),
-                       feed=data,
-                       fetch_list=[model.loss.name])
-            if step_id % 100 == 0:
-                print("worker index: %d, epoch: %d, step: %d, train loss: %f"
-                     % (fleet.worker_index(), epoch_id, step_id, cost_val[0]))
+   for epoch_id in range(5):
+       step_id = 0
+       for data in loader:
+           cost_val = exe.run(paddle.default_main_program(),
+                      feed=data,
+                      fetch_list=[model.loss.name])
+           if step_id % 100 == 0:
+               print("worker index: %d, epoch: %d, step: %d, train loss: %f"
+                    % (fleet.worker_index(), epoch_id, step_id, cost_val[0]))
 
 从Paddle 2.0
 rc版本开始，我们统一采用fleetrun进行多卡训练的启动，方式如下：
 
 .. code:: shell
 
-    fleetrun --gpus 0,1,2,3 resnet_app.py
+   fleetrun --gpus 0,1,2,3 resnet_app.py
 
 关于\ ``fleetrun``\ 命令，更详细的使用说明请参考\ `fleetrun <fleetrun_usage_cn.html>`__

@@ -11,6 +11,11 @@
 原理
 ----
 
+.. image:: ../paddle_fleet/img/geosgd.png
+  :width: 600
+  :alt: heter_overview
+  :align: center
+
 在GeoSGD更新策略中，Trainer的参数更新也是在全异步的条件下进行的。但与异步参数服务器有以下不同：
 
 -  与普通的参数服务器不同，在GEO策略中，每个Trainer负责在本地维护自己的参数更新，在训练一定数量的步数后将本轮训练出的参数与上一轮结束后的参数做差。并除以Trainer的个数，将结果上传至Server。Server则负责为每个Trainer计算其参数与全局参数的diff。
@@ -25,9 +30,9 @@ GEO策略通过模型训练与节点通信同步进行的方式，在保证模�
 
 .. code:: sh
 
-    # 下载并解压数据，训练数据讲保存至名为 raw_data 的文件夹
-    wget --no-check-certificate https://fleet.bj.bcebos.com/ctr_data.tar.gz
-    tar -zxvf ctr_data.tar.gz
+   # 下载并解压数据，训练数据讲保存至名为 raw_data 的文件夹
+   wget --no-check-certificate https://fleet.bj.bcebos.com/ctr_data.tar.gz
+   tar -zxvf ctr_data.tar.gz
 
 操作实践
 --------
@@ -41,10 +46,11 @@ GEO策略通过模型训练与节点通信同步进行的方式，在保证模�
 
 .. code:: python
 
-    import fleetx as X
-    import paddle.fluid as fluid
-    import paddle.distributed.fleet as fleet
-    import paddle.distributed.fleet.base.role_maker as role_maker
+   import paddle
+   import fleetx as X
+   import paddle.fluid as fluid
+   import paddle.distributed.fleet as fleet
+   import paddle.distributed.fleet.base.role_maker as role_maker
 
 定义分布式模式并初始化
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -53,9 +59,10 @@ GEO策略通过模型训练与节点通信同步进行的方式，在保证模�
 
 .. code:: python
 
-    configs = X.parse_train_configs()
-    role = role_maker.PaddleCloudRoleMaker()
-    fleet.init(role)
+   paddle.enable_static()
+   configs = X.parse_train_configs()
+   role = role_maker.PaddleCloudRoleMaker()
+   fleet.init(role)
 
 加载模型及数据
 ~~~~~~~~~~~~~~
@@ -64,8 +71,8 @@ GEO策略通过模型训练与节点通信同步进行的方式，在保证模�
 
 .. code:: python
 
-    model = X.applications.MultiSlotCTR()
-    loader = model.load_multislot_from_file('./train_data')
+   model = X.applications.MultiSlotCTR()
+   loader = model.load_multislot_from_file('./train_data')
 
 定义同步训练 Strategy 及 Optimizer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -80,14 +87,14 @@ True。
 
 .. code:: python
 
-    dist_strategy = fleet.DistributedStrategy()
-    dist_strategy.a_sync = True
-    dist_strategy.a_sync_configs = {"k_steps": 10000}
+   dist_strategy = fleet.DistributedStrategy()
+   dist_strategy.a_sync = True
+   dist_strategy.a_sync_configs = {"k_steps": 10000}
 
-    optimizer = fluid.optimizer.SGD(learning_rate=0.0001)
+   optimizer = fluid.optimizer.SGD(learning_rate=0.0001)
 
-    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
-    optimizer.minimize(model.loss)
+   optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
+   optimizer.minimize(model.loss)
 
 开始训练
 ~~~~~~~~
@@ -100,13 +107,13 @@ GEO策略的训练代码沿用了参数服务器分布式训练的形式。
 
 .. code:: python
 
-    if fleet.is_server():
-        fleet.init_server()
-        fleet.run_server()
-    else:
-        fleet.init_worker()
-        trainer = X.Trainer(fluid.CPUPlace())
-        trainer.fit(model, loader, epoch=10)
+   if fleet.is_server():
+       fleet.init_server()
+       fleet.run_server()
+   else:
+       fleet.init_worker()
+       trainer = X.Trainer(fluid.CPUPlace())
+       trainer.fit(model, loader, epoch=10)
 
 运行训练脚本
 ~~~~~~~~~~~~
@@ -116,4 +123,4 @@ GEO策略的训练代码沿用了参数服务器分布式训练的形式。
 
 .. code:: sh
 
-    fleetrun --server_num=1 --worker_num=2 ctr_app.py
+   fleetrun --server_num=1 --worker_num=2 ctr_app.py
