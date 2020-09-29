@@ -389,7 +389,7 @@ class BertLarge(ModelBase):
 
 
 class BertHuge(ModelBase):
-    def __init__(self, lang='ch'):
+    def __init__(self, lang='en'):
         """
         Load pre-saved BertHuge model.
 
@@ -410,7 +410,7 @@ class BertHuge(ModelBase):
             optimizer.minimize(model.loss)
         """
         super(BertHuge, self).__init__()
-        if lang == 'en':
+        if lang == 'ch':
             raise Exception(
                 "English model is not supported currently in BertHuge")
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
@@ -470,7 +470,7 @@ class BertHuge(ModelBase):
 
 
 class BertGiant(ModelBase):
-    def __init__(self, lang='ch'):
+    def __init__(self, lang='en'):
         """
         Load pre-saved BertGiant model.
 
@@ -491,9 +491,9 @@ class BertGiant(ModelBase):
             optimizer.minimize(model.loss)
         """
         super(BertGiant, self).__init__()
-        if lang == 'en':
+        if lang == 'ch':
             raise Exception(
-                "English model is not supported currently in BertGiant")
+                "Chinese model is not supported currently in BertGiant")
         fleet_path = sysconfig.get_paths()["purelib"] + '/fleetx/applications/'
         model_name = 'bert_giant'
         download_model(fleet_path, model_name)
