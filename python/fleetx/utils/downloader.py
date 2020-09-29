@@ -62,7 +62,7 @@ class Downloader(object):
         if os.environ.get('PADDLE_TRAINER_ENDPOINTS') is not None:
             endpoints = os.environ.get('PADDLE_TRAINER_ENDPOINTS').split(",")
             current_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
-            self.server_endpoint = endpoints[0]
+            self.server_endpoint = endpoints[1]
             self.barrier_server = BarrierServer()
             if current_endpoint == self.server_endpoint:
                 self.barrier_server.start_server_in_background(
@@ -179,6 +179,7 @@ class Downloader(object):
             client.connect()
             client.barrier()
             if client.my_endpoint == self.server_endpoint:
+                time.sleep(10)
                 self.barrier_server.close_server()
         return local_path
 
