@@ -392,6 +392,8 @@ def train(args):
 if __name__ == '__main__':
     print_arguments(args)
     check_cuda(args.use_cuda)
+
+    paddle.enable_static()
     if args.do_test:
         test(args)
     else:
