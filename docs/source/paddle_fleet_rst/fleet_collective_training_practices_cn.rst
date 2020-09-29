@@ -18,7 +18,7 @@ Collective 同步训练实践
    pserver进程和trainer可以在不同的计算节点上，也可以在同一公用节点。一个分布式任务所需要的pserver进程个数通常需要根据实际情况调整，以达到最佳的性能，然而通常来说pserver的进程不会比trainer更多。
 
 .. image:: ../paddle_fleet/img/practice_2.png
-  :width: 600
+  :width: 400
   :alt: PServe
   :align: center
 
@@ -31,7 +31,7 @@ Collective 同步训练实践
    使用同步后的梯度独立完成参数更新。
 
 .. image:: ../paddle_fleet/img/practice_3.png
-  :width: 600
+  :width: 500
   :alt: Collective
   :align: center
 
@@ -40,6 +40,13 @@ Collective 同步训练实践
 因此在训练较为复杂的模型时，即模型训练过程中神经网络训练耗时远大于节点间通信耗时的场景下，推荐使用同步训练模式。
 
 Fleet中 PServer模式使用 gRPC 通信，Collective模式使用 NCCL2 通信。
+
+下文将由三部分组成：
+
+-  介绍 Fleet 同步训练中常用的几个策略 、优化
+-  结合上述常用优化，给出一个在 4节点 32 V100 集群 训练 ResNet50的示例代码
+-  完整 Fleet 同步训练参数策略介绍
+
 
 Fleet Collective 同步训练优化
 -----------------------------
@@ -54,7 +61,7 @@ Fleet 支持在 GPU (CUDA 版本 >= 7.5) 服务器集群上完成高性能分布
 是查看GPU的计算利用率，通常用 :code:``nvidia-smi``\ 命令查看。
 如果GPU利用率较低，则可能存在较大的优化空间。
 
-下文对性能影响较大，设置频率比较高的几个参数，详细的参数列表放在文末的附录中。
+下文将介绍对性能影响较大，设置频率比较高的几个参数，详细的参数列表放在文末的附录中。
 
 注意：
 使用NCCL2模式分布式训练时，需要确保每个节点训练等量的数据，防止在最后一轮训练中任务不退出。通常有两种方式：
@@ -109,8 +116,8 @@ AllReduce
 .. code:: python
 
     dist_strategy = fleet.DistributedStrategy()
-    dist_strategy.fuse_grad_size_in_MB=32
-    dist_strategy.fuse_grad_size_in_TFLOPS=20
+    dist_strategy.fuse_grad_size_in_MB=16
+    dist_strategy.fuse_grad_size_in_TFLOPS=50
     dist_strategy.fuse_all_reduce_ops=True
 
 分层 AllReduce
@@ -276,6 +283,133 @@ V100 GPU提供了 Tensor Core 可以在混合精度计算
 
 目前Paddle只提供在两个模型（ResNet, BERT）的混合精度计算实现并支持static
 loss scaling，其他模型使用混合精度也 可以参考以上的实现完成验证。
+
+
+
+ResNet50训练示例
+----------------
+
+试验开始前我们已经在GPU 集群中提前配置好 `RDMA` 和 `InfiniBand`，减少网络通信的瓶颈，配置细节和具体硬件相关，可以参考` <https://community.mellanox.com/s/article/what-is-rdma-x>`__
+
+设置 AllReduce融合等参数
+~~~~~~~~~~~~~~~~~~~~~~~
+
+梯度融合中的16 和 50 是我们根据自身网络硬件和ResNet50 训练试验得出的经验值，用户可以根据自身硬件和模型进行调整。 0.7 是为了给 DALI loader 提前预留显存空间。
+
+.. code:: python
+
+    import os
+    os.environ['FLAGS_fuse_parameter_memory_size'] = "16"
+    os.environ['FLAGS_fuse_parameter_groups_size'] = "50"
+    os.environ['FLAGS_fraction_of_gpu_memory_to_use'] = "0.7"
+
+
+添加依赖
+~~~~~~~~
+
+.. code:: python
+
+    import ast
+    import argparse
+    import six
+    import fleetx as X
+    import numpy as np
+    import paddle.fluid as fluid
+    import paddle.distributed.fleet as fleet
+    import math
+    import time
+    import paddle
+    paddle.enable_static()
+
+
+定义分布式模式并初始化模型和reader
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+这里我们使用DALI reader 减少CPU 数据处理负担和数据读取瓶颈。
+
+.. code:: python
+
+    paddle.enable_static()
+    configs = X.parse_train_configs()
+    fleet.init(is_collective=True)
+    model = X.applications.Resnet50(data_layout=args.data_layout)
+    downloader = X.utils.Downloader()
+    local_path = downloader.download_from_hdfs('imagenet.yaml', local_path='./ImageNet')
+    loader = model.get_train_dataloader("{}".format(local_path),
+                                           batch_size=args.batch_size,
+                                           use_dali=True)
+
+定义分布式相关策略
+~~~~~~~~~~~~~~~~~
+
+这里我们会开启上文中提到的各项训练优化策略，如：自动混合精度计算，OP 融合等。 
+
+.. code:: python
+
+    dist_strategy = fleet.DistributedStrategy()
+
+    # distributed strategy
+    dist_strategy.sync_nccl_allreduce = True
+    dist_strategy.nccl_comm_num = 2
+    dist_strategy.fuse_all_reduce_ops = True
+
+    # build strategy
+    build_strategy = fluid.BuildStrategy()
+    build_strategy.enable_sequential_execution = True
+    build_strategy.fuse_elewise_add_act_ops = True
+    build_strategy.fuse_bn_act_ops = True
+    build_strategy.enable_auto_fusion = True
+    build_strategy.fuse_all_optimizer_ops = True
+    dist_strategy.build_strategy = build_strategy
+
+
+    # execute strategy
+    execution_strategy = fluid.ExecutionStrategy()
+    execution_strategy.num_threads = 3
+    execution_strategy.num_iteration_per_drop_scope = 100
+    execution_strategy.num_iteration_per_run = 1
+    dist_strategy.execution_strategy = execution_strategy
+
+    # amp
+    dist_strategy.amp = True
+    dist_strategy.amp_configs = {
+        "init_loss_scaling": args.scale_loss,
+        "decr_every_n_nan_or_inf": 2,
+        "incr_every_n_steps": 1000,
+        "incr_ratio": 2.0,
+        "use_dynamic_loss_scaling": True,
+        "decr_ratio": 0.5,
+        "custom_white_list": [],
+        "custom_black_list": [],
+    }
+
+    dist_strategy.save_to_prototxt("dist_strategy.prototxt")
+
+开始训练
+~~~~~~~~
+
+.. code:: python
+
+    optimizer = fluid.optimizer.Momentum(learning_rate=0.01, momentum=0.9)
+    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
+    optimizer.minimize(model.loss)
+
+    place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+    exe = fluid.Executor(place)
+    exe.run(fluid.default_startup_program())
+
+    for i, data in enumerate(data_loader()):
+        start_time = time.time()
+        cost_val = exe.run(model.main_prog,
+                            feed=data,
+                            fetch_list=[model.loss.name])
+
+        end_time = time.time()
+        print(
+            "worker_index: %d, step%d cost = %f, speed: %f"
+            % (fleet.worker_index(), i, cost_val[0], batch_size / (end_time - start_time)))
+
+
 
 Fleet 训练策略
 --------------
