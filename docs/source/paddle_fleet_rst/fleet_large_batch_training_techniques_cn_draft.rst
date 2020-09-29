@@ -14,7 +14,7 @@
 Size以降低模型训练中的所需要的存储空间，这将导致很多模型无法通过提高训练时的Batch
 Size来提高模型的精度。为了解决这个问题，Fleet中提供了两种策略，使得模型可以使用超大Batch的方式完成训练：
 
--  \*\* Forward Recomputation Backpropagation（FRB）\*\*
+-  \*\* Forward Recomputation Backpropagation（FRB）*\*
 
 扩大训练batch大小的策略：Forward Recomputation Backpropagation (FRB)
 以及 Gradient
@@ -24,28 +24,28 @@ Merge。下面我们将基于BERT模型的实用样例，分别对这两个策�
 
 .. code:: sh
 
-    wget --no-check-certificate https://fleet.bj.bcebos.com/Bertdata/train_data.tar.gz
-    tar -xf train_data.tar.gz
-    wget --no-check-certificate https://fleet.bj.bcebos.com/Bertdata/vocab.txt
+   wget --no-check-certificate https://fleet.bj.bcebos.com/Bertdata/train_data.tar.gz
+   tar -xf train_data.tar.gz
+   wget --no-check-certificate https://fleet.bj.bcebos.com/Bertdata/vocab.txt
 
 Forward Recompute Backpropagation
 ---------------------------------
 
 首先，我们来介绍Fleet中通过 Forward Recompute Backpropagation 策略增大
 BERT 模型在分布式训练中 batch size
-的方法（假设脚本名称为bert\_recompute.py）：
+的方法（假设脚本名称为bert_recompute.py）：
 
 添加依赖
 ~~~~~~~~
 
 .. code:: python
 
-    import os
-    import time
-    import paddle
-    import fleetx as X
-    import paddle.distributed.fleet as fleet
-    import paddle.distributed.fleet.base.role_maker as role_maker
+   import os
+   import time
+   import paddle
+   import fleetx as X
+   import paddle.distributed.fleet as fleet
+   import paddle.distributed.fleet.base.role_maker as role_maker
 
 定义分布式模式并初始化
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -54,25 +54,25 @@ BERT 模型在分布式训练中 batch size
 
 .. code:: python
 
-    configs = X.parse_train_configs()
-    role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-    fleet.init(role)
+   configs = X.parse_train_configs()
+   role = role_maker.PaddleCloudRoleMaker(is_collective=True)
+   fleet.init(role)
 
 加载模型及数据
 ~~~~~~~~~~~~~~
 
-用户可以通过\ ``X.applications``\ 接口加载我们预先定义好的模型，如：Resnet50、VGG16、BERT等。并使用定制化的data\_loader加载模型，同时可以定义训练中使用的batch\_size等参数。下面的例子中，我们使用了recompute对Bert\_large模型所支持的最大batch\_size。
+用户可以通过\ ``X.applications``\ 接口加载我们预先定义好的模型，如：Resnet50、VGG16、BERT等。并使用定制化的data_loader加载模型，同时可以定义训练中使用的batch_size等参数。下面的例子中，我们使用了recompute对Bert_large模型所支持的最大batch_size。
 
 .. code:: python
 
-    model = X.applications.Bert_large()
+   model = X.applications.Bert_large()
 
-    data_loader = model.load_digital_dataset_from_file(
-        data_dir='./train_data',
-        vocab_path='./vocab.txt',
-        max_seq_len=512,
-        batch_size=53,
-    )
+   data_loader = model.load_digital_dataset_from_file(
+       data_dir='./train_data',
+       vocab_path='./vocab.txt',
+       max_seq_len=512,
+       batch_size=53,
+   )
 
 定义Recompute Strategy 及 Optimizer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -95,36 +95,36 @@ Bert-Large由24个transformer串联而成，以两个子模块中间的变量作
 
 .. code:: python
 
-    dist_strategy = fleet.DistributedStrategy()
-    # 使用Recompute，并设置checkpoints
-    dist_strategy.recompute = True
-    dist_strategy.recompute_configs = {"checkpoints": model.checkpoints}
+   dist_strategy = fleet.DistributedStrategy()
+   # 使用Recompute，并设置checkpoints
+   dist_strategy.recompute = True
+   dist_strategy.recompute_configs = {"checkpoints": model.checkpoints}
 
-    optimizer = fluid.optimizer.Adam(learning_rate=configs.lr)
-    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
-    optimizer.minimize(model.loss)
+   optimizer = fluid.optimizer.Adam(learning_rate=configs.lr)
+   optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
+   optimizer.minimize(model.loss)
 
 开始训练
 ~~~~~~~~
 
 .. code:: python
 
-    place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
-    exe = fluid.Executor(place)
-    exe.run(fluid.default_startup_program())
+   place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+   exe = fluid.Executor(place)
+   exe.run(fluid.default_startup_program())
 
-    total_time = 0
-    for i, data in enumerate(data_loader()):
-        start_time = time.time()
-        cost_val = exe.run(paddle.static.default_main_program(),
-                           feed=data,
-                           fetch_list=[model.loss.name])
-        end_time = time.time()
-        total_time += (end_time - start_time)
-        print(
-            "worker_index: %d, step%d cost = %f, total time cost = %f, step per second: %f, speed: %f"
-            % (fleet.worker_index(), i, cost_val[0], total_time,
-               (i - 9) / total_time, 1 / (end_time - start_time)))
+   total_time = 0
+   for i, data in enumerate(data_loader()):
+       start_time = time.time()
+       cost_val = exe.run(paddle.static.default_main_program(),
+                          feed=data,
+                          fetch_list=[model.loss.name])
+       end_time = time.time()
+       total_time += (end_time - start_time)
+       print(
+           "worker_index: %d, step%d cost = %f, total time cost = %f, step per second: %f, speed: %f"
+           % (fleet.worker_index(), i, cost_val[0], total_time,
+              (i - 9) / total_time, 1 / (end_time - start_time)))
 
 运行训练脚本
 ~~~~~~~~~~~~
@@ -133,67 +133,72 @@ Bert-Large由24个transformer串联而成，以两个子模块中间的变量作
 
 .. code:: sh
 
-    fleetrun --gpus 0,1,2,3,4,5,6,7 bert_recompute.py
+   fleetrun --gpus 0,1,2,3,4,5,6,7 bert_recompute.py
 
 效果测试
 ~~~~~~~~
 
 我们在BERT模型上对recompute的效果进行了测试，使用Recompute后batch
-size可以扩大近3倍。与混合精度一起使用时，batch\_size可以进一步扩大。
+size可以扩大近3倍。与混合精度一起使用时，batch_size可以进一步扩大。
 
--  **Bert\_large**:
+-  **Bert_large**:
 
-+--------------+----------------+-----------------+-------------------------------+
-| Model        | Baseline       | Recompute       | Recompute + mixed precision   |
-+==============+================+=================+===============================+
-| batch size   | 14             | 53              | 87                            |
-+--------------+----------------+-----------------+-------------------------------+
-| speed        | 18.2 sents/s   | 12.88 sents/s   | 19.14 sents/s                 |
-+--------------+----------------+-----------------+-------------------------------+
+========== ============ ============= ===========================
+Model      Baseline     Recompute     Recompute + mixed precision
+========== ============ ============= ===========================
+batch size 14           53            87
+speed      18.2 sents/s 12.88 sents/s 19.14 sents/s
+========== ============ ============= ===========================
 
 Gradient Merge
 --------------
 
 下面，我们介绍如何使用 Gradient Merge 来扩大BERT模型分布式训练中的 batch
-size（假设脚本名称为bert\_gradient\_merge.py）：
+size（假设脚本名称为bert_gradient_merge.py）：
 
 与 Forward Recompute Backpropagation
 相同，我们首先要添加依赖，定义分布式模式并加载模型及数据。
+
+.. _添加依赖-1:
 
 添加依赖
 ~~~~~~~~
 
 .. code:: python
 
-    import os
-    import time
-    import paddle
-    import fleetx as X
-    import paddle.distributed.fleet as fleet
-    import paddle.distributed.fleet.base.role_maker as role_maker
+   import os
+   import time
+   import paddle
+   import fleetx as X
+   import paddle.distributed.fleet as fleet
+   import paddle.distributed.fleet.base.role_maker as role_maker
+
+.. _定义分布式模式并初始化-1:
 
 定义分布式模式并初始化
 ~~~~~~~~~~~~~~~~~~~~~~
 
 .. code:: python
 
-    configs = X.parse_train_configs()
-    role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-    fleet.init(role)
+   configs = X.parse_train_configs()
+   role = role_maker.PaddleCloudRoleMaker(is_collective=True)
+   fleet.init(role)
+
+.. _加载模型及数据-1:
 
 加载模型及数据
 ~~~~~~~~~~~~~~
 
 .. code:: python
 
-    model = X.applications.Bert_large()
+   model = X.applications.Bert_large()
 
-    data_loader = model.load_digital_dataset_from_file(
-        data_dir='./train_data',
-        vocab_path='./vocab.txt',
-        max_seq_len=512,
-        batch_size=13,
-    )
+   data_loader = model.load_digital_dataset_from_file(
+       data_dir='./train_data',
+       vocab_path='./vocab.txt',
+       max_seq_len=512,
+       batch_size=13,
+   )
 
 定义Gradient Merge Strategy 及 Optimizer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -211,13 +216,15 @@ size为52的训练。
 
 .. code:: python
 
-    dist_strategy = fleet.DistributedStrategy()
-    # 使用Gradient merge策略并设置相关参数
-    dist_strategy.gradient_merge = True
-    dist_strategy.gradient_merge_configs = {"k_steps": 4, "avg": True}
-    optimizer = fluid.optimizer.Adam(learning_rate=configs.lr)
-    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
-    optimizer.minimize(model.loss)
+   dist_strategy = fleet.DistributedStrategy()
+   # 使用Gradient merge策略并设置相关参数
+   dist_strategy.gradient_merge = True
+   dist_strategy.gradient_merge_configs = {"k_steps": 4, "avg": True}
+   optimizer = fluid.optimizer.Adam(learning_rate=configs.lr)
+   optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
+   optimizer.minimize(model.loss)
+
+.. _开始训练-1:
 
 开始训练
 ~~~~~~~~
@@ -226,26 +233,28 @@ Gradient Merge 的训练代码与 Recompute 策略相同：
 
 .. code:: python
 
-    place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
-    exe = fluid.Executor(place)
-    exe.run(fluid.default_startup_program())
+   place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+   exe = fluid.Executor(place)
+   exe.run(fluid.default_startup_program())
 
-    total_time = 0
-    for i, data in enumerate(data_loader()):
-        start_time = time.time()
-        cost_val = exe.run(fluid.default_main_program(),
-                           feed=data,
-                           fetch_list=[model.loss.name])
-        end_time = time.time()
-        total_time += (end_time - start_time)
-        print(
-            "worker_index: %d, step%d cost = %f, total time cost = %f, step per second: %f, speed: %f"
-            % (fleet.worker_index(), i, cost_val[0], total_time,
-               (i - 9) / total_time, 1 / (end_time - start_time)))
+   total_time = 0
+   for i, data in enumerate(data_loader()):
+       start_time = time.time()
+       cost_val = exe.run(fluid.default_main_program(),
+                          feed=data,
+                          fetch_list=[model.loss.name])
+       end_time = time.time()
+       total_time += (end_time - start_time)
+       print(
+           "worker_index: %d, step%d cost = %f, total time cost = %f, step per second: %f, speed: %f"
+           % (fleet.worker_index(), i, cost_val[0], total_time,
+              (i - 9) / total_time, 1 / (end_time - start_time)))
+
+.. _运行训练脚本-1:
 
 运行训练脚本
 ~~~~~~~~~~~~
 
 .. code:: sh
 
-    fleetrun --gpus 0,1,2,3,4,5,6,7 bert_gradient_merge.py
+   fleetrun --gpus 0,1,2,3,4,5,6,7 bert_gradient_merge.py

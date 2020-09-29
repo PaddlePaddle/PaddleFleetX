@@ -21,20 +21,21 @@ Speech
 
 .. code:: sh
 
-    # 下载并解压数据，训练数据讲保存至名为 raw_data 的文件夹
-    wget --no-check-certificate https://fleet.bj.bcebos.com/ctr_data.tar.gz
-    tar -zxvf ctr_data.tar.gz
+   # 下载并解压数据，训练数据讲保存至名为 raw_data 的文件夹
+   wget --no-check-certificate https://fleet.bj.bcebos.com/ctr_data.tar.gz
+   tar -zxvf ctr_data.tar.gz
 
 实用样例
 --------
 
-下面我们来介绍如何用Fleet接口，完成参数服务器分布式训练（假设训练脚本为ctr\_app.py）。
+下面我们来介绍如何用Fleet接口，完成参数服务器分布式训练（假设训练脚本为ctr_app.py）。
 
 导入依赖
 ~~~~~~~~
 
 .. code:: python
 
+    import paddle
     import os
     import fleetx as X
     import paddle.fluid as fluid
@@ -49,6 +50,7 @@ Speech
 
 .. code:: python
 
+    paddle.enable_static()
     configs = X.parse_train_configs()
     role = role_maker.PaddleCloudRoleMaker()
     fleet.init(role)
@@ -56,7 +58,7 @@ Speech
 加载模型及数据
 ~~~~~~~~~~~~~~
 
-用户可以通过\ ``X.applications``\ 接口加载我们预先定义好的模型。在这个例子中我们将使用CTR-DNN模型，同时用户可以为模型定制的data\_loader接口加载数据.
+用户可以通过\ ``X.applications``\ 接口加载我们预先定义好的模型。在这个例子中我们将使用CTR-DNN模型，同时用户可以为模型定制的data_loader接口加载数据.
 
 .. code:: python
 
