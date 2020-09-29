@@ -57,16 +57,18 @@ class ModelParallelLinear(nn.Layer):
                              "the number of ranks.")
         shard_dims = class_num // rank_num
         self.linear = nn.Linear(in_dim, shard_dims)
+        self.rank_num = rank_num
+        self.rank_id = rank_id
     
     def forward(self, x):
         global_x_list = []
         paddle.distributed.all_gather(global_x_list, x)
-        global_x = paddle.concat(global_x, axis=0)
+        global_x = paddle.concat(global_x_list, axis=0)
         out = self.linear(global_x)
         global_out_list = []
         paddle.distributed.all_gather(global_out_list, out)
         all_outs = paddle.concat(global_out_list, axis=1)
-        out = paddle.split(global_out_list, rank_num)[rank_id]
+        out = paddle.split(all_outs, rank_num)[rank_id]
         return out
 ```
 完整地训练代码实现如下：
@@ -75,6 +77,7 @@ class ModelParallelLinear(nn.Layer):
 import paddle
 import paddle.nn as nn
 import paddle.nn.functional as F
+from paddle.fluid.dygraph import Conv2D
 #分布式step 1: 导入paddle.distributed.fleet包
 from paddle.distributed import fleet
 from model_parallel_linear import ModelParallelLinear
@@ -86,12 +89,12 @@ class SimpleModelParallelClassifierNet(nn.Layer):
                  rank_num,
                  rank_id):
         super(SimpleModelParallelClassifierNet, self).__init__()
-        self.conv1 = nn.Conv2D(num_channels=1, num_filters=6, filter_size=5, act='sigmoid')
+        self.conv1 = Conv2D(num_channels=1, num_filters=6, filter_size=5, act='sigmoid')
         self.max_pool1 = nn.Pool2D(pool_size=2, pool_stride=2, pool_type='max')
-        self.conv2 = nn.Conv2D(num_channels=6, num_filters=16, filter_size=5, act='sigmoid')
+        self.conv2 = Conv2D(num_channels=6, num_filters=16, filter_size=5, act='sigmoid')
         self.max_pool2 = nn.Pool2D(pool_size=2, pool_stride=2, pool_type='max')
-        self.conv3 = nn.Conv2D(num_channels=16, num_filters=120, filter_size=4, act='sigmoid')
-        self.model_parallel_linear = ModelParallelLinear(120,
+        self.conv3 = Conv2D(num_channels=16, num_filters=120, filter_size=4, act='sigmoid')
+        self.model_parallel_linear = ModelParallelLinear(480,
                                                          rank_num,
                                                          rank_id,
                                                          class_num)
@@ -111,8 +114,8 @@ fleet.init(is_collective=True)
 
 # 1. 定义网络对象，损失函数和优化器
 layer = SimpleModelParallelClassifierNet(class_num=10,
-                                         rank_num=fleet.worker_num,
-                                         rank_id=fleet.worker_index)
+                                         rank_num=fleet.worker_num(),
+                                         rank_id=fleet.worker_index())
 adam = paddle.optimizer.Adam(learning_rate=0.001,
                              parameters=layer.parameters())
 
@@ -123,8 +126,8 @@ dp_layer = fleet.distributed_model(layer)
 
 for step in range(20):
     # 2. 执行前向网络
-    image = paddle.randn([32, 32], 'float32')
-    label = paddle.randint(low=0, high=10)
+    image = paddle.randn([1, 1, 32, 32], 'float32')
+    label = paddle.randint(low=0, high=10, shape=[1,1])
     output = dp_layer(image)
     loss = F.softmax_with_cross_entropy(output, label)
     loss = paddle.mean(loss)
