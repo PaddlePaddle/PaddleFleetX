@@ -41,12 +41,15 @@ import paddle
 import paddle.distributed.fleet as fleet
 import fleetx as X
 
+paddle.enable_static() # only after 2.0rc
+
 configs = X.parse_train_configs()
 model = X.applications.Resnet50()
 
 downloader = X.utils.Downloader()
-local_path = downloader.download_from_bos(local_path='./data')
-loader = model.get_train_loader(local_path, batch_size=32)
+imagenet_url = "https://fleet.bj.bcebos.com/small_datasets/yaml_example/imagenet.yaml"
+local_path = downloader.download_from_bos(fs_yaml=imagenet_url, local_path='./data')
+loader = model.get_train_dataloader(local_path, batch_size=32)
 
 fleet.init(is_collective=True)
 dist_strategy = fleet.DistributedStrategy()
@@ -68,6 +71,19 @@ trainer.fit(model, loader, epoch=10)
 ``` shell
 fleetrun --gpus 0,1,2,3,4,5,6,7 resnet50_app.py
 ```
+
+<h2 align="center">Citation</h2>
+
+Please cite paddle.distributed.fleet or FleetX in your publications if it helps your research:
+
+
+    @electronic{fleet2020,
+     title = {paddle.distributed.fleet: A Highly Scalable Distributed Training Engine of PaddlePaddle},
+     url = {https://github.com/PaddlePaddle/FleetX},
+    }
+
+
+
 <h2 align="center">Community</h2>
 
 ### Slack
