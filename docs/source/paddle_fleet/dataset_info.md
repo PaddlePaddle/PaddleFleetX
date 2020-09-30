@@ -19,7 +19,7 @@ FleetX提供能够分片并发下载的数据集具有特定保存格式，用�
   ``` yaml
   bos_path: https://fleet.bj.bcebos.com/small_datasets/imagenet
   ```
-  
+
 #### 从HDFS文件系统获取数据
 
 - demo.yaml
@@ -29,7 +29,7 @@ FleetX提供能够分片并发下载的数据集具有特定保存格式，用�
   fs.default.name: ${Your_afs_address}
   hadoop.job.ugi: ${User_ugi_of_your_afs}
   data_path: ${Path_in_afs}
-  
+
   ```
 
 #### 单进程并发下载数据
@@ -37,7 +37,7 @@ FleetX提供能够分片并发下载的数据集具有特定保存格式，用�
   ``` python
 
       import fleetx as X
-      
+
       downloader = X.utils.Downloader()
       # or
       # local_path = downloader.download_from_bos('demo.yaml', local_path="data")
@@ -45,7 +45,7 @@ FleetX提供能够分片并发下载的数据集具有特定保存格式，用�
       model = X.applications.Resnet50()
       loader = model.get_train_dataloader(local_path)
 
-  ```      
+  ```
 
 #### 多进程分片并发下载数据
 
@@ -55,20 +55,20 @@ FleetX提供能够分片并发下载的数据集具有特定保存格式，用�
       import fleetx as X
 
       fleet.init(is_collective=True)
-      
+
       downloader = X.utils.Downloader()
-      #	or
-      #	local_path = downloader.download_from_bos('demo.yaml', local_path="data")
+      # or
+      # local_path = downloader.download_from_bos('demo.yaml', local_path="data")
       local_path = downloader.download_from_hdfs(
-			'demo.yaml', local_path="data",
-     		 	shard_num=fleet.worker_num(),
-		 	shard_id=fleet.worker_index())
+                        'demo.yaml', local_path="data",
+                        shard_num=fleet.worker_num(),
+                        shard_id=fleet.worker_index())
       model = X.applications.Resnet50()
       loader = model.get_train_dataloader(local_path)
 
    ```
-      
-   多进程分片下载通常会使用到`paddle.distributed.fleet` API, 通过配置`shard_num`即总分片的数量以及`shard_id`即分片的编号来实现多进程分片下载。在单机就可以验证的例子，通过使用Paddle提供的多进程训练的启动命令`fleetrun --gpus 0,1,2,3 resnet.py`来实现数据分片并发下载。
+
+  多进程分片下载通常会使用到`paddle.distributed.fleet` API, 通过配置`shard_num`即总分片的数量以及`shard_id`即分片的编号来实现多进程分片下载。在单机就可以验证的例子，通过使用Paddle提供的多进程训练的启动命令`fleetrun --gpus 0,1,2,3 resnet.py`来实现数据分片并发下载。
 
 
 ### 数据存储
@@ -90,7 +90,8 @@ FleetX提供能够分片并发下载的数据集具有特定保存格式，用�
 
 ```
 
-其中，以`tar`结尾的文件是提前保存好的分片数据，数据本身的格式不做限制，只要具体模型的数据读取器能够读取即可。在这里，我们建议分片的文件数量适合并发下载，既不要非常碎片化也不需要用极少的文件保存，单个tar文件控制在400M以内即可。
+其中，以`tar`结尾的文件是提前保存好的分片数据，数据本身的格式不做限制，只要具体模型的数据读取器能够读取即可。在这里，我们建议分片的文件数量适合并发下载，既不要非常碎片化也不需要用极
+少的文件保存，单个tar文件控制在400M以内即可。
 
 `filelist.txt`中记录了所有上述的`.tar`文件，并记录了每个文件的md5sum值用于在FleetX内部验证是否下载了全量数据。
 
@@ -104,15 +105,15 @@ FleetX提供能够分片并发下载的数据集具有特定保存格式，用�
     b.tar {md5of_b}
     c.tar {md5of_c}
 
-```    
+```
 
 考虑到不同的数据集可能有不同的统计信息文件，例如自然语言处理任务中经常使用的词典，我们设计`meta.txt`文件，用来记录整个数据集在每个节点实例上都会下载的文件，比如训练文件列表`train.txt`，验证数据文件列表`val.txt`等
 
 
 ### 预置数据集整体信息
 
-|  数据集来源 | 数据集大小 | BOS提供子集大小 | BOS数据集下载地址 | 
+|  数据集来源 | 数据集大小 | BOS提供子集大小 | BOS数据集下载地址 |
 |  ----  | ----  | ---- | ---- |
-|  [ImageNet](http://www.image-net.org/) | 128万图片 | 5万图片 | [Sample Imagenet](https://fleet.bj.bcebos.com/small_datasets/yaml_example/imagenet.yaml) |
-|  [Wikipedia-En]() | ?句对 | ?句对 | |
-| [Wikipedia-Zh]() | - | ?句对 | |
+|  [ImageNet](http://www.image-net.org/) | 128万图片 | 6万图片 | [Sample Imagenet](https://fleet.bj.bcebos.com/small_datasets/imagenet) |
+|  [Wikipedia-En]() | ?句对 | ?句对 | [Sample Wiki-En](https://fleet.bj.bcebos.com/small_datasets/wiki/en_small) |
+| [Wikipedia-Zh]() | - | ?句对 | Sample Wiki-En](https://fleet.bj.bcebos.com/small_datasets/wiki/cn_small) |

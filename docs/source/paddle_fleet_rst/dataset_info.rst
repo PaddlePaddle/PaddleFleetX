@@ -44,7 +44,7 @@
 
 
        import fleetx as X
-       
+
        downloader = X.utils.Downloader()
        # or
        # local_path = downloader.download_from_bos('demo.yaml', local_path="data")
@@ -62,14 +62,14 @@
        import fleetx as X
 
        fleet.init(is_collective=True)
-       
+
        downloader = X.utils.Downloader()
        # or
        # local_path = downloader.download_from_bos('demo.yaml', local_path="data")
        local_path = downloader.download_from_hdfs(
-             'demo.yaml', local_path="data",
-                 shard_num=fleet.worker_num(),
-             shard_id=fleet.worker_index())
+                         'demo.yaml', local_path="data",
+                         shard_num=fleet.worker_num(),
+                         shard_id=fleet.worker_index())
        model = X.applications.Resnet50()
        loader = model.get_train_dataloader(local_path)
 
@@ -115,21 +115,28 @@
 预置数据集整体信息
 ~~~~~~~~~~~~~~~~~~
 
-+-----------------+------------+-----------------+-----------------+
-| 数据集来源      | 数据集大小 | BOS提供子集大小 | BO              |
-|                 |            |                 | S数据集下载地址 |
-+=================+============+=================+=================+
-| `ImageNet       | 128万图片  | 5万图片         | `Sample         |
-| <http://www.ima |            |                 | Imagenet        |
-| ge-net.org/>`__ |            |                 |  <https://fleet |
-|                 |            |                 | .bj.bcebos.com/ |
-|                 |            |                 | small_datasets/ |
-|                 |            |                 | yaml_example/im |
-|                 |            |                 | agenet.yaml>`__ |
-+-----------------+------------+-----------------+-----------------+
-| `Wik            | ?句对      | ?句对           |                 |
-| ipedia-En <>`__ |            |                 |                 |
-+-----------------+------------+-----------------+-----------------+
-| `Wik            | -          | ?句对           |                 |
-| ipedia-Zh <>`__ |            |                 |                 |
-+-----------------+------------+-----------------+-----------------+
++-----------------+-----------------+-----------------+-----------------+
+| 数据集来源      | 数据集大小      | BOS提供子集大小 | BO              |
+|                 |                 |                 | S数据集下载地址 |
++=================+=================+=================+=================+
+| `ImageNet       | 128万图片       | 6万图片         | `Sample         |
+| <http://www.ima |                 |                 | Image           |
+| ge-net.org/>`__ |                 |                 | net <https://fl |
+|                 |                 |                 | eet.bj.bcebos.c |
+|                 |                 |                 | om/small_datase |
+|                 |                 |                 | ts/imagenet>`__ |
++-----------------+-----------------+-----------------+-----------------+
+| `Wik            | ?句对           | ?句对           | `Sample         |
+| ipedia-En <>`__ |                 |                 | Wiki-En <       |
+|                 |                 |                 | https://fleet.b |
+|                 |                 |                 | j.bcebos.com/sm |
+|                 |                 |                 | all_datasets/wi |
+|                 |                 |                 | ki/en_small>`__ |
++-----------------+-----------------+-----------------+-----------------+
+| `Wik            | -               | ?句对           | Sample          |
+| ipedia-Zh <>`__ |                 |                 | Wiki-E          |
+|                 |                 |                 | n](https://flee |
+|                 |                 |                 | t.bj.bcebos.com |
+|                 |                 |                 | /small_datasets |
+|                 |                 |                 | /wiki/cn_small) |
++-----------------+-----------------+-----------------+-----------------+
