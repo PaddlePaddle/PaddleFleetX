@@ -113,6 +113,6 @@ FleetX提供能够分片并发下载的数据集具有特定保存格式，用�
 
 |  数据集来源 | 数据集大小 | BOS提供子集大小 | BOS数据集下载地址 | 
 |  ----  | ----  | ---- | ---- |
-|  [ImageNet](http://www.image-net.org/) | 128万图片 | 5万图片 | [Sample Imagenet](https://fleet.bj.bcebos.com/small_datasets/yaml_example/imagenet.yaml) |
+|  [ImageNet](http://www.image-net.org/) | 128万图片 | 6万图片 | [Sample Imagenet](https://fleet.bj.bcebos.com/small_datasets/imagenet) |
 |  [Wikipedia-En]() | ?句对 | ?句对 | |
 | [Wikipedia-Zh]() | - | ?句对 | |
