@@ -2,24 +2,23 @@
 
 ## 简介
 
-为了能高速运行模型的训练，我们使用`InMemoryDataset/QueueDataset`API进行高性能的IO，具体介绍可以参考文档[InMemoryDataset]() 和 [QueueDataset](), 以下简称Dataset。Dataset是为多线程及全异步方式量身打造的数据读取方式，每个数据读取线程会与一个训练线程耦合，形成了多生产者-多消费者的模式，会极大的加速我们的模型训练。
+为了能高速运行模型的训练，我们使用`InMemoryDataset/QueueDataset`API进行高性能的IO，具体介绍可以参考文档`InMemoryDataset` 和 `QueueDataset`, 以下简称Dataset。Dataset是为多线程及全异步方式量身打造的数据读取方式，每个数据读取线程会与一个训练线程耦合，形成了多生产者-多消费者的模式，会极大的加速我们的模型训练。
 
-本文以训练word2vector模型为例，在训练中引入基于Dataset API读取训练数据的方式，我们直接加载Fleetx预先定义好的word2vector模型，省去一切前期组网调试阶段，无需变更数据格式，只需在我们原本的[训练代码](https://github.com/PaddlePaddle/FleetX/blob/develop/examples/word2vec_app.py)中加入以下内容，便可轻松使用Datset接口来进行训练。以下是使用Dataset接口一个比较完整的流程：
+本文以训练word2vector模型为例，在训练中引入基于Dataset API读取训练数据的方式，我们直接加载Fleetx预先定义好的word2vector模型，省去一切前期组网调试阶段，无需变更数据格式，只需在我们原本的[训练代码](https://github.com/PaddlePaddle/FleetX/blob/develop/examples/word2vec_app.py)中加入以下内容，便可轻松使用Dataset接口来进行训练。以下是使用Dataset接口一个比较完整的流程：
 
 ### 引入dataset
 
 1. 通过`dataset = paddle.distributed.InMemoryDataset()` 或者 `dataset = paddle.distributed.QueueDataset()`创建一个Dataset对象
-2. 通过`dataset.init()` api 进行Dataset的初始化配置，`init()`接口接收**kwargs参数, 详见api文档，列举几个配置的初始化
+2. 指定dataset读取的训练文件的列表， 通过`set_filelist`配置。
+3. 通过`dataset.init()` api 进行Dataset的初始化配置，`init()`接口接收**kwargs参数, 详见api文档，列举几个配置的初始化
 
     a. 将我们定义好的数据输入格式传给Dataset, 通过`use_var`配置。
     
-    b. 指定我们的数据读取方式，由`my_data_generator.py`实现数据读取的规则，后面将会介绍读取规则的实现, 通过`pipe_command`配置。
+    b. 指定我们的数据读取方式，由`my_data_generator.py`实现数据读取的规则，后面将会介绍读取规则的实现, 通过`pipe_command`配置。`pipe_command`是Dataset特有的通过管道来读取训练样本的方式，通过`set_filelist`设置的训练样本文件将被作为管道的输入`cat`到管道中经过用户自定义的`pipe_command`最终输出。
 
     c. 指定数据读取的batch_size，通过batch_size配置。
 
     d. 指定数据读取的线程数，一般该线程数和训练线程应保持一致，两者为耦合的关系，通过`thread_num`配置。
-
-3. 指定dataset读取的训练文件的列表， 通过`set_filelist`配置。
 
 ```python
 dataset = paddle.distributed.InMemoryDataset()
@@ -31,7 +30,7 @@ dataset.set_filelist([config.config["train_files_path"]])
 
 ### 如何指定数据读取规则
 
-在上文我们提到了由`my_data_generator.py`实现具体的数据读取规则，那么，怎样为dataset创建数据读取的规则呢？
+在上文我们提到了由`my_data_generator.py`实现具体的数据管道读取规则，那么，怎样为dataset创建数据读取的规则呢？
 以下是`my_data_generator.py`的全部代码，具体流程如下：
 1. 首先我们需要引入data_generator的类，位于`paddle.distributed.fleet.data_generator`。
 2. 声明一些在数据读取中会用到的类和库，如示例代码中的`NumpyRandomInt`、`logger`等。
@@ -221,6 +220,6 @@ with fluid.scope_guard(scope1):
 fleet.stop_worker()
 ```
 
-通过以上简洁的代码，即可以实现word2vector模型的多线程并发训练, 完整代码示例详见[示例]()
+通过以上简洁的代码，即可以实现word2vector模型的多线程并发训练
 
 
