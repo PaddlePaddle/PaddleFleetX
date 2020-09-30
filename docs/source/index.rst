@@ -18,7 +18,7 @@
    paddle_fleet_rst/fleet_dygraph_quick_start_cn
    paddle_fleet_rst/fleetrun_usage_cn
    paddle_fleet_rst/fleetx_quick_start
-   paddle_fleet_rst/fleetsub_quick_start
+   paddle_fleet_rst/fleetsub_quick_start_cn
    paddle_fleet_rst/dataset_info
 
 .. toctree::
