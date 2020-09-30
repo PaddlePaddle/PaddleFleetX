@@ -11,6 +11,7 @@ not_rst_file = [
     'fleet_improve_large_batch_accuracy.md',
     'fleet_on_cloud_cn.md',
     'fleet_on_cloud.md',
+    'fleet_dataset_w2v_cn.md',
     ]
 
 files = os.listdir(".")
