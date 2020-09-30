@@ -3,7 +3,7 @@
 
 在网络带宽较低的训练场景（如：
 共有云上训练，联邦训练）中，梯度同步在低带宽网络下的延迟成为训练速度的主要瓶颈。
-Fleet 实现了： ``Deep Gradient Compression`` 和 ``Local SGD``
+Fleet 作为Paddle通用的分布式训练API 实现了： ``Deep Gradient Compression`` 和 ``Local SGD``
 两种训练策略来针对性解决这一问题。
 
 DGC 优化低配网络的分布式GPU训练
@@ -23,8 +23,7 @@ DGC 简介
 ``正则化项修正 (Weight Decay Correction)``
 避免稀疏梯度通信训练带来的最终模型精度损失。
 
-下面将介绍 DGC 稀疏通信方式的适用场景及、基本原理，Fleet 中 DGC
-的效果和使用方法。
+下面将介绍 DGC 稀疏通信方式的适用场景及、试验效果、基本原理和使用方法。
 
 适用场景
 ^^^^^^^^

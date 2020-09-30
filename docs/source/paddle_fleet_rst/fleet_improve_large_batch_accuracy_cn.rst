@@ -19,13 +19,12 @@ LARS\ `[3] <https://arxiv.org/abs/1708.03888>`__ 和
 LAMB\ `[4] <https://arxiv.org/abs/1904.00962>`__
 两个优化策略常用来解决上述超大batch 训练中的收敛问题.
 
-Fleet 实现了这两种优化策略, 并提供简单易用API 接口. 通过这两个优化策略,
+Paddle 实现了这两种优化策略，fleet 作为Paddle通用的分布式训练API提供了简单易用的接口, 用户只需要添加几行代码
+就可将策略加入到原有的训练中。 通过这两个优化策略,
 我们在超大batch 场景中实现了更快的收敛速度和无损的精度, 结合FleetX
-中其他的策略(e.g. `AMP <https://LINK_to_be_added>`__)
+中其他的策略(e.g. `AMP <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/fleet_collective_training_speedup_with_amp_cn.html>`__)
 极大缩短的训练整体的time2train.
 
-下文将通过一个简单例子介绍如何在Fleet 数据并行训练框架中使用 LARS
-和LAMB, 另外给出我们使用 Fleet 实践的效果和代码.
 
 试验效果
 ~~~~~~~~
