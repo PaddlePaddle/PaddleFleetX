@@ -28,6 +28,7 @@
    :name: advanced-doc-data-parallel-training
 
    paddle_fleet_rst/fleet_ps_sync_and_async_cn
+   paddle_fleet_rst/fleet_dataset_w2v_cn
    paddle_fleet_rst/fleet_collective_training_practices_cn
    paddle_fleet_rst/fleet_collective_training_speedup_with_amp_cn
    paddle_fleet_rst/fleet_large_batch_training_techniques_cn
