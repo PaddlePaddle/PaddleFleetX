@@ -75,7 +75,7 @@ Please cite paddle.distributed.fleet or FleetX in your publications if it helps 
 
 
     @electronic{fleet2020,
-     title = {paddle.distributed.fleet: Highly Scalable Distributed Training Engine of PaddlePaddle},
+     title = {paddle.distributed.fleet: A Highly Scalable Distributed Training Engine of PaddlePaddle},
      url = {https://github.com/PaddlePaddle/FleetX},
     }
 
