@@ -53,7 +53,7 @@ def load_program(program_input):
             for line in fin:
                 cur_target = line.split(" ")[0]
                 for var in new_main.list_vars():
-                    if var.name == line.split(" ")[1].strip():
+                    if var.name == line.split(" ")[0].strip():
                         target[cur_target] = var
     else:
         print("Please save your target first")
