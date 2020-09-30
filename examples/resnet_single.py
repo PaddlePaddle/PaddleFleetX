@@ -35,7 +35,7 @@ model = X.applications.Resnet50()
 test_program = fluid.default_main_program().clone(for_test=True)
 loader = model.get_train_dataloader("./testdata")
 test_loader = model.get_val_dataloader("./testdata")
-
+print(model.target)
 optimizer = fluid.optimizer.Momentum(
     learning_rate=configs.lr,
     momentum=configs.momentum,
@@ -47,31 +47,13 @@ exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
 model_dir = 'model'
 print("============start training============")
-for epoch_id in range(2):
-    total_time = 0
-    for i, data in enumerate(loader()):
-        if i >= 10:
-            start_time = time.time()
-        cost_val = exe.run(fluid.default_main_program(),
-                           feed=data,
-                           fetch_list=[model.loss.name],
-                           use_program_cache=True)
-        if i >= 10:
-            end_time = time.time()
-            total_time += (end_time - start_time)
-            print(
-                "epoch%d step%d cost = %f, total time cost = %f, average speed = %f"
-                % (epoch_id, i, cost_val[0], total_time, (i - 9) / total_time))
-    fluid.io.save_inference_model(
-        dirname=model_dir,
-        feeded_var_names=[model.inputs[0].name],
-        target_vars=model.target,
-        executor=exe)
+trainer = X.MultiGPUTrainer()
+trainer.fit(model, loader, epoch=1)
+fluid.io.save_inference_model(
+    dirname=model_dir,
+    feeded_var_names=[model.inputs[0].name],
+    target_vars=[model.target['acc1'], model.target['acc5']],
+    executor=exe)
 
 print("============start inference============")
-for j, test_data in enumerate(test_loader()):
-    acc1, acc5 = exe.run(test_program,
-                         feed=test_data,
-                         fetch_list=[t.name for t in model.target],
-                         use_program_cache=True)
-    print("acc1 = %f, acc5 = %f" % (acc1[0], acc5[0]))
+trainer.val(model, test_loader, target_list=['acc1', 'acc5'])
