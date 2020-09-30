@@ -44,7 +44,7 @@
 
 
        import fleetx as X
-       
+
        downloader = X.utils.Downloader()
        # or
        # local_path = downloader.download_from_bos('demo.yaml', local_path="data")
@@ -62,19 +62,19 @@
        import fleetx as X
 
        fleet.init(is_collective=True)
-       
+
        downloader = X.utils.Downloader()
        # or
        # local_path = downloader.download_from_bos('demo.yaml', local_path="data")
        local_path = downloader.download_from_hdfs(
-             'demo.yaml', local_path="data",
-                 shard_num=fleet.worker_num(),
-             shard_id=fleet.worker_index())
+                         'demo.yaml', local_path="data",
+                         shard_num=fleet.worker_num(),
+                         shard_id=fleet.worker_index())
        model = X.applications.Resnet50()
        loader = model.get_train_dataloader(local_path)
 
 多进程分片下载通常会使用到\ ``paddle.distributed.fleet`` API,
-通过配置\ ``shard_num``\ 即总分片的数量以及\ ``shard_id``\ 即分片的编号来实现多进程分片下载。在单机就可以验证的例子，通过使用Paddle提供的多进程训练的启动命令\ ``fleetrun --gpus 0,1,2,3 resnet.py``\ 来实现数据分片并发下载。
+通过配置\ ``shard_num``\ 即总分片的数量以及\ ``shard_id``\ 即分片的编号来实现多进程分片下载。在单机就可以验证的例子，通过使用Paddle>提供的多进程训练的启动命令\ ``fleetrun --gpus 0,1,2,3 resnet.py``\ 来实现数据分片并发下载。
 
 数据存储
 ~~~~~~~~
@@ -95,7 +95,8 @@
        |-- b.tar
        |-- c.tar
 
-其中，以\ ``tar``\ 结尾的文件是提前保存好的分片数据，数据本身的格式不做限制，只要具体模型的数据读取器能够读取即可。在这里，我们建议分片的文件数量适合并发下载，既不要非常碎片化也不需要用极少的文件保存，单个tar文件控制在400M以内即可。
+其中，以\ ``tar``\ 结尾的文件是提前保存好的分片数据，数据本身的格式不做限制，只要具体模型的数据读取器能够读取即可。在这里，我们建议分片的文件数量适合并发下载，既不要非常碎片化也不需要用极
+少的文件保存，单个tar文件控制在400M以内即可。
 
 ``filelist.txt``\ 中记录了所有上述的\ ``.tar``\ 文件，并记录了每个文件的md5sum值用于在FleetX内部验证是否下载了全量数据。
 
@@ -115,21 +116,28 @@
 预置数据集整体信息
 ~~~~~~~~~~~~~~~~~~
 
-+-----------------+------------+-----------------+-----------------+
-| 数据集来源      | 数据集大小 | BOS提供子集大小 | BO              |
-|                 |            |                 | S数据集下载地址 |
-+=================+============+=================+=================+
-| `ImageNet       | 128万图片  | 5万图片         | `Sample         |
-| <http://www.ima |            |                 | Imagenet        |
-| ge-net.org/>`__ |            |                 |  <https://fleet |
-|                 |            |                 | .bj.bcebos.com/ |
-|                 |            |                 | small_datasets/ |
-|                 |            |                 | yaml_example/im |
-|                 |            |                 | agenet.yaml>`__ |
-+-----------------+------------+-----------------+-----------------+
-| `Wik            | ?句对      | ?句对           |                 |
-| ipedia-En <>`__ |            |                 |                 |
-+-----------------+------------+-----------------+-----------------+
-| `Wik            | -          | ?句对           |                 |
-| ipedia-Zh <>`__ |            |                 |                 |
-+-----------------+------------+-----------------+-----------------+
++-----------------+-----------------+-----------------+-----------------+
+| 数据集来源      | 数据集大小      | BOS提供子集大小 | BO              |
+|                 |                 |                 | S数据集下载地址 |
++=================+=================+=================+=================+
+| `ImageNet       | 128万图片       | 6万图片         | `Sample         |
+| <http://www.ima |                 |                 | Image           |
+| ge-net.org/>`__ |                 |                 | net <https://fl |
+|                 |                 |                 | eet.bj.bcebos.c |
+|                 |                 |                 | om/small_datase |
+|                 |                 |                 | ts/imagenet>`__ |
++-----------------+-----------------+-----------------+-----------------+
+| `Wik            | ?句对           | ?句对           | `Sample         |
+| ipedia-En <>`__ |                 |                 | Wiki-En <       |
+|                 |                 |                 | https://fleet.b |
+|                 |                 |                 | j.bcebos.com/sm |
+|                 |                 |                 | all_datasets/wi |
+|                 |                 |                 | ki/en_small>`__ |
++-----------------+-----------------+-----------------+-----------------+
+| `Wik            | -               | ?句对           | Sample          |
+| ipedia-Zh <>`__ |                 |                 | Wiki-E          |
+|                 |                 |                 | n](https://flee |
+|                 |                 |                 | t.bj.bcebos.com |
+|                 |                 |                 | /small_datasets |
+|                 |                 |                 | /wiki/cn_small) |
++-----------------+-----------------+-----------------+-----------------+
