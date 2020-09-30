@@ -31,10 +31,8 @@ def net_is_used(port, ip='127.0.0.1'):
     try:
         s.connect((ip, port))
         s.shutdown(2)
-        print('{}:{} is used'.format(ip, port))
         return True
     except:
-        print('{}:{} is unused'.format(ip, port))
         return False
 
 
