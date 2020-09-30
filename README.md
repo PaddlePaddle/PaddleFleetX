@@ -68,6 +68,19 @@ trainer.fit(model, loader, epoch=10)
 ``` shell
 fleetrun --gpus 0,1,2,3,4,5,6,7 resnet50_app.py
 ```
+
+<h2 align="center">Citation</h2>
+
+Please cite paddle.distributed.fleet or FleetX in your publications if it helps your research:
+
+
+    @electronic{fleet2020,
+     title = {paddle.distributed.fleet: Highly Scalable Distributed Training Engine of PaddlePaddle},
+     url = {https://github.com/PaddlePaddle/FleetX},
+    }
+
+
+
 <h2 align="center">Community</h2>
 
 ### Slack
