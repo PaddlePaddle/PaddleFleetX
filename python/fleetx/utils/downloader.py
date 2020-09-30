@@ -73,14 +73,13 @@ class Downloader(object):
     def __init__(self):
         self.need_barrier = False
         if os.environ.get('PADDLE_TRAINER_ENDPOINTS') is not None:
-            time.sleep(10)
             endpoints = os.environ.get('PADDLE_TRAINER_ENDPOINTS').split(",")
             current_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
             self.server_endpoint = endpoints[0]
             self.server_port = self.server_endpoint.split(":")[1]
             self.barrier_server = BarrierServer()
             if current_endpoint == self.server_endpoint:
-                while not net_is_used(self.server_port):
+                while net_is_used(self.server_port):
                     time.sleep(3)
                 self.barrier_server.start_server_in_background(
                     endpoint=self.server_endpoint, worker_endpoints=endpoints)
