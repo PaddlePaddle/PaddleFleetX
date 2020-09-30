@@ -19,19 +19,16 @@ LARS\ `[3] <https://arxiv.org/abs/1708.03888>`__ 和
 LAMB\ `[4] <https://arxiv.org/abs/1904.00962>`__
 两个优化策略常用来解决上述超大batch 训练中的收敛问题.
 
-Paddle 实现了这两种优化策略，fleet 作为Paddle通用的分布式训练API提供了简单易用的接口, 用户只需要添加几行代码
+Paddle 实现了这两种优化策略，Fleet 作为Paddle通用的分布式训练API提供了简单易用的接口, 用户只需要添加几行代码
 就可将策略加入到原有的训练中。 通过这两个优化策略,
-我们在超大batch 场景中实现了更快的收敛速度和无损的精度, 结合FleetX
+我们在超大batch 场景中实现了更快的收敛速度和无损的精度, 结合Fleet
 中其他的策略(e.g. `AMP <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/fleet_collective_training_speedup_with_amp_cn.html>`__)
-极大缩短的训练整体的time2train.
+可以极大缩短的训练整体的time2train.
 
 
 试验效果
 ~~~~~~~~
 
-使用 LARS 可以在超大 batch 并行（batch size>= 8k）时达到达到一下效果：
-\* 如果目标是收敛精度： 达到 76.3 % 的 resnet50 state of art 精度 \*
-如果目标是收敛速度优先：60 epoch 内收敛 75.9% Top1 （MLperf）
 
 +-----------------------+---------------------+---------+---------+
 | resnet50 imagenet     | Global batch size   | epoch   | top1    |
@@ -48,7 +45,7 @@ Paddle 实现了这两种优化策略，fleet 作为Paddle通用的分布式训�
 LARS
 ----
 
-我们以在单机多卡上Resent50 训练为简单例子介绍FleetX 中 lars的用法.
+我们以在单机多卡上Resent50 训练为简单例子介绍Fleet 中 lars的用法.
 
 添加依赖
 ^^^^^^^^
