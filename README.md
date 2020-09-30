@@ -41,12 +41,15 @@ import paddle
 import paddle.distributed.fleet as fleet
 import fleetx as X
 
+paddle.enable_static() # only after 2.0rc
+
 configs = X.parse_train_configs()
 model = X.applications.Resnet50()
 
 downloader = X.utils.Downloader()
-local_path = downloader.download_from_bos(local_path='./data')
-loader = model.get_train_loader(local_path, batch_size=32)
+imagenet_url = "https://fleet.bj.bcebos.com/small_datasets/yaml_example/imagenet.yaml"
+local_path = downloader.download_from_bos(fs_yaml=imagenet_url, local_path='./data')
+loader = model.get_train_dataloader(local_path, batch_size=32)
 
 fleet.init(is_collective=True)
 dist_strategy = fleet.DistributedStrategy()
