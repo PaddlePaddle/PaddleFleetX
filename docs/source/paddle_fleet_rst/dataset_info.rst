@@ -3,9 +3,14 @@
 
 考虑到大多数并行训练的场景都是采用数据并行的方式，FleetX提供了分布式训练场景中对数据操作的基本功能。
 
--  分片并发下载：FleetX中为用户提供了数据分片下载的功能，可以将文件系统（HDFS/BOS）中按照一定规则保存的数据分片并发下载。
--  预置公开数据集样例：FleetX提供了公网可以下载标准数据集子集的能力，方便用户快速获取和使用（如ImageNet，WiKiPedia等）。
--  用户自定义数据集：FleetX提供能够分片并发下载的数据集具有特定保存格式，用户可以将自己的数据保存为FleetX提供的格式自己使用
+-  分片并发下载：
+   FleetX中为用户提供了数据分片下载的功能，可以将文件系统（HDFS/BOS）中按照一定规则保存的数据分片并发下载。
+
+-  预置公开数据集样例：
+   FleetX提供了公网可以下载标准数据集子集的能力，方便用户快速获取和使用（如ImageNet，WiKiPedia等）。
+
+-  用户自定义数据集：
+   FleetX提供能够分片并发下载的数据集具有特定保存格式，用户可以将自己的数据保存为FleetX提供的格式自己使用
 
 使用说明
 ~~~~~~~~
@@ -45,11 +50,13 @@
        # local_path = downloader.download_from_bos('demo.yaml', local_path="data")
        local_path = downloader.download_from_hdfs('demo.yaml', local_path="data")
        model = X.applications.Resnet50()
-       loader = model.get_train_dataloader(local_path)      
+       loader = model.get_train_dataloader(local_path)
 
-   #### 多进程分片并发下载数据
+多进程分片并发下载数据
+^^^^^^^^^^^^^^^^^^^^^^
 
-   ``` python
+.. code:: python
+
 
        import paddle.distributed.fleet as fleet
        import fleetx as X
@@ -66,25 +73,27 @@
        model = X.applications.Resnet50()
        loader = model.get_train_dataloader(local_path)
 
-    多进程分片下载通常会使用到`paddle.distributed.fleet` API, 通过配置`shard_num`即总分片的数量以及`shard_id`即分片的编号来实现多进程分片下载。在单机就可以验证的例子，通过使用Paddle提供的多进程训练的启动命令`fleetrun --gpus 0,1,2,3 resnet.py`来实现数据分片并发下载。
+多进程分片下载通常会使用到\ ``paddle.distributed.fleet`` API,
+通过配置\ ``shard_num``\ 即总分片的数量以及\ ``shard_id``\ 即分片的编号来实现多进程分片下载。在单机就可以验证的例子，通过使用Paddle提供的多进程训练的启动命令\ ``fleetrun --gpus 0,1,2,3 resnet.py``\ 来实现数据分片并发下载。
+
+数据存储
+~~~~~~~~
+
+如上文所说，储存在HDFS/BOS上的数据需要有特定的数据格式，下面我们对数据格式进行详细讲解。
+
+在HDFS/BOS上保存的数据，需要包含以下文件：
+
+.. code:: sh
 
 
-   ### 数据存储
-
-   如上文所说，储存在HDFS/BOS上的数据需要有特定的数据格式，下面我们对数据格式进行详细讲解。
-
-   在HDFS/BOS上保存的数据，需要包含以下文件：
-
-   ``` sh
-
-     .
-     |-- filelist.txt
-     |-- meta.txt
-     |-- train.txt
-     |-- val.txt
-     |-- a.tar
-     |-- b.tar
-     |-- c.tar
+       .
+       |-- filelist.txt
+       |-- meta.txt
+       |-- train.txt
+       |-- val.txt
+       |-- a.tar
+       |-- b.tar
+       |-- c.tar
 
 其中，以\ ``tar``\ 结尾的文件是提前保存好的分片数据，数据本身的格式不做限制，只要具体模型的数据读取器能够读取即可。在这里，我们建议分片的文件数量适合并发下载，既不要非常碎片化也不需要用极少的文件保存，单个tar文件控制在400M以内即可。
 
@@ -94,28 +103,33 @@
 
 在这个例子中\ ``filelist.txt``\ 为：
 
-\``\` sh
+.. code:: sh
 
-::
 
-   a.tar {md5of_a}
-   b.tar {md5of_b}
-   c.tar {md5of_c}
+       a.tar {md5of_a}
+       b.tar {md5of_b}
+       c.tar {md5of_c}
 
 考虑到不同的数据集可能有不同的统计信息文件，例如自然语言处理任务中经常使用的词典，我们设计\ ``meta.txt``\ 文件，用来记录整个数据集在每个节点实例上都会下载的文件，比如训练文件列表\ ``train.txt``\ ，验证数据文件列表\ ``val.txt``\ 等
 
 预置数据集整体信息
 ~~~~~~~~~~~~~~~~~~
 
-+----------------+------------+----------------+----------------+---+
-| 数据集来源     | 数据集大小 | B              | BOS            |   |
-|                |            | OS提供子集大小 | 数据集下载地址 |   |
-+================+============+================+================+===+
-| `ImageNet <h   | 128w       | 5w             | `Sample        |   |
-| ttp://www.imag |            |                | Imagenet <htt  |   |
-| e-net.org/>`__ |            |                | ps://fleet.bj. |   |
-|                |            |                | bcebos.com/sma |   |
-|                |            |                | ll_datasets/ya |   |
-|                |            |                | ml_example/ima |   |
-|                |            |                | genet.yaml>`__ |   |
-+----------------+------------+----------------+----------------+---+
++-----------------+------------+-----------------+-----------------+
+| 数据集来源      | 数据集大小 | BOS提供子集大小 | BO              |
+|                 |            |                 | S数据集下载地址 |
++=================+============+=================+=================+
+| `ImageNet       | 128万图片  | 5万图片         | `Sample         |
+| <http://www.ima |            |                 | Imagenet        |
+| ge-net.org/>`__ |            |                 |  <https://fleet |
+|                 |            |                 | .bj.bcebos.com/ |
+|                 |            |                 | small_datasets/ |
+|                 |            |                 | yaml_example/im |
+|                 |            |                 | agenet.yaml>`__ |
++-----------------+------------+-----------------+-----------------+
+| `Wik            | ?句对      | ?句对           |                 |
+| ipedia-En <>`__ |            |                 |                 |
++-----------------+------------+-----------------+-----------------+
+| `Wik            | -          | ?句对           |                 |
+| ipedia-Zh <>`__ |            |                 |                 |
++-----------------+------------+-----------------+-----------------+
