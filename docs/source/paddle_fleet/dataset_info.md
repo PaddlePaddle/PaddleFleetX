@@ -2,9 +2,14 @@
 
 考虑到大多数并行训练的场景都是采用数据并行的方式，FleetX提供了分布式训练场景中对数据操作的基本功能。
 
-- 分片并发下载：FleetX中为用户提供了数据分片下载的功能，可以将文件系统（HDFS/BOS）中按照一定规则保存的数据分片并发下载。
-- 预置公开数据集样例：FleetX提供了公网可以下载标准数据集子集的能力，方便用户快速获取和使用（如ImageNet，WiKiPedia等）。
-- 用户自定义数据集：FleetX提供能够分片并发下载的数据集具有特定保存格式，用户可以将自己的数据保存为FleetX提供的格式自己使用
+- 分片并发下载：
+FleetX中为用户提供了数据分片下载的功能，可以将文件系统（HDFS/BOS）中按照一定规则保存的数据分片并发下载。
+
+- 预置公开数据集样例：
+FleetX提供了公网可以下载标准数据集子集的能力，方便用户快速获取和使用（如ImageNet，WiKiPedia等）。
+
+- 用户自定义数据集：
+FleetX提供能够分片并发下载的数据集具有特定保存格式，用户可以将自己的数据保存为FleetX提供的格式自己使用
 
 ### 使用说明
 
@@ -38,7 +43,9 @@
       # local_path = downloader.download_from_bos('demo.yaml', local_path="data")
       local_path = downloader.download_from_hdfs('demo.yaml', local_path="data")
       model = X.applications.Resnet50()
-      loader = model.get_train_dataloader(local_path)      
+      loader = model.get_train_dataloader(local_path)
+
+  ```      
 
 #### 多进程分片并发下载数据
 
@@ -59,6 +66,8 @@
       model = X.applications.Resnet50()
       loader = model.get_train_dataloader(local_path)
 
+   ```
+      
    多进程分片下载通常会使用到`paddle.distributed.fleet` API, 通过配置`shard_num`即总分片的数量以及`shard_id`即分片的编号来实现多进程分片下载。在单机就可以验证的例子，通过使用Paddle提供的多进程训练的启动命令`fleetrun --gpus 0,1,2,3 resnet.py`来实现数据分片并发下载。
 
 
@@ -95,11 +104,15 @@
     b.tar {md5of_b}
     c.tar {md5of_c}
 
+```    
+
 考虑到不同的数据集可能有不同的统计信息文件，例如自然语言处理任务中经常使用的词典，我们设计`meta.txt`文件，用来记录整个数据集在每个节点实例上都会下载的文件，比如训练文件列表`train.txt`，验证数据文件列表`val.txt`等
 
 
 ### 预置数据集整体信息
 
 |  数据集来源 | 数据集大小 | BOS提供子集大小 | BOS数据集下载地址 | 
-|  ----  | ----  | ---- | ---- | ---- |
-|  [ImageNet](http://www.image-net.org/) | 128w | 5w | [Sample Imagenet](https://fleet.bj.bcebos.com/small_datasets/yaml_example/imagenet.yaml) |
+|  ----  | ----  | ---- | ---- |
+|  [ImageNet](http://www.image-net.org/) | 128万图片 | 5万图片 | [Sample Imagenet](https://fleet.bj.bcebos.com/small_datasets/yaml_example/imagenet.yaml) |
+|  [Wikipedia-En]() | ?句对 | ?句对 | |
+| [Wikipedia-Zh]() | - | ?句对 | |
