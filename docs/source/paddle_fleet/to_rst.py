@@ -18,7 +18,8 @@ files = os.listdir(".")
 files = [file for file in files if file not in not_rst_file]
 print(files)
 for f in files:
-
+    if "_cn" not in f:
+        continue
     if ".md" in f:
         os.system("pandoc {} -f markdown -t rst -o ../paddle_fleet_rst/{}".format(f, f.replace(".md", ".rst")))
 
