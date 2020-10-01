@@ -52,7 +52,7 @@ FleetX依赖Paddle
    # 使用collective GPU分布式模式
    fleet.init(is_collective=True)
    # 使用默认的分布式策略
-   dist_strategy = ifleet.DistributedStrategy()
+   dist_strategy = fleet.DistributedStrategy()
    # 将单机模型转换为分布式
    optimizer = paddle.distributed.fleet.distributed_optimizer(optimizer, dist_strategy)
    optimizer.minimize(model.loss)

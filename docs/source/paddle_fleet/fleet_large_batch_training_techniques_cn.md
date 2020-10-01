@@ -63,6 +63,7 @@ wget --no-check-certificate https://fleet.bj.bcebos.com/Bertdata/vocab.txt
 
 ```python
 # -*- coding: UTF-8 -*-
+import paddle
 import fleetx as X
 import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
@@ -72,6 +73,7 @@ import paddle.distributed.fleet as fleet
 
 通过`X.parse_train_configs()`接口，用户可以定义训练相关的参数，如：学习率、衰减率等。同时通过`fleet.init()`接口定义了分布式模型，下面代码中的`is_collective=True`表示采用集合通信的GPU分布式模式训练模型。
 ```python
+paddle.enable_static()
 configs = X.parse_train_configs()
 fleet.init(is_collective=True)
 ```
@@ -146,17 +148,17 @@ fleetrun --gpus 0,1,2,3,4,5,6,7 bert_recompute.py
 
 ```python
 # -*- coding: UTF-8 -*-
+import paddle
 import fleetx as X
 import paddle.fluid
 import paddle.distributed.fleet as fleet
-import paddle.distributed.fleet.base.role_maker as role_maker
 ```
 
 #### 定义分布式模式并初始化
 ```python
+paddle.enable_static()
 configs = X.parse_train_configs()
-role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-fleet.init(role)
+fleet.init(is_collective=True)
 ```
 
 #### 加载模型及数据

@@ -47,7 +47,7 @@ def load_bert_dataset(data_dir,
             in_tokens=in_tokens,
             max_seq_len=max_seq_len,
             shuffle_files=True)
-    else:
+    elif lang == 'ch':
         data_reader = DataReader(
             data_dir=data_dir,
             phase=phase,
@@ -59,6 +59,10 @@ def load_bert_dataset(data_dir,
             max_seq_len=max_seq_len,
             generate_neg_sample=generate_neg_sample)
 
+    else:
+        raise Exception(
+            "Bert Model only support chinese and english model now. Please check if your lang is one of 'ch' and 'en'"
+        )
     places = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
     data_loader.set_batch_generator(data_reader.data_generator(), places)
     return data_loader

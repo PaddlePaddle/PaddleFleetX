@@ -14,6 +14,7 @@
 from paddle.distributed.fleet.utils.fs import HDFSClient
 import time
 import paddle.distributed.fleet as fleet
+import socket
 import sys
 import hashlib
 from .barrier_server_impl import BarrierServer
@@ -23,6 +24,16 @@ import sysconfig
 import multiprocessing
 import yaml
 import os
+
+
+def net_is_used(port, ip='127.0.0.1'):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.connect((ip, port))
+        s.shutdown(2)
+        return True
+    except:
+        return False
 
 
 def get_md5(file_path):
@@ -63,8 +74,11 @@ class Downloader(object):
             endpoints = os.environ.get('PADDLE_TRAINER_ENDPOINTS').split(",")
             current_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
             self.server_endpoint = endpoints[0]
+            self.server_port = self.server_endpoint.split(":")[1]
             self.barrier_server = BarrierServer()
             if current_endpoint == self.server_endpoint:
+                while net_is_used(self.server_port):
+                    time.sleep(3)
                 self.barrier_server.start_server_in_background(
                     endpoint=self.server_endpoint, worker_endpoints=endpoints)
             self.need_barrier = True
@@ -179,6 +193,7 @@ class Downloader(object):
             client.connect()
             client.barrier()
             if client.my_endpoint == self.server_endpoint:
+                time.sleep(10)
                 self.barrier_server.close_server()
         return local_path
 
@@ -279,5 +294,6 @@ class Downloader(object):
             client.connect()
             client.barrier()
             if client.my_endpoint == self.server_endpoint:
+                time.sleep(10)
                 self.barrier_server.close_server()
         return local_path
