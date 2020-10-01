@@ -3,7 +3,7 @@
 
 在网络带宽较低的训练场景（如：
 共有云上训练，联邦训练）中，梯度同步在低带宽网络下的延迟成为训练速度的主要瓶颈。
-Fleet 实现了： ``Deep Gradient Compression`` 和 ``Local SGD``
+Fleet 作为Paddle通用的分布式训练API 实现了： ``Deep Gradient Compression`` 和 ``Local SGD``
 两种训练策略来针对性解决这一问题。
 
 DGC 优化低配网络的分布式GPU训练
@@ -12,7 +12,7 @@ DGC 优化低配网络的分布式GPU训练
 DGC 简介
 ~~~~~~~~
 
-大规模分布式训练需要较高的网络带宽以便进行梯度的聚合更新，这限制了多节点训练时的可扩展性同时也需要昂贵的高带宽设备。在低带宽云网络等环境下进行分布式训练会变得更加糟糕。
+大规模分布式训练需要较高的网络带宽以便进行梯度的聚合更新，这限制了多节点训练时的可扩展性同时也需要昂贵的高带宽设备。在低带宽云网络等环境下进行分布式训练会梯度同步成为训练加速的瓶颈。
 `Deep Gradient Compression <https://arxiv.org/abs/1712.01887>`__
 发现：分布式SGD中有99.9%的梯度交换都是冗余的，可以使用深度梯度压缩选择重要梯度进行通信来减少通信量，降低对通信带宽的依赖。Fleet
 实现了DGC的稀疏通信方式，可有效在低配网络下进行GPU分布式训练。Fleet
@@ -23,16 +23,15 @@ DGC 简介
 ``正则化项修正 (Weight Decay Correction)``
 避免稀疏梯度通信训练带来的最终模型精度损失。
 
-下面将介绍 DGC 稀疏通信方式的适用场景及、基本原理，Fleet 中 DGC
-的效果和使用方法。
+下面将介绍 DGC 稀疏通信方式的适用场景及、试验效果、基本原理和使用方法。
 
 适用场景
 ^^^^^^^^
 
 DGC稀疏通信在低带宽通信瓶颈时会有较大的性能提升，但\ **在单机多卡及RDMA网络通信并非瓶颈情况下**\ ，并不会带来性能上的提升。同时由于AllGather的通信量会随卡数的增多而增大，所以DGC的多机训练规模也不宜过大。故DGC适用于低配网络，同时节点规模不宜过大，如>128张卡。在云网络或高带宽网络设备昂贵时，DGC可有效降低训练成本。
 
-Fleet 效果
-~~~~~~~~~~~
+试验效果
+~~~~~~~~
 
 -  模型：FasterRCNN
 -  硬件： P40两机分布式，每台机器一卡，TCP网络测试。
@@ -49,48 +48,26 @@ Fleet 效果
 | 1G     | 2.45                         | 0.375                           | 6.533   |
 +--------+------------------------------+---------------------------------+---------+
 
-DGC 原理
-~~~~~~~~
+DGC 原理简介
+~~~~~~~~~~~~
+
+这里将简单介绍介绍Fleet DGC 中的一些原理和对应参数应该如何设置。
 
 梯度稀疏
 ^^^^^^^^
 
 DGC的基本思路是通过只传送重要梯度，即只发送大于给定阈值的梯度来减少通信带宽的使用。为避免信息的丢失，DGC会将剩余梯度在局部累加起来，最终这些梯度会累加大到足以传输。
 换个角度，从理论依据上来看，局部梯度累加等同于随时间推移增加batch
-size，（DGC相当于每一个梯度有自己的batch size）。设定 :math:`F(w)`
-为需要优化的loss函数，则有着N个训练节点的同步分布式SGD更新公式如下
+size，（DGC相当于每一个梯度有自己的batch size）。
 
-.. math::
-
-   F(w)=\frac{1}{\|\chi\|}\sum_{x\in\chi}f(x, w)
-
-.. math::
-
-   \qquad w_{t+1}=w_{t}-\eta\frac{1}{N b}\sum_{k=1}^{N}\sum_{x\in\mathcal{B}_{k,t}}\nabla f\left(x, w_{t}\right)
-
-其中\ :math:`\chi`\ 是训练集，\ :math:`w`\ 是网络权值，\ :math:`f(x, w)`\ 是每个样本\ :math:`x \in \chi`\ 的loss，\ :math:`\eta`\ 是学习率，N是训练节点个数，\ :math:`\mathcal{B}_{k, t}`\ 代表第\ :math:`k`\ 个节点在第\ :math:`t`\ 个迭代时的minibatch，大小为b。
-考虑权重的第i个值，在T次迭代后，可获得
-
-.. math::
-
-   w_{t+T}^{(i)}=w_{t}^{(i)}-\eta T \cdot \frac{1}{N b T} \sum_{k=1}^{N}\left(\sum_{\tau=0}^{T-1} \sum_{x \in \mathcal{B}_{k, t+\tau}} \nabla^{(i)} f\left(x, w_{t+\tau}\right)\right) 
-
-等式2表明局部梯度累加可以被认为batch
-size从\ :math:`Nb`\ 增大为\ :math:`NbT`\ ，其中T是\ :math:`w^{(i)}`\ 两次更新的稀疏通信间隔。
+假设 N是训练节点个数, b为单卡batch size，局部梯度累加可以被认为batch
+size从\ :math:`Nb`\ 增大为\ :math:`NbT`\ ，其中T是两次更新的稀疏通信间隔。详细的公式推导请参阅`[1] <https://arxiv.org/abs/1712.01887>`__
 
 预热调参
 ^^^^^^^^
 
-对于正常的训练，使用DGC一般需进行预热训练，否则可能会有精度损失。如下图是ResNet50模型Imagenet数据集的训练结果，未进行预热训练的DGC最终损失了约0.3%的精度。
-
-.. image:: ../paddle_fleet/img/DGC_1.png
-  :width: 400
-  :alt: 预热调参
-  :align: center
-
-预热训练调参可参照论文的设置。论文中使用了 75%, 93.75%, 98.4375%, 99.6%,
-99.9%
-稀疏度逐渐提升的策略。由于paddle稀疏梯度聚合通信使用了AllGather，通信量会随卡数增加而增长，所以在卡数较多时不推荐较低稀疏度的预热训练。如75%稀疏度时每张卡会选择25%的梯度进行通信，卡数为32时通信量是正常dense通信的32\*(1-0.75)=8倍，所以前几个epoch使用正常的dense通信为佳。可参照如下设置参数：
+对于正常的训练，使用DGC一般需进行预热训练，否则可能会有精度损失。预热训练调参可参照论文的设置，论文中使用了 75%, 93.75%, 98.4375%, 99.6%,
+99.9% 稀疏度逐渐提升的策略。由于paddle稀疏梯度聚合通信使用了AllGather，通信量会随卡数增加而增长，所以在卡数较多时不推荐较低稀疏度的预热训练。如75%稀疏度时每张卡会选择25%的梯度进行通信，卡数为32时通信量是正常dense通信的32\*(1-0.75)=8倍，所以前几个epoch使用正常的dense通信为佳。可参照如下设置参数：
 
 .. code:: python
 
@@ -127,70 +104,35 @@ Correction)和局部梯度裁减(Local Gradient Clipping)来解决这个问题�
 动量修正
 ''''''''
 
-有着N个节点分布式训练中vanilla momentum SGD公式，
+之前”局部梯度累加等同于随时间推移增加batch
+size“的推导没有考虑 Momentum存在的情况，当考虑 Momentum时需要对原公式做一些修正。 
 
-.. math::
-
-   u_{t}=m u_{t-1}+\sum_{k=1}^{N}\left(\nabla_{k, t}\right), \quad w_{t+1}=w_{t}-\eta u_{t} 
-
-其中\ :math:`m`\ 是动量因子，\ :math:`N`\ 是节点数，\ :math:`\nabla_{k, t}=\frac{1}{N b} \sum_{x \in \mathcal{B}_{k, t}} \nabla f\left(x, w_{t}\right)`\ 。
-考虑第i个权重\ :math:`w^{(i)}`\ ，在T次迭代后，权重更新公式如下，
-
-.. math::
-
-   w_{t+T}^{(i)}=w_{t}^{(i)}-\eta\left[\cdots+\left(\sum_{\tau=0}^{T-2} m^{\tau}\right) \nabla_{k, t+1}^{(i)}+\left(\sum_{\tau=0}^{T-1} m^{\tau}\right) \nabla_{k, t}^{(i)}\right]  
-
-如果直接应用动量SGD到稀疏梯度更新中，则有公式，
+如果直接应用动量SGD到稀疏梯度更新中，有如下公式，
 
 .. math::
 
    v_{k, t}=v_{k, t-1}+\nabla_{k, t}, \quad u_{t}=m u_{t-1}+\sum_{k=1}^{N} \operatorname{sparse}\left(v_{k, t}\right), \quad w_{t+1}=w_{t}-\eta u_{t}
 
 其中\ :math:`v_k`\ 是训练节点k上的局部梯度累加项，一旦\ :math:`v_k`\ 大于某一阈值，则会在第二项中压缩梯度进行动量更新，并使用sparse()函数获得mask清空大于阈值的梯度。
-:math:`w^{(i)}`\ 在T次稀疏更新后的权重为,
+相比传统动量SGD，部分参数更新缺失了动量累积衰减因子\ :math:`\sum_{\tau=0}^{T-1} m^{\tau}`\ ，会导致收敛精度的损失。当稀疏度很高时，会显著降低模型性能，所以需要在上述公式的基础上对梯度进行修正。
 
-.. math::
-
-   w_{t+T}^{(i)}=w_{t}^{(i)}-\eta\left(\cdots+\nabla_{k, t+1}^{(i)}+\nabla_{k, t}^{(i)}\right) 
-
-相比传统动量SGD，方程6缺失了累积衰减因子\ :math:`\sum_{\tau=0}^{T-1} m^{\tau}`\ ，会导致收敛精度的损失。如下图(a)，正常梯度更新从A点到B点，但是方程6则从A点到C点。当稀疏度很高时，会显著降低模型性能，所以需要在方程5基础上对梯度进行修正。
-
-.. image:: ../paddle_fleet/img/DGC_2.png
-  :width: 320
-  :alt: 图(a)
-  :align: center
-
-.. image:: ../paddle_fleet/img/DGC_3.png
-  :width: 320
-  :alt: 图(b)
-  :align: center
-
-若将方程3中速度项\ :math:`u_t`\ 当作“梯度”，则方程3第二项可认为是在”梯度“\ :math:`u_t`\ 上应用传统SGD，前面已经证明了局部梯度累加在传统SGD上是有效的。因此，可以使用方程3局部累加速度项\ :math:`u_t`\ 而非累加真实的梯度\ :math:`\nabla_{k, t}`\ 来修正方程5，
+动量修正使用部累加速度项\ :math:`u_t`\ 而非累加真实的梯度\ :math:`\nabla_{k, t}`\ 来修正上述方程，修正后的动量更新公式如下：
 
 .. math::
 
    u_{k, t}=m u_{k, t-1}+\nabla_{k, t}, \quad v_{k, t}=v_{k, t-1}+u_{k, t}, \quad w_{t+1}=w_{t}-\eta \sum_{k=1}^{N} \operatorname{sparse}\left(v_{k, t}\right)  
 
-修正后，如上图(b)，方程可正常从A点到B点。除了传统动量方程修正，论文还给出了Nesterov动量SGD的修正方程。
 
 局部梯度修剪
 ''''''''''''
 
 梯度修剪是防止梯度爆炸的常用方法。这方法由Pascanu等人在2013年提出，当梯度的l2-norms和大于给定阈值时，就对梯度rescale。正常梯度修剪在梯度聚合后使用，而DGC因为每个节点独立的进行局部梯度累加，所以DGC在使用\ :math:`G_t`\ 累加前对其进行局部梯度修剪。阈值缩放为原来的\ :math:`N^{-1/2}`
 
-.. math::
-
-   thr_{G^{k}}=N^{-1 / 2} \cdot thr_{G} 
-
-克服迟滞效应
-^^^^^^^^^^^^
-
-因为推迟了较小梯度更新权重的时间，所以会有权重陈旧性问题。稀疏度为99.9%时大部分参数需600到1000步更新一次。迟滞效应会减缓收敛并降低模型精度。DGC中采用动量因子掩藏和预热训练来解决这问题。
 
 动量因子掩藏
-''''''''''''
+^^^^^^^^^^^^
 
-DGC中使用下面方程来掩藏动量因子减缓陈旧性问题。
+因为推迟了较小梯度更新权重的时间，所以会有权重陈旧性问题。稀疏度为99.9%时大部分参数需600到1000步更新一次。迟滞效应会减缓收敛并降低模型精度。DGC中使用下面方程来掩藏动量因子减缓陈旧性问题。
 
 .. math::
 
@@ -201,36 +143,15 @@ DGC中使用下面方程来掩藏动量因子减缓陈旧性问题。
 正则化(Weight Decay)项修正
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Paddle框架以Weight
-Decay的形式实现正则化。以L2Decay为例，公式(3)中传统momentum添加weight
-decay后公式为
+类似动量修正，DGC 中我们同样需要对正则化项进行修正来让参数的延迟更新方向更加准确。
 
-.. math::
-
-   G_{t}=\sum_{k=1}^{N}\left(\nabla_{k, t}\right)+\lambda w_{t}, \quad  u_{t}=m u_{t-1}+G_{t}, \quad w_{t+1}=w_{t}-\eta u_{t} 
-
-其中\ :math:`\lambda`\ 为Weight
-Decay系数，\ :math:`G_{t}`\ 为添加L2Decay项之后的聚合梯度。由于在公式7中进行了局部动量修正，所以按照相同思路在局部梯度上运用修正的Weight
-Decay项。如下公式在局部梯度上添加局部Weight Decay项即可。
+和动量修思路相同，修正需要在局部梯度上添加局部Weight Decay。
 
 .. math::
 
    \nabla_{k, t}=\nabla_{k, t}+\frac{\lambda}{N} w_{t} 
 
-在模型实际训练中，通常会设置weight
-decay的系数\ :math:`\lambda=10^{-4}`\ ，在卡数较多如4机32卡的情况下局部weight
-decay系数为\ :math:`\frac{\lambda}{N}=\frac{10^{-4}}{32}=3.125\*10^{-6}`\ ，在数值精度上偏低，测试训练时会损失一定精度。为此还需对局部weight
-decay项进行数值修正。如下公式，
-
-.. math::
-
-   \nabla_{k, t}^{'}=N \nabla_{k, t}+\lambda w_{t}, \quad
-   G_{t}^{'}=\sum_{k=1}^{N}\left(\nabla_{k, t}^{'}\right)=N\sum_{k=1}^{N}\left(\nabla_{k, t}\right)+N\lambda w_{t}, \quad
-   G_{t}=\frac{G_{t}^{'}}{N}=\sum_{k=1}^{N}\left(\nabla_{k, t}\right)+\lambda w_{t}
-
-具体做法为对局部梯度乘以卡数求得\ :math:`\nabla_{k, t}^{'}`\ ，此时\ :math:`\lambda`\ 项则无需除以卡数，聚合梯度求得\ :math:`G_{t}^{'}`\ 再对聚合梯度除以卡数得到\ :math:`G_{t}`\ 即可。
-
-上述策略已经在框架中实现，用户无须设置。
+上述策略已经在Fleet 框架中实现，用户无须设置。
 
 DGC 快速开始
 ~~~~~~~~~~~~
@@ -371,7 +292,7 @@ size）的精度损失，\ `[1] <https://arxiv.org/abs/1808.07217>`__ 和 `[2] <
 SGD 在通信同步上的差异如下图所示。
 
 .. image:: ../paddle_fleet/img/localSGD_1.png
-  :width: 800
+  :width: 600
   :alt: Synchronous SGD 和 Local SGD
   :align: center
 
@@ -382,7 +303,7 @@ SGD过程如下图所示。黄绿两条路径表示两个 workers 各自的 Loca
 更新过程，中间的蓝色路径表示同步后的模型所在的位置。
 
 .. image:: ../paddle_fleet/img/localSGD_2.png
-  :width: 600
+  :width: 300
   :alt: Local SGD
   :align: center
 
@@ -408,8 +329,8 @@ Fleet 中实现了 ``post Local SGD`` 和
 Local SGD 的实践效果，并通过一个简单例子介绍如何在Fleet 中使用 Local
 SGD。
 
-Fleet 效果
-~~~~~~~~~~
+试验效果
+~~~~~~~~
 
 试验设置
 
