@@ -59,8 +59,12 @@
    :caption: 飞桨分布式训练性能基准
    :name: benchmark
 
-   paddle_fleet_rst/fleet_gpu_benchmark_cn
-   paddle_fleet_rst/fleet_ps_benchmark_cn
+   paddle_fleet_rst/fleet_benchmark_overview_cn
+   paddle_fleet_rst/fleet_benchmark_resnet50_cn
+   paddle_fleet_rst/fleet_benchmark_bert_cn
+   paddle_fleet_rst/fleet_benchmark_transformer_cn
+   paddle_fleet_rst/fleet_benchmark_vgg16_cn
+   paddle_fleet_rst/fleet_benchmark_word2vec_cn
 
 .. toctree::
    :maxdepth: 1
