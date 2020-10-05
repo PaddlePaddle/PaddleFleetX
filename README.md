@@ -12,11 +12,13 @@
     <br>
 <p>
 
+
 <p align="center"> Fully utilize your GPU Clusters with FleetX for your model pre-training. </p>
 
 <h2 align="center">What is it?</h2>
 
 - **FleetX** is an out-of-the-box pre-trained model training toolkit for cloud users. It can be viewed as an extension package for `Paddle's` High-Level Distributed Training API `paddle.distributed.fleet`. 
+- [中文文档](https://fleet-x.readthedocs.io/en/latest/) | [快速开始](https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/fleetx_quick_start.html) | [性能基线](https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/fleet_benchmark_overview_cn.html)
 
 <h2 align="center">Key Features</h2>
 
