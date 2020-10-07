@@ -131,7 +131,7 @@ class MultiGPUTrainer(Trainer):
                         dataloader,
                         start_step=20,
                         end_step=200):
-        step_idx = 0
+        step = 0
         total_time = 0
         total_step = 0
         counting_time = False
