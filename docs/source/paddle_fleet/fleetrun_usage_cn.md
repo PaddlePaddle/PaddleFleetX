@@ -117,7 +117,7 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
     ```sh
     # 2个server 4个worker
     export CUDA_VISIBLE_DEVICES=0,1,2,3
-    fleetrun --server_num=2 --worker_num=4 -d=ps_gpu train.py
+    fleetrun --server_num=2 --worker_num=4 train.py
     ```
 
     > 1台机器通过多进程模拟， 2个服务节点搭配2个训练节点， 两个训练节点共用一张GPU卡
@@ -125,7 +125,7 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
     ```sh
     # 2个server 2个worker
     export CUDA_VISIBLE_DEVICES=0
-    fleetrun --server_num=2 --worker_num=2 -d=ps_gpu train.py
+    fleetrun --server_num=2 --worker_num=2 train.py
     ```
 
 - **参数服务器训练 - 自定义多机训练**
@@ -140,7 +140,7 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
     # 2个server 2个worker
     # 每台机器均指定了可用设备 GPU:0
     export CUDA_VISIBLE_DEVICES=0
-    fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,yy.yy.yy.yy:6173" -d=ps_gpu train.py
+    fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,yy.yy.yy.yy:6173" train.py
     ```
 
     > 2台机器，每台机器均有1个服务节点，4个训练节点
@@ -149,7 +149,7 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
     # 2个server 4个worker
     # 每台机器均指定了可用设备 GPU:0,1,2,3
     export CUDA_VISIBLE_DEVICES=0,1,2,3
-    fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,xx.xx.xx.xx:6173,xx.xx.xx.xx:6174,xx.xx.xx.xx:6175,yy.yy.yy.yy:6176,yy.yy.yy.yy:6177,yy.yy.yy.yy:6178,yy.yy.yy.yy:6179" -d=ps_gpu train.py
+    fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,xx.xx.xx.xx:6173,xx.xx.xx.xx:6174,xx.xx.xx.xx:6175,yy.yy.yy.yy:6176,yy.yy.yy.yy:6177,yy.yy.yy.yy:6178,yy.yy.yy.yy:6179" train.py
     ```
 
 #### 异构集群运行参数服务器
@@ -161,7 +161,7 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
     ```sh
     # 2个server 4个worker
     export CUDA_VISIBLE_DEVICES=0,1
-    fleetrun --server_num=2 --worker_num=2 --heter_worker_num=2 -d=ps_heter train.py
+    fleetrun --server_num=2 --worker_num=2 --heter_worker_num=2 train.py
     ```
 
 
