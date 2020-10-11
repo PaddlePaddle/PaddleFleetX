@@ -189,6 +189,9 @@ fleetrun --servers=ip:port,ip:port --workers=ip:port,ip:port --heter_workers=ip:
 ```
 
 方法三，针对PaddleCloud平台的custom-framework模式，指定任务的启动命令
+
+PaddleCloud是百度内部的深度学习任务平台，提供了便捷的提交流程以及任务管理功能，该平台能力将适时向广大开发者开放。
+
 ```
 # heter_worker数量会根据配置的GPU设备数量自动调整
 # 添加该配置是为了指定fleetrun运行在异构参数服务器模式下
