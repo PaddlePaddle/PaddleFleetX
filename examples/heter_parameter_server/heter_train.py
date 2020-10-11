@@ -175,11 +175,11 @@ def heter_train(args):
 
     elif fleet.is_worker():
         # 初始化工作节点
-        fleet.init_worker()
         place = fluid.CPUPlace()
         exe = fluid.Executor(place)
         print("Run startup program")
         exe.run(fluid.default_startup_program())
+        fleet.init_worker()
         print("Get dataset")
         dataset, file_list = get_dataset(inputs, args)
         for epoch in range(args.epochs):
