@@ -82,35 +82,36 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
 ```python
 # --------- IO 密集型 网络 ---------
 # 数据输入 & embedding 查表 & sequence_pool 等操作
-input_data = fluid.layers.data(name="sparse_input", shape=[1], lod_level=1, dtype="int64")
-input_label = fluid.layers.data(name="label", shape=[1], dtype="int64")
-embedding = fluid.layers.embedding(input_data, is_sparse=True, size=[10000000,128])
+input_data = paddle.data(name="sparse_input", shape=[None, 1], dtype="int64")
+input_label = paddle.data(name="label", shape=[None, 1], dtype="int64")
+embedding = paddle.nn.embedding(input_data, is_sparse=True, size=[10000000,128])
 
 # --------- 计算 密集型 网络 ---------
 # fc & cnn & rnn & attention 等网络结构
-fc1 = fluid.layers.fc(embedding, size=1024, act="relu")
-fc2 = fluid.layers.fc(fc1, size=512, act="relu")
-fc3 = fluid.layers.fc(fc2, size=256, act="relu")
-predict = fluid.layers.fc(fc3, size=2, act="softmax")
-cost = fluid.layers.cross_entropy(input=predict, label=label)
+fc1 = paddle.static.nn.fc(embedding, size=1024, act="relu")
+fc2 = paddle.static.nn.fc(fc1, size=512, act="relu")
+fc3 = paddle.static.nn.fc(fc2, size=256, act="relu")
+predict = paddle.static.nn.fc(fc3, size=2, act="softmax")
+cost = paddle.nn.functional.cross_entropy(input=predict, label=label)
 ```
 
 我们可以使用`fluid.device_guard()`API划分网络中各个OP的运行设备，上述组网可以改变如下：
 
 ```python
 with fluid.device_guard("cpu"):
-    input_data = fluid.layers.data(name="sparse_input", shape=[1], lod_level=1, dtype="int64")
-    input_label = fluid.layers.data(name="label", shape=[1], dtype="int64")
-    input_label = fluid.layers.cast(input_label, dtype="float32")
-    embedding = fluid.layers.embedding(input_data, is_sparse=True, size=[10000000,128])
+    input_data = paddle.data(name="sparse_input", shape=[None, 1], dtype="int64")
+    input_label = paddle.data(name="label", shape=[None, 1], dtype="int64")
+    input_label = paddle.cast(input_label, dtype="float32")
+    embedding = paddle.nn.embedding(input_data, is_sparse=True, size=[10000000,128])
+    
 
 with fluid.device_guard("gpu"):
-    fc1 = fluid.layers.fc(embedding, size=1024, act="relu")
-    fc2 = fluid.layers.fc(fc1, size=512, act="relu")
-    fc3 = fluid.layers.fc(fc2, size=256, act="relu")
-    predict = fluid.layers.fc(fc3, size=2, act="softmax")
-    input_label = fluid.layers.cast(input_label, dtype="int64")
-    cost = fluid.layers.cross_entropy(input=predict, label=label)
+    fc1 = paddle.static.nn.fc(embedding, size=1024, act="relu")
+    fc2 = paddle.static.nn.fc(fc1, size=512, act="relu")
+    fc3 = paddle.static.nn.fc(fc2, size=256, act="relu")
+    predict = paddle.static.nn.fc(fc3, size=2, act="softmax")
+    input_label = paddle.cast(input_label, dtype="int64")
+    cost = paddle.nn.functional.cross_entropy(input=predict, label=label)
 ```
 
 这样划分组网的作用是：
@@ -141,7 +142,7 @@ strategy.a_sync = True
 # ---- 新增strategy配置, 指定异构设备的device类型 ----
 strategy.a_sync_configs = {"heter_worker_device": 'gpu'}
 
-optimizer = fluid.optimizer.Adam(args.learning_rate)
+optimizer = paddle.optimizer.Adam(args.learning_rate)
 optimizer = fleet.distributed_optimizer(optimizer, strategy)
 optimizer.minimize(cost)
 ```
