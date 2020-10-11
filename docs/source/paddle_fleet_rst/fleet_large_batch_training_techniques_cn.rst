@@ -204,10 +204,10 @@ Size（假设脚本名称为bert_gradient_merge.py）：
 .. code:: python
 
    # -*- coding: UTF-8 -*-
+   import paddle
    import fleetx as X
    import paddle.fluid
    import paddle.distributed.fleet as fleet
-   import paddle.distributed.fleet.base.role_maker as role_maker
 
 .. _定义分布式模式并初始化-1:
 
@@ -215,10 +215,9 @@ Size（假设脚本名称为bert_gradient_merge.py）：
 ^^^^^^^^^^^^^^^^^^^^^^
 
 .. code:: python
-
+   paddle.enable_static()
    configs = X.parse_train_configs()
-   role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-   fleet.init(role)
+   fleet.init(is_collective=True)
 
 .. _加载模型及数据-1:
 

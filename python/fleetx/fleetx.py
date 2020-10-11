@@ -16,9 +16,12 @@ import argparse
 
 
 def parse_train_configs():
-    parser = argparse.ArgumentParser("fleet-lightning")
+    """
+    Set training configs using parse commends.
+    """
+    parser = argparse.ArgumentParser("fleet-x")
     parser.add_argument(
-        "--lr", type=float, default=0.0001, help="base learning rate")
+        "--lr", type=float, default=0.1, help="base learning rate")
     parser.add_argument(
         "--momentum", type=float, default=0.9, help="momentum value")
     parser.add_argument(
@@ -31,6 +34,8 @@ def parse_train_configs():
         type=float,
         default=0.997,
         help="beta2 value for adam optimizer")
+    parser.add_argument(
+        "--batch_size", type=int, default=32, help="train batch size")
     parser.add_argument(
         "--epsilon",
         type=float,

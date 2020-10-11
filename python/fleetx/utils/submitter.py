@@ -117,8 +117,7 @@ class PaddleCloudSubmitter(Submitter):
         pcloud_submit_cmd = self.submit_str.format(
             server, port, image_addr, cluster_name, group_name, num_cards,
             "{}_N{}C{}".format(job_prefix, num_trainers, num_cards),
-            num_trainers, distribute_suffix, 
-            file_dir, over_sell)
+            num_trainers, distribute_suffix, file_dir, over_sell)
         print(pcloud_submit_cmd)
         os.system(pcloud_submit_cmd)
 
