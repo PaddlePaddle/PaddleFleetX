@@ -6,6 +6,7 @@
 
 - 欢迎您关注飞桨分布式训练，我们希望能帮助每一个用户走上大规模工业化生产之路！
 
+
 .. toctree::
    :maxdepth: 1
    :numbered:
@@ -33,6 +34,7 @@
    paddle_fleet_rst/fleet_collective_training_speedup_with_amp_cn
    paddle_fleet_rst/fleet_large_batch_training_techniques_cn
    paddle_fleet_rst/fleet_improve_large_batch_accuracy_cn.md
+   paddle_fleet_rst/fleet_heter_parameter_server_cn
 
 .. toctree::
    :maxdepth: 1
