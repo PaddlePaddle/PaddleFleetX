@@ -269,6 +269,7 @@ PaddleCloud是百度内部的深度学习任务平台，提供了便捷的提交
 -  **启动训练**
 
 ::
+
     # ps-cpu
     fleetrun --server_num=2 --worker_num=2 heter_train.py
 
