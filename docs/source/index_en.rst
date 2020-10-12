@@ -35,6 +35,7 @@
    paddle_fleet/fleet_and_edl_for_distillation
    paddle_fleet/fleet_model_parallel
    paddle_fleet/fleet_pipeline_parallel
+   paddle_fleet/fleet_heter_parameter_server
 
 .. toctree::
    :maxdepth: 1

@@ -24,6 +24,7 @@
    paddle_fleet/fleet_collective_training_speedup_with_amp_cn
    paddle_fleet/fleet_large_batch_training_techniques_cn
    paddle_fleet/fleet_improve_large_batch_accuracy_cn.md
+   paddle_fleet/fleet_heter_parameter_server_cn.md
 
 .. toctree::
    :maxdepth: 1
