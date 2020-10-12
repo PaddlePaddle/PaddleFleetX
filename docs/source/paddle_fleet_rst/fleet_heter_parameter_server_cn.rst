@@ -112,7 +112,7 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
     input_label = paddle.data(name="label", shape=[None, 1], dtype="int64")
     embedding = paddle.nn.embedding(input_data, is_sparse=True, size=[10000000,128])
 
-    # --------- 计算 密集型网络 ---------
+    # --------- 计算 密集型网络 ---------
     # fc & cnn & rnn & attention 等网络结构
     fc1 = paddle.static.nn.fc(embedding, size=1024, act="relu")
     fc2 = paddle.static.nn.fc(fc1, size=512, act="relu")
@@ -240,30 +240,7 @@ PaddleCloud是百度内部的深度学习任务平台，提供了便捷的提交
     bash sh download_data.sh
 
 执行该脚本，会从国内源的服务器上下载Criteo数据集，并解压到指定文件夹。全量训练数据放置于\ ``./train_data_full/``\ ，全量测试数据放置于\ ``./test_data_full/``\ ，用于快速验证的训练数据与测试数据放置于\ ``./train_data/``\ 与\ ``./test_data/``\ 。
-
-执行该脚本的理想输出为：
-
-:: 
-
-    sh download\_data.sh --2019-11-26
-    06:31:33-- https://fleet.bj.bcebos.com/ctr\_data.tar.gz Resolving
-    fleet.bj.bcebos.com... 10.180.112.31 Connecting to
-    fleet.bj.bcebos.com\|10.180.112.31\|:443... connected. HTTP request
-    sent, awaiting response... 200 OK Length: 4041125592 (3.8G)
-    [application/x-gzip] Saving to: “ctr\_data.tar.gz”
-
-    100%[==================================================================================================================>]
-    4,041,125,592 120M/s in 32s
-
-    2019-11-26 06:32:05 (120 MB/s) - “ctr\_data.tar.gz” saved
-    [4041125592/4041125592]
-
-    raw\_data/ raw\_data/part-55 raw\_data/part-113 ... test\_data/part-227
-    test\_data/part-222 Complete data download. Full Train data stored in
-    ./train\_data\_full Full Test data stored in ./test\_data\_full Rapid
-    Verification train data stored in ./train\_data Rapid Verification test
-    data stored in ./test\_data 
-    
+  
 至此，我们已完成数据准备的全部工作。
 
 -  **启动训练**
