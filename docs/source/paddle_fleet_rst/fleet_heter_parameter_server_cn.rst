@@ -274,5 +274,5 @@ PaddleCloud是百度内部的深度学习任务平台，提供了便捷的提交
     fleetrun --server_num=2 --worker_num=2 heter_train.py
 
     # ps-heter
-    fleetrun --server_num=2 --worker_num=2 --heter_worker_num=2 -d=ps_heter heter_train.py
+    fleetrun --server_num=2 --worker_num=2 --heter_worker_num=2 heter_train.py
 
