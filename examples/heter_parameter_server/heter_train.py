@@ -156,7 +156,7 @@ def heter_train(args):
     # 如下，我们设置分布式运行模式为异步(async)，同时将参数进行切分，以分配到不同的节点
     strategy = paddle.distributed.fleet.DistributedStrategy()
     strategy.a_sync = True
-    strategy.a_sync_configs = {"heter_worker_device": 'gpu'}
+    strategy.a_sync_configs = {"heter_worker_device_guard": 'gpu'}
 
     ctr_model = CTR()
     inputs = ctr_model.input_data(args)
@@ -207,6 +207,7 @@ def heter_train(args):
         fleet.stop_worker()
         logger.info("Distribute Train Success!")
 
+
 def train():
     args = parse_args()
     if not os.path.isdir(args.model_path):
@@ -214,7 +215,7 @@ def train():
     print_arguments(args)
     logger.info("run cloud training")
     heter_train(args)
-  
+
 
 if __name__ == '__main__':
     paddle.enable_static()

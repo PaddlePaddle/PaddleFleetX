@@ -51,7 +51,7 @@ with fluid.device_guard("gpu"):
 fleet.init()
 strategy = fleet.DistributedStrategy()
 strategy.a_sync = True
-strategy.a_sync_configs = {"heter_worker_device": "gpu"}
+strategy.a_sync_configs = {"heter_worker_device_guard": "gpu"}
 
 optimizer = paddle.optimizer.Adam(1e-4)
 optimizer = fleet.distributed_optimizer(optimizer, strategy)
