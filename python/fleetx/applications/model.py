@@ -601,7 +601,8 @@ class BertBase(ModelBase):
         Load train Wiki data of language defined in model from local path.
         """
         if not in_tokens:
-            batch_size = batch_size / max_seq_len
+            batch_size = int(batch_size / max_seq_len)
+
         return load_bert_dataset(
             data_dir,
             inputs=self.inputs,

@@ -126,6 +126,34 @@ class MultiGPUTrainer(Trainer):
         if use_dali:
             dataloader.reset()
 
+    def quick_benchmark(self,
+                        model,
+                        dataloader,
+                        start_step=20,
+                        end_step=200):
+        step = 0
+        total_time = 0
+        total_step = 0
+        counting_time = False
+        for data in dataloader:
+            if step > start_step and step <= end_step:
+                start_time = time.time()
+            loss = self.exe.run(fluid.default_main_program(),
+                                feed=data,
+                                fetch_list=[],
+                                use_program_cache=True)
+            if step > start_step and step <= end_step:
+                end_time = time.time()
+                total_time += (end_time - start_time)
+
+            if step > end_step:
+                break
+
+            step += 1
+
+        mean_qps = (end_step - start_step) / total_time
+        return mean_qps
+
     def benchmark(self,
                   model,
                   dataloader,
