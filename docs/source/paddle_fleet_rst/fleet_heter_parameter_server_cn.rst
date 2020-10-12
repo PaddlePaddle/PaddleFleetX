@@ -113,7 +113,7 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
     # 数据输入 & embedding 查表 & sequence_pool 等操作
     input_data = paddle.data(name="sparse_input", shape=[None, 1], dtype="int64")
     input_label = paddle.data(name="label", shape=[None, 1], dtype="int64")
-    embedding = paddle.nn.embedding(input_data, is_sparse=True, size=[10000000,128])
+    embedding = paddle.static.nn.embedding(input_data, is_sparse=True, size=[1000,128])
 
     # --------- 计算 密集型网络 ---------
     # fc & cnn & rnn & attention 等网络结构
@@ -121,7 +121,7 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
     fc2 = paddle.static.nn.fc(fc1, size=512, act="relu")
     fc3 = paddle.static.nn.fc(fc2, size=256, act="relu")
     predict = paddle.static.nn.fc(fc3, size=2, act="softmax")
-    cost = paddle.nn.functional.cross_entropy(input=predict, label=label)
+    cost = paddle.nn.functional.cross_entropy(input=predict, label=input_label)
 
 我们可以使用\ ``fluid.device_guard()``\ API划分网络中各个OP的运行设备，上述组网可以改变如下：
 
@@ -130,8 +130,8 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
     with fluid.device_guard("cpu"):
         input_data = paddle.data(name="sparse_input", shape=[None, 1], dtype="int64")
         input_label = paddle.data(name="label", shape=[None, 1], dtype="int64")
-        input_label = paddle.cast(input_label, dtype="float32")
-        embedding = paddle.nn.embedding(input_data, is_sparse=True, size=[10000000,128])
+        label = paddle.cast(input_label, dtype="float32")
+        embedding = paddle.static.nn.embedding(input_data, is_sparse=True, size=[1000,128])
         
 
     with fluid.device_guard("gpu"):
@@ -139,7 +139,7 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
         fc2 = paddle.static.nn.fc(fc1, size=512, act="relu")
         fc3 = paddle.static.nn.fc(fc2, size=256, act="relu")
         predict = paddle.static.nn.fc(fc3, size=2, act="softmax")
-        input_label = paddle.cast(input_label, dtype="int64")
+        label = paddle.cast(label, dtype="int64")
         cost = paddle.nn.functional.cross_entropy(input=predict, label=label)
 
 这样划分组网的作用是：
