@@ -367,7 +367,6 @@ class DataReaderV2(object):
         batch_size = len(samples)
         pos_ids = np.linspace(0, self.max_seq_len - 1, self.max_seq_len)
         pos_ids = np.tile(pos_ids, (batch_size, 1))
-
         def to_int_array(array_str):
             array_list = array_str.split()
             return [int(x) for x in array_list]
