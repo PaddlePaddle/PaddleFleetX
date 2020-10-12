@@ -1,6 +1,8 @@
 6.使用Fleet进行异构参数服务器训练
 =================================
 
+**异构参数服务器目前仅支持在静态图下运行**\
+
 什么是异构参数服务器？
 ---------------------
 
@@ -182,14 +184,23 @@ api启动异构参数服务器，需要配置\ ``DistributedStrategy``\ ，使�
 2. 训练角色环境变量: ``TRAINING_ROLE=HETER_TRAINER``
 
 例如：
-``export PADDLE_HETER_TRAINER_IP_PORT_LIST='ip:port,ip:port' export TRAINING_ROLE=HETER_TRAINER``
+
+::
+
+    export PADDLE_HETER_TRAINER_IP_PORT_LIST='ip:port,ip:port' 
+    export TRAINING_ROLE=HETER_TRAINER
 
 当执行fleet初始化代码时：
-``python role = role_maker.PaddleCloudRoleMaker() fleet.init(role)``
 
-若进程检测到环境变量中配置了\ ``PADDLE_HETER_TRAINER_IP_PORT_LIST``\ ，则会进入异构参数服务器模式，进行相应的计算图切分及初始化。
+.. code:: python
 
-若进程检测到环境变量中\ ``TRAINING_ROLE``\ 存在，并且等于\ ``HETER_TRAINER``\ 时，则该进程扮演异构计算设备的角色，异构设备的设备类型由上文中提到的\ ``strategy.a_sync_configs = {"heter_worker_device": 'gpu'}``\ 指定。
+    fleet.init()
+
+    # 若进程检测到环境变量中配置了 PADDLE_HETER_TRAINER_IP_PORT_LIST，则会进入异构参数服务器模式，进行相应的计算图切分及初始化。
+
+    # 若进程检测到环境变量中 TRAINING_ROLE 存在，并且等于 HETER_TRAINER 时，则该进程扮演异构计算设备的角色
+
+    # 异构设备的设备类型由上文中提到的 strategy.a_sync_configs = {"heter_worker_device": 'gpu'} 指定。
 
 我们提供了一键启动的\ ``fleetrun``\ 功能，可以便利的启动异构参数服务器训练，将在下文介绍。
 
@@ -227,24 +238,30 @@ PaddleCloud是百度内部的深度学习任务平台，提供了便捷的提交
 ``bash sh download_data.sh``
 执行该脚本，会从国内源的服务器上下载Criteo数据集，并解压到指定文件夹。全量训练数据放置于\ ``./train_data_full/``\ ，全量测试数据放置于\ ``./test_data_full/``\ ，用于快速验证的训练数据与测试数据放置于\ ``./train_data/``\ 与\ ``./test_data/``\ 。
 
-执行该脚本的理想输出为： \`\`\`bash > sh download\_data.sh --2019-11-26
-06:31:33-- https://fleet.bj.bcebos.com/ctr\_data.tar.gz Resolving
-fleet.bj.bcebos.com... 10.180.112.31 Connecting to
-fleet.bj.bcebos.com\|10.180.112.31\|:443... connected. HTTP request
-sent, awaiting response... 200 OK Length: 4041125592 (3.8G)
-[application/x-gzip] Saving to: “ctr\_data.tar.gz”
+执行该脚本的理想输出为：
 
-100%[==================================================================================================================>]
-4,041,125,592 120M/s in 32s
+:: 
 
-2019-11-26 06:32:05 (120 MB/s) - “ctr\_data.tar.gz” saved
-[4041125592/4041125592]
+    sh download\_data.sh --2019-11-26
+    06:31:33-- https://fleet.bj.bcebos.com/ctr\_data.tar.gz Resolving
+    fleet.bj.bcebos.com... 10.180.112.31 Connecting to
+    fleet.bj.bcebos.com\|10.180.112.31\|:443... connected. HTTP request
+    sent, awaiting response... 200 OK Length: 4041125592 (3.8G)
+    [application/x-gzip] Saving to: “ctr\_data.tar.gz”
 
-raw\_data/ raw\_data/part-55 raw\_data/part-113 ... test\_data/part-227
-test\_data/part-222 Complete data download. Full Train data stored in
-./train\_data\_full Full Test data stored in ./test\_data\_full Rapid
-Verification train data stored in ./train\_data Rapid Verification test
-data stored in ./test\_data \`\`\` 至此，我们已完成数据准备的全部工作。
+    100%[==================================================================================================================>]
+    4,041,125,592 120M/s in 32s
+
+    2019-11-26 06:32:05 (120 MB/s) - “ctr\_data.tar.gz” saved
+    [4041125592/4041125592]
+
+    raw\_data/ raw\_data/part-55 raw\_data/part-113 ... test\_data/part-227
+    test\_data/part-222 Complete data download. Full Train data stored in
+    ./train\_data\_full Full Test data stored in ./test\_data\_full Rapid
+    Verification train data stored in ./train\_data Rapid Verification test
+    data stored in ./test\_data 
+    
+至此，我们已完成数据准备的全部工作。
 
 -  **启动训练**
 
