@@ -339,6 +339,8 @@ def get_device_num():
     return device_num
 
 def train(args):
+    paddle.enable_static()
+
     # parameters from arguments
     model_name = args.model
     checkpoint = args.checkpoint

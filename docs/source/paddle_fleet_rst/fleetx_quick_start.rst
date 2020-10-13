@@ -47,10 +47,7 @@ FleetX依赖Paddle
 
 .. code:: python
 
-   import paddle
-   import paddle.distributed.fleet as fleet
-   import fleetx as X
-
+   paddle.enable_static()
    configs = X.parse_train_configs()
 
    model = X.applications.Resnet50()

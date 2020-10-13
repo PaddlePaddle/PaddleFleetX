@@ -31,6 +31,8 @@ FleetX依赖Paddle
 
 ::
 
+   # 开启静态图运行模式
+   paddle.enable_static()
    # configs中记录了训练相关的参数，如学习率等
    configs = X.parse_train_configs()
    # 加载模型至model，并加载数据至dataloader
@@ -50,7 +52,7 @@ FleetX依赖Paddle
    # 使用collective GPU分布式模式
    fleet.init(is_collective=True)
    # 使用默认的分布式策略
-   dist_strategy = ifleet.DistributedStrategy()
+   dist_strategy = fleet.DistributedStrategy()
    # 将单机模型转换为分布式
    optimizer = paddle.distributed.fleet.distributed_optimizer(optimizer, dist_strategy)
    optimizer.minimize(model.loss)
