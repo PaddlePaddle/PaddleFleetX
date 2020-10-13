@@ -23,7 +23,7 @@ fleet.init(is_collective=True)
 model = X.applications.Transformer()
 wmt_downloader = X.utils.WMTDataDownloader()
 local_path = wmt_downloader.download_from_bos(local_path='./data')
-data_loader = model.load_wmt16_dataset_from_file(
+data_loader = model.get_train_dataloader(
     '{}/vocab_all.bpe.32000'.format(local_path),
     '{}/vocab_all.bpe.32000'.format(local_path),
     '{}/train.tok.clean.bpe.32000.en-de'.format(local_path))

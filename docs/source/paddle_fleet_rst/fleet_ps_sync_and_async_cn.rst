@@ -35,11 +35,12 @@ Speech
 
 .. code:: python
 
-   import os
-   import fleetx as X
-   import paddle.fluid as fluid
-   import paddle.distributed.fleet as fleet
-   import paddle.distributed.fleet.base.role_maker as role_maker
+    import paddle
+    import os
+    import fleetx as X
+    import paddle.fluid as fluid
+    import paddle.distributed.fleet as fleet
+    import paddle.distributed.fleet.base.role_maker as role_maker
 
 定义分布式模式并初始化
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -49,9 +50,10 @@ Speech
 
 .. code:: python
 
-   configs = X.parse_train_configs()
-   role = role_maker.PaddleCloudRoleMaker()
-   fleet.init(role)
+    paddle.enable_static()
+    configs = X.parse_train_configs()
+    role = role_maker.PaddleCloudRoleMaker()
+    fleet.init(role)
 
 加载模型及数据
 ~~~~~~~~~~~~~~
@@ -60,8 +62,8 @@ Speech
 
 .. code:: python
 
-   model = X.applications.MultiSlotCTR()
-   loader = model.load_multislot_from_file('./train_data')
+    model = X.applications.MultiSlotCTR()
+    loader = model.load_multislot_from_file('./train_data')
 
 定义同步训练 Strategy 及 Optimizer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -73,12 +75,12 @@ API中，用户可以使用\ ``fleet.DistributedStrategy()``\ 接口定义自己
 
 .. code:: python
 
-   dist_strategy = fleet.DistributedStrategy()
-   dist_strategy.a_sync = False
+    dist_strategy = fleet.DistributedStrategy()
+    dist_strategy.a_sync = False
 
-   optimizer = fluid.optimizer.SGD(learning_rate=0.0001)
-   optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
-   optimizer.minimize(model.loss)
+    optimizer = fluid.optimizer.SGD(learning_rate=0.0001)
+    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
+    optimizer.minimize(model.loss)
 
 开始训练
 ~~~~~~~~
@@ -92,13 +94,13 @@ API中，用户可以使用\ ``fleet.DistributedStrategy()``\ 接口定义自己
 
 .. code:: python
 
-   if fleet.is_server():
-       fleet.init_server()
-       fleet.run_server()
-   else:
-       fleet.init_worker()
-       trainer = X.Trainer(fluid.CPUPlace())
-       trainer.fit(model, loader, epoch=10)
+    if fleet.is_server():
+        fleet.init_server()
+        fleet.run_server()
+    else:
+        fleet.init_worker()
+        trainer = X.Trainer(fluid.CPUPlace())
+        trainer.fit(model, loader, epoch=10)
 
 运行训练脚本
 ~~~~~~~~~~~~
@@ -108,4 +110,4 @@ API中，用户可以使用\ ``fleet.DistributedStrategy()``\ 接口定义自己
 
 .. code:: sh
 
-   fleetrun --server_num=1 --worker_num=2 ctr_app.py
+    fleetrun --server_num=1 --worker_num=2 ctr_app.py
