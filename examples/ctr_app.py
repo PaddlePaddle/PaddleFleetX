@@ -14,10 +14,11 @@
 
 import os
 import fleetx as X
+import paddle
 import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
 import paddle.distributed.fleet.base.role_maker as role_maker
-
+paddle.enable_static()
 configs = X.parse_train_configs()
 role = role_maker.PaddleCloudRoleMaker()
 fleet.init(role)
