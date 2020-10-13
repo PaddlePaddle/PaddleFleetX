@@ -14,6 +14,7 @@ Paddle的分布式高级API`paddle.distributed.fleet` 接口从Paddle 2.0-RC版�
 
 下面是一个非常简单的动态图单机单卡程序。网络只有只有2层全连接层，用均方差误差（MSELoss）作为损失函数，Adam优化器进行参数的更新。循环迭代20轮中，每轮打印出当前网络具体的损失值。
 ```py
+# -*- coding: UTF-8 -*-
 import paddle
 import paddle.nn as nn
 
@@ -80,9 +81,13 @@ fleet.init(is_collective=True)
 
 3. 通过fleet获取分布式优化器和分布式模型
 ```py
-adam = fleet.distributed_optimizer(adam)
+strategy = fleet.DistributedStrategy()
+adam = fleet.distributed_optimizer(adam, strategy=strategy)
 dp_layer = fleet.distributed_model(layer)
 ```
+
+说明：目前静态图`DistributedStrategy`下的分布式策略正逐步向动态图场景迁移中，敬请期待！
+
 
 4. 在执行反向（backward函数）前后进行损失缩放和反向梯度的聚合
 ```py
@@ -93,6 +98,7 @@ dp_layer.apply_collective_grads()
 
 根据我们最开始提供的单机单卡代码示例，再根据4步口诀进行修改，完整的单机多卡示例代码如下：
 ```py
+# -*- coding: UTF-8 -*-
 import paddle
 import paddle.nn as nn
 #分布式step 1: 导入paddle.distributed.fleet包
@@ -119,10 +125,11 @@ fleet.init(is_collective=True)
 layer = LinearNet()
 loss_fn = nn.MSELoss()
 adam = paddle.optimizer.Adam(
-learning_rate=0.001, parameters=layer.parameters())
+    learning_rate=0.001, parameters=layer.parameters())
 
 # 分布式step 3: 通过fleet获取分布式优化器和分布式模型
-adam = fleet.distributed_optimizer(adam)
+strategy = fleet.DistributedStrategy()
+adam = fleet.distributed_optimizer(adam, strategy=strategy)
 dp_layer = fleet.distributed_model(layer)
 
 
