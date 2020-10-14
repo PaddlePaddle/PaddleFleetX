@@ -167,7 +167,7 @@ downloader = X.utils.Downloader()
 local_path = downloader.download_from_bos(
     fs_yaml='https://fleet.bj.bcebos.com/small_datasets/yaml_example/wiki_cn.yaml',
     local_path='./data')
-data_loader = model.load_digital_dataset_from_file(
+data_loader = model.get_train_dataloader(
     local_path,
     max_seq_len=512,
     batch_size=13,
