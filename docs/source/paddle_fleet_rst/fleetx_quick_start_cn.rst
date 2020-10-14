@@ -12,7 +12,7 @@ FleetX是什么？
 -  短代码定义预训练模型
 -  预置经典模型的公开训练数据
 -  用户可低成本替换自有数据集
--  面向每个模型的最佳分布式训练实践
+-  面向经典模型的最佳分布式训练实践
 
 上手示例
 ~~~~~~~~
@@ -47,15 +47,16 @@ FleetX依赖Paddle
 
 .. code:: python
 
+   # -*- coding: UTF-8 -*-
    import paddle
    import paddle.distributed.fleet as fleet
    import fleetx as X
-
+   paddle.enable_static
    configs = X.parse_train_configs()
 
    model = X.applications.Resnet50()
    downloader = X.utils.Downloader()
-   local_path = downloader.download_from_bos(fs_yml="https://xxx.xx.xx.xx/full_imagenet_bos.yml", local_path='./data')
+   local_path = downloader.download_from_bos(fs_yml="https://fleet.bj.bcebos.com/small_datasets/yaml_example/imagenet.yaml", local_path='./data')
    loader = model.get_train_dataloader(local_path, batch_size=32)
 
 3. 定义分布式策略
@@ -108,3 +109,5 @@ rc版本开始，我们统一采用fleetrun进行多卡训练的启动，方式�
    fleetrun --gpus 0,1,2,3 resnet_app.py
 
 关于\ ``fleetrun``\ 命令，更详细的使用说明请参考\ `fleetrun <fleetrun_usage_cn.html>`__
+
+更多\ ``FleetX``\的例子请参考下面的\ `链接 <https://github.com/PaddlePaddle/FleetX/tree/develop/examples>`__
