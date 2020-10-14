@@ -58,7 +58,7 @@ Fleet 支持在 GPU (CUDA 版本 >= 7.5) 服务器集群上完成高性能分布
 
 在进行性能优化时， 检查每项优化点并验证对应提升，最终获得最优性能。
 一个简单的验证当前的训练程序是否需要进一步优化性能的方法，
-是查看GPU的计算利用率，通常用 :code:``nvidia-smi``\ 命令查看。
+是查看GPU的计算利用率，通常用 `nvidia-smi` 命令查看。
 如果GPU利用率较低，则可能存在较大的优化空间。
 
 下文将介绍对性能影响较大，设置频率比较高的几个参数，详细的参数列表放在文末的附录中。
@@ -167,12 +167,8 @@ PaddlePaddle Fluid使用“线程池”
 `[5] <https://en.wikipedia.org/wiki/Thread_pool>`__
 模型调度并执行Op，Op在启动GPU计算之前，
 通常需要CPU的协助，然而如果Op本身占用时间很小，“线程池”模型下又会带来额外的调度开销。
-使用多进程模式时，如果神经网络的计算图
-`[6] <https://en.wikipedia.org/wiki/Data-flow_diagram>`__
-节点间有较高的并发度，
-即使每个进程只在一个GPU上运行，使用多个线程可以更大限度的提升GPU利用率。
 
-根据以往的经验，对于CPU任务，num\_threads=2 \* ev\_count
+根据以往的经验，对于CPU任务，num\_threads=2 \* dev\_count
 时性能较好，对于GPU任务，num\_threads=4 \* dev\_count
 时性能较好。注意：线程池不是越大越好。
 
@@ -209,14 +205,13 @@ socket 的通信方式将成为训练速度的瓶颈， 使多节点训练无法
 预先分配足够的显存
 ~~~~~~~~~~~~~~~~~~
 
-通过设置环境变量 FLAGS\_fraction\_of\_gpu\_memory\_to\_use=0.7
+通过环境变量 FLAGS\_fraction\_of\_gpu\_memory\_to\_use=0.7
 设置预先分配的显存占比。
 由于CUDA原生的显存分配cuMalloc和释放cuFree操作均是同步操作，非常耗时，因此
 通过 设置 FLAGS\_fraction\_of\_gpu\_memory\_to\_use
 成一个较大的值，比如0.7，可以显著地加速训练的速度。
 
-0.7 是指 70%的显存会预先分配。设置的范围是0.0~1.0。注意，
-设置成0.0会让每次显存分配都调用 cudaMalloc 这样会极大的降低训练性能。
+0.7 是指 70%的显存会预先分配。设置的范围是0.0~1.0。
 
 .. code:: python
 
@@ -243,18 +238,12 @@ socket 的通信方式将成为训练速度的瓶颈， 使多节点训练无法
             else:
                 exe.run([])
 
-增大batch\_size或使用设置通信频率（batch merge）
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+增大batch\_size 
+~~~~~~~~~~~~~~~~
 
 分布式同步训练，跨节点通信或多或少会带来性能影响，增大训练的batch\_size，
 可以保持通信开销不变的情况下，增大计算吞吐从而降低通信在整个训练过程中的占比来提升总体的训练吞吐。
 
-然而增大batch\_size会带来同等比例的显存消耗提升，为了进一步的增大batch\_size，Fluid提供“batch
-merge”功能，
-通过在一个GPU上串行计算多个小的batch并积累梯度，然后再执行多机多卡之间的通信，
-此模式同样也可以被称为“可变通信频率“。使用batch
-merge功能，在同样的模型， 可以极大的增加batch
-size，提升多机训练的总吞吐。
 
 使用 DALI reader
 ~~~~~~~~~~~~~~~~
@@ -262,7 +251,7 @@ size，提升多机训练的总吞吐。
 数据读取的优化在GPU训练中至关重要，尤其在不断增加batch\_size提升吞吐时，数据reader
 可能成为训练速度的瓶颈。 Fleet 中可以使用 Nvidia
 DALI\ `6 <https://docs.nvidia.com/deeplearning/dali/master-user-guide/docs/>`__
-作为数据reader. 使用DALI的有点有：
+作为数据loader. 使用DALI的优点有：
 
 -  使用GPU完成部分数据预处理，加速数据读取过程，减少 CPU 负担。
 -  DALI 提供预取队列（perfetch
@@ -289,7 +278,7 @@ loss scaling，其他模型使用混合精度也 可以参考以上的实现完�
 ResNet50训练示例
 ----------------
 
-试验开始前我们已经在GPU 集群中提前配置好 `RDMA` 和 `InfiniBand`，减少网络通信的瓶颈，配置细节和具体硬件相关，可以参考` <https://community.mellanox.com/s/article/what-is-rdma-x>`__
+试验开始前我们已经在GPU 集群中提前配置好 `RDMA` 和 `InfiniBand`，减少网络通信的瓶颈，配置细节和具体硬件相关，可以参考`[rdma-x] <https://community.mellanox.com/s/article/what-is-rdma-x>`__
 
 设置 AllReduce融合等参数
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -309,17 +298,13 @@ ResNet50训练示例
 
 .. code:: python
 
-    import ast
-    import argparse
-    import six
+    import os
     import fleetx as X
-    import numpy as np
-    import paddle.fluid as fluid
-    import paddle.distributed.fleet as fleet
-    import math
-    import time
     import paddle
-    paddle.enable_static()
+    import paddle.fluid as fluid
+    import paddle.distributed.fleet.base.role_maker as role_maker
+    import time
+    import paddle.distributed.fleet as fleet
 
 
 定义分布式模式并初始化模型和reader
@@ -332,12 +317,15 @@ ResNet50训练示例
     paddle.enable_static()
     configs = X.parse_train_configs()
     fleet.init(is_collective=True)
-    model = X.applications.Resnet50(data_layout=args.data_layout)
+
+    model = X.applications.Resnet50()
     downloader = X.utils.Downloader()
-    local_path = downloader.download_from_hdfs('imagenet.yaml', local_path='./ImageNet')
-    loader = model.get_train_dataloader("{}".format(local_path),
-                                           batch_size=args.batch_size,
-                                           use_dali=True)
+    local_path = downloader.download_from_bos(
+        fs_yaml='https://fleet.bj.bcebos.com/test/loader/small_imagenet.yaml',
+        local_path='./data')
+    batch_size = 32
+    loader = model.get_train_dataloader(local_path, batch_size=batch_size)
+
 
 定义分布式相关策略
 ~~~~~~~~~~~~~~~~~
@@ -385,6 +373,7 @@ ResNet50训练示例
 
     dist_strategy.save_to_prototxt("dist_strategy.prototxt")
 
+
 开始训练
 ~~~~~~~~
 
@@ -398,7 +387,7 @@ ResNet50训练示例
     exe = fluid.Executor(place)
     exe.run(fluid.default_startup_program())
 
-    for i, data in enumerate(data_loader()):
+    for i, data in enumerate(loader()):
         start_time = time.time()
         cost_val = exe.run(model.main_prog,
                             feed=data,
@@ -417,9 +406,18 @@ Fleetrun 一键启动
 
 .. code:: sh
 
-    fleetrun --ips="xx.xx.xx.xx, yy.yy.yy.yy, aa.aa.aa.aa, bb.bb.bb.bb" --gpus=0,1,2,3,4,5,6,7 collective.py
+    fleetrun --ips="xx.xx.xx.xx, yy.yy.yy.yy, aa.aa.aa.aa, bb.bb.bb.bb" --gpus=0,1,2,3,4,5,6,7 example_collective.py
 
-
+    # worker_index: 0, step0 cost = 7.147776, speed: 34.481360
+    # worker_index: 0, step1 cost = 7.151375, speed: 408.405991
+    # worker_index: 0, step2 cost = 7.025396, speed: 509.624355
+    # worker_index: 0, step3 cost = 6.501647, speed: 533.641315
+    # worker_index: 0, step4 cost = 6.759287, speed: 520.999193
+    # worker_index: 0, step5 cost = 6.266363, speed: 536.729215
+    # worker_index: 0, step6 cost = 6.243353, speed: 522.510241
+    # worker_index: 0, step7 cost = 6.923586, speed: 519.478763
+    # worker_index: 0, step8 cost = 7.607512, speed: 534.919526
+    # worker_index: 0, step9 cost = 7.111218, speed: 508.371600
 
 Fleet 训练策略
 --------------
@@ -451,7 +449,7 @@ DistributedStrategy
 |                 |                 |                 | 步allreduce后系 |
 |                 |                 |                 | 统的开销会降低  |
 +-----------------+-----------------+-----------------+-----------------+
-| nccl_comm_num   | int             | 1               | nccl通信器数量. |
+| nccl_comm_num   | int             | 1               | nccl通信器数量。 |
 |                 |                 |                 | nccl通信器数量  |
 |                 |                 |                 | nccl_comm_num   |
 |                 |                 |                 | 可以加快GPU之   |

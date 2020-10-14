@@ -1,5 +1,5 @@
-EDL 服务型弹性蒸馏
-==================
+服务型弹性蒸馏
+==============
 
 简介
 ----
@@ -56,10 +56,10 @@ Network》 <https://arxiv.org/abs/1503.02531>`__
 EDL 服务型弹性蒸馏效果
 ----------------------
 
-ResNet50\_vd模型
+ResNet50\_vd模型, ImageNet 数据集
 
 +---------------------+----------------+----------------+--------------+--------+--------+---------+
-| model               | teacher 资源   | student 资源   | batch size   | acc1   | acc5   | speed   |
+| model               | teacher 资源   | student 资源   | batch size   | acc1   | acc5   | img/s  |
 +=====================+================+================+==============+========+========+=========+
 | 无蒸馏              | none           | 8 \* V100      | 256          | 77.1   | 93.5   | 1828    |
 +---------------------+----------------+----------------+--------------+--------+--------+---------+
@@ -85,9 +85,14 @@ DistillReader
   :align: center
 
 DistillReader
-产生可供Student模型训练的数据reader。如上图所示，Student模型将训练样本和标签传入训练reader，DistillReader从训练reader中读取训练样本发送给Teacher模型，然后获取推理结果。
+产生可供Student模型训练的数据reader。如上图所示，Student模型将训练样本和标签传入训练reader ()，DistillReader从训练reader中读取训练样本发送给Teacher模型，然后获取推理结果。 DistillReader 的结构如下图。
 
-推理结果和原训练reader中的数据封装在一起，返回一个包含推理结果的新reader给Student模型，这样TEACHER模型的推理和STUDENT模型的训练就可以流水行并行起来了。
+推理结果和原训练reader中的数据封装在一起，返回一个包含推理结果的新reader给Student模型，这样Teacher 模型的推理和Student 模型的训练就可以流水行并行起来了。
+
+.. image:: ../paddle_fleet/img/distillation_4.png
+  :width: 400
+  :alt: DistillReader
+  :align: center
 
 可容错弹性服务
 ^^^^^^^^^^^^^^
@@ -95,7 +100,7 @@ DistillReader
 可容错弹性服务的实现架构如下图所示，首先我们通过Paddle
 Serving将多个Teacher模型部署成服务，并注册服务到Redis数据库中；Student模型则作为客户端从服务发现中查询所需的Teacher服务；服务发现从Redis数据库查询并按某种负载均衡策略返回客户端所需的Teacher列表；每当Teacher变化时，客户端就可以实时拿到最新Teacher列表，连接Teacher进行蒸馏训练，不用担心发生由于连接到被收回的Teacher资源而导致任务失败的请况。
 
-STUDENT模型给TEACHER模型发送样本并获取推理结果，而TEACHER模型服务侧则可以随意增删，弹性调整。
+Student 模型给Teacher 模型发送样本并获取推理结果，而Teacher 模型服务端则可以随意增删，弹性调整。
 
 .. image:: ../paddle_fleet/img/distillation_3.png
   :width: 600

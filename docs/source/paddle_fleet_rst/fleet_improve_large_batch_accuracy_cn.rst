@@ -54,6 +54,7 @@ LARS
 
     import os
     import fleetx as X
+    import paddle
     import paddle.fluid as fluid
     import paddle.distributed.fleet.base.role_maker as role_maker
     import time
@@ -66,9 +67,9 @@ LARS
 
 .. code:: python
 
+    paddle.enable_static()
     configs = X.parse_train_configs()
-    role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-    fleet.init(role)
+    fleet.init(is_collective=True)
 
 加载模型及数据
 ^^^^^^^^^^^^^^
@@ -78,8 +79,12 @@ LARS
 .. code:: python
 
     model = X.applications.Resnet50()
+    downloader = X.utils.Downloader()
+    local_path = downloader.download_from_bos(
+        fs_yaml='https://fleet.bj.bcebos.com/test/loader/small_imagenet.yaml',
+        local_path='./data')
     batch_size = 32
-    data_loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
+    loader = model.get_train_dataloader(local_path, batch_size=batch_size)
 
 定义分布式及LARS 相关策略
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -140,12 +145,12 @@ meta optimizer, 在使用时需要设置一下几点:
     exe = fluid.Executor(place)
     exe.run(fluid.default_startup_program())
 
-    for i, data in enumerate(data_loader()):
+    for i, data in enumerate(loader()):
         start_time = time.time()
         cost_val = exe.run(model.main_prog,
                             feed=data,
                             fetch_list=[model.loss.name])
-                            
+
         end_time = time.time()
         print(
             "worker_index: %d, step%d cost = %f, speed: %f"
@@ -158,7 +163,7 @@ meta optimizer, 在使用时需要设置一下几点:
 
 .. code:: sh
 
-    fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log resnet50_lars.py
+    fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log example_lars.py
 
 LAMB
 ----
@@ -172,6 +177,7 @@ LAMB
 
     import os
     import fleetx as X
+    import paddle
     import paddle.fluid as fluid
     import paddle.distributed.fleet.base.role_maker as role_maker
     import time
@@ -184,9 +190,9 @@ LAMB
 
 .. code:: python
 
+    paddle.enable_static()
     configs = X.parse_train_configs()
-    role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-    fleet.init(role)
+    fleet.init(is_collective=True)
 
 加载模型及数据
 ^^^^^^^^^^^^^^
@@ -196,8 +202,12 @@ LAMB
 .. code:: python
 
     model = X.applications.Resnet50()
+    downloader = X.utils.Downloader()
+    local_path = downloader.download_from_bos(
+        fs_yaml='https://fleet.bj.bcebos.com/test/loader/small_imagenet.yaml',
+        local_path='./data')
     batch_size = 32
-    data_loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
+    loader = model.get_train_dataloader(local_path, batch_size=batch_size)
 
 定义分布式及LARS 相关策略
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -262,12 +272,12 @@ LAMB 优化算法的公式如下:
     exe = fluid.Executor(place)
     exe.run(fluid.default_startup_program())
 
-    for i, data in enumerate(data_loader()):
+    for i, data in enumerate(loader()):
         start_time = time.time()
         cost_val = exe.run(model.main_prog,
                             feed=data,
                             fetch_list=[model.loss.name])
-                            
+
         end_time = time.time()
         print(
             "worker_index: %d, step%d cost = %f, speed: %f"
