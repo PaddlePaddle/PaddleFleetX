@@ -1,6 +1,8 @@
 6.使用Fleet进行异构参数服务器训练
 =================================
 
+**异构参数服务器目前仅支持在静态图下运行**\
+
 什么是异构参数服务器？
 ---------------------
 
@@ -98,25 +100,28 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
 
 下面介绍异构参数服务器的使用方法，推荐先在正常参数服务器模式下运行成功，再开始调试异构参数服务器模式。下面介绍的使用方法，均为在正常参数服务器模式基础上的增量变动，请知晓。
 
+以下示例的完整代码位于\ ``FleetX/example/heter_parameter_server/demo.py``
+
+
 -  **1、设置运行在异构设备上的组网**
 
-一个常规的深度学习组网，通常可以拆解为两部分：1、IO密集型组网；2、计算密集型组网，如下面的DNN组网所示：
+深度学习组网，通常可以拆解为两部分：1、IO密集型组网；2、计算密集型组网，如下面的DNN组网所示：
 
 ::
 
-    # --------- IO 密集型 网络 ---------
+    # --------- IO 密集型网络 ---------
     # 数据输入 & embedding 查表 & sequence_pool 等操作
     input_data = paddle.data(name="sparse_input", shape=[None, 1], dtype="int64")
     input_label = paddle.data(name="label", shape=[None, 1], dtype="int64")
-    embedding = paddle.nn.embedding(input_data, is_sparse=True, size=[10000000,128])
+    embedding = paddle.static.nn.embedding(input_data, is_sparse=True, size=[1000,128])
 
-    # --------- 计算 密集型 网络 ---------
-    # fc & cnn & rnn & attention 等网络结构
+    # --------- 计算 密集型网络 ---------
+    # fc & cnn & rnn & attention 等网络结构
     fc1 = paddle.static.nn.fc(embedding, size=1024, act="relu")
     fc2 = paddle.static.nn.fc(fc1, size=512, act="relu")
     fc3 = paddle.static.nn.fc(fc2, size=256, act="relu")
     predict = paddle.static.nn.fc(fc3, size=2, act="softmax")
-    cost = paddle.nn.functional.cross_entropy(input=predict, label=label)
+    cost = paddle.nn.functional.cross_entropy(input=predict, label=input_label)
 
 我们可以使用\ ``fluid.device_guard()``\ API划分网络中各个OP的运行设备，上述组网可以改变如下：
 
@@ -125,8 +130,8 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
     with fluid.device_guard("cpu"):
         input_data = paddle.data(name="sparse_input", shape=[None, 1], dtype="int64")
         input_label = paddle.data(name="label", shape=[None, 1], dtype="int64")
-        input_label = paddle.cast(input_label, dtype="float32")
-        embedding = paddle.nn.embedding(input_data, is_sparse=True, size=[10000000,128])
+        label = paddle.cast(input_label, dtype="float32")
+        embedding = paddle.static.nn.embedding(input_data, is_sparse=True, size=[1000,128])
         
 
     with fluid.device_guard("gpu"):
@@ -134,7 +139,7 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
         fc2 = paddle.static.nn.fc(fc1, size=512, act="relu")
         fc3 = paddle.static.nn.fc(fc2, size=256, act="relu")
         predict = paddle.static.nn.fc(fc3, size=2, act="softmax")
-        input_label = paddle.cast(input_label, dtype="int64")
+        label = paddle.cast(label, dtype="int64")
         cost = paddle.nn.functional.cross_entropy(input=predict, label=label)
 
 这样划分组网的作用是：
@@ -167,7 +172,7 @@ api启动异构参数服务器，需要配置\ ``DistributedStrategy``\ ，使�
     strategy = paddle.distributed.fleet.DistributedStrategy()
     strategy.a_sync = True
     # ---- 新增strategy配置, 指定异构设备的device类型 ----
-    strategy.a_sync_configs = {"heter_worker_device": 'gpu'}
+    strategy.a_sync_configs = {"heter_worker_device_guard": 'gpu'}
 
     optimizer = paddle.optimizer.Adam(args.learning_rate)
     optimizer = fleet.distributed_optimizer(optimizer, strategy)
@@ -182,14 +187,23 @@ api启动异构参数服务器，需要配置\ ``DistributedStrategy``\ ，使�
 2. 训练角色环境变量: ``TRAINING_ROLE=HETER_TRAINER``
 
 例如：
-``export PADDLE_HETER_TRAINER_IP_PORT_LIST='ip:port,ip:port' export TRAINING_ROLE=HETER_TRAINER``
+
+::
+
+    export PADDLE_HETER_TRAINER_IP_PORT_LIST='ip:port,ip:port' 
+    export TRAINING_ROLE=HETER_TRAINER
 
 当执行fleet初始化代码时：
-``python role = role_maker.PaddleCloudRoleMaker() fleet.init(role)``
 
-若进程检测到环境变量中配置了\ ``PADDLE_HETER_TRAINER_IP_PORT_LIST``\ ，则会进入异构参数服务器模式，进行相应的计算图切分及初始化。
+.. code:: python
 
-若进程检测到环境变量中\ ``TRAINING_ROLE``\ 存在，并且等于\ ``HETER_TRAINER``\ 时，则该进程扮演异构计算设备的角色，异构设备的设备类型由上文中提到的\ ``strategy.a_sync_configs = {"heter_worker_device": 'gpu'}``\ 指定。
+    fleet.init()
+
+    # 若进程检测到环境变量中配置了 PADDLE_HETER_TRAINER_IP_PORT_LIST，则会进入异构参数服务器模式，进行相应的计算图切分及初始化。
+
+    # 若进程检测到环境变量中 TRAINING_ROLE 存在，并且等于 HETER_TRAINER 时，则该进程扮演异构计算设备的角色
+
+    # 异构设备的设备类型由上文中提到的 strategy.a_sync_configs = {"heter_worker_device_guard": 'gpu'} 指定。
 
 我们提供了一键启动的\ ``fleetrun``\ 功能，可以便利的启动异构参数服务器训练，将在下文介绍。
 
@@ -220,43 +234,25 @@ PaddleCloud是百度内部的深度学习任务平台，提供了便捷的提交
 异构参数服务器使用示例
 ^^^^^^^^^^^^^^^^^^^^^^
 
-示例代码位\ ``FleetX/example/heter_parameter_server/``
+示例代码位于\ ``FleetX/example/heter_parameter_server/``
 
 -  **数据下载**
 
-``bash sh download_data.sh``
+::
+
+    bash sh download_data.sh
+
 执行该脚本，会从国内源的服务器上下载Criteo数据集，并解压到指定文件夹。全量训练数据放置于\ ``./train_data_full/``\ ，全量测试数据放置于\ ``./test_data_full/``\ ，用于快速验证的训练数据与测试数据放置于\ ``./train_data/``\ 与\ ``./test_data/``\ 。
-
-执行该脚本的理想输出为： \`\`\`bash > sh download\_data.sh --2019-11-26
-06:31:33-- https://fleet.bj.bcebos.com/ctr\_data.tar.gz Resolving
-fleet.bj.bcebos.com... 10.180.112.31 Connecting to
-fleet.bj.bcebos.com\|10.180.112.31\|:443... connected. HTTP request
-sent, awaiting response... 200 OK Length: 4041125592 (3.8G)
-[application/x-gzip] Saving to: “ctr\_data.tar.gz”
-
-100%[==================================================================================================================>]
-4,041,125,592 120M/s in 32s
-
-2019-11-26 06:32:05 (120 MB/s) - “ctr\_data.tar.gz” saved
-[4041125592/4041125592]
-
-raw\_data/ raw\_data/part-55 raw\_data/part-113 ... test\_data/part-227
-test\_data/part-222 Complete data download. Full Train data stored in
-./train\_data\_full Full Test data stored in ./test\_data\_full Rapid
-Verification train data stored in ./train\_data Rapid Verification test
-data stored in ./test\_data \`\`\` 至此，我们已完成数据准备的全部工作。
+  
+至此，我们已完成数据准备的全部工作。
 
 -  **启动训练**
 
--  ps-cpu
-
 ::
 
+    # ps-cpu
     fleetrun --server_num=2 --worker_num=2 heter_train.py
 
--  ps-heter
-
-::
-
-    fleetrun --server_num=2 --worker_num=2 --heter_worker_num=2 -d=ps_heter heter_train.py
+    # ps-heter
+    fleetrun --server_num=2 --worker_num=2 --heter_worker_num=2 heter_train.py
 

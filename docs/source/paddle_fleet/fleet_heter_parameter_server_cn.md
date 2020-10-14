@@ -140,7 +140,7 @@ optimizer.minimize(cost)
 strategy = paddle.distributed.fleet.DistributedStrategy()
 strategy.a_sync = True
 # ---- 新增strategy配置, 指定异构设备的device类型 ----
-strategy.a_sync_configs = {"heter_worker_device": 'gpu'}
+strategy.a_sync_configs = {"heter_worker_device_guard": 'gpu'}
 
 optimizer = paddle.optimizer.Adam(args.learning_rate)
 optimizer = fleet.distributed_optimizer(optimizer, strategy)
@@ -168,7 +168,7 @@ fleet.init(role)
 
 若进程检测到环境变量中配置了`PADDLE_HETER_TRAINER_IP_PORT_LIST`，则会进入异构参数服务器模式，进行相应的计算图切分及初始化。
 
-若进程检测到环境变量中`TRAINING_ROLE`存在，并且等于`HETER_TRAINER`时，则该进程扮演异构计算设备的角色，异构设备的设备类型由上文中提到的`strategy.a_sync_configs = {"heter_worker_device": 'gpu'}`指定。
+若进程检测到环境变量中`TRAINING_ROLE`存在，并且等于`HETER_TRAINER`时，则该进程扮演异构计算设备的角色，异构设备的设备类型由上文中提到的`strategy.a_sync_configs = {"heter_worker_device_guard": 'gpu'}`指定。
 
 我们提供了一键启动的`fleetrun`功能，可以便利的启动异构参数服务器训练，将在下文介绍。
 

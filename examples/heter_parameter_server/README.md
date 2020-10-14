@@ -1,12 +1,14 @@
 # Heter-ps 示例代码
 
 ## 数据下载
+
 ```bash
 sh download_data.sh
 ```
 执行该脚本，会从国内源的服务器上下载Criteo数据集，并解压到指定文件夹。全量训练数据放置于`./train_data_full/`，全量测试数据放置于`./test_data_full/`，用于快速验证的训练数据与测试数据放置于`./train_data/`与`./test_data/`。
 
 执行该脚本的理想输出为：
+
 ```bash
 > sh download_data.sh
 --2019-11-26 06:31:33--  https://fleet.bj.bcebos.com/ctr_data.tar.gz
@@ -46,5 +48,5 @@ fleetrun --server_num=2 --worker_num=2 heter_train.py
 - ps-heter
 
 ```shell
-fleetrun --server_num=2 --worker_num=2 --heter_worker_num=2 -d=ps_heter heter_train.py
+fleetrun --server_num=2 --worker_num=2 --heter_worker_num=2 heter_train.py
 ```
