@@ -2,8 +2,7 @@
 =======================
 
 Paddle提供命令行启动命令\ ``fleetrun``\ ，配合Paddle的分布式高级API\ ``paddle.distributed.fleet``
-即可轻松将Paddle
-单设备任务切换为多设备任务，此外\ ``fleetrun``\ 也可以支持参数服务器架构中同时启动多个训练节点和服务节点的分布式任务。
+即可轻松启动Paddle集合通信模式或参数服务器模式下的分布式任务。
 ``fleetrun``\ 在静态图和动态图场景下均可使用。
 
 内容导航
@@ -32,7 +31,7 @@ Paddle提供命令行启动命令\ ``fleetrun``\ ，配合Paddle的分布式高�
 
 ``fleetrun``\ 使用场景主要分为集合通信训练（Collective
 Training）和参数服务器训练（Parameter Server
-Training）。集合通信训练一般在GPU设备上运行，因此我们将介绍GPU单机单卡，单机多卡和多机多卡场景下使用\ ``fleetrun``\ 的方法。参数服务器训练包含服务节点和训练节点的启动，因此我们将介绍本地模拟分布式任务场景和多机环境下分布式训练场景下如何使用\ ``fleetrun``\ 。\ ``fleetrun``\ 支持在百度公司内部云PaddleCloud上提交任务，推荐结合\ ``fleetsub``\ 命令，一键快速提交集群任务。详情请参考\ `使用fleetsub提交集群任务 <fleetsub_quick_start.html>`__\ 。
+Training）。集合通信训练一般在GPU设备上运行，因此我们将介绍GPU单机单卡，单机多卡和多机多卡场景下使用\ ``fleetrun``\ 的方法。参数服务器训练包含服务节点和训练节点的启动，因此我们将介绍单机模拟分布式和多机分布式训练场景下如何使用\ ``fleetrun``\ 。\ ``fleetrun``\ 支持在百度公司内部云PaddleCloud上运行分布式任务，推荐结合\ ``fleetsub``\ 命令，一键快速提交集群任务。详情请参考\ `使用fleetsub提交集群任务 <fleetsub_quick_start.html>`__\ 。
 
 .. _集合通信训练:
 
@@ -108,7 +107,7 @@ Training）。集合通信训练一般在GPU设备上运行，因此我们将介
 
 -  **参数服务器训练 - 单机模拟分布式训练（1个服务节点，4个训练节点）**
 
-``fleetrun``\ 启动时只需指定服务节点数\ ``--server_num``\ 和训练节点数\ ``--worker_num``\ ，即可进行本地模拟分布式训练，**推荐使用此方法进行本地调试**。
+``fleetrun``\ 启动时只需指定服务节点数\ ``--server_num``\ 和训练节点数\ ``--worker_num``\ ，即可进行单机模拟分布式训练，**推荐使用此方法进行本地调试**。
 
 .. code:: sh
 
@@ -146,8 +145,8 @@ fleetrun命令参数介绍
 
 -  参数服务器模式可配参数:
 
-   -  server_num（int，可选）：本地模拟分布式任务中，指定参数服务器服务节点的个数
-   -  worker_num（int，可选）：本地模拟分布式任务中，指定参数服务器训练节点的个数
+   -  server_num（int，可选）：单机模拟分布式任务中，指定参数服务器服务节点的个数
+   -  worker_num（int，可选）：单机模拟分布式任务中，指定参数服务器训练节点的个数
    -  servers（str, 可选）：
       多机分布式任务中，指定参数服务器服务节点的IP和端口
    -  workers（str, 可选）：
@@ -187,6 +186,7 @@ fleetrun命令参数介绍
            avg_cost = fluid.layers.mean(x=cost)
            return train_dataset, test_dataset, x, y, avg_cost, acc_top1
 
+       paddle.enable_static()
        train_data, test_data, x, y, cost, acc = mnist_on_mlp_model()
        place = paddle.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
        train_dataloader = paddle.io.DataLoader(
