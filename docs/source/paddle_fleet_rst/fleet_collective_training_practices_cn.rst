@@ -449,7 +449,7 @@ DistributedStrategy
 |                 |                 |                 | 步allreduce后系 |
 |                 |                 |                 | 统的开销会降低  |
 +-----------------+-----------------+-----------------+-----------------+
-| nccl_comm_num   | int             | 1               | nccl通信器数量。 |
+| nccl_comm_num   | int             | 1               | nccl通信器数量. |
 |                 |                 |                 | nccl通信器数量  |
 |                 |                 |                 | nccl_comm_num   |
 |                 |                 |                 | 可以加快GPU之   |
