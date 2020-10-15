@@ -220,7 +220,6 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
         places=place, batch_size=64, shuffle=True)
     fleet.init(is_collective=True)
     strategy = fleet.DistributedStrategy()
-    #optimizer = paddle.optimizer.Adam(learning_rate=0.01)
     optimizer = fluid.optimizer.Adam(learning_rate=0.001)
     optimizer = fleet.distributed_optimizer(optimizer, strategy=strategy)
     optimizer.minimize(cost)
