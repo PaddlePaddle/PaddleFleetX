@@ -47,59 +47,60 @@ Training）。
 
 【方法一】直接使用\ ``python``\ 执行
 
-   .. code:: sh
+.. code:: sh
 
-    export CUDA_VISIBLE_DEVICES=0
-    python train.py
+  export CUDA_VISIBLE_DEVICES=0
+  python train.py
 
 【方法二】使用\ ``fleetrun``\ 执行
 
-   ::
+::
 
-    fleetrun --gpus=0 train.py
+  fleetrun --gpus=0 train.py
 
-   注：如果指定了\ ``export CUDA_VISIBLE_DEVICES=0`` ，则可以直接使用：
+注：如果指定了\ ``export CUDA_VISIBLE_DEVICES=0`` ，则可以直接使用：
 
-   .. code:: sh
+.. code:: sh
 
-     export CUDA_VISIBLE_DEVICES=0
-     fleetrun train.py
+  export CUDA_VISIBLE_DEVICES=0
+  fleetrun train.py
 
 -  **GPU单机多卡训练**
 
-   若启动单机4卡的任务，只需通过\ ``--gpus``\ 指定空闲的4张卡即可。
+若启动单机4卡的任务，只需通过\ ``--gpus``\ 指定空闲的4张卡即可。
 
-   ::
+.. code:: sh
 
-      fleetrun --gpus=0,1,2,3 train.py
+  fleetrun --gpus=0,1,2,3 train.py
 
-   注：如果指定了\ ``export CUDA_VISIBLE_DEVICES=0,1,2,3``，则可以直接使用：
 
-   .. code:: sh
+注：如果指定了\ ``export CUDA_VISIBLE_DEVICES=0,1,2,3``\，则可以直接使用：
 
-      export CUDA_VISIBLE_DEVICES=0,1,2,3
-      fleetrun train.py
+.. code:: sh
+
+  export CUDA_VISIBLE_DEVICES=0,1,2,3
+  fleetrun train.py
 
 -  **GPU多机多卡训练**
 
 **[示例一]** 2机8卡 (每个节点4卡)
 
-   .. code:: sh
+.. code:: sh
 
-      fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" --gpus=0,1,2,3 train.py
+  fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" --gpus=0,1,2,3 train.py
 
-   注：如果每台机器均指定了\ ``export CUDA_VISIBLE_DEVICES=0,1,2,3``，则可以直接在每台节点上启动：
+注：如果每台机器均指定了\ ``export CUDA_VISIBLE_DEVICES=0,1,2,3``\，则可以直接在每台节点上启动：
 
-   .. code:: sh
+.. code:: sh
 
-      export CUDA_VISIBLE_DEVICES=0,1,2,3
-      fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
+  export CUDA_VISIBLE_DEVICES=0,1,2,3
+  fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 
 **[示例二]** 2机16卡（每个节点8卡，假设每台机器均有8卡可使用）
 
-   .. code:: sh
+.. code:: sh
 
-      fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
+  fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 
 .. _参数服务器训练:
 
@@ -111,91 +112,90 @@ Training）。
 
 -  **参数服务器训练 - 单机模拟分布式训练**
 
-   1台机器通过多进程模拟分布式训练，1个服务节点搭配4个训练节点
+1台机器通过多进程模拟分布式训练，1个服务节点搭配4个训练节点
 
-   ``fleetrun``\ 启动时只需指定服务节点数\ ``--server_num``\ 和训练节点数\ ``--worker_num``\ ，即可进行单机模拟分布式训练，**推荐使用此方法进行本地调试**。
+``fleetrun``\ 启动时只需指定服务节点数\ ``--server_num``\ 和训练节点数\ ``--worker_num``\ ，即可进行单机模拟分布式训练，**推荐使用此方法进行本地调试**。
 
-   .. code:: sh
+.. code:: sh
 
-      fleetrun --server_num=1 --worker_num=4 train.py
+  fleetrun --server_num=1 --worker_num=4 train.py
 
 -  **参数服务器训练 - 自定义多机训练**
 
-   ``fleetrun``\ 启动时只需指定服务节点的ip和端口列表\ ``--servers`` 和训练节点的ip列表\ ``--workers`` ，即可进行多机训练。
+``fleetrun``\ 启动时只需指定服务节点的ip和端口列表\ ``--servers`` 和训练节点的ip列表\ ``--workers`` ，即可进行多机训练。
 下列示例中，xx.xx.xx.xx代表机器1，yy.yy.yy.yy代表机器2，6170代表用户指定的服务节点的端口。\ ``fleetrun``\ 将分别在2台机器上启动1个服务节点，4个训练节点。
 
-   .. code:: sh
+.. code:: sh
 
-       # 2个servers 8个workers
-       fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx,xx.xx.xx.xx,xx.xx.xx.xx,xx.xx.xx.xx,yy.yy.yy.yy,yy.yy.yy.yy,yy.yy.yy.yy,yy.yy.yy.yy" train.py
+   # 2个servers 8个workers
+   fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx,xx.xx.xx.xx,xx.xx.xx.xx,xx.xx.xx.xx,yy.yy.yy.yy,yy.yy.yy.yy,yy.yy.yy.yy,yy.yy.yy.yy" train.py
 
-   ``--workers``\ 参数可以仅指定ip列表，此时\ ``fleetrun``\ 将会在启动训练任务前分配好连续端口给每个训练节点。\ ``fleetrun``\ 分配的连续端口可能会出现端口被其他任务占用的情况，此时多机训练无法正常启动。因此\ ``--workers``\ 参数支持配置用户指定端口，写法与\ ``--servers``\ 一致，示例如下：
+``--workers``\ 参数可以仅指定ip列表，此时\ ``fleetrun``\ 将会在启动训练任务前分配好连续端口给每个训练节点。\ ``fleetrun``\ 分配的连续端口可能会出现端口被其他任务占用的情况，此时多机训练无法正常启动。因此\ ``--workers``\ 参数支持配置用户指定端口，写法与\ ``--servers``\ 一致，示例如下：
 
-   .. code:: sh
+.. code:: sh
 
-       # 2个servers 8个workers
-       fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,xx.xx.xx.xx:6173,xx.xx.xx.xx:6174,xx.xx.xx.xx:6175,yy.yy.yy.yy:6176,yy.yy.yy.yy:6177,yy.yy.yy.yy:6178,yy.yy.yy.yy:6179" train.py
+   # 2个servers 8个workers
+   fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,xx.xx.xx.xx:6173,xx.xx.xx.xx:6174,xx.xx.xx.xx:6175,yy.yy.yy.yy:6176,yy.yy.yy.yy:6177,yy.yy.yy.yy:6178,yy.yy.yy.yy:6179" train.py
 
 在GPU集群运行参数服务器
 """""""""""""""""""""""
 
 -  **参数服务器训练 - 单机模拟分布式训练**
 
-   1台机器通过多进程模拟，2个服务节点搭配4个训练节点，每个训练节点占用一张GPU卡，服务节点不占用GPU卡
+1台机器通过多进程模拟，2个服务节点搭配4个训练节点，每个训练节点占用一张GPU卡，服务节点不占用GPU卡
 
-   .. code:: sh
+.. code:: sh
 
-      # 2个server 4个worker
-      export CUDA_VISIBLE_DEVICES=0,1,2,3
-      fleetrun --server_num=2 --worker_num=4 train.py
+  # 2个server 4个worker
+  export CUDA_VISIBLE_DEVICES=0,1,2,3
+  fleetrun --server_num=2 --worker_num=4 train.py
 
-   ..
 
-   1台机器通过多进程模拟， 2个服务节点搭配2个训练节点，两个训练节点共用一张GPU卡，服务节点不占用GPU卡
+1台机器通过多进程模拟， 2个服务节点搭配2个训练节点，两个训练节点共用一张GPU卡，服务节点不占用GPU卡
 
-   .. code:: sh
+.. code:: sh
 
-      # 2个server 2个worker
-      export CUDA_VISIBLE_DEVICES=0
-      fleetrun --server_num=2 --worker_num=2 train.py
+  # 2个server 2个worker
+  export CUDA_VISIBLE_DEVICES=0
+  fleetrun --server_num=2 --worker_num=2 train.py
 
 -  **参数服务器训练 - 自定义多机训练**
 
-   ``fleetrun``\ 启动时只需指定服务节点的ip和端口列表\ ``--servers`` 和
-   训练节点的ip和端口列表\ ``--workers`` ，即可进行多机训练。
+``fleetrun``\ 启动时只需指定服务节点的ip和端口列表\ ``--servers`` 和
+训练节点的ip和端口列表\ ``--workers`` ，即可进行多机训练。
 
-   以下示例中，xx.xx.xx.xx代表机器1，yy.yy.yy.yy代表机器2，6170代表用户指定的服务节点的端口。\ ``fleetrun``\ 将分别在2台机器上启动1个服务节点，1个训练节点。训练节点会分别占用其机器上的0号GPU卡进行训练。
-
-
-   .. code:: sh
-
-      # 2台机器，每台机器均有1个服务节点，1个训练节点
-      # 2个server 2个worker
-      # 每台机器均指定了可用设备 GPU:0
-      export CUDA_VISIBLE_DEVICES=0
-      fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,yy.yy.yy.yy:6173" train.py
+以下示例中，xx.xx.xx.xx代表机器1，yy.yy.yy.yy代表机器2，6170代表用户指定的服务节点的端口。\ ``fleetrun``\ 将分别在2台机器上启动1个服务节点，1个训练节点。训练节点会分别占用其机器上的0号GPU卡进行训练。
 
 
-   .. code:: sh
+.. code:: sh
 
-      # 2台机器，每台机器均有1个服务节点，4个训练节点
-      # 2个server 4个worker
-      # 每台机器均指定了可用设备 GPU:0,1,2,3
-      export CUDA_VISIBLE_DEVICES=0,1,2,3
-      fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,xx.xx.xx.xx:6173,xx.xx.xx.xx:6174,xx.xx.xx.xx:6175,yy.yy.yy.yy:6176,yy.yy.yy.yy:6177,yy.yy.yy.yy:6178,yy.yy.yy.yy:6179" train.py
+  # 2台机器，每台机器均有1个服务节点，1个训练节点
+  # 2个server 2个worker
+  # 每台机器均指定了可用设备 GPU:0
+  export CUDA_VISIBLE_DEVICES=0
+  fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,yy.yy.yy.yy:6173" train.py
+
+
+.. code:: sh
+
+  # 2台机器，每台机器均有1个服务节点，4个训练节点
+  # 2个server 4个worker
+  # 每台机器均指定了可用设备 GPU:0,1,2,3
+  export CUDA_VISIBLE_DEVICES=0,1,2,3
+  fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,xx.xx.xx.xx:6173,xx.xx.xx.xx:6174,xx.xx.xx.xx:6175,yy.yy.yy.yy:6176,yy.yy.yy.yy:6177,yy.yy.yy.yy:6178,yy.yy.yy.yy:6179" train.py
 
 异构集群运行参数服务器
 """"""""""""""""""""""
 
 -  **参数服务器训练 - 单机模拟分布式训练**
 
-   1台机器通过多进程模拟，2个服务节点搭配2个训练节点以及2个异构训练节点，每个异构训练节点占用一张GPU卡，其余服务节点和训练节点均在CPU上执行
+1台机器通过多进程模拟，2个服务节点搭配2个训练节点以及2个异构训练节点，每个异构训练节点占用一张GPU卡，其余服务节点和训练节点均在CPU上执行
 
-   .. code:: sh
+.. code:: sh
 
-      # 2个server 4个worker
-      export CUDA_VISIBLE_DEVICES=0,1
-      fleetrun --server_num=2 --worker_num=2 --heter_worker_num=2 train.py
+  # 2个server 4个worker
+  export CUDA_VISIBLE_DEVICES=0,1
+  fleetrun --server_num=2 --worker_num=2 --heter_worker_num=2 train.py
 
 fleetrun命令参数介绍
 ---------------------
