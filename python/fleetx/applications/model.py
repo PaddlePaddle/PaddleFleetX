@@ -755,5 +755,6 @@ class Word2vec(ModelBase):
                               nce_num=5,
                               batch_size=100):
         pipe_command = "python {}/fleetx/dataset/word2vec_dataset.py {} {} {} {}".format(sysconfig.get_paths()["purelib"], dict_path, window_size, batch_size, nce_num)
+        thread_num = int(os.getenv("CPU_NUM", "1"))
         return load_w2v_dataset(self.inputs, file_list, pipe_command, batch_size, thread_num)
   

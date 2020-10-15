@@ -18,6 +18,7 @@ import numpy as np
 import io
 import paddle.fluid as fluid
 import paddle.fluid.incubate.data_generator as dg
+import sys
 
 class NumpyRandomInt(object):
     def __init__(self, a, b, buf_size=1000):
@@ -102,9 +103,9 @@ def load_w2v_dataset(inputs, file_list, pipe_command, batch_size, thread_num):
 
 if __name__ == "__main__":
     d = W2vDataset()
-    dict_path = sys.arv[1]
-    window_size = int(sys.arv[2])
-    batch_size = int(sys.arv[3])
+    dict_path = sys.argv[1]
+    window_size = int(sys.argv[2])
+    batch_size = int(sys.argv[3])
     nce_num = int(sys.argv[4])
     d.load_resource(dict_path, window_size, batch_size, nce_num)
     d.run_from_stdin()
