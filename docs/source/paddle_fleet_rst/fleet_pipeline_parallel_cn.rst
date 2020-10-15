@@ -87,7 +87,7 @@
                iterable=False)
            emb = nn.embedding(input=data, size=[128, 64])
        with paddle.fluid.device_guard("gpu:0"):
-           fc = nn.fc(input=emb, size=10)
+           fc = nn.fc(emb, size=10)
            loss = paddle.mean(fc)
        return data_loader, loss
 
