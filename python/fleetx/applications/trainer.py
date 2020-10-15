@@ -56,32 +56,28 @@ class CPUTrainer(Trainer):
         return count
 
     def fit(self, model, dataloader, epoch, start_step=10):
-        fleet.init_worker()
         self.exe.run(fluid.default_startup_program())
+        fleet.init_worker()
 
         for epoch_id in range(epoch):
-            dataloader.start()
             total_time = 0
             step = 0
-            try:
-                while True:
-                    if step > start_step:
-                        begin_time = time.time()
-                    loss = self.exe.run(fluid.default_main_program(),
-                                        fetch_list=[model.loss.name])
-                    if step > start_step:
-                        end_time = time.time()
-                        total_time += (end_time - begin_time)
-			if step % 1000 == 0:
-                            print(
-                                "worker_index: %d, step%d, train_loss: %f, total time cost = %f, step per second: %f, speed: %f"
-                                % (fleet.worker_index(), step, loss[0], total_time,
-                                    (step - start_step) / total_time,
-                                    1 / (end_time - begin_time)))
-                    step += 1
-            except fluid.core.EOFException:
-                dataloader.reset()
-                print("epoch: {} done, use time: {}, speed: {}".format(epoch_id, total_time, float(total_example) / float(total_time))) 
+            for data in dataloader():
+                if step > start_step:
+                    start_time = time.time()
+                loss = self.exe.run(fluid.default_main_program(),
+                                    feed=data,
+                                    fetch_list=[model.loss.name])
+                if step > start_step:
+                    end_time = time.time()
+                    total_time += (end_time - start_time)
+                    print(
+                        "worker_index: %d, step%d, train_loss: %f, total time cost = %f, step per second: %f, speed: %f"
+                        % (fleet.worker_index(), step, loss[0], total_time,
+                           (step - start_step) / total_time,
+                           1 / (end_time - start_time)))
+                step += 1
+
         fleet.stop_worker()
 
 class CPUDataLoaderTrainer(CPUTrainer):

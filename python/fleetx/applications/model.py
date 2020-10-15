@@ -760,14 +760,14 @@ class Word2vec(ModelBase):
         return load_w2v_dataset(self.inputs, file_list, pipe_command, batch_size, thread_num)
  
     def load_reader_from_file(self,
-                              train_files_path,
                               dict_path,
+                              file_list,
                               nce_num=5,
                               batch_size=1000,
                               shuffle=True):
         return load_w2v_reader(
             self.inputs,
-            train_files_path,
+            file_list,
             dict_path=dict_path,
             nce_num=nce_num,
             batch_size=batch_size,

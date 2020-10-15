@@ -222,7 +222,7 @@ def reader_creator(file_dir, word_to_id):
     return reader
 
 
-def load_w2v_loader(inputs,
+def load_w2v_reader(inputs,
             train_files_path,
             dict_path,
             nce_num,
