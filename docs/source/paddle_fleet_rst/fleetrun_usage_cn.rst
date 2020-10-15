@@ -34,7 +34,7 @@ Training）和参数服务器训练（Parameter Server
 Training）。
 集合通信训练一般在GPU设备上运行，因此我们将介绍GPU单机单卡，单机多卡和多机多卡场景下使用\ ``fleetrun``\ 的方法。
 参数服务器训练包含服务节点、训练节点以及异构训练节点的启动，
-因此我们将介绍单机模拟分布式和多机分布式训练场景下如何使用\ ``fleetrun``\ 。\ ``fleetrun``\ 支持在百度公司内部云PaddleCloud上运行分布式任务，推荐结合\ ``fleetsub``\ 命令，一键快速提交集群任务。详情请参考\ `使用fleetsub提交集群任务 <fleetsub_quick_start.html>`__\ 。
+因此我们将介绍在CPU集群、GPU集群上和异构集群上如何使用\ ``fleetrun``\ 启动分布式训练 。\ ``fleetrun``\ 支持在百度公司内部云PaddleCloud上运行分布式任务，推荐结合\ ``fleetsub``\ 命令，一键快速提交集群任务。详情请参考\ `使用fleetsub提交集群任务 <fleetsub_quick_start.html>`__\ 。
 
 .. _集合通信训练:
 
@@ -109,7 +109,7 @@ Training）。
 ^^^^^^^^^^^^^^^
 
 在CPU集群运行参数服务器
-^^^^^^^^^^^^^^^^^^^^^^^
+"""""""""""""""""""""""
 
 -  **参数服务器训练 - 单机模拟分布式训练**
 
@@ -140,7 +140,7 @@ Training）。
     fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,xx.xx.xx.xx:6173,xx.xx.xx.xx:6174,xx.xx.xx.xx:6175,yy.yy.yy.yy:6176,yy.yy.yy.yy:6177,yy.yy.yy.yy:6178,yy.yy.yy.yy:6179" train.py
 
 在GPU集群运行参数服务器
-^^^^^^^^^^^^^^^^^^^^^^^
+"""""""""""""""""""""""
 
 -  **参数服务器训练 - 单机模拟分布式训练**
 
@@ -197,7 +197,7 @@ Training）。
       fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,xx.xx.xx.xx:6173,xx.xx.xx.xx:6174,xx.xx.xx.xx:6175,yy.yy.yy.yy:6176,yy.yy.yy.yy:6177,yy.yy.yy.yy:6178,yy.yy.yy.yy:6179" train.py
 
 异构集群运行参数服务器
-^^^^^^^^^^^^^^^^^^^^^^
+""""""""""""""""""""""
 
 -  **参数服务器训练 - 单机模拟分布式训练**
 
