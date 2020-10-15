@@ -33,26 +33,17 @@ optimizer = fluid.optimizer.SGD(learning_rate=0.0001)
 optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
 optimizer.minimize(model.loss)
 
+train_data_path = "./train_data"   # your train_data path
+dict_path = "./thirdparty/test_build_dict"   # your dict_path
+
 if fleet.is_server():
     fleet.init_server()
     fleet.run_server()
 else:
-    """
-    need config loader correctly.
-    """
+    train_file_list=[str(train_data_path) + "/%s" % x
+                     for x in os.listdir(train_data_path)]
     
-    local_path = downloader.download_from_hdfs(
-                     'w2v_train_data.yaml', local_path="train_data",
-                     shard_num=fleet.worker_num(),
-                     shard_id=fleet.worker_index())
-    
-    thirdparty_path = downloader.download_from_hdfs(
-                     'w2v_thirdparty.yaml', local_path="thirdparty")
-    
-    train_file_list=[str(local_path) + "/%s" % x
-                     for x in os.listdir(local_path)]
-    
-    dataset = model.load_dataset_from_file(dict_path="./thirdparty/test_build_dict", file_list=train_file_list)
+    dataset = model.load_reader_from_file(dict_path=dict_path, file_list=train_file_list)
 
-    trainer = X.CPUDatasetTrainer(calc_line=False)
+    trainer = X.CPUTrainer()
     trainer.fit(model, dataset, epoch=10)

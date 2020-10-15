@@ -22,6 +22,7 @@ from fleetx.dataset.image_dataset import image_dataloader_from_filelist
 from fleetx.dataset.bert_dataset import load_bert_dataset
 from fleetx.dataset.transformer_dataset import transformer_data_generator
 from fleetx.dataset.word2vec_dataset import load_w2v_dataset
+from fleetx.dataset.word2vec_reader import load_w2v_reader
 from fleetx.version import fleetx_version
 from fleetx.dataset.ctr_data_generator import get_dataloader
 from fleetx import utils
@@ -757,4 +758,18 @@ class Word2vec(ModelBase):
         pipe_command = "python {}/fleetx/dataset/word2vec_dataset.py {} {} {} {}".format(sysconfig.get_paths()["purelib"], dict_path, window_size, batch_size, nce_num)
         thread_num = int(os.getenv("CPU_NUM", "1"))
         return load_w2v_dataset(self.inputs, file_list, pipe_command, batch_size, thread_num)
-  
+ 
+    def load_reader_from_file(self,
+                              train_files_path,
+                              dict_path,
+                              nce_num=5,
+                              batch_size=1000,
+                              shuffle=True):
+        return load_w2v_reader(
+            self.inputs,
+            train_files_path,
+            dict_path=dict_path,
+            nce_num=nce_num,
+            batch_size=batch_size,
+            shuffle=shuffle)
+
