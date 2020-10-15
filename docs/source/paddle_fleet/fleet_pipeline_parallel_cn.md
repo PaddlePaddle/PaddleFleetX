@@ -9,19 +9,25 @@
 
 流水线并行分布式技术与数据并行不同，通过将模型切分到多个计算节点，并采用流水线执行的方式，实现模型的并行训练。以下图为例，模型被切分为三个部分，并分别放置到不同的计算设备（第1层放置到设备0，第2、3层被放置到设备1，第四层被放置到设备2）；设备间通过通信的方式来交换数据。
 
-<img src='./img/pipeline-1.png' width = "683" height = "408" align="middle" description="xxxxxxxxxx" />
+<p align="center">
+<img src="./img/pipeline-1.png" width="400"/>
+</p>
 
 具体地讲，前向计算过程中，输入数据首先在设备0中通过第1层的计算得到中间结果，并将其传输到设备1，然后由设备1计算第2层和第3层，经过最后一层的计算后得到最终的前向计算结果；反向传播过程中，第四层使用前向计算结果得到相应的梯度数据，并由设备2传输到设备1，一次经过第3层和第二层，将结果传至设备0，经过第1层的计算完成所有的反向计算。最后，各个设备上的网络层会更新参数信息。
 
 如下图，为流水线并行中的时序图。简单的流水线并行方式下，任一时刻只有单个计算设备处于激活状态，其它计算设备则处于空闲状态，因此设备利用率和计算效率较差。
 
-<img src='./img/pipeline-2.png' width = "683" height = "408" align="middle" description="xxxxxxxxxx" />
+<p align="center">
+<img src="./img/pipeline-2.png" width="600"/>
+</p>
 
 为了优化流水线并行的性能，我们可以将mini-batch切分成若干更小粒度的micro-batch，提升流水线并行的并发度，达到提升设备利用率和计算效率的目的。如下图所示，一个mini-batch被切分为4个micro-batch；前向阶段，每个设备依次计算单个micro-batch的结果；这种减小mini-batch的方式减少了每个设备完成一次计算的时间，进而增加了设备间的并发度。
 
-<img src='./img/pipeline-3.png' width = "683" height = "408" align="middle" description="xxxxxxxxxx" />
+<p align="center">
+<img src="./img/pipeline-3.png" width="600"/>
+</p>
 
-下面我们将通过例子为您讲解如何使用pipeline策略在两张GPU上训练Resnet50模型。
+下面我们将通过例子为您讲解如何使用pipeline策略在两张GPU上训练模型。
 
 
 ## 使用样例
@@ -32,187 +38,75 @@
 # -*- coding: UTF-8 -*-
 import os
 import argparse
+import paddle
 import time
 import math 
-import paddle.fluid as fluid
+import numpy as np
 
+import paddle.distributed.fleet as fleet
+import paddle.static.nn as nn
+paddle.enable_static()
 ```
 
 ### 定义模型
 
-在本例子中，我们为您实现了Paddle中Resnet模型的实现。其中`conv_bn_layer`、`shortcut`以及`bottleneck_block`函数根据模型的规律将一些计算层打包，以避免模型定义中重复使用相同的代码。
-
-`build_network`函数中定义了最终的函数，对于不同深度的模型，我们都将其切分层数成相同的两份并通过`device_guard`接口的区分分别放置到两张GPU卡上。
+在使用流水线并行的训练策略时，我们通过`device_guard`接口将不同的计算层放置在不同的设备上。
 
 对于CPU设备，在使用`device_guard`时只需要指定设备类型，即`device_guard("cpu")`；对于GPU设备，除了指定设备类型外，还需要指定设备的id，如`device_guard("gpu:0")`。
 
-```python
-def conv_bn_layer(input,
-                  num_filters,
-                  filter_size,
-                  stride=1,
-                  groups=1,
-                  act=None):
-    conv = fluid.layers.conv2d(input=input,
-                               num_filters=num_filters,
-                               filter_size=filter_size,
-                               stride=stride,
-                               padding=(filter_size-1)//2,
-                               groups=groups,
-                               act=None,
-                               bias_attr=False)
-    return fluid.layers.batch_norm(input=conv,
-                                   act=act)
- 
-def shortcut(input,
-             ch_out,
-             stride,
-             is_first):
-    ch_in = input.shape[1]
-    if ch_in != ch_out or stride != 1 or is_first == True:
-        return conv_bn_layer(input,
-                             ch_out,
-                             1,
-                             stride)
-    else:
-        return input
- 
- 
-def bottleneck_block(input,
-                     num_filters,
-                     stride):
-    conv0 = conv_bn_layer(input=input,
-                          num_filters=num_filters,
-                          filter_size=1,
-                          act='relu')
-    conv1 = conv_bn_layer(input=conv0,
-                          num_filters=num_filters,
-                          filter_size=3,
-                          stride=stride,
-                          act='relu')
-    conv2 = conv_bn_layer(input=conv1,
-                          num_filters=num_filters*4,
-                          filter_size=1,
-                          act=None)
- 
-    short = shortcut(input,
-                     num_filters*4,
-                     stride,
-                     is_first=False)
- 
-    return fluid.layers.elementwise_add(x=short,
-                                        y=conv2,
-                                        act='relu')
+在下面的例子中，我们将数据层及embedding层放置在CPU中, 并将fc及loss放置在第0号GPU卡上。
 
-def build_network(input,
-                  layers=50,
-                  class_dim=1000):
-    supported_layers = [50, 101, 152]
-    assert layers in supported_layers
-    depth = None
-    if layers == 50:
-        depth = [3, 4, 6, 3]
-    elif layers == 101:
-        depth = [3, 4, 23, 3]
-    elif layers == 152:
-        depth = [3, 8, 36, 3]
-    num_filters = [64, 128, 256, 512]
-     
-    # 指定层所在的设备
-    with fluid.device_guard("gpu:0"):
-        conv = conv_bn_layer(input=input,
-                             num_filters=64,
-                             filter_size=7,
-                             stride=2,
-                             act='relu')
-        conv = fluid.layers.pool2d(input=conv,
-                                   pool_size=3,
-                                   pool_stride=2,
-                                   pool_padding=1,
-                                   pool_type='max')
-        for block in range(len(depth)//2):
-            for i in range(depth[block]):
-                conv = bottleneck_block(
-                            input=conv,
-                            num_filters=num_filters[block],
-                            stride=2 if i == 0 and block != 0 else 1)
-    # 指定网络层所在的设备
-    with fluid.device_guard("gpu:1"):    
-        for block in range(len(depth)//2, len(depth)):
-            for i in range(depth[block]):
-                conv = bottleneck_block(
-                            input=conv,
-                            num_filters=num_filters[block],
-                            stride=2 if i == 0 and block != 0 else 1)
- 
-        pool = fluid.layers.pool2d(input=conv,
-                                   pool_size=7,
-                                   pool_type='avg',
-                                   global_pooling=True)
-        stdv = 1.0 / math.sqrt(pool.shape[1] * 1.0)
-        out = fluid.layers.fc(
-                    input=pool,
-                    size=class_dim,
-                    param_attr=fluid.param_attr.ParamAttr(
-                        initializer=fluid.initializer.Uniform(-stdv, stdv)))
-    return out
+```python
+# 模型组网
+def build_network():
+    # Step1: 使用device_gurad指定相应层的计算设备
+    with paddle.fluid.device_guard("cpu"):
+        data = paddle.data(name='sequence', shape=[1], dtype='int64')
+        data_loader = paddle.io.DataLoader.from_generator(
+            feed_list=[data],
+            capacity=64,
+            use_double_buffer=True,
+            iterable=False)
+        emb = nn.embedding(input=data, size=[128, 64])
+    with paddle.fluid.device_guard("gpu:0"):
+        fc = nn.fc(input=emb, size=10)
+        loss = paddle.mean(fc)
+    return data_loader, loss
 ```
 
 ### 定义数据集及梯度更新策略
 
 定义完模型后，我们可以继续定义训练所需要的数据，以及训练中所用到的更新策略。
 
+通过设定`dist_strategy.pipeline` 为True，将流水线并行的策略激活。
+
 ```python
-# 定义模型剩余部分
-with fluid.device_guard("gpu:0"):
-    image_shape = [3, 224, 224]
-    image = fluid.layers.data(name="image",
-                              shape=image_shape,
-                              dtype="float32")
-    label = fluid.layers.data(name="label", shape=[1], dtype="int64")
-    data_loader = fluid.io.DataLoader.from_generator(
-            feed_list=[image, label],
-            capacity=64,
-            use_double_buffer=True,
-            iterable=False)
-
-fc = build_network(image)
-
-with fluid.device_guard("gpu:1"):
-    out, prob = fluid.layers.softmax_with_cross_entropy(logits=fc,
-                                                        label=label,
-                                                        return_softmax=True)
-    loss = fluid.layers.mean(out)
-    acc_top1 = fluid.layers.accuracy(input=prob, label=label, k=1)
-    acc_top5 = fluid.layers.accuracy(input=prob, label=label, k=5)
+fleet.init(is_collective=True)
  
-opt = fluid.optimizer.Momentum(0.1, momentum=0.9)
-opt = fluid.optimizer.PipelineOptimizer(
-                            opt,
-                            num_microbatches=args.microbatch_num)
-opt.minimize(loss)
-
-# 定义data loader；在该例子中，我们使用随机生成的数据。
+data_loader, loss = build_network()
+ 
+dist_strategy = paddle.distributed.fleet.DistributedStrategy()
+dist_strategy.pipeline = True
+optimizer = paddle.fluid.optimizer.SGDOptimizer(learning_rate=0.1)
+optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
+optimizer.minimize(loss)
+ 
 def train_reader():
-    for _ in range(2560):
-        image = np.random.random([3, 224, 224]).astype('float32')
-        label = np.random.random([1]).astype('uint64')
-        yield image, label
-place = fluid.CUDAPlace(0)
-data_loader.set_sample_generator(train_reader,
-                                 batch_size=args.microbatch_size)
-
-
+    for _ in range(100):
+        data = np.random.random(size=[32, 1]).astype("int64")
+        yield data
 ```
 
 ### 开始训练
 
 ```python
-exe = fluid.Executor(place)
-exe.run(fluid.default_startup_program())
-t1 = time.time()
+place = paddle.CPUPlace()
+exe = paddle.static.Executor(place)
+ 
+data_loader.set_sample_generator(train_reader, batch_size=2)
+ 
+exe.run(paddle.static.default_startup_program())
+ 
 data_loader.start()
-exe.train_from_dataset(fluid.default_main_program())
-t2 = time.time()
-print("Execution time: {}".format(t2 - t1))
+exe.train_from_dataset(paddle.static.default_main_program())
 ```
