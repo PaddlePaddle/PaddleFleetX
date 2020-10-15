@@ -1,6 +1,15 @@
 使用InMemoryDataset/QueueDataset进行训练
 ========================================
 
+注意
+----
+
+本教程目前不支持动态图，仅支持在paddle静态图模式下使用，paddle开启静态图模式
+
+.. code:: python
+
+   paddle.enable_static()
+
 简介
 ----
 
@@ -207,10 +216,22 @@ API读取训练数据的方式，我们直接加载Fleetx预先定义好的word2
    -
    dataset目前只支持在\ ``unbuntu``\ 及\ ``CentOS``\ 等标准Linux环境下使用，在\ ``Windows``\ 及\ ``Mac``\ 下使用时，会产生预料之外的错误，请知悉。
 
+数据准备
+~~~~~~~~
+
+可以参考\ `文档 <https://github.com/PaddlePaddle/FleetX/tree/fleet_lightning/examples/word2vec>`__
+的数据准备部分
+完整数据下载以及预处理之后可以选取一个part的文件作为demo数据
+
+.. code:: bash
+
+   mkdir demo_train_data 
+   cp train_data/part_1 demo_train_data/
+
 训练
 ----
 
-我们把原来的训练代码:
+我们把原来的\ `训练代码 <(https://github.com/PaddlePaddle/FleetX/blob/develop/examples/word2vec_app.py)>`__:
 
 .. code:: python
 
@@ -221,30 +242,65 @@ API读取训练数据的方式，我们直接加载Fleetx预先定义好的word2
 
 .. code:: python
 
-   place = paddle.CPUPlace()
-   fleet.init_worker()
-   exe = paddle.static.Executor(place)
-   default_startup_program = paddle.static.Program()
-   default_main_program = paddle.static.Program()
-   scope1 = fluid.Scope()
-   with fluid.scope_guard(scope1):
-       exe.run(model.startup_prog)
 
-   dataset = paddle.distributed.QueueDataset()
-   batch_size = config.config["batch_size"]
-   thread_num = config.config["thread_num"]
-   dataset.init(use_var=model.inputs, pipe_command="python my_data_generator.py", batch_size=batch_size, thread_num=thread_num)
-   dataset.set_filelist([config.config["train_files_path"]])
+   import paddle
+   import paddle.fluid as fluid
+   import paddle.distributed.fleet as fleet
+   import config
+   # 开启paddle静态图模式
+   paddle.enable_static()
 
-   with fluid.scope_guard(scope1):
-       exe.train_from_dataset(model.main_prog, 
-                              dataset, 
-                              scope1, 
-                              debug=False, 
-                              fetch_list=[model.loss], 
-                              fetch_info=["loss"], 
-                              print_period=10)
+   fleet.init()
 
-   fleet.stop_worker()
+   model = X.applications.Word2vec()
+
+   """
+   need config loader correctly.
+   """
+
+   loader = model.load_dataset_from_file(train_files_path=[config.config["train_files_path"]], dict_path=config.config["dict_path"])
+
+   dist_strategy = fleet.DistributedStrategy()
+   dist_strategy.a_sync = True
+
+   optimizer = fluid.optimizer.SGD(learning_rate=0.0001)
+   optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
+   optimizer.minimize(model.loss)
+
+   if fleet.is_server():
+       fleet.init_server()
+       fleet.run_server()
+   else:
+       place = paddle.CPUPlace()
+       fleet.init_worker()
+       exe = paddle.static.Executor(place)
+       default_startup_program = paddle.static.Program()
+       default_main_program = paddle.static.Program()
+       scope1 = fluid.Scope()
+       with fluid.scope_guard(scope1):
+           exe.run(model.startup_prog)
+
+       dataset = paddle.distributed.QueueDataset()
+       batch_size = config.config["batch_size"]
+       thread_num = config.config["thread_num"]
+       dataset.init(use_var=model.inputs, pipe_command="python my_data_generator.py", batch_size=batch_size, thread_num=thread_num)
+       dataset.set_filelist([config.config["train_files_path"]])
+
+       with fluid.scope_guard(scope1):
+           exe.train_from_dataset(model.main_prog, dataset, scope1, debug=False, fetch_list=[model.loss], fetch_info=["loss"], print_period=10)
+
+       fleet.stop_worker()
+
+最后添加上述代码使用的配置文件\ ``config.py``
+
+.. code:: python
+
+   config = dict()
+
+   config["dict_path"] = "thirdparty/test_build_dict"
+   config["train_files_path"] = "demo_train_data/part_1"
+   config["batch_size"] = 1000
+   config["nce_num"] = 5
+   config["thread_num"] = 12
 
 通过以上简洁的代码，即可以实现word2vector模型的多线程并发训练
