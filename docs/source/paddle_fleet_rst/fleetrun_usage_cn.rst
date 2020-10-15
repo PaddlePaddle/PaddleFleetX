@@ -31,7 +31,10 @@ Paddle提供命令行启动命令\ ``fleetrun``\ ，配合Paddle的分布式高�
 
 ``fleetrun``\ 使用场景主要分为集合通信训练（Collective
 Training）和参数服务器训练（Parameter Server
-Training）。集合通信训练一般在GPU设备上运行，因此我们将介绍GPU单机单卡，单机多卡和多机多卡场景下使用\ ``fleetrun``\ 的方法。参数服务器训练包含服务节点和训练节点的启动，因此我们将介绍单机模拟分布式和多机分布式训练场景下如何使用\ ``fleetrun``\ 。\ ``fleetrun``\ 支持在百度公司内部云PaddleCloud上运行分布式任务，推荐结合\ ``fleetsub``\ 命令，一键快速提交集群任务。详情请参考\ `使用fleetsub提交集群任务 <fleetsub_quick_start.html>`__\ 。
+Training）。
+集合通信训练一般在GPU设备上运行，因此我们将介绍GPU单机单卡，单机多卡和多机多卡场景下使用\ ``fleetrun``\ 的方法。
+参数服务器训练包含服务节点、训练节点以及异构训练节点的启动，
+因此我们将介绍单机模拟分布式和多机分布式训练场景下如何使用\ ``fleetrun``\ 。\ ``fleetrun``\ 支持在百度公司内部云PaddleCloud上运行分布式任务，推荐结合\ ``fleetsub``\ 命令，一键快速提交集群任务。详情请参考\ `使用fleetsub提交集群任务 <fleetsub_quick_start.html>`__\ 。
 
 .. _集合通信训练:
 
@@ -105,7 +108,12 @@ Training）。集合通信训练一般在GPU设备上运行，因此我们将介
 参数服务器训练
 ^^^^^^^^^^^^^^^
 
--  **参数服务器训练 - 单机模拟分布式训练（1个服务节点，4个训练节点）**
+在CPU集群运行参数服务器
+^^^^^^^^^^^^^^^^^^^^^^^
+
+-  **参数服务器训练 - 单机模拟分布式训练**
+
+      1台机器通过多进程模拟分布式训练，1个服务节点搭配4个训练节点
 
 ``fleetrun``\ 启动时只需指定服务节点数\ ``--server_num``\ 和训练节点数\ ``--worker_num``\ ，即可进行单机模拟分布式训练，**推荐使用此方法进行本地调试**。
 
@@ -113,8 +121,7 @@ Training）。集合通信训练一般在GPU设备上运行，因此我们将介
 
    fleetrun --server_num=1 --worker_num=4 train.py
 
--  **参数服务器训练 -
-   多机训练（2台节点，每台节点均有1个服务节点，4个训练节点）**
+-  **参数服务器训练 - 自定义多机训练**
 
 ``fleetrun``\ 启动时只需指定服务节点的ip和端口列表\ ``--servers`` 和
 训练节点的ip列表\ ``--workers`` ，即可进行多机训练。
@@ -132,6 +139,76 @@ Training）。集合通信训练一般在GPU设备上运行，因此我们将介
     # 2个servers 8个workers
     fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,xx.xx.xx.xx:6173,xx.xx.xx.xx:6174,xx.xx.xx.xx:6175,yy.yy.yy.yy:6176,yy.yy.yy.yy:6177,yy.yy.yy.yy:6178,yy.yy.yy.yy:6179" train.py
 
+在GPU集群运行参数服务器
+^^^^^^^^^^^^^^^^^^^^^^^
+
+-  **参数服务器训练 - 单机模拟分布式训练**
+
+      1台机器通过多进程模拟，2个服务节点搭配4个训练节点，
+      每个训练节点占用一张GPU卡，服务节点不占用GPU卡
+
+   .. code:: sh
+
+      # 2个server 4个worker
+      export CUDA_VISIBLE_DEVICES=0,1,2,3
+      fleetrun --server_num=2 --worker_num=4 train.py
+
+   ..
+
+      1台机器通过多进程模拟， 2个服务节点搭配2个训练节点，
+      两个训练节点共用一张GPU卡，服务节点不占用GPU卡
+
+   .. code:: sh
+
+      # 2个server 2个worker
+      export CUDA_VISIBLE_DEVICES=0
+      fleetrun --server_num=2 --worker_num=2 train.py
+
+-  **参数服务器训练 - 自定义多机训练**
+
+   ``fleetrun``\ 启动时只需指定服务节点的ip和端口列表\ ``--servers`` 和
+   训练节点的ip和端口列表\ ``--workers`` ，即可进行多机训练。
+
+   以下示例中，xx.xx.xx.xx代表机器1，yy.yy.yy.yy代表机器2，6170代表用户指定的服务节点的端口。\ ``fleetrun``\ 将分别在2台机器上启动1个服务节点，1个训练节点。训练节点会分别占用其机器上的0号GPU卡进行训练。
+
+      2台机器，每台机器均有1个服务节点，1个训练节点
+
+   .. code:: sh
+
+      # 2个server 2个worker
+      # 每台机器均指定了可用设备 GPU:0
+      export CUDA_VISIBLE_DEVICES=0
+      fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,yy.yy.yy.yy:6173" train.py
+
+   ..
+
+      2台机器，每台机器均有1个服务节点，4个训练节点
+
+   .. code:: sh
+
+      # 2个server 4个worker
+      # 每台机器均指定了可用设备 GPU:0,1,2,3
+
+   .. code:: sh
+
+      # 2个server 4个worker
+      # 每台机器均指定了可用设备 GPU:0,1,2,3
+      export CUDA_VISIBLE_DEVICES=0,1,2,3
+      fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,xx.xx.xx.xx:6173,xx.xx.xx.xx:6174,xx.xx.xx.xx:6175,yy.yy.yy.yy:6176,yy.yy.yy.yy:6177,yy.yy.yy.yy:6178,yy.yy.yy.yy:6179" train.py
+
+异构集群运行参数服务器
+^^^^^^^^^^^^^^^^^^^^^^
+
+-  **参数服务器训练 - 单机模拟分布式训练**
+
+      1台机器通过多进程模拟，2个服务节点搭配2个训练节点以及2个异构训练节点，每个异构训练节点占用一张GPU卡，其余服务节点和训练节点均在CPU上执行
+
+   .. code:: sh
+
+      # 2个server 4个worker
+      export CUDA_VISIBLE_DEVICES=0,1
+      fleetrun --server_num=2 --worker_num=2 --heter_worker_num=2 train.py
+
 fleetrun命令参数介绍
 ---------------------
 
@@ -147,11 +224,14 @@ fleetrun命令参数介绍
 
    -  server_num（int，可选）：单机模拟分布式任务中，指定参数服务器服务节点的个数
    -  worker_num（int，可选）：单机模拟分布式任务中，指定参数服务器训练节点的个数
+   -  heter_worker_num（int，可选）：在异构集群中启动单机模拟分布式任务，指定参数服务器异构训练节点的个数
    -  servers（str, 可选）：
       多机分布式任务中，指定参数服务器服务节点的IP和端口
    -  workers（str, 可选）：
       多机分布式任务中，指定参数服务器训练节点的IP和端口，也可只指定IP
-
+   -  heter_workers（str, 可选）:
+      在异构集群中启动分布式任务，指定参数服务器异构训练节点的IP和端口
+   -  http_port（int, 可选）：参数服务器模式中，用Gloo启动时设置的连接端口
 -  其他：
 
    -  log_dir（str, 可选）：

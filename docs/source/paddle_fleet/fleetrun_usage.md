@@ -112,7 +112,7 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 
 - **参数服务器训练 - 单机模拟分布式训练**
   
-    > 1台机器通过多进程模拟，2个服务节点搭配4个训练节点， 每个训练节点占用一张GPU卡
+    > 1台机器通过多进程模拟，2个服务节点搭配4个训练节点，每个训练节点占用一张GPU卡，服务节点不占用GPU卡
 
     ```sh
     # 2个server 4个worker
@@ -120,7 +120,7 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
     fleetrun --server_num=2 --worker_num=4 train.py
     ```
 
-    > 1台机器通过多进程模拟， 2个服务节点搭配2个训练节点， 两个训练节点共用一张GPU卡
+    > 1台机器通过多进程模拟， 2个服务节点搭配2个训练节点，两个训练节点共用一张GPU卡，服务节点不占用GPU卡
 
     ```sh
     # 2个server 2个worker
@@ -156,7 +156,7 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 
 - **参数服务器训练 - 单机模拟分布式训练**
 
-    > 1台机器通过多进程模拟，2个服务节点搭配2个训练节点以及2个异构训练节点，每个异构训练节点占用一张GPU卡
+    > 1台机器通过多进程模拟，2个服务节点搭配2个训练节点以及2个异构训练节点，每个异构训练节点占用一张GPU卡，其余服务节点和训练节点均在CPU上执行
 
     ```sh
     # 2个server 4个worker
@@ -177,8 +177,11 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 - 参数服务器模式可配参数:
 	- server_num（int，可选）：单机模拟分布式任务中，指定参数服务器服务节点的个数
 	- worker_num（int，可选）：单机模拟分布式任务中，指定参数服务器训练节点的个数
+	- heter_worker_num（int，可选）：在异构集群中启动单机模拟分布式任务, 指定参数服务器异构训练节点的个数
 	- servers（str, 可选）： 多机分布式任务中，指定参数服务器服务节点的IP和端口
 	- workers（str, 可选）： 多机分布式任务中，指定参数服务器训练节点的IP和端口，也可只指定IP
+	- heter_workers（str, 可选）：在异构集群中启动分布式任务，指定参数服务器异构训练节点的IP和端口
+    - http_port（int, 可选）：参数服务器模式中，用Gloo启动时设置的连接端口
 
 - 其他：
 	- log_dir（str, 可选）： 指定分布式任务训练日志的保存路径，默认保存在"./log/"目录。
