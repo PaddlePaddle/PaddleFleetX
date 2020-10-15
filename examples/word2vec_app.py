@@ -19,16 +19,12 @@ import paddle
 import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
 
+paddle.enable_static()
+
 role = fleet.PaddleCloudRoleMaker()
 fleet.init(role)
 
 model = X.applications.Word2vec()
-
-"""
-need config loader correctly.
-"""
-
-loader = model.load_dataset_from_file(train_files_path=[], dict_path="")
 
 dist_strategy = fleet.DistributedStrategy()
 dist_strategy.a_sync = True
@@ -41,5 +37,22 @@ if fleet.is_server():
     fleet.init_server()
     fleet.run_server()
 else:
-    trainer = X.CPUTrainer()
-    trainer.fit(model, loader, epoch=10)
+    """
+    need config loader correctly.
+    """
+    
+    local_path = downloader.download_from_hdfs(
+                     'w2v_train_data.yaml', local_path="train_data",
+                     shard_num=fleet.worker_num(),
+                     shard_id=fleet.worker_index())
+    
+    thirdparty_path = downloader.download_from_hdfs(
+                     'w2v_thirdparty.yaml', local_path="thirdparty")
+    
+    train_file_list=[str(local_path) + "/%s" % x
+                     for x in os.listdir(local_path)]
+    
+    dataset = model.load_dataset_from_file(dict_path="./thirdparty/test_build_dict", file_list=train_file_list)
+
+    trainer = X.CPUDatasetTrainer(calc_line=False)
+    trainer.fit(model, dataset, epoch=10)
