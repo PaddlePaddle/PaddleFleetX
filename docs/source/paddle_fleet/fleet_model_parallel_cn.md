@@ -81,14 +81,14 @@ class SimpleModelParallelClassifierNet(nn.Layer):
                  rank_num,
                  rank_id):
         super(SimpleModelParallelClassifierNet, self).__init__()
-        self.conv1 = nn.Conv2D(num_channels=3, num_filters=64, filter_size=11, stride=4, padding=2, act='relu')
-        self.max_pool1 = nn.Pool2D(pool_size=3, pool_stride=2, pool_type='max')
-        self.conv2 = nn.Conv2D(num_channels=64, num_filters=192, filter_size=5, padding=2, act='relu')
-        self.max_pool2 = nn.Pool2D(pool_size=3, pool_stride=2, pool_type='max')
-        self.conv3 = nn.Conv2D(num_channels=192, num_filters=384, filter_size=3, act='relu')
-        self.conv4 = nn.Conv2D(num_channels=384, num_filters=256, filter_size=3, act='relu')
-        self.conv5 = nn.Conv2D(num_channels=256, num_filters=256, filter_size=3, act='relu')
-        self.max_pool5 = nn.Pool2D(pool_size=3, pool_stride=2, pool_type='max')
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=11, stride=4, padding=2)
+        self.max_pool1 = nn.MaxPool2d(kernel_size=3, stride=2)
+        self.conv2 = nn.Conv2d(64, 192, kernel_size=5, padding=2)
+        self.max_pool2 = nn.MaxPool2d(kernel_size=3, stride=2)
+        self.conv3 = nn.Conv2d(192, 384, kernel_size=3)
+        self.conv4 = nn.Conv2d(384, 256, kernel_size=3)
+        self.conv5 = nn.Conv2d(256, 256, kernel_size=3)
+        self.max_pool5 = nn.MaxPool2d(kernel_size=3, stride=2)
         self.model_parallel_linear1 = ModelParallelLinear(4096,
                                                           rank_num,
                                                           rank_id,
@@ -101,15 +101,22 @@ class SimpleModelParallelClassifierNet(nn.Layer):
                                                           rank_num,
                                                           rank_id,
                                                           class_num)
+        self.droupout = nn.Dropout(0.5)
+        self.relu = nn.ReLU()
     
     def forward(x):
         x = self.conv1(x)
+        x = self.relu(x)
         x = self.max_pool1(x)
         x = self.conv2(x)
+        x = self.relu(x)
         x = self.max_pool2(x)
         x = self.conv3(x)
+        x = self.relu(x)
         x = self.conv4(x)
+        x = self.relu(x)
         x = self.conv5(x)
+        x = self.relu(x)
         x = self.max_pool5(x)
         x = F.dropout(x, 0.5)
         x = paddle.reshape(x, [x.shape[0], -1])
