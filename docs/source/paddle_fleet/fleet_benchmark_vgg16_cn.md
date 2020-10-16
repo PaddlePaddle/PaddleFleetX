@@ -19,8 +19,8 @@ VGG16是当前视觉领域比较通用的预训练模型后端，同时也作为
 | FleetX Github Commit | 296e0d71a33a8d250f6626733bc2535465f5f6e0 |
 | 硬盘类型 | 本地SSD硬盘 |
 | 数据集 | ImageNet |
-| 评估模型 | Resnet50 |
-| 复现代码地址 | [Resnet50-Benchmark](https://github.com/PaddlePaddle/FleetX/tree/develop/benchmark/paddle) |
+| 评估模型 | VGG16 |
+| 复现代码地址 | [VGG16-Benchmark](https://github.com/PaddlePaddle/FleetX/tree/develop/benchmark/paddle) |
 | Python版本 | 3.7 |
 
 #### 硬件拓扑
