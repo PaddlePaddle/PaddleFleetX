@@ -2,19 +2,11 @@
 
 ## 1.1 模型并行简介
 
-研究表明，随着模型规模的扩大，往往能够取得更好的任务性能。然而，随着模型采用更深、更宽的网络层，模型的参数规模也随之增长，甚至是超过计算设备的显存或者内存容量。
+随着模型规模的扩大，往往能够取得更好的任务性能。然而，随着模型采用更深、更宽的网络层，模型的参数规模也随之增长，甚至是超过计算设备的显存或者内存容量。
 
 使用模型并行可以将模型参数放置到多个计算设备，从而降低单个计算设备的显存或者内存消耗，使得大规模神经网络模型的训练成为可能。理论上讲，使用足够多的计算设备可以训练任意规模的模型。
 
-本文档以简单的分类网络为例介绍如何使用飞桨的底层集合通信API实现模型并行训练。
-
-本文档使用的网络结构如下所示，主要包含三层为卷积层和一层全连接层。
-
-
-
-![示例模型](img/model_parallel_1.png)
-
-
+本文档以AlexNet网络为例介绍如何使用飞桨的底层集合通信API实现模型并行训练。
 
 ## 1.2 模型并行原理和实现
 
@@ -24,18 +16,21 @@
 
 ### 1.2.2 实现原理
 
-在分布式训练过程中，综合采用数据并行和模型并行，具体地，卷积层采用数据并行，全连接层采用模型并行，即将全连接层划分到多个计算设备上，每个设备负责各自独立部分地全连接层计算。
+卷积神经网络主要包含两种类型的模型层：卷积层和全连接层。卷积层包含约5%的模型参数量和约90-95%的模型计算量；全连接层包含约95%的模型参数量和约5-10%的模型计算量。通常来讲，卷积层适合采用数据并行，因为卷积层模型参数的通信开销更小；而全连接层适合采用模型并行，因为相比于全连接层的模型参数，全连接层的输出张量的通信开销更小。因此，本示例中，AlexNet模型的卷积层采用数据并行，全连接层采用模型并行。
 
-![全连接层模型并行示例](img/model_parallel_2.png)
+接下来，我们介绍如何实现全连接层的模型并行。
 
-模型并行逻辑简单，简单地将全连接层参数按列切分到多个计算设备上，如上图所示。图例中，M(n)表示将矩阵M按行切分为N块，并取第n个分块；M[N]表示将矩阵M按列切分为N块，并取第n个分块。
+首先，汇聚各块GPU卡全连接层的输入数据，得到全局输入数据；并用全局数据和全连接层计算，得到各块GPU卡的全连接层输出，如下图所示。
 
-具体地讲，各个计算设备分别以各自地样本逐层计算卷积层输出，分别得到最后一层卷积层地输出X(0, X(1) ..., X(N-1)。全连接层计算过程如下：
+<p align="center">
+<img src="./img/model_parallel_3.png" width="400"/>
+</p>
 
-1. 首先，各个计算设备将最后一层卷积层的输出发送到其它所有卡；各个计算设备汇聚收到地信息，得到所有样本地卷积层输出**X**；
-2. 各个计算设备使用**X**和本设备上的部分全连接层权重计算得到部分计算结果；
-3. 各个计算设备将全连接层输出发送到其它所有卡；各个计算设备汇聚收到地信息，得到所有样本的全连接层输出**Y**；
-4. 各个计算设备获取自己样本地全连接层输出。
+接着，汇聚各块GPU卡全连接层的输出数据，并抽取本块GPU的样本数据的全连接层输出，如下图所示。
+
+<p align="center">
+<img src="./img/model_parallel_4.png" width="600"/>
+</p>
 
 ### 1.2.3 动态图实现
 
@@ -91,15 +86,26 @@ class SimpleModelParallelClassifierNet(nn.Layer):
                  rank_num,
                  rank_id):
         super(SimpleModelParallelClassifierNet, self).__init__()
-        self.conv1 = Conv2D(num_channels=1, num_filters=6, filter_size=5, act='sigmoid')
-        self.max_pool1 = nn.Pool2D(pool_size=2, pool_stride=2, pool_type='max')
-        self.conv2 = Conv2D(num_channels=6, num_filters=16, filter_size=5, act='sigmoid')
-        self.max_pool2 = nn.Pool2D(pool_size=2, pool_stride=2, pool_type='max')
-        self.conv3 = Conv2D(num_channels=16, num_filters=120, filter_size=4, act='sigmoid')
-        self.model_parallel_linear = ModelParallelLinear(480,
-                                                         rank_num,
-                                                         rank_id,
-                                                         class_num)
+        self.conv1 = nn.Conv2D(num_channels=3, num_filters=64, filter_size=11, stride=4, padding=2, act='relu')
+        self.max_pool1 = nn.Pool2D(pool_size=3, pool_stride=2, pool_type='max')
+        self.conv2 = nn.Conv2D(num_channels=64, num_filters=192, filter_size=5, padding=2, act='relu')
+        self.max_pool2 = nn.Pool2D(pool_size=3, pool_stride=2, pool_type='max')
+        self.conv3 = nn.Conv2D(num_channels=192, num_filters=384, filter_size=3, act='relu')
+        self.conv4 = nn.Conv2D(num_channels=384, num_filters=256, filter_size=3, act='relu')
+        self.conv5 = nn.Conv2D(num_channels=256, num_filters=256, filter_size=3, act='relu')
+        self.max_pool5 = nn.Pool2D(pool_size=3, pool_stride=2, pool_type='max')
+        self.model_parallel_linear1 = ModelParallelLinear(4096,
+                                                          rank_num,
+                                                          rank_id,
+                                                          4096)
+        self.model_parallel_linear2 = ModelParallelLinear(4096,
+                                                          rank_num,
+                                                          rank_id,
+                                                          4096)
+        self.model_parallel_linear3 = ModelParallelLinear(class_num,
+                                                          rank_num,
+                                                          rank_id,
+                                                          class_num)
     
     def forward(x):
         x = self.conv1(x)
@@ -107,15 +113,22 @@ class SimpleModelParallelClassifierNet(nn.Layer):
         x = self.conv2(x)
         x = self.max_pool2(x)
         x = self.conv3(x)
+        x = self.conv4(x)
+        x = self.conv5(x)
+        x = self.max_pool5(x)
+        x = F.dropout(x, 0.5)
         x = paddle.reshape(x, [x.shape[0], -1])
-        out = self.model_parallel_linear(x)
+        x = self.model_parallel_linear1(x)
+        x = F.dropout(x, 0.5)
+        x = self.model_parallel_linear2(x)
+        out = self.model_parallel_linear3(x)
         return out
 
 # 分布式step 2: 初始化fleet
 fleet.init(is_collective=True)
 
 # 1. 定义网络对象，损失函数和优化器
-layer = SimpleModelParallelClassifierNet(class_num=10,
+layer = SimpleModelParallelClassifierNet(class_num=1000,
                                          rank_num=fleet.worker_num(),
                                          rank_id=fleet.worker_index())
 adam = paddle.optimizer.Adam(learning_rate=0.001,
@@ -128,7 +141,7 @@ dp_layer = fleet.distributed_model(layer)
 
 for step in range(20):
     # 2. 执行前向网络
-    image = paddle.randn([1, 1, 32, 32], 'float32')
+    image = paddle.randn([1, 3, 224, 224], 'float32')
     label = paddle.randint(low=0, high=10, shape=[1,1])
     output = dp_layer(image)
     loss = F.softmax_with_cross_entropy(output, label)
@@ -151,75 +164,3 @@ for step in range(20):
 ```shell
 fleetrun --gpus=0,1 tain.py
 ```
-
-### 1.2.4 静态图实现
-
-```PYTHON
-# -*- coding: UTF-8 -*-
-import os
-import numpy
-import paddle
-import paddle.static.nn as nn
-import paddle.distributed.fleet as fleet
-
-paddle.enable_static()
-
-fleet.init(is_collective=True)
-
-def simple_model_parallel_net(image,
-                              label,
-                              class_num,
-                              rank_num,
-                              rank_id):
-    conv1 = nn.conv2d(image, num_filters=6, filter_size=5, act='sigmoid')
-    max_pool1 = paddle.nn.functional.pool2d(conv1, pool_size=2, pool_type='max', pool_stride=2)
-    conv2 = nn.conv2d(max_pool1, num_filters=16, filter_size=5, act='sigmoid')
-    max_pool2 = paddle.nn.functional.pool2d(conv2, pool_size=2, pool_type='max', pool_stride=2)
-    conv3 = nn.conv2d(max_pool2, num_filters=120, filter_size=4, act='sigmoid')
-    conv3 = paddle.reshape(conv3, [conv3.shape[0], -1])
-
-    if class_num % rank_num:
-        raise ValueError("Number of classes must be divisible "
-                         "the number of ranks.")
-    shard_dims = class_num // rank_num
-    global_x_list = []
-    paddle.distributed.all_gather(global_x_list, conv3)
-    global_x = paddle.concat(global_x_list, axis=0)
-    out = nn.fc(global_x, size=shard_dims)
-    global_out_list = []
-    paddle.distributed.all_gather(global_out_list, out)
-    all_outs = paddle.concat(global_out_list, axis=1)
-    out = paddle.split(all_outs, rank_num)[rank_id]
-    out = paddle.nn.functional.loss.cross_entropy(input=out, label=label)
-    loss = paddle.mean(out)
-    return loss
-  
-image = paddle.data(name="image", shape=[1, 1, 32, 32], dtype='float32')
-label = paddle.data(name="label", shape=[1, 1], dtype='int64')
-
-
-cost = simple_model_parallel_net(image,
-                                 label,
-                                 class_num=10,
-                                 rank_num=fleet.worker_num(),
-                                 rank_id=fleet.worker_index())
-
-place = paddle.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
-strategy = fleet.DistributedStrategy()
-optimizer = paddle.fluid.optimizer.Adam(learning_rate=0.001)
-optimizer = fleet.distributed_optimizer(optimizer, strategy=strategy)
-optimizer.minimize(cost)
-
-exe = paddle.static.Executor(place)
-exe.run(paddle.static.default_startup_program())
-
-step = 20
-for i in range(step):
-    image_np = numpy.random.randn(1, 1, 32, 32).astype('float32')
-    label_np = numpy.random.randint(low=0, high=10, size=[1,1])
-    [loss] = exe.run(paddle.static.default_main_program(),
-                     feed={'image': image_np, 'label': label_np},
-                     fetch_list=[cost.name])
-    print("step:{}\tloss:{}".format(i, loss))
-```
-
