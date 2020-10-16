@@ -31,15 +31,15 @@ FleetX
 
 .. code:: bash
 
-    pip install fleet-x
+    pip install fleet-x==0.0.7
 
 或者使用我们为用户提供了已经编译好的安装包，可以下载到本机后下载：
 
 .. code:: sh
 
    # python2
-   wget --no-check-certificate https://fleet.bj.bcebos.com/fleet_x-0.0.4-py2-none-any.whl
+   wget --no-check-certificate https://fleet.bj.bcebos.com/fleet_x-0.0.7-py2-none-any.whl
    pip install fleet_x-0.0.4-py2-none-any.whl
    # python3
-   wget --no-check-certificate https://fleet.bj.bcebos.com/fleet_x-0.0.4-py3-none-any.whl
+   wget --no-check-certificate https://fleet.bj.bcebos.com/fleet_x-0.0.7-py3-none-any.whl
    pip3 install fleet_x-0.0.4-py3-none-any.whl
