@@ -1,7 +1,7 @@
 # 使用fleetrun启动分布式任务
 
 Paddle提供命令行启动命令`fleetrun`，配合Paddle的分布式高级API`paddle.distributed.fleet`
-即可轻松将Paddle 单设备任务切换为多设备任务，此外`fleetrun`也可以支持参数服务器架构中同时启动多个训练节点和服务节点的分布式任务。
+即可轻松启动Paddle集合通信模式或参数服务器模式下的分布式任务。
 `fleetrun`在静态图和动态图场景下均可使用。
 
 ## 内容导航
@@ -26,7 +26,7 @@ Paddle提供命令行启动命令`fleetrun`，配合Paddle的分布式高级API`
 
 参数服务器训练包含服务节点、训练节点以及异构训练节点的启动，
 
-因此我们将介绍本地模拟分布式任务场景和多机环境下分布式训练场景下如何使用`fleetrun`。`fleetrun`支持在百度公司内部云PaddleCloud上提交任务，推荐结合`fleetsub`命令，一键快速提交集群任务。详情请参考`使用fleetsub提交集群任务 `。
+因此我们将介绍单机模拟分布式和多机分布式训练场景下如何使用`fleetrun`。`fleetrun`支持在百度公司内部云PaddleCloud上运行分布式任务，推荐结合`fleetsub`命令，一键快速提交集群任务。详情请参考`使用fleetsub提交集群任务 `。
 
 ### 集合通信训练 <a name="multigpu"></a>
 - **GPU单机单卡训练**
@@ -112,7 +112,7 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 
 - **参数服务器训练 - 单机模拟分布式训练**
   
-    > 1台机器通过多进程模拟，2个服务节点搭配4个训练节点， 每个训练节点占用一张GPU卡
+    > 1台机器通过多进程模拟，2个服务节点搭配4个训练节点，每个训练节点占用一张GPU卡，服务节点不占用GPU卡
 
     ```sh
     # 2个server 4个worker
@@ -120,7 +120,7 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
     fleetrun --server_num=2 --worker_num=4 train.py
     ```
 
-    > 1台机器通过多进程模拟， 2个服务节点搭配2个训练节点， 两个训练节点共用一张GPU卡
+    > 1台机器通过多进程模拟， 2个服务节点搭配2个训练节点，两个训练节点共用一张GPU卡，服务节点不占用GPU卡
 
     ```sh
     # 2个server 2个worker
@@ -156,7 +156,7 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 
 - **参数服务器训练 - 单机模拟分布式训练**
 
-    > 1台机器通过多进程模拟，2个服务节点搭配2个训练节点以及2个异构训练节点，每个异构训练节点占用一张GPU卡
+    > 1台机器通过多进程模拟，2个服务节点搭配2个训练节点以及2个异构训练节点，每个异构训练节点占用一张GPU卡，其余服务节点和训练节点均在CPU上执行
 
     ```sh
     # 2个server 4个worker
@@ -175,10 +175,13 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 	- gpus（str, 可选）： 指定选择哪些GPU卡进行训练，默认为None，即会选择`CUDA_VISIBLE_DEVICES`所显示的所有卡。
 
 - 参数服务器模式可配参数:
-	- server_num（int，可选）：本地模拟分布式任务中，指定参数服务器服务节点的个数
-	- worker_num（int，可选）：本地模拟分布式任务中，指定参数服务器训练节点的个数
+	- server_num（int，可选）：单机模拟分布式任务中，指定参数服务器服务节点的个数
+	- worker_num（int，可选）：单机模拟分布式任务中，指定参数服务器训练节点的个数
+	- heter_worker_num（int，可选）：在异构集群中启动单机模拟分布式任务, 指定参数服务器异构训练节点的个数
 	- servers（str, 可选）： 多机分布式任务中，指定参数服务器服务节点的IP和端口
 	- workers（str, 可选）： 多机分布式任务中，指定参数服务器训练节点的IP和端口，也可只指定IP
+	- heter_workers（str, 可选）：在异构集群中启动分布式任务，指定参数服务器异构训练节点的IP和端口
+    - http_port（int, 可选）：参数服务器模式中，用Gloo启动时设置的连接端口
 
 - 其他：
 	- log_dir（str, 可选）： 指定分布式任务训练日志的保存路径，默认保存在"./log/"目录。
@@ -209,6 +212,7 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
         avg_cost = fluid.layers.mean(x=cost)
         return train_dataset, test_dataset, x, y, avg_cost, acc_top1
 
+    paddle.enable_static()
     train_data, test_data, x, y, cost, acc = mnist_on_mlp_model()
     place = paddle.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
     train_dataloader = paddle.io.DataLoader(
@@ -216,7 +220,6 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
         places=place, batch_size=64, shuffle=True)
     fleet.init(is_collective=True)
     strategy = fleet.DistributedStrategy()
-    #optimizer = paddle.optimizer.Adam(learning_rate=0.01)
     optimizer = fluid.optimizer.Adam(learning_rate=0.001)
     optimizer = fleet.distributed_optimizer(optimizer, strategy=strategy)
     optimizer.minimize(cost)

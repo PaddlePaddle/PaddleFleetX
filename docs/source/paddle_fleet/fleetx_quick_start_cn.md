@@ -7,7 +7,7 @@
 - 短代码定义预训练模型
 - 预置经典模型的公开训练数据
 - 用户可低成本替换自有数据集
-- 面向每个模型的最佳分布式训练实践
+- 面向经典模型的最佳分布式训练实践
 
 ### 上手示例
 以下通过图像分类Resnet50的例子，说明如何使用FleetX的接口进行分布式训练。具体步骤如下：
@@ -33,15 +33,16 @@ import fleetx as X
 通过FleetX提供的 `X.applications` 接口，用户可以使用一行代码加载一些经典的深度模型，如：Resnet50，VGG16，BERT，Transformer等。同时，用户可以使用一行代码加载特定格式的数据，如对于图像分类任务，用户可以加载ImageNet格式的数据。
 
 ``` python
+# -*- coding: UTF-8 -*-
 import paddle
 import paddle.distributed.fleet as fleet
 import fleetx as X
-
+paddle.enable_static()
 configs = X.parse_train_configs()
 
 model = X.applications.Resnet50()
 downloader = X.utils.Downloader()
-local_path = downloader.download_from_bos(fs_yml="https://xxx.xx.xx.xx/full_imagenet_bos.yml", local_path='./data')
+local_path = downloader.download_from_bos(fs_yml="https://fleet.bj.bcebos.com/small_datasets/yaml_example/imagenet.yaml", local_path='./data')
 loader = model.get_train_dataloader(local_path, batch_size=32)
 
 ```
@@ -93,3 +94,5 @@ fleetrun --gpus 0,1,2,3 resnet_app.py
 ```
 
 关于`fleetrun`命令，更详细的使用说明请参考[fleetrun](fleetrun_usage_cn.html)
+
+更多`FleetX`的例子请参考下面的[链接](https://github.com/PaddlePaddle/FleetX/tree/develop/examples)

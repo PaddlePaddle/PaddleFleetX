@@ -22,5 +22,27 @@ pip install paddlepaddle-gpu
 - 在利用大规模算力集群方面，FleetX使用Paddle原生提供的分布式训练能力，面向不同的模型提供最佳的分布式训练实践，在保证收敛效果的前提下最大化用户的集群使用效率。
 
 ``` bash
-pip install fleet-x
+pip install fleet-x==0.0.7
+```
+
+同时我们为用户提供了已经编译好的安装包，可以下载到本机后下载：
+
+```bash
+# python2
+wget --no-check-certificate https://fleet.bj.bcebos.com/fleet_x-0.0.7-py2-none-any.whl
+pip install fleet_x-0.0.4-py2-none-any.whl
+# python3
+wget --no-check-certificate https://fleet.bj.bcebos.com/fleet_x-0.0.7-py3-none-any.whl
+pip3 install fleet_x-0.0.4-py3-none-any.whl
+```
+
+或者使用我们为用户提供了已经编译好的安装包，可以下载到本机后安装：
+
+```bash
+# python2
+wget --no-check-certificate https://fleet.bj.bcebos.com/fleet_x-0.0.4-py2-none-any.whl
+pip install fleet_x-0.0.4-py2-none-any.whl
+# python3
+wget --no-check-certificate https://fleet.bj.bcebos.com/fleet_x-0.0.4-py3-none-any.whl
+pip3 install fleet_x-0.0.4-py3-none-any.whl
 ```
