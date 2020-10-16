@@ -31,8 +31,22 @@
 
 <h2 align="center">Installation</h2>
 
+- Install from pypi source
 ``` bash
-pip install fleet-x
+pip install fleet-x==0.0.7
+```
+- Download whl package and install 
+
+```bash
+# python2.7
+wget --no-check-certificate https://fleet.bj.bcebos.com/test/fleet_x-0.0.7-py2-none-any.whl
+pip install fleet_x-0.0.7-py2-none-any.whl
+
+# python3
+wget --no-check-certificate https://fleet.bj.bcebos.com/test/fleet_x-0.0.7-py3-none-any.whl
+pip3 install fleet_x-0.0.7-py3-none-any.whl
+
+
 ```
 
 <h2 align="center">A Distributed Resnet50 Training Example</h2>
