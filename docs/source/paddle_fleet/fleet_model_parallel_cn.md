@@ -51,6 +51,8 @@ class ModelParallelLinear(nn.Layer):
         self.linear = nn.Linear(in_dim, shard_dims)
         self.rank_num = rank_num
         self.rank_id = rank_id
+        for parameter in self.linear.parameters():
+            parameter.is_distributed = True
     
     def forward(self, x):
         global_x_list = []
