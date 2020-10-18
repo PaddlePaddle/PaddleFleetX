@@ -160,6 +160,7 @@ paddle.distributed.fleet.DistributedStrategy.amp\_configs 中的
 
     import os
     import fleetx as X
+    import paddle
     import paddle.fluid as fluid
     import paddle.distributed.fleet.base.role_maker as role_maker
     import time
@@ -170,9 +171,9 @@ paddle.distributed.fleet.DistributedStrategy.amp\_configs 中的
 
 .. code:: python
 
+    paddle.enable_static()
     configs = X.parse_train_configs()
-    role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-    fleet.init(role)
+    fleet.init(is_collective=True)
 
 加载模型及数据
 ^^^^^^^^^^^^^^
@@ -180,8 +181,12 @@ paddle.distributed.fleet.DistributedStrategy.amp\_configs 中的
 .. code:: python
 
     model = X.applications.Resnet50()
+    downloader = X.utils.Downloader()
+    local_path = downloader.download_from_bos(
+        fs_yaml='https://fleet.bj.bcebos.com/test/loader/small_imagenet.yaml',
+        local_path='./data')
     batch_size = 32
-    data_loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt", batch_size=batch_size)
+    loader = model.get_train_dataloader(local_path, batch_size=batch_size)
 
 定义分布式及AMP 相关策略
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -195,7 +200,6 @@ otpimizers 作为其 inner-optimizer.
 
 .. code:: python
 
-    dist_strategy = fleet.DistributedStrategy()
     dist_strategy.amp = True
     dist_strategy.amp_configs = {
         "init_loss_scaling": 32768,
@@ -223,12 +227,12 @@ otpimizers 作为其 inner-optimizer.
     exe = fluid.Executor(place)
     exe.run(fluid.default_startup_program())
 
-    for i, data in enumerate(data_loader()):
+    for i, data in enumerate(loader()):
         start_time = time.time()
         cost_val = exe.run(model.main_prog,
                             feed=data,
                             fetch_list=[model.loss.name])
-                            
+
         end_time = time.time()
         print(
             "worker_index: %d, step%d cost = %f, speed: %f"
@@ -241,7 +245,7 @@ otpimizers 作为其 inner-optimizer.
 
 .. code:: sh
 
-    fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log resnet50_amp.py
+    fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log example_amp.py
 
     # worker_index: 0, step0 cost = 6.895311, speed: 12.192901
     # worker_index: 0, step1 cost = 6.964077, speed: 412.116618
