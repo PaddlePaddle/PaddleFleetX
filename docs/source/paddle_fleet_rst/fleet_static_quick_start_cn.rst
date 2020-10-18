@@ -22,12 +22,13 @@ Training），接下来的例子会以同样的模型来说明两种架构的数
    import paddle
    import paddle.static.nn as nn
 
+   paddle.enable_static()
    def mnist_on_mlp_model():
        train_dataset = paddle.vision.datasets.MNIST(mode='train')
        test_dataset = paddle.vision.datasets.MNIST(mode='test')
        x = paddle.data(name="x", shape=[64, 1, 28, 28], dtype='float32')
        y = paddle.data(name="y", shape=[64, 1], dtype='int64')
-       x_flatten = nn.reshape(x, [64, 784])
+       x_flatten = paddle.reshape(x, [64, 784])
        fc_1 = nn.fc(input=x_flatten, size=128, act='tanh')
        fc_2 = nn.fc(input=fc_1, size=128, act='tanh')
        prediction = nn.fc(input=[fc_2], size=10, act='softmax')
