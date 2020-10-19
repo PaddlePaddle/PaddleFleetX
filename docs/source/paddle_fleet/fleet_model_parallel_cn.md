@@ -65,7 +65,10 @@ class ModelParallelLinear(nn.Layer):
         out = paddle.split(all_outs, self.rank_num)[self.rank_id]
         return out
 ```
+备注：因为每块GPU卡保存部分全连接层参数，上面的例子中设置模型参数的`is_distributed`属性为True，用于避免在反向阶段对相应的模型参数做基于all_reduce的同步操作。
+
 完整地训练代码实现如下：
+
 ```python
 # -*- coding: UTF-8 -*-
 import paddle
