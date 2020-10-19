@@ -158,9 +158,7 @@ for step in range(20):
 
     # 3. 执行反向计算和参数更新
     # 分布式step 4: 在执行反向（backward函数）前后进行损失缩放和反向梯度的聚合
-    loss = dp_layer.scale_loss(loss)
     loss.backward()
-    dp_layer.apply_collective_grads()
 
     adam.step()
     adam.clear_grad()
