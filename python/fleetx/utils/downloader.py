@@ -161,15 +161,22 @@ class Downloader(object):
                 raise Exception(
                     "ERROR: Your data dir should include filelist.txt and meta.txt"
                 )
-            client.download('{}/filelist.txt'.format(hdfs_path),
-                            '{}/filelist.txt'.format(local_path))
-            client.download('{}/meta.txt'.format(hdfs_path),
-                            '{}/meta.txt'.format(local_path))
+
+            if not os.path.exists('{}/filelist.txt'.format(local_path)):
+                client.download('{}/filelist.txt'.format(hdfs_path),
+                                '{}/filelist.txt'.format(local_path))
+            if not os.path.exists('{}/meta.txt'.format(local_path)):
+                client.download('{}/meta.txt'.format(hdfs_path),
+                                '{}/meta.txt'.format(local_path))
+
             with open('{}/meta.txt'.format(local_path), 'r') as fin:
                 for line in fin:
                     current_file = line.strip()
-                    client.download('{}/{}'.format(hdfs_path, current_file),
-                                    '{}/{}'.format(local_path, current_file))
+                    if not os.path.exists('{}/{}'.format(local_path,
+                                                         current_file)):
+                        client.download(
+                            '{}/{}'.format(hdfs_path, current_file),
+                            '{}/{}'.format(local_path, current_file))
 
         if shard_num > 0:
             assert (
