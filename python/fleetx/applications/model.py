@@ -354,8 +354,10 @@ class BertLarge(ModelBase):
         """
         Load train Wiki data of language defined in model from local path.
         """
+        assert batch_size >= max_seq_len, "batch_size should not less than max_seq_len, while get batch_size={} and max_seq_len={}".format(
+            batch_size, max_seq_len)
         if not in_tokens:
-            batch_size = batch_size / max_seq_len
+            batch_size = int(batch_size / max_seq_len)
         return load_bert_dataset(
             data_dir,
             inputs=self.inputs,
@@ -375,8 +377,10 @@ class BertLarge(ModelBase):
         """
         Load val Wiki data of language defined in model from local path.
         """
+        assert batch_size >= max_seq_len, "batch_size should not less than max_seq_len, while get batch_size={} and max_seq_len={}".format(
+            batch_size, max_seq_len)
         if not in_tokens:
-            batch_size = batch_size / max_seq_len
+            batch_size = int(batch_size / max_seq_len)
         return load_bert_dataset(
             data_dir,
             inputs=self.inputs,
@@ -435,8 +439,10 @@ class BertHuge(ModelBase):
         """
         Load train Wiki data of language defined in model from local path.
         """
+        assert batch_size >= max_seq_len, "batch_size should not less than max_seq_len, while get batch_size={} and max_seq_len={}".format(
+            batch_size, max_seq_len)
         if not in_tokens:
-            batch_size = batch_size / max_seq_len
+            batch_size = int(batch_size / max_seq_len)
         return load_bert_dataset(
             data_dir,
             inputs=self.inputs,
@@ -456,8 +462,10 @@ class BertHuge(ModelBase):
         """
         Load val Wiki data of language defined in model from local path.
         """
+        assert batch_size >= max_seq_len, "batch_size should not less than max_seq_len, while get batch_size={} and max_seq_len={}".format(
+            batch_size, max_seq_len)
         if not in_tokens:
-            batch_size = batch_size / max_seq_len
+            batch_size = int(batch_size / max_seq_len)
         return load_bert_dataset(
             data_dir,
             inputs=self.inputs,
@@ -516,8 +524,10 @@ class BertGiant(ModelBase):
         """
         Load train Wiki data of language defined in model from local path.
         """
+        assert batch_size >= max_seq_len, "batch_size should not less than max_seq_len, while get batch_size={} and max_seq_len={}".format(
+            batch_size, max_seq_len)
         if not in_tokens:
-            batch_size = batch_size / max_seq_len
+            batch_size = int(batch_size / max_seq_len)
         return load_bert_dataset(
             data_dir,
             inputs=self.inputs,
@@ -537,8 +547,10 @@ class BertGiant(ModelBase):
         """
         Load val Wiki data of language defined in model from local path.
         """
+        assert batch_size >= max_seq_len, "batch_size should not less than max_seq_len, while get batch_size={} and max_seq_len={}".format(
+            batch_size, max_seq_len)
         if not in_tokens:
-            batch_size = batch_size / max_seq_len
+            batch_size = int(batch_size / max_seq_len)
         return load_bert_dataset(
             data_dir,
             inputs=self.inputs,
@@ -600,6 +612,8 @@ class BertBase(ModelBase):
         """
         Load train Wiki data of language defined in model from local path.
         """
+        assert batch_size >= max_seq_len, "batch_size should not less than max_seq_len, while get batch_size={} and max_seq_len={}".format(
+            batch_size, max_seq_len)
         if not in_tokens:
             batch_size = int(batch_size / max_seq_len)
 
@@ -622,8 +636,10 @@ class BertBase(ModelBase):
         """
         Load train Wiki data of language defined in model from local path.
         """
+        assert batch_size >= max_seq_len, "batch_size should not less than max_seq_len, while get batch_size={} and max_seq_len={}".format(
+            batch_size, max_seq_len)
         if not in_tokens:
-            batch_size = batch_size / max_seq_len
+            batch_size = int(batch_size / max_seq_len)
         return load_bert_dataset(
             data_dir,
             inputs=self.inputs,
