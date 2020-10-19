@@ -2,7 +2,7 @@
 
 ## 简介 + strategy列表
 
-为了追求模型的性能不断提升，人们对更大规模的数据集、更深的网络层、更庞大的参数规模趋之若鹜。但是随之而来的就是给模型训练带来了巨大的压力，因此分布式技术及定制化AI芯片应运而生。但在分布式训练中，经常会遇到显存或者内存不足的情况，通常是以下几点原因导致的：
+为了追求模型的性能不断提升，人们对更大规模的数据集、更深的网络层、更庞大的参数规模应运而生。但是随之而来的就是给模型训练带来了巨大的压力，因此分布式技术及定制化AI芯片应运而生。但在分布式训练中，经常会遇到显存或者内存不足的情况，通常是以下几点原因导致的：
 
 - 输入的数据过大，例如视频类训练数据。
 - 深度模型的参数过多或过大，所需的存储空间超出了内存/显存的大小。
@@ -47,13 +47,7 @@ GradientMerge 策略在使用方面也很简单，用户只需要定义将多少
 - 加载模型及数据。
 - 定义训练策略和优化器，在这一步我们可以选择使用FRB或者Gradient Merge策略来增大BatchSize。
 
-下面我们来分别介绍FRB和Gradient Merge两种策略所对应脚本的编写方法。在开始之前，我们需要准备训练数据集（train_data.tar.gz）及词表（vocab.txt）。
-
-```sh
-wget --no-check-certificate https://fleet.bj.bcebos.com/Bertdata/train_data.tar.gz
-tar -xf train_data.tar.gz
-wget --no-check-certificate https://fleet.bj.bcebos.com/Bertdata/vocab.txt
-```
+下面我们来分别介绍FRB和Gradient Merge两种策略所对应脚本的编写方法(bert_recompute.py 及 bert_gradient_merge.py)。
 
 ### Forward Recomputation Backpropagation
 
@@ -63,6 +57,7 @@ wget --no-check-certificate https://fleet.bj.bcebos.com/Bertdata/vocab.txt
 
 ```python
 # -*- coding: UTF-8 -*-
+import paddle
 import fleetx as X
 import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
@@ -72,6 +67,7 @@ import paddle.distributed.fleet as fleet
 
 通过`X.parse_train_configs()`接口，用户可以定义训练相关的参数，如：学习率、衰减率等。同时通过`fleet.init()`接口定义了分布式模型，下面代码中的`is_collective=True`表示采用集合通信的GPU分布式模式训练模型。
 ```python
+paddle.enable_static()
 configs = X.parse_train_configs()
 fleet.init(is_collective=True)
 ```
@@ -80,12 +76,16 @@ fleet.init(is_collective=True)
 
 用户可以通过`X.applications`接口加载我们预先定义好的模型，如：Resnet50、VGG16、BERT等。并使用定制化的data_loader加载模型，同时可以定义训练中使用的batch_size等参数。下面的例子中，我们使用了recompute对Bert_large模型所支持的最大Batch Size（53）来进行训练。
 
+与此同时，用户可以使用我们的`Downloader`接口下载预先保存的Wiki数据集。
+
 ```python
 model = X.applications.BertLarge()
-
-data_loader = model.load_digital_dataset_from_file(
-    data_dir='./train_data',
-    vocab_path='./vocab.txt',
+downloader = X.utils.Downloader()
+local_path = downloader.download_from_bos(
+    fs_yaml='https://fleet.bj.bcebos.com/small_datasets/yaml_example/wiki_cn.yaml',
+    local_path='./data')
+data_loader = model.get_train_dataloader(
+    local_path,
     max_seq_len=512,
     batch_size=53,
 )
@@ -146,27 +146,29 @@ fleetrun --gpus 0,1,2,3,4,5,6,7 bert_recompute.py
 
 ```python
 # -*- coding: UTF-8 -*-
+import paddle
 import fleetx as X
 import paddle.fluid
 import paddle.distributed.fleet as fleet
-import paddle.distributed.fleet.base.role_maker as role_maker
 ```
 
 #### 定义分布式模式并初始化
 ```python
+paddle.enable_static()
 configs = X.parse_train_configs()
-role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-fleet.init(role)
+fleet.init(is_collective=True)
 ```
 
 #### 加载模型及数据
 
 ```python
 model = X.applications.Bert_large()
-
-data_loader = model.load_digital_dataset_from_file(
-    data_dir='./train_data',
-    vocab_path='./vocab.txt',
+downloader = X.utils.Downloader()
+local_path = downloader.download_from_bos(
+    fs_yaml='https://fleet.bj.bcebos.com/small_datasets/yaml_example/wiki_cn.yaml',
+    local_path='./data')
+data_loader = model.get_train_dataloader(
+    local_path,
     max_seq_len=512,
     batch_size=13,
 )
@@ -175,7 +177,7 @@ data_loader = model.load_digital_dataset_from_file(
 
 #### 定义Gradient Merge Strategy 及 Optimizer
 
-在上面的代码中，我们定义了Batch Size为13，在这一步中，我们将设置使用4个Batch Size来模拟一个大Batch的训练，从而达到了Batch size为52的训练效果。
+在上面的代码中，我们定义了Batch Size为13，在这一步中，我们通过设置`k_steps`，使用4个Batch Size来模拟一个大Batch的训练，从而达到了Batch size为52的训练效果。
 
 在`gradient_merge_configs`中，avg选项用于控制梯度累计的形式：当被设置为 True 时，会对每次的梯度求和并做平均；反之将直接对梯度求和，并对参数进行更新。
 

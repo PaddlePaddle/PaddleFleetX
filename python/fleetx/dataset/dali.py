@@ -287,6 +287,7 @@ def build(filelist,
             pipelines.append(pipe)
         sample_per_shard = len(pipelines[0])
 
+    print("sample per shard: {}".format(sample_per_shard))
     return DALIGenericIterator(
         pipelines, ['feed_image', 'feed_label'], size=sample_per_shard)
 

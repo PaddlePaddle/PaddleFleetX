@@ -19,27 +19,25 @@ Precision) 来进一步提升训练的速度.
 4. GPU上 FP16 吞吐是FP32 的 2 - 8
    倍\ `[2] <https://arxiv.org/abs/1710.03740>`__
 
-Fleet 支持自动混合精度计算, 并实现了 ``自动维护FP32 、FP16参数副本``,
-``Dynamic loss scaling``, ``op黑白名单`` 等功能来避免FP16
-因动态范围较小而可能带来的模型最终精度损失. Fleet 并提供了简单易用的API
-接口, 用户无需自定义“loss
-scaling”等参数，直接设置“dist\_strategy.amp=True”即可.
+Paddle 支持自动混合精度计算, 并实现了 ``自动维护FP32 、FP16参数副本``,
+``Dynamic loss scaling``, ``op黑白名单`` 等策略来避免
+因 FP16 动态范围较小而带来的模型最终精度损失。 Fleet 作为Paddle通用的分布式训练API提供了简单易用的接口, 用户只需要添加几行代码
 就可将自动混合精度应用到原有的分布式训练中进一步提升训练速度.
 
-中下文将通过一个简单例子介绍如如何通过 Fleet将实现混合精度的分布式训练,
-另外给出我们使用 Fleet 进行同步训练加速的实践.
+下文将通过一个简单例子介绍如如何通过 Fleet将实现混合精度的分布式训练,
+另外给出我们使用 Fleet 进行同步训练加速的实践。
 
-Fleet 效果
-----------
+试验效果
+~~~~~~~~
 
 环境: 4 机 32卡 V100-32GB
 
 +--------------+-------------------+--------------+---------+
 | imagenet     | 单卡 batch size   | 速度 img/s   | top1    |
 +==============+===================+==============+=========+
-| `VGG16-FP32  | 32               | 7238          | 55.4%   |
+| `VGG16-FP32  | 32                | 4133         | 55.4%   |
 +--------------+-------------------+--------------+---------+
-| `VGG16-AMP   | 32               | 4133          | 54.6%   |
+| `VGG16-AMP   | 32                | 7238         | 54.6%   |
 +--------------+-------------------+--------------+---------+
 
 +----------------+-------------------+--------------+---------+
@@ -79,7 +77,7 @@ Loss scaling
 ^^^^^^^^^^^^
 
 .. image:: ../paddle_fleet/img/AMP_2.png
-  :width: 600
+  :width: 400
   :alt: weight 分布
   :align: center
 
@@ -121,7 +119,7 @@ Dynamic loss scaling 参数来动态调整 loss scaling factor
 的大小，将gradient 尽量保持在 FP16 的表示范围之内。
 
 .. image:: ../paddle_fleet/img/AMP_3.png
-  :width: 600
+  :width: 700
   :alt: Dynamic loss scaling
   :align: center
 
@@ -162,6 +160,7 @@ paddle.distributed.fleet.DistributedStrategy.amp\_configs 中的
 
     import os
     import fleetx as X
+    import paddle
     import paddle.fluid as fluid
     import paddle.distributed.fleet.base.role_maker as role_maker
     import time
@@ -172,9 +171,9 @@ paddle.distributed.fleet.DistributedStrategy.amp\_configs 中的
 
 .. code:: python
 
+    paddle.enable_static()
     configs = X.parse_train_configs()
-    role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-    fleet.init(role)
+    fleet.init(is_collective=True)
 
 加载模型及数据
 ^^^^^^^^^^^^^^
@@ -182,8 +181,12 @@ paddle.distributed.fleet.DistributedStrategy.amp\_configs 中的
 .. code:: python
 
     model = X.applications.Resnet50()
+    downloader = X.utils.Downloader()
+    local_path = downloader.download_from_bos(
+        fs_yaml='https://fleet.bj.bcebos.com/test/loader/small_imagenet.yaml',
+        local_path='./data')
     batch_size = 32
-    data_loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt", batch_size=batch_size)
+    loader = model.get_train_dataloader(local_path, batch_size=batch_size)
 
 定义分布式及AMP 相关策略
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -197,7 +200,6 @@ otpimizers 作为其 inner-optimizer.
 
 .. code:: python
 
-    dist_strategy = fleet.DistributedStrategy()
     dist_strategy.amp = True
     dist_strategy.amp_configs = {
         "init_loss_scaling": 32768,
@@ -225,12 +227,12 @@ otpimizers 作为其 inner-optimizer.
     exe = fluid.Executor(place)
     exe.run(fluid.default_startup_program())
 
-    for i, data in enumerate(data_loader()):
+    for i, data in enumerate(loader()):
         start_time = time.time()
         cost_val = exe.run(model.main_prog,
                             feed=data,
                             fetch_list=[model.loss.name])
-                            
+
         end_time = time.time()
         print(
             "worker_index: %d, step%d cost = %f, speed: %f"
@@ -243,7 +245,7 @@ otpimizers 作为其 inner-optimizer.
 
 .. code:: sh
 
-    fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log resnet50_amp.py
+    fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log example_amp.py
 
     # worker_index: 0, step0 cost = 6.895311, speed: 12.192901
     # worker_index: 0, step1 cost = 6.964077, speed: 412.116618

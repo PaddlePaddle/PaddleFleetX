@@ -1,7 +1,7 @@
 # 使用fleetrun启动分布式任务
 
 Paddle提供命令行启动命令`fleetrun`，配合Paddle的分布式高级API`paddle.distributed.fleet`
-即可轻松将Paddle 单设备任务切换为多设备任务，此外`fleetrun`也可以支持参数服务器架构中同时启动多个训练节点和服务节点的分布式任务。
+即可轻松启动Paddle集合通信模式或参数服务器模式下的分布式任务。
 `fleetrun`在静态图和动态图场景下均可使用。
 
 ## 内容导航
@@ -20,9 +20,15 @@ Paddle提供命令行启动命令`fleetrun`，配合Paddle的分布式高级API`
 
 ## 使用说明 <a name="guide"></a>
 
-`fleetrun`使用场景主要分为集合通信训练（Collective Training）和参数服务器训练（Parameter Server Training）。集合通信训练一般在GPU设备上运行，因此我们将介绍GPU单机单卡，单机多卡和多机多卡场景下使用`fleetrun`的方法。参数服务器训练包含服务节点和训练节点的启动，因此我们将介绍本地模拟分布式任务场景和多机环境下分布式训练场景下如何使用`fleetrun`。`fleetrun`支持在百度公司内部云PaddleCloud上提交任务，推荐结合`fleetsub`命令，一键快速提交集群任务。详情请参考`使用fleetsub提交集群任务 `。
+`fleetrun`使用场景主要分为集合通信训练（Collective Training）和参数服务器训练（Parameter Server Training）。
 
-#### 集合通信训练 <a name="multigpu"></a>
+集合通信训练一般在GPU设备上运行，因此我们将介绍GPU单机单卡，单机多卡和多机多卡场景下使用`fleetrun`的方法。
+
+参数服务器训练包含服务节点、训练节点以及异构训练节点的启动，
+
+因此我们将介绍单机模拟分布式和多机分布式训练场景下如何使用`fleetrun`。`fleetrun`支持在百度公司内部云PaddleCloud上运行分布式任务，推荐结合`fleetsub`命令，一键快速提交集群任务。详情请参考`使用fleetsub提交集群任务 `。
+
+### 集合通信训练 <a name="multigpu"></a>
 - **GPU单机单卡训练**
 
 单机单卡有两种方式：一种可直接使用`python`执行，也可以使用`fleetrun`执行。**推荐使用`fleetrun`启动方法**
@@ -76,29 +82,91 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 ```
 
-####  参数服务器训练 <a name="multicpu"></a>
+###  参数服务器训练 <a name="multicpu"></a>
 
-- **参数服务器训练 - 单机模拟分布式训练（1个服务节点，4个训练节点）**
+#### 在CPU集群运行参数服务器
 
-`fleetrun`启动时只需指定服务节点数`--server_num`和 训练节点数`--worker_num`，即可进行本地模拟分布式训练，推荐使用此方法进行本地调试。
-```sh
-fleetrun --server_num=1 --worker_num=4 train.py
-```
+- **参数服务器训练 - 单机模拟分布式训练**
 
-- **参数服务器训练 - 多机训练（2台节点，每台节点均有1个服务节点，4个训练节点）**
+    > 1台机器通过多进程模拟分布式训练，1个服务节点搭配4个训练节点
 
-`fleetrun`启动时只需指定服务节点的ip和端口列表`--servers` 和 训练节点的ip列表`--workers` ，即可进行多机训练。
-下列示例中，xx.xx.xx.xx代表机器1，yy.yy.yy.yy代表机器2，6170代表用户指定的服务节点的端口。`fleetrun`将分别在2台机器上启动1个服务节点，4个训练节点。
-```sh
- # 2个servers 8个workers
- fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx,xx.xx.xx.xx,xx.xx.xx.xx,xx.xx.xx.xx,yy.yy.yy.yy,yy.yy.yy.yy,yy.yy.yy.yy,yy.yy.yy.yy" train.py
-```
+    ```sh
+    # 1个server 4个worker
+    fleetrun --server_num=1 --worker_num=4 train.py
+    ```
 
-`--workers`参数可以仅指定ip列表，此时`fleetrun`将会在启动训练任务前分配好连续端口给每个训练节点。`fleetrun`分配的连续端口可能会出现端口被其他任务占用的情况，此时多机训练无法正常启动。因此`--workers`参数支持配置用户指定端口，写法与`--servers`一致，示例如下：
-```sh
- # 2个servers 8个workers
- fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,xx.xx.xx.xx:6173,xx.xx.xx.xx:6174,xx.xx.xx.xx:6175,yy.yy.yy.yy:6176,yy.yy.yy.yy:6177,yy.yy.yy.yy:6178,yy.yy.yy.yy:6179" train.py
-```
+- **参数服务器训练 - 自定义多机训练** 
+  
+
+    `fleetrun`启动时只需指定服务节点的ip和端口列表`--servers` 和 训练节点的ip和端口列表`--workers` ，即可进行多机训练。
+
+    如下示例中，xx.xx.xx.xx代表机器1，yy.yy.yy.yy代表机器2，6170代表用户指定的服务节点的端口。`fleetrun`将分别在2台机器上启动1个服务节点，4个训练节点。
+
+    > 2台机器，每台机器均有1个服务节点，4个训练节点
+    ```sh
+    # 2个server 8个worker
+    fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,xx.xx.xx.xx:6173,xx.xx.xx.xx:6174,xx.xx.xx.xx:6175,yy.yy.yy.yy:6176,yy.yy.yy.yy:6177,yy.yy.yy.yy:6178,yy.yy.yy.yy:6179" train.py
+    ```
+
+#### 在GPU集群运行参数服务器
+
+- **参数服务器训练 - 单机模拟分布式训练**
+  
+    > 1台机器通过多进程模拟，2个服务节点搭配4个训练节点，每个训练节点占用一张GPU卡，服务节点不占用GPU卡
+
+    ```sh
+    # 2个server 4个worker
+    export CUDA_VISIBLE_DEVICES=0,1,2,3
+    fleetrun --server_num=2 --worker_num=4 train.py
+    ```
+
+    > 1台机器通过多进程模拟， 2个服务节点搭配2个训练节点，两个训练节点共用一张GPU卡，服务节点不占用GPU卡
+
+    ```sh
+    # 2个server 2个worker
+    export CUDA_VISIBLE_DEVICES=0
+    fleetrun --server_num=2 --worker_num=2 train.py
+    ```
+
+- **参数服务器训练 - 自定义多机训练**
+
+    `fleetrun`启动时只需指定服务节点的ip和端口列表`--servers` 和 训练节点的ip和端口列表`--workers` ，即可进行多机训练。
+
+    以下示例中，xx.xx.xx.xx代表机器1，yy.yy.yy.yy代表机器2，6170代表用户指定的服务节点的端口。`fleetrun`将分别在2台机器上启动1个服务节点，1个训练节点。训练节点会分别占用其机器上的0号GPU卡进行训练。
+
+    > 2台机器，每台机器均有1个服务节点，1个训练节点
+
+    ```sh
+    # 2个server 2个worker
+    # 每台机器均指定了可用设备 GPU:0
+    export CUDA_VISIBLE_DEVICES=0
+    fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,yy.yy.yy.yy:6173" train.py
+    ```
+
+    > 2台机器，每台机器均有1个服务节点，4个训练节点
+
+    ```sh
+    # 2个server 4个worker
+    # 每台机器均指定了可用设备 GPU:0,1,2,3
+    export CUDA_VISIBLE_DEVICES=0,1,2,3
+    fleetrun --servers="xx.xx.xx.xx:6170,yy.yy.yy.yy:6171" --workers="xx.xx.xx.xx:6172,xx.xx.xx.xx:6173,xx.xx.xx.xx:6174,xx.xx.xx.xx:6175,yy.yy.yy.yy:6176,yy.yy.yy.yy:6177,yy.yy.yy.yy:6178,yy.yy.yy.yy:6179" train.py
+    ```
+
+#### 异构集群运行参数服务器
+
+- **参数服务器训练 - 单机模拟分布式训练**
+
+    > 1台机器通过多进程模拟，2个服务节点搭配2个训练节点以及2个异构训练节点，每个异构训练节点占用一张GPU卡，其余服务节点和训练节点均在CPU上执行
+
+    ```sh
+    # 2个server 4个worker
+    export CUDA_VISIBLE_DEVICES=0,1
+    fleetrun --server_num=2 --worker_num=2 --heter_worker_num=2 train.py
+    ```
+
+
+
+#### 在PaddleCloud平台运行参数服务器
 
 
 ## fleetrun命令参数介绍 <a name="fleetrunargs"></a>
@@ -107,10 +175,13 @@ fleetrun --server_num=1 --worker_num=4 train.py
 	- gpus（str, 可选）： 指定选择哪些GPU卡进行训练，默认为None，即会选择`CUDA_VISIBLE_DEVICES`所显示的所有卡。
 
 - 参数服务器模式可配参数:
-	- server_num（int，可选）：本地模拟分布式任务中，指定参数服务器服务节点的个数
-	- worker_num（int，可选）：本地模拟分布式任务中，指定参数服务器训练节点的个数
+	- server_num（int，可选）：单机模拟分布式任务中，指定参数服务器服务节点的个数
+	- worker_num（int，可选）：单机模拟分布式任务中，指定参数服务器训练节点的个数
+	- heter_worker_num（int，可选）：在异构集群中启动单机模拟分布式任务, 指定参数服务器异构训练节点的个数
 	- servers（str, 可选）： 多机分布式任务中，指定参数服务器服务节点的IP和端口
 	- workers（str, 可选）： 多机分布式任务中，指定参数服务器训练节点的IP和端口，也可只指定IP
+	- heter_workers（str, 可选）：在异构集群中启动分布式任务，指定参数服务器异构训练节点的IP和端口
+    - http_port（int, 可选）：参数服务器模式中，用Gloo启动时设置的连接端口
 
 - 其他：
 	- log_dir（str, 可选）： 指定分布式任务训练日志的保存路径，默认保存在"./log/"目录。
@@ -141,6 +212,7 @@ fleetrun --server_num=1 --worker_num=4 train.py
         avg_cost = fluid.layers.mean(x=cost)
         return train_dataset, test_dataset, x, y, avg_cost, acc_top1
 
+    paddle.enable_static()
     train_data, test_data, x, y, cost, acc = mnist_on_mlp_model()
     place = paddle.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
     train_dataloader = paddle.io.DataLoader(
@@ -148,7 +220,6 @@ fleetrun --server_num=1 --worker_num=4 train.py
         places=place, batch_size=64, shuffle=True)
     fleet.init(is_collective=True)
     strategy = fleet.DistributedStrategy()
-    #optimizer = paddle.optimizer.Adam(learning_rate=0.01)
     optimizer = fluid.optimizer.Adam(learning_rate=0.001)
     optimizer = fleet.distributed_optimizer(optimizer, strategy=strategy)
     optimizer.minimize(cost)

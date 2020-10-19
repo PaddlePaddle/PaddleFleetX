@@ -6,6 +6,7 @@
 
 - 欢迎您关注飞桨分布式训练，我们希望能帮助每一个用户走上大规模工业化生产之路！
 
+
 .. toctree::
    :maxdepth: 1
    :numbered:
@@ -18,7 +19,7 @@
    paddle_fleet_rst/fleet_dygraph_quick_start_cn
    paddle_fleet_rst/fleetrun_usage_cn
    paddle_fleet_rst/fleetx_quick_start
-   paddle_fleet_rst/fleetsub_quick_start
+   paddle_fleet_rst/fleetsub_quick_start_cn
    paddle_fleet_rst/dataset_info
 
 .. toctree::
@@ -28,10 +29,12 @@
    :name: advanced-doc-data-parallel-training
 
    paddle_fleet_rst/fleet_ps_sync_and_async_cn
+   paddle_fleet_rst/fleet_dataset_w2v_cn
    paddle_fleet_rst/fleet_collective_training_practices_cn
    paddle_fleet_rst/fleet_collective_training_speedup_with_amp_cn
    paddle_fleet_rst/fleet_large_batch_training_techniques_cn
    paddle_fleet_rst/fleet_improve_large_batch_accuracy_cn.md
+   paddle_fleet_rst/fleet_heter_parameter_server_cn
 
 .. toctree::
    :maxdepth: 1
@@ -58,16 +61,12 @@
    :caption: 飞桨分布式训练性能基准
    :name: benchmark
 
-   paddle_fleet_rst/fleet_gpu_benchmark_cn
-   paddle_fleet_rst/fleet_ps_benchmark_cn
-
-.. toctree::
-   :maxdepth: 1
-   :numbered:
-   :caption: 大规模场景应用案例
-   :name: applications
-
-   paddle_fleet_rst/fleet_from_training_to_serving_cn
+   paddle_fleet_rst/fleet_benchmark_overview_cn
+   paddle_fleet_rst/fleet_benchmark_resnet50_cn
+   paddle_fleet_rst/fleet_benchmark_bert_cn
+   paddle_fleet_rst/fleet_benchmark_transformer_cn
+   paddle_fleet_rst/fleet_benchmark_vgg16_cn
+   paddle_fleet_rst/fleet_benchmark_word2vec_cn
 
 .. toctree::
    :maxdepth: 1

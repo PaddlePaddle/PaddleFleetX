@@ -8,6 +8,8 @@
 
 ## 原理
 
+<img src='./img/geosgd.png' width = "683" height = "408" align="middle" description="xxxxxxxxxx" />
+
 在GeoSGD更新策略中，Trainer的参数更新也是在全异步的条件下进行的。但与异步参数服务器有以下不同：
 
 - 与普通的参数服务器不同，在GEO策略中，每个Trainer负责在本地维护自己的参数更新，在训练一定数量的步数后将本轮训练出的参数与上一轮结束后的参数做差。并除以Trainer的个数，将结果上传至Server。Server则负责为每个Trainer计算其参数与全局参数的diff。
@@ -33,6 +35,7 @@ tar -zxvf ctr_data.tar.gz
 首先我们需要添加训练中所用到的python模块，`fleetx` 可以用于加载我们为用户封装的接口如：加载模型及数据，模型训练等。`paddle.distributed.fleet` 中定义了丰富的分布式策略供用户使用。
 
 ```python
+import paddle
 import fleetx as X
 import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
@@ -44,6 +47,7 @@ import paddle.distributed.fleet.base.role_maker as role_maker
 通过`X.parse_train_configs()`接口，用户可以定义训练相关的参数，如：学习率、衰减率等。同时通过`fleet.init()`接口定义了分布式模式，定义GEO策略使用的初始化接口与同步/异步参数服务器相同，都是`init()`默认的模式。
 
 ```python
+paddle.enable_static()
 configs = X.parse_train_configs()
 role = role_maker.PaddleCloudRoleMaker()
 fleet.init(role)

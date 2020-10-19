@@ -125,3 +125,80 @@ class MultiGPUTrainer(Trainer):
             print("Test Result {}".format(log_info))
         if use_dali:
             dataloader.reset()
+
+    def quick_benchmark(self,
+                        model,
+                        dataloader,
+                        start_step=20,
+                        end_step=200):
+        step = 0
+        total_time = 0
+        total_step = 0
+        counting_time = False
+        for data in dataloader:
+            if step > start_step and step <= end_step:
+                start_time = time.time()
+            loss = self.exe.run(fluid.default_main_program(),
+                                feed=data,
+                                fetch_list=[],
+                                use_program_cache=True)
+            if step > start_step and step <= end_step:
+                end_time = time.time()
+                total_time += (end_time - start_time)
+
+            if step > end_step:
+                break
+
+            step += 1
+
+        mean_qps = (end_step - start_step) / total_time
+        return mean_qps
+
+    def benchmark(self,
+                  model,
+                  dataloader,
+                  epoch,
+                  use_dali=False,
+                  start_step=20):
+        for epoch_id in range(epoch):
+            total_time = 0
+            step = 0
+            for data in dataloader:
+                if step > start_step and step <= start_step + 100:
+                    start_time = time.time()
+                loss = self.exe.run(fluid.default_main_program(),
+                                    feed=data,
+                                    fetch_list=[model.loss.name],
+                                    use_program_cache=True)
+                if step > start_step and step <= start_step + 100:
+                    end_time = time.time()
+                    total_time += (end_time - start_time)
+                step += 1
+            average_speed = 100 / total_time
+            if use_dali:
+                dataloader.reset()
+        return average_speed
+
+    def benchmark_val(self, model, dataloader, target_list, use_dali=False):
+        self.test_program = model.main_prog.clone(for_test=True)
+        fetch_target = []
+        results = {}
+        for item in target_list:
+            if item in model.target.keys():
+                fetch_target.append(model.target[item].name)
+                results[item] = []
+            else:
+                raise Exception("ERROR: Current model only support target: {}".
+                                format(model.target.keys()))
+
+        for data in dataloader:
+            result = self.exe.run(self.test_program,
+                                  feed=data,
+                                  fetch_list=fetch_target,
+                                  use_program_cache=True)
+            for item in target_list:
+                results[item].append(np.mean(result[target_list.index(item)]))
+
+        if use_dali:
+            dataloader.reset()
+        return results
