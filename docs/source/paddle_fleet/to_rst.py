@@ -11,13 +11,15 @@ not_rst_file = [
     'fleet_improve_large_batch_accuracy.md',
     'fleet_on_cloud_cn.md',
     'fleet_on_cloud.md',
+    'fleet_dataset_w2v_cn.md',
     ]
 
 files = os.listdir(".")
 files = [file for file in files if file not in not_rst_file]
 print(files)
 for f in files:
-
+    if "_cn" not in f:
+        continue
     if ".md" in f:
         os.system("pandoc {} -f markdown -t rst -o ../paddle_fleet_rst/{}".format(f, f.replace(".md", ".rst")))
 

@@ -19,37 +19,33 @@ LARS\ `[3] <https://arxiv.org/abs/1708.03888>`__ 和
 LAMB\ `[4] <https://arxiv.org/abs/1904.00962>`__
 两个优化策略常用来解决上述超大batch 训练中的收敛问题.
 
-Fleet 实现了这两种优化策略, 并提供简单易用API 接口. 通过这两个优化策略,
-我们在超大batch 场景中实现了更快的收敛速度和无损的精度, 结合FleetX
-中其他的策略(e.g. `AMP <https://LINK_to_be_added>`__)
-极大缩短的训练整体的time2train.
+Paddle 实现了这两种优化策略，paddle.distributed.fleet 作为Paddle通用的分布式训练API提供了简单易用的接口, 用户只需要添加几行代码
+就可将策略加入到原有的训练中。 通过这两个优化策略,
+我们在超大batch 场景中实现了更快的收敛速度和无损的精度, 结合Fleet
+中其他的策略(e.g. `AMP <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/fleet_collective_training_speedup_with_amp_cn.html>`__)
+可以极大缩短的训练整体的time2train.
 
-下文将通过一个简单例子介绍如何在Fleet 数据并行训练框架中使用 LARS
-和LAMB, 另外给出我们使用 Fleet 实践的效果和代码.
 
-Fleet 效果
-----------
+试验效果
+~~~~~~~~
 
-使用 LARS 可以在超大 batch 并行（batch size>= 8k）时达到达到一下效果：
-\* 如果目标是收敛精度： 达到 76.3 % 的 resnet50 state of art 精度 \*
-如果目标是收敛速度优先：60 epoch 内收敛 75.9% Top1 （MLperf）
 
 +-----------------------+---------------------+---------+---------+
 | resnet50 imagenet     | Global batch size   | epoch   | top1    |
 +=======================+=====================+=========+=========+
 | [Goyal et al]         | 8k                  | 90      | 76.3%   |
 +-----------------------+---------------------+---------+---------+
-| `LARS <#lars>`__      | 32k                 | 90      | 72.3%   |
+| LARS Paper            | 32k                 | 90      | 72.3%   |
 +-----------------------+---------------------+---------+---------+
-| [Fleet: lars + amp]   | 16k                 | 60      | 76.2%   |
+| [fleet: lars + amp]   | 16k                 | 60      | 76.2%   |
 +-----------------------+---------------------+---------+---------+
-| [Fleet: lars + amp]   | 32k                 | 62      | 75.9%   |
+| [fleet: lars + amp]   | 32k                 | 62      | 75.9%   |
 +-----------------------+---------------------+---------+---------+
 
 LARS
 ----
 
-我们以在单机多卡上Resent50 训练为简单例子介绍FleetX 中 lars的用法.
+我们以在单机多卡上Resent50 训练为简单例子介绍fleet 中 LARS的用法。 
 
 添加依赖
 ^^^^^^^^
@@ -58,6 +54,8 @@ LARS
 
     import os
     import fleetx as X
+    import paddle
+    paddle.enable_staic()
     import paddle.fluid as fluid
     import paddle.distributed.fleet.base.role_maker as role_maker
     import time
@@ -70,9 +68,9 @@ LARS
 
 .. code:: python
 
+    paddle.enable_static()
     configs = X.parse_train_configs()
-    role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-    fleet.init(role)
+    fleet.init(is_collective=True)
 
 加载模型及数据
 ^^^^^^^^^^^^^^
@@ -82,8 +80,12 @@ LARS
 .. code:: python
 
     model = X.applications.Resnet50()
+    downloader = X.utils.Downloader()
+    local_path = downloader.download_from_bos(
+        fs_yaml='https://fleet.bj.bcebos.com/test/loader/small_imagenet.yaml',
+        local_path='./data')
     batch_size = 32
-    data_loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
+    loader = model.get_train_dataloader(local_path, batch_size=batch_size)
 
 定义分布式及LARS 相关策略
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -103,7 +105,7 @@ LARS 优化算法的公式如下:
 
 可以看到LARS 其实是在 带\ ``weight decay`` 的\ ``momentum``
 优化器的基础上加入了\ ``local learning rate`` 的逻辑,
-对每一层的\ ``learning rate`` 进行了放缩. Fleet 将 LARS实现为一个 fleet
+对每一层的\ ``learning rate`` 进行了放缩. fleet 将 LARS实现为一个 fleet
 meta optimizer, 在使用时需要设置一下几点:
 
 1. LARS meta optimizer 的 inner optimizer 必须为 ``momentum``, 并在
@@ -113,7 +115,7 @@ meta optimizer, 在使用时需要设置一下几点:
 
    -  LARS 已经将 ``weight decay`` 包含进公式中, 用户不需要再在
       optimizer中设置 ``regularization``.
-   -  Fleet 中还提供 lars\_weight\_decay 过滤策略,
+   -  fleet 中还提供 lars\_weight\_decay 过滤策略,
       可以通过在\ ``exclude_from_weight_decay`` 参数加入对应layer 的
       ``name string``, 让这一 layer 的参数不进行 lars weight decay.
       (通常我们将``BN`` 参数 和 ``FC_bias`` 从lars weight decay 中过滤)
@@ -136,7 +138,7 @@ meta optimizer, 在使用时需要设置一下几点:
 开始训练
 ^^^^^^^^
 
-这一部分和FleetX 中其他任务基本相同:
+这一部分和fleet 中其他任务基本相同:
 
 .. code:: python
 
@@ -144,12 +146,12 @@ meta optimizer, 在使用时需要设置一下几点:
     exe = fluid.Executor(place)
     exe.run(fluid.default_startup_program())
 
-    for i, data in enumerate(data_loader()):
+    for i, data in enumerate(loader()):
         start_time = time.time()
         cost_val = exe.run(model.main_prog,
                             feed=data,
                             fetch_list=[model.loss.name])
-                            
+
         end_time = time.time()
         print(
             "worker_index: %d, step%d cost = %f, speed: %f"
@@ -158,16 +160,16 @@ meta optimizer, 在使用时需要设置一下几点:
 运行训练脚本
 ~~~~~~~~~~~~
 
-一行启动单机多卡分布式训练：
+完成上述脚本的编写后，我们就可以使用以下命令一行启动单机多卡分布式训练：
 
 .. code:: sh
 
-    fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log resnet50_lars.py
+    fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log example_lars.py
 
 LAMB
 ----
 
-我们以在单机多卡上Bert 训练为简单例子介绍FleetX 中LAMB 的用法.
+我们以在单机多卡上Bert 训练为简单例子介绍fleet 中LAMB 的用法.
 
 添加依赖
 ^^^^^^^^
@@ -176,6 +178,8 @@ LAMB
 
     import os
     import fleetx as X
+    import paddle
+    paddle.enable_staic()
     import paddle.fluid as fluid
     import paddle.distributed.fleet.base.role_maker as role_maker
     import time
@@ -188,9 +192,9 @@ LAMB
 
 .. code:: python
 
+    paddle.enable_static()
     configs = X.parse_train_configs()
-    role = role_maker.PaddleCloudRoleMaker(is_collective=True)
-    fleet.init(role)
+    fleet.init(is_collective=True)
 
 加载模型及数据
 ^^^^^^^^^^^^^^
@@ -200,8 +204,12 @@ LAMB
 .. code:: python
 
     model = X.applications.Resnet50()
+    downloader = X.utils.Downloader()
+    local_path = downloader.download_from_bos(
+        fs_yaml='https://fleet.bj.bcebos.com/test/loader/small_imagenet.yaml',
+        local_path='./data')
     batch_size = 32
-    data_loader = model.load_imagenet_from_file("/pathto/ImageNet/train.txt")
+    loader = model.get_train_dataloader(local_path, batch_size=batch_size)
 
 定义分布式及LARS 相关策略
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -226,7 +234,7 @@ LAMB 优化算法的公式如下:
 
 和LARS 类似, LAMB 也是在内层优化器的基础上,
 套了一个\ ``local learning rate`` 的逻辑, 对每一层的\ ``learning rate``
-进行了放缩. Fleet 将 LAMB实现为一个 fleet meta optimizer,
+进行了放缩. fleet 将 LAMB实现为一个 fleet meta optimizer,
 在使用时需要设置一下几点:
 
 1. LAMB meta optimizer 的 inner optimizer 必须为 ``adam``, 并在 adam
@@ -236,7 +244,7 @@ LAMB 优化算法的公式如下:
 
    -  LAMB 已经将 ``weight decay`` 包含进公式中, 用户不需要再在
       optimizer中设置 ``regularization``.
-   -  Fleet 中还提供 lamb\_weight\_decay 过滤策略,
+   -  fleet 中还提供 lamb\_weight\_decay 过滤策略,
       可以通过在\ ``exclude_from_weight_decay`` 参数加入对应layer 的
       ``name string``, 让这一 layer 的参数不进行 lars weight decay.
       (通常我们将``LN`` 从lamb weight decay 中过滤)
@@ -258,7 +266,7 @@ LAMB 优化算法的公式如下:
 开始训练
 ^^^^^^^^
 
-这一部分和FleetX 中其他任务基本相同:
+这一部分和fleet 中其他任务基本相同:
 
 .. code:: python
 
@@ -266,12 +274,12 @@ LAMB 优化算法的公式如下:
     exe = fluid.Executor(place)
     exe.run(fluid.default_startup_program())
 
-    for i, data in enumerate(data_loader()):
+    for i, data in enumerate(loader()):
         start_time = time.time()
         cost_val = exe.run(model.main_prog,
                             feed=data,
                             fetch_list=[model.loss.name])
-                            
+
         end_time = time.time()
         print(
             "worker_index: %d, step%d cost = %f, speed: %f"
@@ -280,7 +288,7 @@ LAMB 优化算法的公式如下:
 运行训练脚本
 ~~~~~~~~~~~~
 
-一行启动单机多卡分布式训练：
+完成上述脚本的编写后，我们就可以使用以下命令一行启动单机多卡分布式训练：
 
 .. code:: sh
 
