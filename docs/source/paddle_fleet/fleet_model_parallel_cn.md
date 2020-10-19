@@ -62,7 +62,7 @@ class ModelParallelLinear(nn.Layer):
         global_out_list = []
         paddle.distributed.all_gather(global_out_list, out)
         all_outs = paddle.concat(global_out_list, axis=1)
-        out = paddle.split(all_outs, rank_num)[rank_id]
+        out = paddle.split(all_outs, self.rank_num)[self.rank_id]
         return out
 ```
 完整地训练代码实现如下：
@@ -91,7 +91,7 @@ class SimpleModelParallelClassifierNet(nn.Layer):
         self.conv4 = nn.Conv2d(384, 256, kernel_size=3)
         self.conv5 = nn.Conv2d(256, 256, kernel_size=3)
         self.max_pool5 = nn.MaxPool2d(kernel_size=3, stride=2)
-        self.model_parallel_linear1 = ModelParallelLinear(4096,
+        self.model_parallel_linear1 = ModelParallelLinear(2304,
                                                           rank_num,
                                                           rank_id,
                                                           4096)
@@ -99,14 +99,14 @@ class SimpleModelParallelClassifierNet(nn.Layer):
                                                           rank_num,
                                                           rank_id,
                                                           4096)
-        self.model_parallel_linear3 = ModelParallelLinear(class_num,
+        self.model_parallel_linear3 = ModelParallelLinear(4096,
                                                           rank_num,
                                                           rank_id,
                                                           class_num)
         self.droupout = nn.Dropout(0.5)
         self.relu = nn.ReLU()
     
-    def forward(x):
+    def forward(self, x):
         x = self.conv1(x)
         x = self.relu(x)
         x = self.max_pool1(x)
