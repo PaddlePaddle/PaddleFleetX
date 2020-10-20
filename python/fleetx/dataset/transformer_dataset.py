@@ -19,11 +19,12 @@ import tarfile
 
 import numpy as np
 import paddle.fluid as fluid
+import paddle.distributed.fleet as fleet
 
 
 def transformer_data_generator(src_vocab_fpath,
                                trg_vocab_fpath,
-                               fpattern,
+                               train_filelist,
                                inputs,
                                batch_size=2048,
                                shuffle=True,
@@ -41,7 +42,7 @@ def transformer_data_generator(src_vocab_fpath,
     data_loader = fluid.io.DataLoader.from_generator(
         feed_list=inputs, capacity=70, iterable=True)
     processor = DataProcessor(
-        fpattern=fpattern,
+        train_filelist=train_filelist,
         src_vocab_fpath=src_vocab_fpath,
         trg_vocab_fpath=trg_vocab_fpath,
         token_delimiter=token_delimiter,
@@ -295,7 +296,7 @@ class DataProcessor(object):
     train_data = DataProcessor(
         src_vocab_fpath='data/src_vocab_file',
         trg_vocab_fpath='data/trg_vocab_file',
-        fpattern='data/part-*',
+        train_filelist=data/train.txt,
         use_token_batch=True,
         batch_size=2000,
         device_count=8,
@@ -314,8 +315,7 @@ class DataProcessor(object):
     :type src_vocab_fpath: basestring
     :param trg_vocab_fpath: The path of vocabulary file of target language.
     :type trg_vocab_fpath: basestring
-    :param fpattern: The pattern to match data files.
-    :type fpattern: basestring
+    :param train_filelist: The pattern to match data files.
     :param batch_size: The number of sequences contained in a mini-batch.
         or the maximum number of tokens (include paddings) contained in a
         mini-batch.
@@ -370,7 +370,7 @@ class DataProcessor(object):
     def __init__(self,
                  src_vocab_fpath,
                  trg_vocab_fpath,
-                 fpattern,
+                 train_filelist,
                  batch_size,
                  device_count,
                  n_head,
@@ -415,11 +415,11 @@ class DataProcessor(object):
         self._max_length = max_length
         self._field_delimiter = field_delimiter
         self._token_delimiter = token_delimiter
-        self.load_src_trg_ids(fpattern, tar_fname)
+        self.load_src_trg_ids(train_filelist, tar_fname)
         self._random = np.random
         self._random.seed(seed)
 
-    def load_src_trg_ids(self, fpattern, tar_fname):
+    def load_src_trg_ids(self, train_filelist, tar_fname):
         converters = [
             Converter(
                 vocab=self._src_vocab,
@@ -445,7 +445,7 @@ class DataProcessor(object):
         self._trg_seq_ids = None if self._only_src else []
         self._sample_infos = []
 
-        for i, line in enumerate(self._load_lines(fpattern, tar_fname)):
+        for i, line in enumerate(self._load_lines(train_filelist, tar_fname)):
             src_trg_ids = converters(line)
             self._src_seq_ids.append(src_trg_ids[0])
             lens = [len(src_trg_ids[0])]
@@ -454,8 +454,9 @@ class DataProcessor(object):
                 lens.append(len(src_trg_ids[1]))
             self._sample_infos.append(SampleInfo(i, max(lens), min(lens)))
 
-    def _load_lines(self, fpattern, tar_fname):
-        fpaths = glob.glob(fpattern)
+    def _load_lines(self, train_filelist, tar_fname):
+        datadir = datadir = train_filelist.rsplit('/', 1)[0]
+        fpaths = get_filelist(train_filelist)
         assert len(fpaths) > 0, "no matching file to the provided data path"
 
         if len(fpaths) == 1 and tarfile.is_tarfile(fpaths[0]):
@@ -469,7 +470,8 @@ class DataProcessor(object):
                         self._only_src and len(fields) == 1):
                     yield fields
         else:
-            for fpath in fpaths:
+            for f in fpaths:
+                fpath = '{}/{}'.format(datadir, f)
                 if not os.path.isfile(fpath):
                     raise IOError("Invalid file: %s" % fpath)
 
@@ -610,3 +612,46 @@ class DataProcessor(object):
     def get_vocab_summary(self):
         return len(self._src_vocab), len(
             self._trg_vocab), self._bos_idx, self._eos_idx, self._unk_idx
+
+
+def get_filelist(train_filelist):
+    if not os.path.exists(train_filelist):
+        raise Exception("ERROR: Your data dir should include train.txt")
+    datadir = train_filelist.rsplit('/', 1)[0]
+    total_list = []
+    full_list = []
+    with open(train_filelist, 'r') as fin:
+        for line in fin:
+            current_file = line.strip()
+            if os.path.exists("{}/{}".format(datadir, current_file)):
+                total_list.append(current_file)
+            full_list.append(current_file)
+    total_num = len(total_list)
+    if len(total_list) == len(full_list):
+        print("files to train on this card: {}".format(total_list[
+            fleet.worker_index()::fleet.worker_num()]))
+        return total_list[fleet.worker_index()::fleet.worker_num()]
+    PADDLE_TRAINER_ENDPOINTS = os.environ.get('PADDLE_TRAINER_ENDPOINTS')
+    current_endpoint = os.environ.get('PADDLE_CURRENT_ENDPOINT')
+    endpoints = PADDLE_TRAINER_ENDPOINTS.split(",")
+    hostname, _ = current_endpoint.split(":")
+    host_endpoints = [x for x in endpoints if x.split(":")[0] == hostname]
+    current_id = host_endpoints.index(current_endpoint)
+    total_local_cards = len(host_endpoints)
+    print("files to train on this card: {}".format(total_list[
+        current_id::total_local_cards]))
+    return total_list[current_id::total_local_cards]
+
+
+def get_val_filelist(datadir):
+    if not os.path.exists("{}/val.txt".format(datadir)):
+        raise Exception("ERROR: Your data dir should include val.txt")
+
+    total_list = []
+    with open("{}/val.txt".format(datadir), 'r') as fin:
+        for line in fin:
+            current_file = line.strip()
+            if os.path.exists("{}/{}".format(datadir, current_file)):
+                total_list.append(current_file)
+
+    return total_list

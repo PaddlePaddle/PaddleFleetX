@@ -286,19 +286,14 @@ class Transformer(ModelBase):
         self.checkpoints = checkpoints
         self.target = target
 
-    def get_train_dataloader(self,
-                             src_vocab_fpath,
-                             trg_vocab_fpath,
-                             train_file_pattern,
-                             batch_size=2048,
-                             shuffle=True):
+    def get_train_dataloader(self, local_path, batch_size=2048, shuffle=True):
         """
         Load WMT data from local path. 
         """
         return transformer_data_generator(
-            src_vocab_fpath,
-            trg_vocab_fpath,
-            train_file_pattern,
+            src_vocab_fpath='{}/vocab_all.bpe.32000'.format(local_path),
+            trg_vocab_fpath='{}/vocab_all.bpe.32000'.format(local_path),
+            train_filelist='{}/train.txt'.format(local_path),
             inputs=self.inputs,
             batch_size=batch_size,
             shuffle=shuffle)
