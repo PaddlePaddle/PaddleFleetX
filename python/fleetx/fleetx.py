@@ -21,7 +21,7 @@ def parse_train_configs():
     """
     parser = argparse.ArgumentParser("fleet-x")
     parser.add_argument(
-        "--lr", type=float, default=0.1, help="base learning rate")
+        "--lr", type=float, default=0.0001, help="base learning rate")
     parser.add_argument(
         "--momentum", type=float, default=0.9, help="momentum value")
     parser.add_argument(
