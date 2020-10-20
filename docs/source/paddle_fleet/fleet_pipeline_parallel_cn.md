@@ -10,7 +10,7 @@
 流水线并行分布式技术与数据并行不同，通过将模型切分到多个计算节点，并采用流水线执行的方式，实现模型的并行训练。以下图为例，模型被切分为三个部分，并分别放置到不同的计算设备（第1层放置到设备0，第2、3层被放置到设备1，第四层被放置到设备2）；设备间通过通信的方式来交换数据。
 
 <p align="center">
-<img src="./img/pipeline-1.png" width="400"/>
+<img src="https://raw.githubusercontent.com/PaddlePaddle/FleetX/develop/docs/source/paddle_fleet/img/pipeline-1.png" width="400"/>
 </p>
 
 具体地讲，前向计算过程中，输入数据首先在设备0中通过第1层的计算得到中间结果，并将其传输到设备1，然后由设备1计算第2层和第3层，经过最后一层的计算后得到最终的前向计算结果；反向传播过程中，第四层使用前向计算结果得到相应的梯度数据，并由设备2传输到设备1，一次经过第3层和第二层，将结果传至设备0，经过第1层的计算完成所有的反向计算。最后，各个设备上的网络层会更新参数信息。
@@ -18,13 +18,13 @@
 如下图，为流水线并行中的时序图。简单的流水线并行方式下，任一时刻只有单个计算设备处于激活状态，其它计算设备则处于空闲状态，因此设备利用率和计算效率较差。
 
 <p align="center">
-<img src="./img/pipeline-2.png" width="600"/>
+<img src="https://raw.githubusercontent.com/PaddlePaddle/FleetX/develop/docs/source/paddle_fleet/img/pipeline-2.png" width="600"/>
 </p>
 
 为了优化流水线并行的性能，我们可以将mini-batch切分成若干更小粒度的micro-batch，提升流水线并行的并发度，达到提升设备利用率和计算效率的目的。如下图所示，一个mini-batch被切分为4个micro-batch；前向阶段，每个设备依次计算单个micro-batch的结果；这种减小mini-batch的方式减少了每个设备完成一次计算的时间，进而增加了设备间的并发度。
 
 <p align="center">
-<img src="./img/pipeline-3.png" width="600"/>
+<img src="https://raw.githubusercontent.com/PaddlePaddle/FleetX/develop/docs/source/paddle_fleet/img/pipeline-3.png" width="600"/>
 </p>
 
 下面我们将通过例子为您讲解如何使用pipeline策略在两张GPU上训练模型。
