@@ -29,7 +29,7 @@
 .. raw:: html
 
    <p align="center">
-   <img src="./img/model_parallel_3.png" width="400"/>
+   <img src="https://raw.githubusercontent.com/PaddlePaddle/FleetX/develop/docs/source/paddle_fleet/img/model_parallel_3.png" width="400"/>
    </p>
 
 
@@ -39,7 +39,7 @@
 .. raw:: html
 
    <p align="center">
-   <img src="./img/model_parallel_4.png" width="600"/>
+   <img src="https://raw.githubusercontent.com/PaddlePaddle/FleetX/develop/docs/source/paddle_fleet/img/model_parallel_4.png" width="600"/>
    </p>
 
 

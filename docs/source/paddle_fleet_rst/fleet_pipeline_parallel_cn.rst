@@ -16,7 +16,7 @@
 .. raw:: html
 
    <p align="center">
-   <img src="./img/pipeline-1.png" width="400"/>
+   <img src="https://raw.githubusercontent.com/PaddlePaddle/FleetX/develop/docs/source/paddle_fleet/img/pipeline-1.png" width="400"/>
    </p>
 
 
@@ -28,7 +28,7 @@
 .. raw:: html
 
    <p align="center">
-   <img src="./img/pipeline-2.png" width="600"/>
+   <img src="https://raw.githubusercontent.com/PaddlePaddle/FleetX/develop/docs/source/paddle_fleet/img/pipeline-2.png" width="600"/>
    </p>
 
 
@@ -38,7 +38,7 @@
 .. raw:: html
 
    <p align="center">
-   <img src="./img/pipeline-3.png" width="600"/>
+   <img src="https://raw.githubusercontent.com/PaddlePaddle/FleetX/develop/docs/source/paddle_fleet/img/pipeline-3.png" width="600"/>
    </p>
 
 
