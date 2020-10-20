@@ -22,7 +22,9 @@ configs = X.parse_train_configs()
 fleet.init(is_collective=True)
 model = X.applications.Transformer()
 wmt_downloader = X.utils.Downloader()
-local_path = wmt_downloader.download_from_bos('wmt.yaml', local_path='./data')
+local_path = wmt_downloader.download_from_bos(
+    fs_yaml='https://fleet.bj.bcebos.com/small_datasets/yaml_example/wiki_cn.yaml',
+    local_path='./data')
 data_loader = model.get_train_dataloader(local_path)
 
 optimizer = paddle.fluid.optimizer.Adam(
