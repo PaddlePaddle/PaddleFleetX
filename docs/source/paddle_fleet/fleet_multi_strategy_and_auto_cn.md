@@ -35,6 +35,8 @@ loader = model.get_train_dataloader(local_path, batch_size=batch_size)
 ```
 ### 定义分布式及相关策略组合
 ``` python
+dist_strategy = fleet.DistributedStrategy()
+
 dist_strategy.amp = True
 dist_strategy.recompute = True
 dist_strategy.recompute_configs = {"checkpoints": model.checkpoints}
@@ -73,13 +75,10 @@ for i, data in enumerate(loader()):
 ``` python
 fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log train.py
 
-# worker_index: 0, step0 cost = 6.895311, speed: 12.192901
-# worker_index: 0, step1 cost = 6.964077, speed: 412.116618
-# worker_index: 0, step2 cost = 7.049311, speed: 433.850506
-# worker_index: 0, step3 cost = 7.006689, speed: 358.400410
-# worker_index: 0, step4 cost = 7.000206, speed: 398.210745
-# worker_index: 0, step5 cost = 7.088611, speed: 462.322357
-# worker_index: 0, step6 cost = 7.022367, speed: 425.185013
+# worker_index: 0, step160 cost = 7.014869, speed: 327.341949
+# worker_index: 0, step161 cost = 6.948522, speed: 333.044819
+# worker_index: 0, step162 cost = 6.989668, speed: 322.420980
+# worker_index: 0, step163 cost = 7.073019, speed: 313.191089
 ```
 
 ### 可组合的策略
@@ -98,10 +97,14 @@ fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log train.py
 | 10 | amp + recompute + lamb |
 | 11 | ...待补充... |
 
+若是开启的多种策略中存在不兼容的组合，则会根据策略组合中的最长路径选择策略。如开启amp+recompute+dgc+lars，dgc和amp尚不兼容，则最终生效组合为amp+recompute+lars。
+
 ## auto自动并行
-auto自动并行会自动搜索可优化的最长路径，此功能目前是实验性功能。目前，自动并行只有在用户只设置auto，不设置其它策略时才能生效。
-仍以上述代码为例，只需修改分布式策略定义部分。
+auto自动并行会自动搜索可优化的最长路径，此功能目前是实验性功能。自动并行只有在用户只设置auto，不设置其它策略时才能生效。
+### 实现原理
+auto自动并行会尝试打开所有可打开的优化策略，以优化策略为点，策略间的可组合关系为边构建一张有向无环图，再使用最长路径搜索算法寻找到一条可优化的最长路径，以此实现自动并行。该功能还是实验性功能，尚有优化点，如不同模型环境下优化策略的开关及权重的配置。
 ### 定义分布式自动并行策略
+仍以上述代码为例，只需修改分布式策略定义部分。
 ``` python
 dist_strategy.auto = True
 
@@ -110,16 +113,13 @@ optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
 optimizer.minimize(model.loss)
 ```
 
-# 运行训练脚本
+### 运行训练脚本
 一行启动单机多卡分布式训练：
 ``` python
 fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log train.py
 
-# worker_index: 0, step0 cost = 6.895311, speed: 12.192901
-# worker_index: 0, step1 cost = 6.964077, speed: 412.116618
-# worker_index: 0, step2 cost = 7.049311, speed: 433.850506
-# worker_index: 0, step3 cost = 7.006689, speed: 358.400410
-# worker_index: 0, step4 cost = 7.000206, speed: 398.210745
-# worker_index: 0, step5 cost = 7.088611, speed: 462.322357
-# worker_index: 0, step6 cost = 7.022367, speed: 425.185013
+# worker_index: 0, step174 cost = 7.056047, speed: 339.836454
+# worker_index: 0, step175 cost = 6.953920, speed: 343.564841
+# worker_index: 0, step176 cost = 6.954030, speed: 343.746102
+# worker_index: 0, step177 cost = 6.822068, speed: 336.930790
 ```
