@@ -28,6 +28,7 @@ def transformer_data_generator(src_vocab_fpath,
                                inputs,
                                batch_size=2048,
                                shuffle=True,
+                               phase="train",
                                token_delimiter=" ",
                                use_token_batch=True,
                                device_count=1,
@@ -48,6 +49,7 @@ def transformer_data_generator(src_vocab_fpath,
         token_delimiter=token_delimiter,
         use_token_batch=use_token_batch,
         batch_size=batch_size,
+        phase=phase,
         device_count=device_count,
         pool_size=pool_size,
         sort_type=sort_type,
@@ -58,7 +60,7 @@ def transformer_data_generator(src_vocab_fpath,
         unk_mark=unk_mark,
         max_length=max_length,
         n_head=n_head)
-    batch_generator = processor.data_generator(phase="train")
+    batch_generator = processor.data_generator(phase=phase)
     places = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
     data_loader.set_batch_generator(batch_generator, places)
     return data_loader
@@ -372,6 +374,7 @@ class DataProcessor(object):
                  trg_vocab_fpath,
                  train_filelist,
                  batch_size,
+                 phase,
                  device_count,
                  n_head,
                  pool_size,
@@ -411,6 +414,7 @@ class DataProcessor(object):
         self._clip_last_batch = clip_last_batch
         self._shuffle = shuffle
         self._shuffle_batch = shuffle_batch
+        self.phase = phase
         self._min_length = min_length
         self._max_length = max_length
         self._field_delimiter = field_delimiter
@@ -445,7 +449,8 @@ class DataProcessor(object):
         self._trg_seq_ids = None if self._only_src else []
         self._sample_infos = []
 
-        for i, line in enumerate(self._load_lines(train_filelist, tar_fname)):
+        for i, line in enumerate(
+                self._load_lines(train_filelist, self.phase, tar_fname)):
             src_trg_ids = converters(line)
             self._src_seq_ids.append(src_trg_ids[0])
             lens = [len(src_trg_ids[0])]
@@ -454,12 +459,16 @@ class DataProcessor(object):
                 lens.append(len(src_trg_ids[1]))
             self._sample_infos.append(SampleInfo(i, max(lens), min(lens)))
 
-    def _load_lines(self, train_filelist, tar_fname):
-        datadir = datadir = train_filelist.rsplit('/', 1)[0]
-        fpaths = get_filelist(train_filelist)
+    def _load_lines(self, train_filelist, phase, tar_fname):
+        datadir = train_filelist.rsplit('/', 1)[0]
+        if phase == "train":
+            fpaths = get_filelist(train_filelist)
+        else:
+            fpaths = get_val_filelist(train_filelist)
         assert len(fpaths) > 0, "no matching file to the provided data path"
 
-        if len(fpaths) == 1 and tarfile.is_tarfile(fpaths[0]):
+        if len(fpaths) == 1 and tarfile.is_tarfile('{}/{}'.format(datadir,
+                                                                  fpaths[0])):
             if tar_fname is None:
                 raise Exception("If tar file provided, please set tar_fname.")
 
@@ -643,12 +652,12 @@ def get_filelist(train_filelist):
     return total_list[current_id::total_local_cards]
 
 
-def get_val_filelist(datadir):
-    if not os.path.exists("{}/val.txt".format(datadir)):
+def get_val_filelist(train_filelist):
+    if not os.path.exists(train_filelist):
         raise Exception("ERROR: Your data dir should include val.txt")
-
+    datadir = train_filelist.rsplit('/', 1)[0]
     total_list = []
-    with open("{}/val.txt".format(datadir), 'r') as fin:
+    with open(train_filelist, 'r') as fin:
         for line in fin:
             current_file = line.strip()
             if os.path.exists("{}/{}".format(datadir, current_file)):

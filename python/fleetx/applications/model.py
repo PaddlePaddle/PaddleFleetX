@@ -296,7 +296,21 @@ class Transformer(ModelBase):
             train_filelist='{}/train.txt'.format(local_path),
             inputs=self.inputs,
             batch_size=batch_size,
-            shuffle=shuffle)
+            shuffle=shuffle,
+            phase="train")
+
+    def get_val_dataloader(self, local_path, batch_size=2048, shuffle=False):
+        """
+        Load WMT data from local path.
+        """
+        return transformer_data_generator(
+            src_vocab_fpath='{}/vocab_all.bpe.32000'.format(local_path),
+            trg_vocab_fpath='{}/vocab_all.bpe.32000'.format(local_path),
+            train_filelist='{}/val.txt'.format(local_path),
+            inputs=self.inputs,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            phase="val")
 
 
 class BertLarge(ModelBase):
