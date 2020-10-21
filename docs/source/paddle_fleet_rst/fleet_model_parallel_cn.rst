@@ -1,3 +1,6 @@
+.. role:: raw-html-m2r(raw)
+   :format: html
+
 
 1. 飞桨底层分布式API的使用案例
 ==============================
@@ -25,23 +28,17 @@
 
 首先，汇聚各块GPU卡全连接层的输入数据，得到全局输入数据；并用全局数据和全连接层计算，得到各块GPU卡的全连接层输出，如下图所示。
 
-
-.. raw:: html
-
-   <p align="center">
-   <img src="https://raw.githubusercontent.com/PaddlePaddle/FleetX/develop/docs/source/paddle_fleet/img/model_parallel_3.png" width="400"/>
-   </p>
-
+.. image:: ../paddle_fleet/img/model_parallel_3.png
+  :width: 400
+  :alt: step1
+  :align: center
 
 接着，汇聚各块GPU卡全连接层的输出数据，并抽取本块GPU的样本数据的全连接层输出，如下图所示。
 
-
-.. raw:: html
-
-   <p align="center">
-   <img src="https://raw.githubusercontent.com/PaddlePaddle/FleetX/develop/docs/source/paddle_fleet/img/model_parallel_4.png" width="600"/>
-   </p>
-
+.. image:: ../paddle_fleet/img/model_parallel_4.png
+  :width: 600
+  :alt: step2
+  :align: center
 
 1.2.3 动态图实现
 ^^^^^^^^^^^^^^^^
