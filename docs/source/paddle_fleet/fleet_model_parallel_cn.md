@@ -23,7 +23,6 @@
 
 <img src="./img/model_parallel_4.png" width="600" align='middle' description='stpe2'/>
 
-
 ### 1.2.3 动态图实现
 
 上述过程描述地完整前向计算过程实现代码如下：
