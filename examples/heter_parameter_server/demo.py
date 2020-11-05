@@ -31,19 +31,20 @@ def sample_generator_creator():
 
 
 with fluid.device_guard("cpu"):
-    input_data = paddle.data(name="sparse_input", shape=[
-                             None, 1], dtype="int64")
-    input_label = paddle.data(name="label", shape=[None, 1], dtype="int64")
+    input_data = paddle.static.data(name="sparse_input", shape=[
+        None, 1], dtype="int64")
+    input_label = paddle.static.data(
+        name="label", shape=[None, 1], dtype="int64")
     label = paddle.cast(input_label, dtype="float32")
     embedding = paddle.static.nn.embedding(
         input_data, is_sparse=True, size=[1000, 128])
 
 
 with fluid.device_guard("gpu"):
-    fc1 = paddle.static.nn.fc(embedding, size=1024, act="relu")
-    fc2 = paddle.static.nn.fc(fc1, size=512, act="relu")
-    fc3 = paddle.static.nn.fc(fc2, size=256, act="relu")
-    predict = paddle.static.nn.fc(fc3, size=2, act="softmax")
+    fc1 = paddle.static.nn.fc(embedding, size=1024, activation="relu")
+    fc2 = paddle.static.nn.fc(fc1, size=512, activation="relu")
+    fc3 = paddle.static.nn.fc(fc2, size=256, activation="relu")
+    predict = paddle.static.nn.fc(fc3, size=2, activation="softmax")
     label = paddle.cast(label, dtype="int64")
     cost = paddle.nn.functional.cross_entropy(input=predict, label=label)
     paddle.static.Print(cost, message="heter_cost")
