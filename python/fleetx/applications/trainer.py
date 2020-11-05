@@ -41,7 +41,7 @@ class CPUTrainer(Trainer):
             total_time = 0
             step = 0
             for data in dataloader():
-                if step > start_step:
+                if step == start_step:
                     start_time = time.time()
                 loss = self.exe.run(fluid.default_main_program(),
                                     feed=data,
@@ -54,6 +54,7 @@ class CPUTrainer(Trainer):
                         % (fleet.worker_index(), step, loss[0], total_time,
                            (step - start_step) / total_time,
                            1 / (end_time - start_time)))
+                    start_time = time.time()
                 step += 1
 
         fleet.stop_worker()
@@ -73,12 +74,12 @@ class MultiGPUTrainer(Trainer):
             total_time = 0
             step = 0
             for data in dataloader:
-                if step > start_step:
-                    start_time = time.time()
                 loss = self.exe.run(fluid.default_main_program(),
                                     feed=data,
                                     fetch_list=[model.loss.name],
                                     use_program_cache=True)
+                if step == start_step:
+                    start_time = time.time()
                 if step > start_step:
                     end_time = time.time()
                     total_time += (end_time - start_time)
@@ -87,6 +88,7 @@ class MultiGPUTrainer(Trainer):
                         % (epoch_id, step, loss[0], total_time,
                            (step - start_step) / total_time,
                            1 / (end_time - start_time)))
+                    start_time = time.time()
                 step += 1
             if use_dali:
                 dataloader.reset()
@@ -136,16 +138,16 @@ class MultiGPUTrainer(Trainer):
         total_step = 0
         counting_time = False
         for data in dataloader:
-            if step > start_step and step <= end_step:
-                start_time = time.time()
             loss = self.exe.run(fluid.default_main_program(),
                                 feed=data,
                                 fetch_list=[],
                                 use_program_cache=True)
+            if step == start_step and step <= end_step:
+                start_time = time.time()
             if step > start_step and step <= end_step:
                 end_time = time.time()
                 total_time += (end_time - start_time)
-
+                start_time = time.time()
             if step > end_step:
                 break
 
@@ -164,7 +166,7 @@ class MultiGPUTrainer(Trainer):
             total_time = 0
             step = 0
             for data in dataloader:
-                if step > start_step and step <= start_step + 100:
+                if step == start_step and step <= start_step + 100:
                     start_time = time.time()
                 loss = self.exe.run(fluid.default_main_program(),
                                     feed=data,
@@ -173,6 +175,7 @@ class MultiGPUTrainer(Trainer):
                 if step > start_step and step <= start_step + 100:
                     end_time = time.time()
                     total_time += (end_time - start_time)
+                    start_time = time.time()
                 step += 1
             average_speed = 100 / total_time
             if use_dali:
