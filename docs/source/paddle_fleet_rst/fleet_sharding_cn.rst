@@ -5,7 +5,7 @@
 
 当模型参数达到百亿或者千亿时， 传统的数据并行训练可能会遇到显存瓶颈。 
 在数据并行训练中，每个gpu worker 都有一份完整模型参数和优化器状态副本。 
-[ZeRO: Memory Optimizations Toward Training Trillion Parameter Models](https://arxiv.org/abs/1910.02054) 
+`[ZeRO: Memory Optimizations Toward Training Trillion Parameter Models] <https://arxiv.org/abs/1910.02054>`__
 指出在每个GPU 上都保存一份模型参数和优化器状态副本是冗余的。 我们可以通过将上述参数和副本划分到不同GPU 中，
 在每个GPU 只保存部分副本，来减少每张GPU上显存的占用，从而可以支持更大模型的训练。 
 
@@ -24,7 +24,9 @@ sharding 实现了类似ZeRO-DP 的训练策略，通过 paddle.distributed.flee
 ~~~~~~~~
 下面表格将对比 sharding 策略对显存影响。 
 
-模型为 Bert-Large，试验环境为 v100 （32GB）， recompute = ON, amp = ON, 当并行GPU数量增加时，显存的消耗将减小。 
+模型为 Bert-Large，试验环境为 v100 （32GB）， recompute = ON, amp = ON, 
+
+当并行GPU数量增加时，显存的消耗将减小。 
 
 +-----------------------+---------+
 | setting               | GPU Mem | 
@@ -44,7 +46,8 @@ Bert-Giant 快速开始
 --------------------
 
 添加依赖
-^^^^^^^^
+~~~~~~~~
+
 添加paddle依赖 和设置环境变量。
 
 .. code:: python
@@ -68,9 +71,11 @@ Bert-Giant 快速开始
     os.environ['FLAGS_check_nan_inf'] = "0"
 
 定义分布式模式并初始化
-^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~
 
-通过\ ``X.parse_train_configs()``\ 接口，用户可以定义训练相关的参数，如：学习率、衰减率等。同时通过\ ``fleet.init()``\ 接口定义了分布式模型，下面代码中的\ ``is_collective=True``\ 表示采用集合通信的GPU分布式模式训练模型。
+通过\ ``X.parse_train_configs()``\ 接口，用户可以定义训练相关的参数，如：学习率、衰减率等。
+
+同时通过\ ``fleet.init()``\ 接口定义了分布式模型，下面代码中的\ ``is_collective=True``\ 表示采用集合通信的GPU分布式模式训练模型。
 
 .. code:: python
 
@@ -81,7 +86,7 @@ Bert-Giant 快速开始
     configs.lr = 1e-4
 
 加载模型及数据
-^^^^^^^^^^^^^^
+~~~~~~~~~~~~~
 
 用户可以通过\ ``X.applications``\ 接口加载我们预先定义好的模型，如：Resnet50、VGG16、BERT等。并使用定制化的data\_loader加载模型，同时可以定义训练中使用的batch\_size等参数。
 
@@ -99,14 +104,14 @@ Bert-Giant 快速开始
 
 
 定义分布式及Sharding 相关策略
-^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-对于sharding， 用户只需要设置 `fuse_broadcast_MB` 参数。该参数控制广播通信中参数融合的阈值，会影响sharding 训练中的通信速度，是一个需要根据具体模型大小和网络拓扑设定的经验值。
+对于sharding， 用户只需要设置 \ ``fuse_broadcast_MB``\  参数。该参数控制广播通信中参数融合的阈值，会影响sharding 训练中的通信速度，是一个需要根据具体模型大小和网络拓扑设定的经验值。
 
 另外在sharding.utils 提供了两个工具：
 
-1. `comm_analyse`: 分析当前模型各层参数大小所在的范围，该数据可以用来帮助设定 fuse_broadcast_MB 参数。
-2. `add_sync_comm`: 如果需要从训练用的main_prog 中克隆得到 test_prog，需要用这个api 来更新 test_prog， 保证sharding 功能在 test_prog 中被正确添加。
+1. \ ``comm_analyse``\ : 分析当前模型各层参数大小所在的范围，该数据可以用来帮助设定 fuse_broadcast_MB 参数。
+2. \ ``add_sync_comm``\ : 如果需要从训练用的main_prog 中克隆得到 test_prog，需要用这个api 来更新 test_prog， 保证sharding 功能在 test_prog 中被正确添加。
 
 .. code:: python
 
@@ -148,10 +153,10 @@ Bert-Giant 快速开始
 
 
 开始训练
-^^^^^^^^
+~~~~~~~~~
 
 sharding 训练的模型保存和数据并行训练中的方式略有不同。 因为每张GPU 只保存了部分的模型参数，
-需要在每个GPU 进程上都调用 `sharding.utils.save_persistables`接口，将这张GPU上的参数存到GPU所在节点硬盘上的指定目录。 
+需要在每个GPU 进程上都调用 \ ``sharding.utils.save_persistables``\ 接口，将这张GPU上的参数存到GPU所在节点硬盘上的指定目录。 
 
 如果是多节点训练，模型参数将分散在不同节点，用户可以在训练结束后，通过HDFS脚本 等方式上传不同节点上的参数文件。
 
