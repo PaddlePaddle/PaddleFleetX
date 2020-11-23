@@ -156,7 +156,7 @@ Bert-Giant 快速开始
 ~~~~~~~~~
 
 sharding 训练的模型保存和数据并行训练中的方式略有不同。 因为每张GPU 只保存了部分的模型参数，
-需要在每个GPU 进程上都调用 \ ``sharding.utils.save_persistables``\ 接口，将这张GPU上的参数存到GPU所在节点硬盘上的指定目录。 
+需要在每个GPU 进程上都调用 \ ``sharding.utils.save_persistables``\ 接口，将这张GPU上的参数存到GPU所在节点硬盘上的指定目录。 (模型加载方式和数据并行时相同，直接调用paddle.fluid.io.load_persistables 即可)
 
 如果是多节点训练，模型参数将分散在不同节点，用户可以在训练结束后，通过HDFS脚本 等方式上传不同节点上的参数文件。
 
