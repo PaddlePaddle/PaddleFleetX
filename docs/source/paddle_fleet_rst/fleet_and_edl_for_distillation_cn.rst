@@ -151,7 +151,7 @@ Serving等相关依赖。
 
 .. code:: sh
 
-    python -m paddle.distributed.launch --selected_gpus 0 \
+    python -m paddle.distributed.launch --gpus 0 \
       ./train_with_fleet.py \
       --model=ResNet50_vd \
       --data_dir=./ImageNet \
