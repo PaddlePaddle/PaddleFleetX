@@ -28,6 +28,8 @@ Paddle提供命令行启动命令`fleetrun`，配合Paddle的分布式高级API`
 
 因此我们将介绍单机模拟分布式和多机分布式训练场景下如何使用`fleetrun`。`fleetrun`支持在百度公司内部云PaddleCloud上运行分布式任务，推荐结合`fleetsub`命令，一键快速提交集群任务。详情请参考`使用fleetsub提交集群任务 `。
 
+*你也可以使用 `python -m paddle.distributed.launch` 来启动训练任务，事实上， `fleetrun`是前者的快捷方式。*
+
 ### 集合通信训练 <a name="multigpu"></a>
 - **GPU单机单卡训练**
 
@@ -170,9 +172,10 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 
 
 ## fleetrun命令参数介绍 <a name="fleetrunargs"></a>
-- GPU模式相关参数:
+- Collecitve模式相关参数:
     - ips （str，可选）： 指定选择哪些节点IP进行训练，默认为『127.0.0.1』, 即会在本地执行单机单卡或多卡训练。
-	- gpus（str, 可选）： 指定选择哪些GPU卡进行训练，默认为None，即会选择`CUDA_VISIBLE_DEVICES`所显示的所有卡。
+	- gpus（str, 可选）： 指定选择哪些GPU卡进行训练，默认为None，即会选择`CUDA_VISIBLE_DEVICES`所显示的所有卡。不设置`nproc_per_node`参数时，将启动GPU个数个进程进行训练，每个进程绑定一个GPU卡。
+    - nproc_per_node （int, 可选）：设置多少个进程进行训练。设置数目需要少于或者等于参与训练的GPU的个数以便每个进程可以绑定一个或者平均个数的GPU卡；不能使用GPU训练时，会启动相应个数的CPU进程进行Collective训练。
 
 - 参数服务器模式可配参数:
 	- server_num（int，可选）：单机模拟分布式任务中，指定参数服务器服务节点的个数

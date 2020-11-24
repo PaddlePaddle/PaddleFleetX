@@ -87,7 +87,7 @@ python -m paddle_serving_server_gpu.serve \
 其中train_with_fleet.py是用于启动训练的脚本，用户需要在其中添加蒸馏训练相关的代码，如果用户想了解脚本的修改方法或可以参考如[github](https://github.com/elasticdeeplearning/edl/blob/develop/example/distill/README.md)。
 
 ```sh
-python -m paddle.distributed.launch --selected_gpus 0 \
+python -m paddle.distributed.launch --gpus 0 \
   ./train_with_fleet.py \
   --model=ResNet50_vd \
   --data_dir=./ImageNet \
