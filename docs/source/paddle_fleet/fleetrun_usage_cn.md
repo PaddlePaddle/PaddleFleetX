@@ -172,7 +172,7 @@ fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" train.py
 
 
 ## fleetrun命令参数介绍 <a name="fleetrunargs"></a>
-- GPU模式相关参数:
+- Collecitve模式相关参数:
     - ips （str，可选）： 指定选择哪些节点IP进行训练，默认为『127.0.0.1』, 即会在本地执行单机单卡或多卡训练。
 	- gpus（str, 可选）： 指定选择哪些GPU卡进行训练，默认为None，即会选择`CUDA_VISIBLE_DEVICES`所显示的所有卡。不设置`nproc_per_node`参数时，将启动GPU个数个进程进行训练，每个进程绑定一个GPU卡。
     - nproc_per_node （int, 可选）：设置多少个进程进行训练。设置数目需要少于或者等于参与训练的GPU的个数以便每个进程可以绑定一个或者平均个数的GPU卡；不能使用GPU训练时，会启动相应个数的CPU进程进行Collective训练。
