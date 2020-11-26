@@ -25,6 +25,7 @@
    paddle_fleet/fleet_large_batch_training_techniques_cn
    paddle_fleet/fleet_improve_large_batch_accuracy_cn.md
    paddle_fleet/fleet_heter_parameter_server_cn.md
+   paddle_fleet_rst/fleet_sharding_cn
 
 .. toctree::
    :maxdepth: 1
