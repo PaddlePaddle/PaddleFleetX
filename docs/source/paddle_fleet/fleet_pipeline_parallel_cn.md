@@ -102,5 +102,9 @@ data_loader.set_sample_generator(train_reader, batch_size=2)
 exe.run(paddle.static.default_startup_program())
  
 data_loader.start()
-exe.train_from_dataset(paddle.static.default_main_program())
+try:
+    while True:
+        exe.run(paddle.static.default_main_program())
+except paddle.core.EOFException:
+    data_loader.reset()
 ```
