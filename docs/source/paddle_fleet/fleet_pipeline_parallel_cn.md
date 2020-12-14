@@ -107,5 +107,4 @@ try:
         exe.run(paddle.static.default_main_program())
 except paddle.core.EOFException:
     data_loader.reset()
-
 ```
