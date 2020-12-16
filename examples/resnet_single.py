@@ -13,14 +13,11 @@
 # limitations under the License.
 
 import os
-import fleetx as X
-import numpy as np
 import paddle
+import fleetx as X
 import paddle.fluid as fluid
-import time
-# FleetX help users to focus more on learning to train a large scale model
-# if you want to learn how to write a model, FleetX is not for you
-# focus more on engineering staff in fleet-x
+
+
 paddle.enable_static()
 if not os.path.exists('testdata.tar.gz'):
     print("============download data============")

@@ -11,9 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import fleetx as X
 import paddle
+import fleetx as X
 import paddle.distributed.fleet as fleet
+
+
 paddle.enable_static()
 fleet.init(is_collective=True)
 configs = X.parse_train_configs()
@@ -35,4 +37,4 @@ optimizer = fleet.distributed_optimizer(optimizer, strategy=dist_strategy)
 optimizer.minimize(model.loss)
 
 trainer = X.MultiGPUTrainer()
-trainer.fit(model, loader, epoch=10)
+trainer.fit(model, loader, epoch=1)

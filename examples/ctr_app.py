@@ -18,6 +18,7 @@ import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
 import paddle.distributed.fleet.base.role_maker as role_maker
 
+
 configs = X.parse_train_configs()
 role = role_maker.PaddleCloudRoleMaker()
 fleet.init(role)
@@ -38,4 +39,4 @@ if fleet.is_server():
     fleet.run_server()
 else:
     trainer = X.CPUTrainer()
-    trainer.fit(model, loader, epoch=10)
+    trainer.fit(model, loader, epoch=1)
