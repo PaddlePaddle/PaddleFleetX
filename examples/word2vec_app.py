@@ -13,22 +13,16 @@
 # limitations under the License.
 
 import os
-import fleetx as X
-
 import paddle
+import fleetx as X
 import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
 
+
+paddle.enable_static()
 role = fleet.PaddleCloudRoleMaker()
 fleet.init(role)
-
 model = X.applications.Word2vec()
-
-"""
-need config loader correctly.
-"""
-
-loader = model.load_dataset_from_file(train_files_path=[], dict_path="")
 
 dist_strategy = fleet.DistributedStrategy()
 dist_strategy.a_sync = True
@@ -37,9 +31,15 @@ optimizer = fluid.optimizer.SGD(learning_rate=0.0001)
 optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
 optimizer.minimize(model.loss)
 
+train_data_path = "./train_data"   # your train_data path
+dict_path = "./thirdparty/test_build_dict"   # your dict_path
+
 if fleet.is_server():
     fleet.init_server()
     fleet.run_server()
 else:
+    train_file_list = [str(train_data_path) + "/%s" % x
+                       for x in os.listdir(train_data_path)]
+    dataset = model.load_reader_from_file(dict_path=dict_path, file_list=train_file_list)
     trainer = X.CPUTrainer()
-    trainer.fit(model, loader, epoch=10)
+    trainer.fit(model, dataset, epoch=1)

@@ -11,13 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import fleetx as X
 import paddle
+import fleetx as X
 import paddle.distributed.fleet as fleet
+
+
 paddle.enable_static()
-# FleetX help users to focus more on learning to train a large scale model
-# if you want to learn how to write a model, FleetX is not for you
-# focus more on engineering staff in fleet-x
 configs = X.parse_train_configs()
 fleet.init(is_collective=True)
 model = X.applications.Transformer()
@@ -37,4 +36,4 @@ optimizer = fleet.distributed_optimizer(optimizer)
 optimizer.minimize(model.loss)
 
 trainer = X.MultiGPUTrainer()
-trainer.fit(model, data_loader, epoch=10)
+trainer.fit(model, data_loader, epoch=1)

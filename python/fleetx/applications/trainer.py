@@ -14,8 +14,8 @@
 import os
 import time
 import paddle
-import paddle.fluid as fluid
 import numpy as np
+import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
 
 
@@ -28,15 +28,36 @@ class Trainer(object):
 
 
 class CPUTrainer(Trainer):
-    def __init__(self):
+    def __init__(self, calc_line=True):
         super(CPUTrainer, self).__init__()
         self.place = fluid.CPUPlace()
         self.exe = fluid.Executor(self.place)
+        self.calc_line = calc_line
+
+    def get_total_words(self, file_list):
+        count = 0
+        for f in file_list:
+            last_count = count
+            for index, line in enumerate(open(f, 'r')):
+                line = line.rstrip().split()
+                count += len(line)
+            print("file: %s has %s words" % (f, count - last_count))
+        print("Total words: %s" % count)
+        return count
+
+    def get_total_lines(self, file_list):
+        count = 0
+        for f in file_list:
+            last_count = count
+            for index, line in enumerate(open(f, 'r')):
+                count += 1
+            print("file: %s has %s line" % (f, count - last_count))
+        print("Total lines: %s" % count)
+        return count
 
     def fit(self, model, dataloader, epoch, start_step=10):
-        fleet.init_worker()
         self.exe.run(fluid.default_startup_program())
-
+        fleet.init_worker()
         for epoch_id in range(epoch):
             total_time = 0
             step = 0
@@ -57,6 +78,50 @@ class CPUTrainer(Trainer):
                     start_time = time.time()
                 step += 1
 
+        fleet.stop_worker()
+
+
+class CPUDataLoaderTrainer(CPUTrainer):
+    def fit(self, model, dataset, epoch, ):
+        self.exe.run(fluid.default_startup_program())
+        fleet.init_worker()
+
+        if self.calc_line:
+            total_example = self.get_total_lines(dataset.filelist)
+        else:
+            total_example = self.get_total_words(dataset.filelist)
+
+        for epoch_id in range(epoch):
+            start_time = time.time()
+            # Notice: function train_from_dataset does not return fetch value
+            self.exe.train_from_dataset(program=paddle.fluid.default_main_program(), dataset=dataset,
+                                   fetch_list=[model.loss], fetch_info=[model.loss.name],
+                                   print_period=1000, debug=False)
+            end_time = time.time()
+            speed = float(total_example) / float(end_time - start_time)
+            print("epoch: %d finished, speed: %f words/s" % (epoch_id, speed))
+        fleet.stop_worker()
+
+
+class CPUDatasetTrainer(CPUTrainer):
+    def fit(self, model, dataset, epoch):
+        self.exe.run(fluid.default_startup_program())
+        fleet.init_worker()
+
+        if self.calc_line:
+            total_example = self.get_total_lines(dataset.filelist)
+        else:
+            total_example = self.get_total_words(dataset.filelist)
+
+        for epoch_id in range(epoch):
+            start_time = time.time()
+            # Notice: function train_from_dataset does not return fetch value
+            self.exe.train_from_dataset(program=paddle.fluid.default_main_program(), dataset=dataset,
+                                   fetch_list=[model.loss], fetch_info=[model.loss.name],
+                                   print_period=1000, debug=False)
+            end_time = time.time()
+            speed = float(total_example) / float(end_time - start_time)
+            print("epoch: %d finished, speed: %f words/s" % (epoch_id, speed))
         fleet.stop_worker()
 
 

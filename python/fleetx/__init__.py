@@ -17,6 +17,6 @@ from . import applications
 from .applications import *
 from . import dataset
 from .dataset import *
-from .applications.trainer import MultiGPUTrainer, CPUTrainer
+from .applications.trainer import MultiGPUTrainer, CPUTrainer, CPUDatasetTrainer
 from . import utils
 from .utils import *
