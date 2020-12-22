@@ -23,19 +23,20 @@ Training），接下来的例子会以同样的模型来说明两种架构的数
    import paddle.static.nn as nn
 
    paddle.enable_static()
+   paddle.vision.set_image_backend('cv2')
    def mnist_on_mlp_model():
-       train_dataset = paddle.vision.datasets.MNIST(mode='train')
-       test_dataset = paddle.vision.datasets.MNIST(mode='test')
-       x = paddle.data(name="x", shape=[64, 1, 28, 28], dtype='float32')
-       y = paddle.data(name="y", shape=[64, 1], dtype='int64')
-       x_flatten = paddle.reshape(x, [64, 784])
-       fc_1 = nn.fc(input=x_flatten, size=128, act='tanh')
-       fc_2 = nn.fc(input=fc_1, size=128, act='tanh')
-       prediction = nn.fc(input=[fc_2], size=10, act='softmax')
-       cost = paddle.fluid.layers.cross_entropy(input=prediction, label=y)
-       acc_top1 = paddle.fluid.layers.accuracy(input=prediction, label=y, k=1)
-       avg_cost = paddle.fluid.layers.mean(x=cost)
-       return train_dataset, test_dataset, x, y, avg_cost, acc_top1
+      train_dataset = paddle.vision.datasets.MNIST(mode='train')
+      test_dataset = paddle.vision.datasets.MNIST(mode='test')
+      x = paddle.static.data(name="x", shape=[64, 28, 28], dtype='float32')
+      y = paddle.static.data(name="y", shape=[64, 1], dtype='int64')
+      x_flatten = paddle.reshape(x, [64, 784])
+      fc_1 = nn.fc(x=x_flatten, size=128, activation='tanh')
+      fc_2 = nn.fc(x=fc_1, size=128, activation='tanh')
+      prediction = nn.fc(x=[fc_2], size=10, activation='softmax')
+      cost = paddle.fluid.layers.cross_entropy(input=prediction, label=y)
+      acc_top1 = paddle.metric.accuracy(input=prediction, label=y, k=1)
+      avg_cost = paddle.mean(x=cost)
+      return train_dataset, test_dataset, x, y, avg_cost, acc_top1
 
        
 
@@ -55,12 +56,12 @@ Training），接下来的例子会以同样的模型来说明两种架构的数
    place = paddle.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
    train_dataloader = paddle.io.DataLoader(
        train_data, feed_list=[x, y], drop_last=True,
-       places=place, batch_size=64, shuffle=True)
-   fleet.init(is_collective=True)
+       places=place, batch_size=64, shuffle=True, return_list=False)
    strategy = fleet.DistributedStrategy()
+   fleet.init(is_collective=True, strategy=strategy)
    #optimizer = paddle.optimizer.Adam(learning_rate=0.01)
    optimizer = paddle.fluid.optimizer.Adam(learning_rate=0.001)
-   optimizer = fleet.distributed_optimizer(optimizer, strategy=strategy)
+   optimizer = fleet.distributed_optimizer(optimizer)
    optimizer.minimize(cost)
 
    exe = paddle.static.Executor(place)
