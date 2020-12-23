@@ -59,8 +59,7 @@ Training），接下来的例子会以同样的模型来说明两种架构的数
        places=place, batch_size=64, shuffle=True, return_list=False)
    strategy = fleet.DistributedStrategy()
    fleet.init(is_collective=True, strategy=strategy)
-   #optimizer = paddle.optimizer.Adam(learning_rate=0.01)
-   optimizer = paddle.fluid.optimizer.Adam(learning_rate=0.001)
+   optimizer = paddle.optimizer.Adam(learning_rate=0.01)
    optimizer = fleet.distributed_optimizer(optimizer)
    optimizer.minimize(cost)
 
@@ -102,7 +101,7 @@ Training），接下来的例子会以同样的模型来说明两种架构的数
    fleet.init()
    strategy = fleet.DistributedStrategy()
    strategy.a_sync = True
-   optimizer = paddle.fluid.optimizer.Adam(learning_rate=0.001)
+   optimizer = paddle.optimizer.Adam(learning_rate=0.001)
    optimizer = fleet.distributed_optimizer(optimizer, strategy)
    optimizer.minimize(cost)
 

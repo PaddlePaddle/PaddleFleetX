@@ -163,7 +163,7 @@ nccl通信器数量 nccl\_comm\_num
 设置合适的CPU线程数
 ~~~~~~~~~~~~~~~~~~~
 
-PaddlePaddle Fluid使用“线程池”
+PaddlePaddle 使用“线程池”
 `[5] <https://en.wikipedia.org/wiki/Thread_pool>`__
 模型调度并执行Op，Op在启动GPU计算之前，
 通常需要CPU的协助，然而如果Op本身占用时间很小，“线程池”模型下又会带来额外的调度开销。
@@ -301,7 +301,6 @@ ResNet50训练示例
     import os
     import fleetx as X
     import paddle
-    import paddle.fluid as fluid
     import paddle.distributed.fleet.base.role_maker as role_maker
     import time
     import paddle.distributed.fleet as fleet
@@ -342,7 +341,7 @@ ResNet50训练示例
     dist_strategy.fuse_all_reduce_ops = True
 
     # build strategy
-    build_strategy = fluid.BuildStrategy()
+    build_strategy = paddle.static.BuildStrategy()
     build_strategy.enable_sequential_execution = True
     build_strategy.fuse_elewise_add_act_ops = True
     build_strategy.fuse_bn_act_ops = True
@@ -352,7 +351,7 @@ ResNet50训练示例
 
 
     # execute strategy
-    execution_strategy = fluid.ExecutionStrategy()
+    execution_strategy = paddle.static.ExecutionStrategy()
     execution_strategy.num_threads = 3
     execution_strategy.num_iteration_per_drop_scope = 100
     execution_strategy.num_iteration_per_run = 1

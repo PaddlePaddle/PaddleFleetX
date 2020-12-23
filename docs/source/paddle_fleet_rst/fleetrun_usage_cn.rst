@@ -270,8 +270,7 @@ fleetrun命令参数介绍
           places=place, batch_size=64, shuffle=True, return_list=False)
       strategy = fleet.DistributedStrategy()
       fleet.init(is_collective=True, strategy=strategy)
-      #optimizer = paddle.optimizer.Adam(learning_rate=0.01)
-      optimizer = fluid.optimizer.Adam(learning_rate=0.001)
+      optimizer = paddle.optimizer.Adam(learning_rate=0.01)
       optimizer = fleet.distributed_optimizer(optimizer)
       optimizer.minimize(cost)
 
