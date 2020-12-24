@@ -33,10 +33,7 @@
            return self._linear2(self._linear1(x))
 
 
-   # 1.开启动态图模式
-   paddle.disable_static()
-
-   # 2. 定义网络对象，损失函数和优化器
+   # 1. 定义网络对象，损失函数和优化器
    layer = LinearNet()
    loss_fn = nn.MSELoss()
    adam = paddle.optimizer.Adam(
@@ -44,7 +41,7 @@
 
 
    for step in range(20):
-       # 3. 执行前向网络
+       # 2. 执行前向网络
        inputs = paddle.randn([10, 10], 'float32')
        outputs = layer(inputs)
        labels = paddle.randn([10, 1], 'float32')
@@ -52,7 +49,7 @@
 
        print("step:{}\tloss:{}".format(step, loss.numpy()))
 
-       # 4. 执行反向计算和参数更新
+       # 3. 执行反向计算和参数更新
        loss.backward()
        adam.step()
        adam.clear_grad()
@@ -122,26 +119,23 @@
            return self._linear2(self._linear1(x))
 
 
-   # 1.开启动态图模式
-   paddle.disable_static()
-
    # 分布式step 2: 初始化fleet
-   fleet.init(is_collective=True)
+   strategy = fleet.DistributedStrategy()
+   fleet.init(is_collective=True, strategy=strategy)
 
-   # 2. 定义网络对象，损失函数和优化器
+   # 1. 定义网络对象，损失函数和优化器
    layer = LinearNet()
    loss_fn = nn.MSELoss()
    adam = paddle.optimizer.Adam(
        learning_rate=0.001, parameters=layer.parameters())
 
    # 分布式step 3: 通过fleet获取分布式优化器和分布式模型
-   strategy = fleet.DistributedStrategy()
-   adam = fleet.distributed_optimizer(adam, strategy=strategy)
+   adam = fleet.distributed_optimizer(adam)
    dp_layer = fleet.distributed_model(layer)
 
 
    for step in range(20):
-       # 3. 执行前向网络
+       # 2. 执行前向网络
        inputs = paddle.randn([10, 10], 'float32')
        outputs = dp_layer(inputs)
        labels = paddle.randn([10, 1], 'float32')
@@ -149,13 +143,13 @@
 
        print("step:{}\tloss:{}".format(step, loss.numpy()))
 
-       # 4. 执行反向计算和参数更新
+       # 3. 执行反向计算和参数更新
        loss.backward()
 
        adam.step()
        adam.clear_grad()
 
-将以上代码保存为\ ``train_fleet.py``\ ，假设要运行2卡的任务，那么只需在命令行中执行:
+将以上代码保存为\ ``dygraph_fleet.py``\ ，假设要运行2卡的任务，那么只需在命令行中执行:
 
 .. code:: sh
 
