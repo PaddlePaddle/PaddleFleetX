@@ -177,14 +177,14 @@ def create_data_loader(inputs, phase, use_mixup, data_layout='NHWC'):
         feed_lam = fluid.data(
             name="feed_lam", shape=[None, 1], dtype="float32", lod_level=0)
 
-        data_loader = fluid.io.DataLoader.from_generator(
+        data_loader = paddle.io.DataLoader.from_generator(
             feed_list=[feed_image, feed_y_a, feed_y_b, feed_lam],
             capacity=64,
             use_double_buffer=True,
             iterable=True)
         return data_loader
     else:
-        data_loader = fluid.io.DataLoader.from_generator(
+        data_loader = paddle.io.DataLoader.from_generator(
             feed_list=[feed_image, feed_label],
             capacity=64,
             use_double_buffer=True,

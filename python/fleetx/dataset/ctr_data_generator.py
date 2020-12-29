@@ -33,7 +33,7 @@ def get_dataloader(inputs,
         str(train_files_path) + "/%s" % x for x in os.listdir(train_files_path)
     ]
 
-    loader = fluid.io.DataLoader.from_generator(
+    loader = paddle.io.DataLoader.from_generator(
         feed_list=inputs, capacity=64, use_double_buffer=True, iterable=True)
     train_generator = CriteoDataset(sparse_feature_dim)
     reader = train_generator.train(file_list,

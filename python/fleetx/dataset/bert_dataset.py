@@ -37,7 +37,7 @@ def load_bert_dataset(data_dir,
                       shuffle=True,
                       generate_neg_sample=True,
                       voc_size=21128):
-    data_loader = fluid.io.DataLoader.from_generator(
+    data_loader = paddle.io.DataLoader.from_generator(
         feed_list=inputs, capacity=70, iterable=True)
     if lang == 'en':
         data_reader = DataReaderV2(
