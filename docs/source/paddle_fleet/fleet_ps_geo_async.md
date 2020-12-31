@@ -1,3 +1,0 @@
-## GeoSGD
-
--TBA
