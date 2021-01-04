@@ -10,64 +10,78 @@
 .. toctree::
    :maxdepth: 1
    :numbered:
-   :caption: 快速开始
-   :name: new-users
+   :caption: 分布式训练概述
+   :name: summarize
 
    paddle_fleet_rst/distributed_introduction
+   paddle_fleet_rst/distributed_how_to
+
+
+.. toctree::
+   :maxdepth: 1
+   :numbered:
+   :caption: 如何设计分布式训练的搭建方案
+   :name: design 
+
+   paddle_fleet_rst/public_cloud
+   paddle_fleet_rst/paddle_on_k8s
    paddle_fleet_rst/install_cn
-   paddle_fleet_rst/fleet_static_quick_start_cn
-   paddle_fleet_rst/fleet_dygraph_quick_start_cn
-   paddle_fleet_rst/fleetrun_usage_cn
-   paddle_fleet_rst/fleetx_quick_start
-   paddle_fleet_rst/fleetsub_quick_start_cn
-   paddle_fleet_rst/dataset_info
+
 
 .. toctree::
    :maxdepth: 1
    :numbered:
-   :caption: 数据并行训练
-   :name: advanced-doc-data-parallel-training
+   :caption: 前置基础配置
+   :name: pre
 
-   paddle_fleet_rst/fleet_ps_sync_and_async_cn
-   paddle_fleet_rst/fleet_dataset_w2v_cn
-   paddle_fleet_rst/fleet_collective_training_practices_cn
-   paddle_fleet_rst/fleet_collective_training_speedup_with_amp_cn
-   paddle_fleet_rst/fleet_large_batch_training_techniques_cn
-   paddle_fleet_rst/fleet_improve_large_batch_accuracy_cn.md
-   paddle_fleet_rst/fleet_heter_parameter_server_cn
-   paddle_fleet_rst/fleet_sharding_cn
+   paddle_fleet_rst/optimizer
+
 
 .. toctree::
    :maxdepth: 1
    :numbered:
-   :caption: 模型并行与流水线并行
-   :name: advanced-model-parallel-pipeline-parallel
+   :caption: Collective 分布式训练
+   :name: distributed_training_collective
 
-   paddle_fleet_rst/fleet_model_parallel_cn
-   paddle_fleet_rst/fleet_pipeline_parallel_cn
+   paddle_fleet_rst/collective_quick_start
+   paddle_fleet_rst/collective_benchmark
+   paddle_fleet_rst/collective_summarize
+   paddle_fleet_rst/collective_performance
+   paddle_fleet_rst/collective_large_barchsize
+   paddle_fleet_rst/collective_mp
+   paddle_fleet_rst/collective_pipeline
+   paddle_fleet_rst/collective_sdk
+   paddle_fleet_rst/collective_completed_example
 
-.. toctree::
-   :maxdepth: 1
-   :numbered:
-   :caption: 云端训练实践
-   :name: advanced-doc-model-parallel
-
-   paddle_fleet_rst/fleet_ps_geo_async_cn	  
-   paddle_fleet_rst/fleet_and_edl_for_distillation_cn
-   paddle_fleet_rst/fleet_on_cloud_cn
 
 .. toctree::
    :maxdepth: 1
    :numbered:
-   :caption: 飞桨分布式训练性能基准
-   :name: benchmark
+   :caption: 参数服务器分布式训练
+   :name: distributed_training_ps
 
-   paddle_fleet_rst/fleet_benchmark_overview_cn
-   paddle_fleet_rst/fleet_benchmark_resnet50_cn
-   paddle_fleet_rst/fleet_benchmark_bert_cn
-   paddle_fleet_rst/fleet_benchmark_transformer_cn
-   paddle_fleet_rst/fleet_benchmark_vgg16_cn
-   paddle_fleet_rst/fleet_benchmark_word2vec_cn
+   paddle_fleet_rst/ps_quick_start
+   paddle_fleet_rst/ps_benchmark
+   paddle_fleet_rst/ps_summarize
+   paddle_fleet_rst/ps_performance
+   paddle_fleet_rst/ps_online_learning
+   paddle_fleet_rst/ps_distributed_metrics
+   paddle_fleet_rst/ps_distributed_evaluation
+   paddle_fleet_rst/ps_sdk
+   paddle_fleet_rst/ps_completed_example
+
+
+.. toctree::
+   :maxdepth: 1
+   :numbered:
+   :caption: 高阶内容
+   :name: higher
+
+   paddle_fleet_rst/distill
+   paddle_fleet_rst/self_supervision
+   paddle_fleet_rst/edl
+   paddle_fleet_rst/fleet_x
+
 
 .. toctree::
    :maxdepth: 1
@@ -81,4 +95,4 @@
 
 =======
 
-FleetX使用Apache License 2.0开源协议
+Fleet使用Apache License 2.0开源协议
