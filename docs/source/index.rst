@@ -14,7 +14,6 @@
    :name: summarize
 
    paddle_fleet_rst/distributed_introduction
-   paddle_fleet_rst/distributed_how_to
 
 
 .. toctree::
@@ -38,37 +37,13 @@
 
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2 
    :numbered:
-   :caption: Collective 分布式训练
-   :name: distributed_training_collective
+   :caption: 配置分布式训练
+   :name: distributed_training
 
-   paddle_fleet_rst/collective_quick_start
-   paddle_fleet_rst/collective_benchmark
-   paddle_fleet_rst/collective_summarize
-   paddle_fleet_rst/collective_performance
-   paddle_fleet_rst/collective_large_barchsize
-   paddle_fleet_rst/collective_mp
-   paddle_fleet_rst/collective_pipeline
-   paddle_fleet_rst/collective_sdk
-   paddle_fleet_rst/collective_completed_example
-
-
-.. toctree::
-   :maxdepth: 1
-   :numbered:
-   :caption: 参数服务器分布式训练
-   :name: distributed_training_ps
-
-   paddle_fleet_rst/ps_quick_start
-   paddle_fleet_rst/ps_benchmark
-   paddle_fleet_rst/ps_summarize
-   paddle_fleet_rst/ps_performance
-   paddle_fleet_rst/ps_online_learning
-   paddle_fleet_rst/ps_distributed_metrics
-   paddle_fleet_rst/ps_distributed_evaluation
-   paddle_fleet_rst/ps_sdk
-   paddle_fleet_rst/ps_completed_example
+   paddle_fleet_rst/collective/index
+   paddle_fleet_rst/parameter_server/index
 
 
 .. toctree::
