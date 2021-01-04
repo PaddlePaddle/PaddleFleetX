@@ -37,7 +37,7 @@
 
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 2 
    :numbered:
    :caption: 配置分布式训练
    :name: distributed_training
