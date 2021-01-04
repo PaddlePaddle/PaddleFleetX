@@ -8,14 +8,14 @@ Collective训练
    :caption: 分布式训练概述
    :name: collective 
 
-   collective/collective_quick_start
-   collective/collective_benchmark
-   collective/collective_summarize
-   collective/collective_performance
-   collective/collective_large_barchsize
-   collective/collective_mp
-   collective/collective_pipeline
-   collective/collective_sdk
-   collective/collective_completed_example
+   collective_quick_start
+   collective_benchmark
+   collective_summarize
+   collective_performance
+   collective_large_barchsize
+   collective_mp
+   collective_pipeline
+   collective_sdk
+   collective_completed_example
 
 
