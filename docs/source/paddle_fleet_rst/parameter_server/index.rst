@@ -11,7 +11,7 @@ ParameterServer训练
    ps_quick_start
    ps_benchmark
    ps_summarize
-   ps_performance
+   performance/index
    ps_online_learning
    ps_distributed_metrics
    ps_distributed_evaluation
