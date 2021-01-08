@@ -17,7 +17,7 @@
 
 以下图为例，全连接层参数按行切分到不同的GPU卡上。每次训练迭代过程中，各张GPU卡分别以各自的训练数据计算隐层的输出特征(feature)，并通过集合通信操作AllGather得到汇聚后的特征。接着，各张GPU卡以汇聚后的特征和部分全连接层参数计算部分logit值(partial logit)，并基于此计算神经网络的损失值。
 
-.. image:: .,/img/plsc_overview.png
+.. image:: ../img/plsc_overview.png
   :width: 400
   :alt: plsc
   :align: center
@@ -55,11 +55,7 @@ PLSC库在多个数据集上可以取得SOTA的训练精度，下表列出PLSC�
      - N/A
 
 
-备注：上述模型训练使用的loss_type为'dist_arcface'。更多关于ArcFace的内容请参考
-
-**ArcFace:** Additive Angular Margin Loss for Deep Face Recognition
-
-https://arxiv.org/abs/1801.07698
+备注：上述模型训练使用的loss_type为'dist_arcface'。更多关于ArcFace的内容请参考: `ArcFace: Additive Angular Margin Loss for Deep Face Recognition <https://arxiv.org/abs/1801.07698>`_。
 
 PLSC支持多机分布式训练。一方面，通过多机分布式训练可以将全连接层参数切分到更多的GPU卡，从而支持千万类别分类，并且飞桨大规模分类库理论上支持的分类类别数随着使用的GPU卡数的增加而增加。例如，单机8张V100 GPU配置下支持的最大分类类别数相比不使用PLSC扩大2.52倍。另一方面，使用多机分布式训练可以有效提升训练速度。
 
