@@ -66,8 +66,8 @@ def train_resnet():
     label= paddle.static.data(name="y", shape=[None, 1], dtype='int64')
 
     model = resnet.ResNet(layers=50)
-    out = model.net(input=image, class_dim=class_dim)
-    with paddle.fluid.device_guard("gpu:3"):
+    out, offset = model.net(input=image, class_dim=class_dim)
+    with paddle.fluid.device_guard("gpu:%d"%offset):
         avg_cost = paddle.nn.functional.cross_entropy(input=out, label=label)
         acc_top1 = paddle.metric.accuracy(input=out, label=label, k=1)
         acc_top5 = paddle.metric.accuracy(input=out, label=label, k=5)

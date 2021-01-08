@@ -47,64 +47,71 @@ class ResNet():
             depth = [3, 8, 36, 3]
         num_filters = [64, 128, 256, 512]
 
-        conv = self.conv_bn_layer(
-            input=input,
-            num_filters=64,
-            filter_size=7,
-            stride=2,
-            act='relu',
-            name="conv1",
-            data_format=data_format)
-        conv = fluid.layers.pool2d(
-            input=conv,
-            pool_size=3,
-            pool_stride=2,
-            pool_padding=1,
-            pool_type='max',
-            data_format=data_format)
+        offset = 0
+        with fluid.device_guard("gpu:%d"%(offset)):
+            conv = self.conv_bn_layer(
+                input=input,
+                num_filters=64,
+                filter_size=7,
+                stride=2,
+                act='relu',
+                name="conv1",
+                data_format=data_format)
+            conv = fluid.layers.pool2d(
+                input=conv,
+                pool_size=3,
+                pool_stride=2,
+                pool_padding=1,
+                pool_type='max',
+                data_format=data_format)
         if layers >= 50:
             for block in range(len(depth)):
-                for i in range(depth[block]):
-                    if layers in [101, 152] and block == 2:
-                        if i == 0:
-                            conv_name = "res" + str(block + 2) + "a"
+                with fluid.device_guard("gpu:%d"%(offset)):
+                    for i in range(depth[block]):
+                        if layers in [101, 152] and block == 2:
+                            if i == 0:
+                                conv_name = "res" + str(block + 2) + "a"
+                            else:
+                                conv_name = "res" + str(block + 2) + "b" + str(i)
                         else:
-                            conv_name = "res" + str(block + 2) + "b" + str(i)
-                    else:
-                        conv_name = "res" + str(block + 2) + chr(97 + i)
-                    conv = self.bottleneck_block(
-                        input=conv,
-                        num_filters=num_filters[block],
-                        stride=2 if i == 0 and block != 0 else 1,
-                        name=conv_name,
-                        data_format=data_format)
+                            conv_name = "res" + str(block + 2) + chr(97 + i)
+                        conv = self.bottleneck_block(
+                            input=conv,
+                            num_filters=num_filters[block],
+                            stride=2 if i == 0 and block != 0 else 1,
+                            name=conv_name,
+                            data_format=data_format)
+                offset += 1
 
         else:
             for block in range(len(depth)):
-                for i in range(depth[block]):
-                    conv_name = "res" + str(block + 2) + chr(97 + i)
-                    conv = self.basic_block(
-                        input=conv,
-                        num_filters=num_filters[block],
-                        stride=2 if i == 0 and block != 0 else 1,
-                        is_first=block == i == 0,
-                        name=conv_name,
-                        data_format=data_format)
+                with fluid.device_guard("gpu:%d"%(offset)):
+                    for i in range(depth[block]):
+                        conv_name = "res" + str(block + 2) + chr(97 + i)
+                        conv = self.basic_block(
+                            input=conv,
+                            num_filters=num_filters[block],
+                            stride=2 if i == 0 and block != 0 else 1,
+                            is_first=block == i == 0,
+                            name=conv_name,
+                            data_format=data_format)
+                offset += 1
 
-        pool = fluid.layers.pool2d(
-            input=conv,
-            pool_type='avg',
-            global_pooling=True,
-            data_format=data_format)
-        stdv = 1.0 / math.sqrt(pool.shape[1] * 1.0)
-        out = fluid.layers.fc(
-            input=pool,
-            size=class_dim,
-            param_attr=fluid.param_attr.ParamAttr(
-                name="fc_0.w_0",
-                initializer=fluid.initializer.Uniform(-stdv, stdv)),
-            bias_attr=ParamAttr(name="fc_0.b_0"))
-        return out
+        with fluid.device_guard("gpu:%d"%(offset)):
+            pool = fluid.layers.pool2d(
+                input=conv,
+                pool_type='avg',
+                global_pooling=True,
+                data_format=data_format)
+            stdv = 1.0 / math.sqrt(pool.shape[1] * 1.0)
+            out = fluid.layers.fc(
+                input=pool,
+                size=class_dim,
+                param_attr=fluid.param_attr.ParamAttr(
+                    name="fc_0.w_0",
+                    initializer=fluid.initializer.Uniform(-stdv, stdv)),
+                bias_attr=ParamAttr(name="fc_0.b_0"))
+        return out, offset
 
     def conv_bn_layer(self,
                       input,
