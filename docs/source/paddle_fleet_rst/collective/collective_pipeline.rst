@@ -73,21 +73,13 @@
    dist_strategy = paddle.distributed.fleet.DistributedStrategy()
    strategy.pipeline_configs = {"micro_batch": 12}
 
-开始训练
-^^^^^^^^
+
+基于ResNet50网络的流水线并行代码：`Example Code <../../examples/resnet/train_fleet_pipeline.py>`_。
+
+使用下述命令行运行示例代码：
 
 .. code-block:: python
 
-   place = paddle.CPUPlace()
-   exe = paddle.static.Executor(place)
-
-   data_loader.set_sample_generator(train_reader, batch_size=2)
-
-   exe.run(paddle.static.default_startup_program())
-
-   data_loader.start()
-   try:
-       while True:
-           exe.run(paddle.static.default_main_program())
-   except paddle.core.EOFException:
-       data_loader.reset()
+   python -m paddle.distributed.launch \
+          --gpus="0,1,2,3,4,5" \
+          train_fleet_pipeline.py
