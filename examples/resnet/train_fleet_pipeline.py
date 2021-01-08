@@ -54,7 +54,7 @@ def get_train_loader(feed_list, place):
         capacity=32,
         use_double_buffer=True,
         feed_list=feed_list,
-        iterable=True)
+        iterable=False)
     train_loader.set_sample_list_generator(train_reader, place)
     return train_loader
 
@@ -62,19 +62,19 @@ def train_resnet():
     paddle.enable_static()
     paddle.vision.set_image_backend('cv2')
 
-    image = paddle.static.data(name="x", shape=[None, 3, 224, 224], dtype='float32')
-    label= paddle.static.data(name="y", shape=[None, 1], dtype='int64')
+    place = paddle.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+    with paddle.fluid.device_guard("gpu:0"):
+        image = paddle.static.data(name="x", shape=[None, 3, 224, 224], dtype='float32')
+        label= paddle.static.data(name="y", shape=[None, 1], dtype='int64')
+        train_loader = get_train_loader([image, label], place)
 
-    model = resnet.ResNet(layers=50)
-    out, offset = model.net(input=image, class_dim=class_dim)
+        model = resnet.ResNet(layers=50)
+        out, offset = model.net(input=image, class_dim=class_dim)
+
     with paddle.fluid.device_guard("gpu:%d"%offset):
         avg_cost = paddle.nn.functional.cross_entropy(input=out, label=label)
         acc_top1 = paddle.metric.accuracy(input=out, label=label, k=1)
         acc_top5 = paddle.metric.accuracy(input=out, label=label, k=5)
-
-    place = paddle.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
-    
-    train_loader = get_train_loader([image, label], place)
 
     strategy = fleet.DistributedStrategy()
     strategy.pipeline = True
@@ -89,11 +89,21 @@ def train_resnet():
 
     epoch = 10
     step = 0
+    train_loader.start()
     for eop in range(epoch):
-        for batch_id, data in enumerate(train_loader()):
-            loss, acc1, acc5 = exe.run(paddle.static.default_main_program(), feed=data, fetch_list=[avg_cost.name, acc_top1.name, acc_top5.name])             
-            if batch_id % 5 == 0:
-                print("[Epoch %d, batch %d] loss: %.5f, acc1: %.5f, acc5: %.5f" % (eop, batch_id, loss, acc1, acc5))
+        batch_id = 0
+        while True:
+            try:
+                if fleet.worker_index() == 4:
+                    loss, acc1, acc5 = exe.run(paddle.static.default_main_program(), fetch_list=[avg_cost, acc_top1, acc_top5])             
+                else:
+                    exe.run(paddle.static.default_main_program())             
+                batch_id += 1
+                if batch_id % 5 == 0 and fleet.worker_index() == 4:
+                    print("[Epoch %d, batch %d] loss: %.5f, acc1: %.5f, acc5: %.5f" % (eop, batch_id, loss, acc1, acc5))
+            except paddle.fluid.core.EOFException:
+                train_loader.reset()
+                break
 
 if __name__ == '__main__':
     train_resnet()
