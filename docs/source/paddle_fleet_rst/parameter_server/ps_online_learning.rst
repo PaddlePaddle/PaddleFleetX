@@ -23,63 +23,56 @@
 
 使用方法
 ---------------------
-流式训练是个上下游牵涉众多的训练方法，本文只贴出训练相关的配置给用户做一个讲解，具体使用需要结合实际情况进行代码的优化：
+流式训练是个上下游牵涉众多的训练方法，本文只贴出训练相关的配置给用户做一个讲解，具体使用需要结合实际情况进行代码的伪代码：
 
 
 .. code-block:: python
 
-    place = paddle.CPUPlace()
-    exe = paddle.static.Executor(place)
-
+    # 初始化分布式环境
     fleet.init()
 
     # your real net function
     model = net()
 
+    # 使用参数服务器异步训练模式
     strategy = paddle.distributed.fleet.DistributedStrategy()
     strategy.a_sync = True
 
+    # 分布式训练图优化
     adam = paddle.fluid.optimizer.Adam(learning_rate=5e-06)
     adam = fleet.distributed_optimizer(adam, strategy=strategy)
     adam.minimize(model.avg_cost)
 
+    # 启动PServer
     if fleet.is_server():
         fleet.init_server()
         fleet.run_server()
 
-    else:
+    if fleet.is_worker():
+        # 初始化Worker
         exe.run(paddle.static.default_startup_program())
         fleet.init_worker()
 
-        datasets = []
+        while True:
 
-        days = ["20200827"]
+            # 持续不断的从`get_ready_training_set`获取可训练的书记集和相关的配置
+            # 下面是一个按小时训练的例子
+            dataset, hour, day = get_ready_training_dataset() 
 
-        all_files = 0
-        train_path = "train_data"
+            if dataset is None:
+                break
 
-        for day_index in range(len(days)):
-            day = days[day_index]
-            files = "your real training files" 
-            dataset = create_dataset(use_var, files)
-            datasets.append(dataset)
+            # 使用`dataset`中的数据进行训练和模型保存
+            exe.train_from_dataset(program=paddle.static.default_main_program(),
+                                   dataset=dataset,
+                                   fetch_list=[model.auc],
+                                   fetch_info=["avg_auc"],
+                                   print_period=10)
 
-        for day_index in range(len(days)):
-            begin = time.time()
-            day = days[day_index]
-            dataset = datasets[day_index]
-            epochs = config.epoch_num
-
-            for i in range(epochs):
-                begin = time.time()
-                exe.train_from_dataset(program=paddle.static.default_main_program(),
-                                       dataset=dataset,
-                                       fetch_list=[model.auc],
-                                       fetch_info=["avg_auc"],
-                                       print_period=10)
-
+            # 0号保存模型即可，每天第0个小时进行全量保存， 剩余时间进行增量保存
             if fleet.is_first_worker():
-                fleet.save_persistables(exe, "output/epoch_{}".format(day_index))
+                mode = 1 if hour == 0 else 2
+                fleet.save_persistables(exe, "output/epoch_{}".format(day), mode)
 
         fleet.stop_worker()
 
@@ -92,7 +85,8 @@
 
 常见问题与注意事项
 ---------------------
-训练过程中，如需使用分布式指标，请参考分布式指标章节。
+1. 训练过程中，如需使用分布式指标，请参考<分布式指标章节>。
+2. 如果训练中途中断，需要加载模型后继续训练，请参考<增量训练章节>
 
 
 论文/引用
