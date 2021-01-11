@@ -26,7 +26,8 @@
 流式训练是个上下游牵涉众多的训练方法，本文只贴出训练相关的配置给用户做一个讲解，具体使用需要结合实际情况进行代码的优化：
 
 
-```
+.. code-block:: python
+
     place = paddle.CPUPlace()
     exe = paddle.static.Executor(place)
 
@@ -80,7 +81,6 @@
 
     fleet.stop_worker()
 
-```
 
 
 运行成功提示

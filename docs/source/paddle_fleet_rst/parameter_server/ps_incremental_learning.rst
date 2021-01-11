@@ -49,39 +49,37 @@
 
 模型保存：
 
-```
-# 在需要保存模型的地方，执行下面的命令，即可完成模型中全量参数的保存
-# 其中， 稠密参数会被保存在0号Worker上， 稀疏参数会被保存在每个PServer上的同名路径下
+.. code-block:: python
 
-dirname = "/you/path/to/model"
+    # 在需要保存模型的地方，执行下面的命令，即可完成模型中全量参数的保存
+    # 其中， 稠密参数会被保存在0号Worker上， 稀疏参数会被保存在每个PServer上的同名路径下
+    
+    dirname = "/you/path/to/model"
+    
+    if fleet.is_first_worker():
+        fleet.save_persistables(dirname)
 
-if fleet.is_first_worker():
-    fleet.save_persistables(dirname)
-
-```
 
 模型加载：
-```
 
-# 模型加载需要区分是PServer还是Worker
+.. code-block:: python
 
-dirname = "/you/path/to/model"
-
-if fleet.is_server():
-    var_names = None
-    fleet.init_server(dirname, var_names)
-    fleet.run_server()
-
-if fleet.is_worker():
-    place = paddle.CPUPlace()
-    exe = paddle.static.Executor(place)
-
-    exe.run(paddle.static.default_startup_program())
-    var_names = ["w", "b"]
-    fluid.io.load_vars(executor=exe, dirname=path, vars=var_names)
-    fleet.init_worker()
-
-```
+    # 模型加载需要区分是PServer还是Worker
+    dirname = "/you/path/to/model"
+    
+    if fleet.is_server():
+        var_names = None
+        fleet.init_server(dirname, var_names)
+        fleet.run_server()
+    
+    if fleet.is_worker():
+        place = paddle.CPUPlace()
+        exe = paddle.static.Executor(place)
+    
+        exe.run(paddle.static.default_startup_program())
+        var_names = ["w", "b"]
+        fluid.io.load_vars(executor=exe, dirname=path, vars=var_names)
+        fleet.init_worker()
 
 
 运行成功提示
