@@ -18,7 +18,7 @@
 本文中涉及到的相关功能和使用示例：
 1. 使用大规模稀疏的算子进行组网
 2. 配置准入策略
-3. 
+3. 配置模型保存及增量保存 
 
 
 使用方法
@@ -33,7 +33,8 @@
 
     fleet.init()
 
-    model = "your real net function" 
+    # your real net function
+    model = net()
 
     strategy = paddle.distributed.fleet.DistributedStrategy()
     strategy.a_sync = True
@@ -45,6 +46,7 @@
     if fleet.is_server():
         fleet.init_server()
         fleet.run_server()
+
     else:
         exe.run(paddle.static.default_startup_program())
         fleet.init_worker()
@@ -72,14 +74,14 @@
                 begin = time.time()
                 exe.train_from_dataset(program=paddle.static.default_main_program(),
                                        dataset=dataset,
-                                       fetch_list=[model.auc, model.batch_auc],
-                                       fetch_info=["avg_auc", "cur_auc"],
-                                       print_period=10,
-                                       debug=False)
+                                       fetch_list=[model.auc],
+                                       fetch_info=["avg_auc"],
+                                       print_period=10)
+
             if fleet.is_first_worker():
                 fleet.save_persistables(exe, "output/epoch_{}".format(day_index))
 
-    fleet.stop_worker()
+        fleet.stop_worker()
 
 
 
