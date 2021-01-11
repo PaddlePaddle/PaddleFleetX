@@ -83,7 +83,7 @@ API中，用户可以使用\ ``fleet.DistributedStrategy()``\ 接口定义自己
     dist_strategy.a_sync = False
     dist_strategy.a_sync_configs = {"k_steps": 100}
 
-    optimizer = fluid.optimizer.SGD(learning_rate=0.0001)
+    optimizer = paddle.optimizer.SGD(learning_rate=0.0001)
     optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
     optimizer.minimize(model.loss)
 
@@ -104,8 +104,8 @@ API中，用户可以使用\ ``fleet.DistributedStrategy()``\ 接口定义自己
         fleet.init_server()
         fleet.run_server()
     else:
-        exe = fluid.Executor(fluid.CPUPlace())
-        exe.run(fluid.default_startup_program())
+        exe = paddle.static.Executor(paddle.CPUPlace())
+        exe.run(paddle.static.default_startup_program())
 
         fleet.init_worker()
 
@@ -113,12 +113,12 @@ API中，用户可以使用\ ``fleet.DistributedStrategy()``\ 接口定义自己
             reader.start()
             try:
                 while True:
-                    loss_val = exe.run(program=fluid.default_main_program(),
+                    loss_val = exe.run(program=paddle.static.default_main_program(),
                                        fetch_list=[avg_cost.name])
                     loss_val = np.mean(loss_val)
                     print("TRAIN ---> pass: {} loss: {}\n".format(epoch_id,
                                                                   loss_val))
-            except fluid.core.EOFException:
+            except paddle.core.EOFException:
                 reader.reset()
     
         fleet.stop_worker()
