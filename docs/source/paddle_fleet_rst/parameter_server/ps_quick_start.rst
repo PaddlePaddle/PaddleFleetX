@@ -10,7 +10,7 @@ Speech
 -  **训练节点**\ ：该节点负责完成数据读取、前向计算、反向梯度计算等过程，并将计算出的梯度上传至服务节点。
 -  **服务节点**\ ：在收到所有训练节点传来的梯度后，该节点会将梯度聚合并更新参数。最后将参数发送给训练节点，开始新一轮的训练。
 
-根据参数更新的方式不同，可以分为同步和异步两种：
+根据参数更新的方式不同，可以分为同步/异步/Geo异步三种：
 
 -  **同步训练**\ ：在同步参数服务器分布式训练中，所有训练节点的进度保持一致。每训练完一个Batch后，训练节点会上传梯度，然后开始等待服务节点返回更新后的参数。服务节点拿到所有训练节点上传的梯度后，才会对参数进行更新。因此，在任何一个时间点，所有训练节点都处于相同的训练阶段。
 -  **异步训练**\ ：与同步训练不同，在异步训练中任何两个训练节点之间的参数更新都互不影响。每一个训练节点完成训练、上传梯度后，服务节点都会立即更新参数并将结果返回至相应的训练节点。拿到最新的参数后，该训练节点会立即开始新一轮的训练。
@@ -72,15 +72,15 @@ API中，用户可以使用\ ``fleet.DistributedStrategy()``\ 接口定义自己
 
     # 定义异步训练
     dist_strategy = fleet.DistributedStrategy()
-    dist_strategy.a_sync = False
+    dist_strategy.a_sync = True
 
     # 定义同步训练
     dist_strategy = fleet.DistributedStrategy()
     dist_strategy.a_sync = False
 
-    # 定义Geo异步训练
+    # 定义Geo异步训练, Geo异步目前只支持SGD优化算法
     dist_strategy = fleet.DistributedStrategy()
-    dist_strategy.a_sync = False
+    dist_strategy.a_sync = True
     dist_strategy.a_sync_configs = {"k_steps": 100}
 
     optimizer = paddle.optimizer.SGD(learning_rate=0.0001)

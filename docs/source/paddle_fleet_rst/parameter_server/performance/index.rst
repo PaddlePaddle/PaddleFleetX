@@ -8,7 +8,6 @@
    :caption: 性能优化
    :name: performance
 
-   design
    graph
    gradient_acc
    communication
