@@ -38,7 +38,7 @@
 使用方法
 =======
 
-在使用流水线并行的训练策略时，我们通过\ ``device_guard``\ 接口将不同的计算层放置在不同的设备上，如\ ``device_guard("gpu:0")``\ 。
+在使用流水线并行的训练策略时，我们通过\ ``device_guard``\ 接口将不同的计算层放置在不同的设备上，如\ ``device_guard("gpu:0")``\ 。需要注意的是，当前流水线并行仅支持GPU设备。并且，模型中每个层都需要指定放置设备。
 
 .. code-block:: python
    
@@ -65,7 +65,7 @@
    dist_strategy = paddle.distributed.fleet.DistributedStrategy()
    dist_strategy.pipeline = True
 
-进一步地，可以通过\ ``dist_strategy.pipeline_configs`` 配置流水线并行中mini-batch的切分粒度。
+进一步地，可以通过\ ``dist_strategy.pipeline_configs`` 配置流水线并行中mini-batch的切分粒度。假设mini-batch的大小为128，可以通过下述代码将mini-batch切为4份更小粒度的micro-batch，每个micro-batch的大小为32。需要注意地是，用户需要保证mini-batch大小是micro-batch大小的整数倍。
 
 .. code-block:: python
 
@@ -74,14 +74,14 @@
    strategy.pipeline_configs = {"micro_batch": 4}
 
 
-基于ResNet50网络的流水线并行代码：`example/resnet <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/resnet>`_。
+基于ResNet50网络的流水线并行代码：`example/resnet <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/pipeline>`_。
 
 使用下述命令行运行示例代码：
 
 .. code-block:: python
 
    python -m paddle.distributed.launch \
-          --gpus="0,1,2,3,4,5" \
+          --gpus="0,1,2,3,4" \
           train_fleet_pipeline.py
 
 控制台输出信息如下：

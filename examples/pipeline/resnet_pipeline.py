@@ -47,7 +47,7 @@ class ResNet():
             depth = [3, 8, 36, 3]
         num_filters = [64, 128, 256, 512]
 
-        offset = 0
+        offset = 0 # used to specify the device id
         with fluid.device_guard("gpu:%d"%(offset)):
             conv = self.conv_bn_layer(
                 input=input,
