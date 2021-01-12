@@ -4,48 +4,46 @@
 简介
 ------
 分布式预测任务将预测数据均匀分布式在多台机器上，每台机器仅预测整个数据集的一部分，节点之间通过 `all_reduce` 等集合通信操作完成各自预测结果的同步，从而获取整个数据集的预测结果。
-为什么要做分布式预测，除了通过数据并行的方式节省预测时间外，另一个很重要的原因是，在某些场景，例如推荐系统或者搜索引擎中， 稀疏参数（embedding)的feature id可能会非常多，当feature id达到一定数量时，稀疏参数会变得很大以至于单机内存无法存放，从而导致无法预测。
+
+为什么要做分布式预测，除了通过数据并行的方式节省预测时间外，另一个很重要的原因是，在某些场景，例如推荐系统或者搜索引擎中， 稀疏参数（embedding）的 *feature id* 可能会非常多，当 *feature id* 达到一定数量时，稀疏参数会变得很大以至于单机内存无法存放，从而导致无法预测。
 
 原理
 ------
-分布式预测的原理基本和分布式训练一致，都将节点分为**Trianer**和**Server**两类，这两类节点在训练任务和预测任务中的分工如下：
--  **Trainer**\ ：在训练时，Trainer负责完成训练数据读取、从Server上拉取稀疏参数然后进行前向网络计算、反向梯度计算等过程，并将计算出的梯度上传至Server。在预测时，Trainer负责完成预测数据读取、从Server上拉取稀疏参数然后进行前向计算。且所有Trainer间可进行通信，从而获取全局的预测结果。
--  **Server**\ ：在训练时，Server在收到训练Trainer传来的梯度后，会根据指定的优化器完成更新参数，并将参数发送给训练Trainer。在预测时，Server仅作为稀疏参数存储器，响应预测Trainer拉取稀疏参数的请求。
+分布式预测的原理基本和分布式训练一致，都将节点分为 **Trianer** 和 **Server** 两类，这两类节点在训练任务和预测任务中的分工如下：
+
+    - **Trainer**\ ：在训练时，Trainer负责完成训练数据读取、从Server上拉取稀疏参数然后进行前向网络计算、反向梯度计算等过程，并将计算出的梯度上传至Server。在预测时，Trainer负责完成预测数据读取、从Server上拉取稀疏参数然后进行前向计算。所有Trainer间可进行集合通信，从而获取全局的预测结果。
+    - **Server**\ ：在训练时，Server在收到训练Trainer传来的梯度后，会根据指定的优化器完成更新参数，并将参数发送给训练Trainer。在预测时，Server仅作为稀疏参数存储器，响应预测Trainer拉取稀疏参数的请求。
 
 分布式预测任务的流程主要有以下三步：
-    - 1. 自定义预测组网
-    - 2. 初始化分布式集群环境，加载模型参数。
-    - 3. 生成分布式预测组网，自定义reader，开始预测。
+   
+    1. 自定义预测组网
+    2. 初始化分布式集群环境，加载模型参数。
+    3. 生成分布式预测组网，自定义reader，开始预测。
 
 分布式预测功能主要通过 `DistributedInfer` 工具类完成，下面对相关API的功能和参数进行介绍。
 
-DistributedInfer API文档
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-- _init__(self, main_program=None, startup_program=None)
+.. py:class:: paddle.distributed.fleet.utils.ps_util.DistributedInfer(main_program=None, startup_program=None)
 
     PaddlePaddle的分布式预测工具类。
 
     **参数：**
-        - main_program(paddle.static.Program | None)，单机预测组网，若为None，则认为 `paddle.static.default_main_program()` 为单机预测组网。默认为None。
-        - startup_program(paddle.static.Program | None)，单机预测初始化组网，若为None，则认为 `paddle.static.default_startup_program()` 为单机预测初始化组网。默认为None。
+        - main_program(paddle.static.Program, optional)，单机预测组网，若为None，则认为 `paddle.static.default_main_program()` 为单机预测组网。默认为None。
+        - startup_program(paddle.static.Program, optional)，单机预测初始化组网，若为None，则认为 `paddle.static.default_startup_program()` 为单机预测初始化组网。默认为None。
     
-- init_distributed_env(self, exe, loss, role_maker=None, dirname=None)
+.. py:method:: init_distributed_infer_env(exe, loss, role_maker=None, dirname=None)
 
-    初始化分布式集群环境，加载模型参数。需要注意，该接口仅在只有分布式预测的任务中才需要调用，分布式训练后直接进行预测的任务，此接口调用无效。
+    初始化分布式集群环境，加载模型参数。需要注意，该接口仅在纯分布式预测的任务中才需要被调用，在先训练后预测的分布式一体任务里，此接口无需调用，且不会生效。
 
     **参数：**
         - exe, (paddle.static.Executor, required)，初始化分布式集群环境时需要用到的网络执行器。
-        - loss, (Tensor, required), 预测网络 `loss` 变量。
-        - role_maker, (RoleMakerBase, optional), 分布式训练（预测）环境配置，若为None，则框架会自动根据用户在环境变量中的配置进行分布式训练（预测）环境的初始化。默认为None。
-        - dirname, (String, optional), 参数路径。若为None，则不加载参数。默认为None。
+        - loss, (Tensor, required)， 预测网络 `loss` 变量。
+        - role_maker, (RoleMakerBase, optional)， 分布式训练（预测）任务环境配置，若为None，则框架会自动根据用户在环境变量中的配置进行分布式训练（预测）环境的初始化。默认为None。
+        - dirname, (String, optional)， 参数路径。若为None，则不加载参数。默认为None。
 
-- get_dist_infer_program(self):
+.. py:method:: get_dist_infer_program():
 
-    生成分布式预测组网，相较于单机预测组网，两者区别仅在于：将稀疏参数查询操作替换为分布式稀疏参数查询操作，即将 `lookup_table` 算子替换为 `distributed_lookup_tabel`。
+    生成分布式预测组网。相较于单机预测组网，两者区别仅在于：将稀疏参数查询操作替换为分布式稀疏参数查询操作，即将 `lookup_table` 算子替换为 `distributed_lookup_table` 。
 
-    **参数：**
-        无
     **返回：**
         Program，分布式预测组网。
 
@@ -53,8 +51,9 @@ DistributedInfer API文档
 --------
 
 分布式预测常见的应用场景有以下两种，分布式训练+预测一体任务，及独立的分布式预测任务，两种任务的特点分别为：
-    - **分布式训练 + 预测一体任务**：指分布式训练结束后，Trainer节点不向Server发送任务结束通知，而是继续开始预测。可以发现，这类任务在进行预测时，分布式集群环境已经初始化好，且不需要进行参数加载。
-    - **分布式预测任务**：指只有预测的分布式任务。这类任务在进行预测时，分布式集群环境还未初始化好，需要进行参数加载。
+    
+    - **分布式训练 + 预测一体任务**：指分布式训练结束后，Trainer节点不向Server发送任务结束通知，而是继续开始预测。这类任务在进行预测时，分布式集群环境已经初始化好，且不需要进行参数加载。
+    - **分布式预测任务**：指纯预测的分布式任务。这类任务在进行预测时，分布式集群环境还未初始化好，且往往需要进行参数加载。
 
 下面分别介绍对这两种分布式预测任务的使用方法：
 

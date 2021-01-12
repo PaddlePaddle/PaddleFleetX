@@ -8,7 +8,7 @@
 原理
 ------
 
-分布式指标计算一般包含三步，下面我们以分布式准确率为例介绍整个过程。
+分布式指标的计算一般包含三步，下面我们以分布式准确率为例介绍整个过程。
 
 1. 初始化分布式训练环境
 
@@ -42,8 +42,8 @@
     .. code:: python
         
         global_cnt = fleet.metrics.sum(total_cnt)
-        global_correct = fleet.metrics.accuracy(corrent_cnt, total_cnt)
-        global_accuracy = global_correct / global_cnt
+        global_correct = fleet.metrics.sum(corrent_cnt)
+        global_accuracy = float(global_correct[0]) / float(global_cnt[0])
 
 
 使用方法
@@ -55,14 +55,14 @@
 
 .. py:function:: paddle.distributed.fleet.metrics.auc(stat_pos, stat_neg, scope=None, util=None)
 
-[AUC](https://en.wikipedia.org/wiki/Receiver_operating_characteristic#Area_under_the_curve)是一个二分类任务中常用的效果评价指标，指ROC曲线和横坐标轴之间的面积，该值介于0～1之间，越大代表分类器效果越好。
+分布式AUC（Area Under the Curve）。`AUC <https://en.wikipedia.org/wiki/Receiver_operating_characteristic#Area_under_the_curve>`_ 是一个二分类任务中常用的效果评价指标，指ROC曲线和横坐标轴之间的面积，该值介于0～1之间，越大代表分类器效果越好。
 
 **参数：**
 
     - stat_pos, (numpy.array|Tensor|string, required): 单机正样例中间统计结果，即单机 `paddle.metrics.auc` 的 `stat_pos` 输出。
     - stat_neg, (numpy.array|Tensor|string, required): 单机负样例中间统计结果，即单机 `paddle.metrics.auc` 的 `stat_neg` 输出。
     - scope, (Scope, optional)，作用域，若为None，则使用全局/默认作用域，默认为None。
-    - util, (UtilBase, optinal)，分布式训练工具类，若为None，则使用默认工具类 `fleet.util`， 默认作用域，默认为None。
+    - util, (UtilBase, optinal)，分布式训练工具类，若为None，则使用默认工具类 `fleet.util`， 默认为None。
 
 **用法示例：**
 
@@ -84,12 +84,13 @@
 
 .. py:function:: paddle.distributed.fleet.metrics.acc(correct, total, scope=None, util=None)
     
-分布式准确率。准确率（Accuracy)是分类任务中常用的一个效果评价指标。通过比对预测标签和实际标签是否一致，从而计算模型的分类效果，公式如下：
+分布式准确率。准确率（Accuracy）是分类任务中常用的一个效果评价指标。通过比对预测标签和实际标签是否一致，从而计算模型的分类效果，公式如下：
     
     .. math::
-        accuarcy &= \frac{right\_cnt}{total\_cnt}
 
-其中，`right_cnt` 是预测标签等于真实标签的样本总数，`total_cnt` 是全部样本总数。
+        accuarcy &= \frac{correct}{total}
+
+其中，`correct` 是预测标签等于真实标签的样本总数，`total` 是全部样本总数。
 
 
 **参数：**
@@ -97,7 +98,7 @@
     - correct, (numpy.array|Tensor|string, required): 单机预测标签等于真实标签的样本总数。
     - total, (numpy.array|Tensor|string, required): 单机样本总数。
     - scope, (Scope, optional)，作用域，若为None，则使用全局/默认作用域，默认为None。
-    - util, (UtilBase, optinal)，分布式训练工具类，若为None，则使用默认工具类 `fleet.util`， 默认作用域，默认为None。
+    - util, (UtilBase, optinal)，分布式训练工具类，若为None，则使用默认工具类 `fleet.util`， 默认为None。
 
 **用法示例：**
 
@@ -125,24 +126,24 @@
 分布式MAE
 ~~~~~~~~~~~~~~
 
-.. py:function:: paddle.distributed.fleet.metrics.mae(abserr, ins_num, scope=None, util=None)
+.. py:function:: paddle.distributed.fleet.metrics.mae(abserr, total_ins_num, scope=None, util=None)
 
-平均绝对误差(Mean Absolute Error)。平均绝对误差是绝对误差的平均值，一般用于计算 `loss` 损失值。
+分布式平均绝对误差(Mean Absolute Error)。平均绝对误差是绝对误差的平均值，一般用于计算 `loss` 损失值。
     
     .. math::
 
         abserr &= \sum |input - label|
 
-        mae &= \frac{abserr}{ins\_num}
+        mae &= \frac{abserr}{total\_ins\_num}
 
-其中，`input` 是样本预测结果， `label` 是样本真实标签，`ins_num` 是样本总数，`abserr` 为绝对误差和。
+其中，`input` 是样本预测结果， `label` 是样本真实标签，`abserr` 为绝对误差和，`total_ins_num` 是样本总数。
 
-**参数： **
+**参数：**
 
     - abserr, (numpy.array|Tensor|string, required): 单机绝对误差和统计值。
-    - ins_num, (numpy.array|Tensor|string, required): 单机样本总数。
+    - total_ins_num, (numpy.array|Tensor|string, required): 单机样本总数。
     - scope, (Scope, optional)，作用域，若为None，则使用全局/默认作用域，默认为None。
-    - util, (UtilBase, optinal)，分布式训练工具类，若为None，则使用默认工具类 `fleet.util`， 默认作用域，默认为None。
+    - util, (UtilBase, optinal)，分布式训练工具类，若为None，则使用默认工具类 `fleet.util`， 默认为None。
 
 
 **用法示例：**
@@ -172,22 +173,22 @@
 
 .. py:function:: paddle.distributed.fleet.metrics.mse(sqrerr, ins_num, scope=None, util=None)
 
-均方误差(Mean Squared Error)。一般用于计算 `loss` 损失值。
+分布式均方误差(Mean Squared Error)。均方误差是误差平方和的平均值，一般用于计算 `loss` 损失值。
     
     .. math::
 
         sqrerr &= \sum (input - label)^2
         
-        mse &= \frac{sqrerr}{ins\_num}
+        mse &= \frac{sqrerr}{total\_ins\_num}
 
-其中，`input` 是样本预测结果， `label` 是样本真实标签，`ins_num` 是样本总数， `sqrerr` 为平方误差和，
+其中，`input` 是样本预测结果， `label` 是样本真实标签，`sqrerr` 为平方误差和，`total_ins_num` 是样本总数。
 
 **参数：**
 
     - sqrerr, (numpy.array|Tensor|string, required): 单机平方误差和统计值。
-    - ins_num, (numpy.array|Tensor|string, required): 单机样本总数。
+    - total_ins_num, (numpy.array|Tensor|string, required): 单机样本总数。
     - scope, (Scope, optional)，作用域，若为None，则使用全局/默认作用域，默认为None。
-    - util, (UtilBase, optinal)，分布式训练工具类，若为None，则使用默认工具类 `fleet.util`， 默认作用域，默认为None。
+    - util, (UtilBase, optinal)，分布式训练工具类，若为None，则使用默认工具类 `fleet.util`， 默认为None。
 
 **用法示例：**
 
@@ -215,22 +216,22 @@
 
 .. py:function:: paddle.distributed.fleet.metrics.rmse(sqrerr, total_ins_num, scope=None, util=None)
 
-RMSE，均方根误差(Root Mean Squared Error)，是均方误差的算术平方根，亦称标准误差，一般用于计算 `loss` 损失值。
+分布式均方根误差（Root Mean Squared Error)。均方根误差是均方误差的算术平方根，亦称标准误差，一般用于计算 `loss` 损失值。
     
     .. math::
 
         sqrerr &= \sum (input - label)^2
         
-        rmse &= \sqrt{\frac{sqrerr}{ins\_num}}
+        rmse &= \sqrt{\frac{sqrerr}{total\_ins\_num}}
 
-其中，`input` 是样本预测结果， `label` 是样本真实标签，`ins_num` 是样本总数， `sqrerr` 为平方误差和，
+其中，`input` 是样本预测结果， `label` 是样本真实标签，`sqrerr` 为平方误差和，`total_ins_num` 是样本总数。
 
 **参数：**
 
     - sqrerr, (numpy.array|Tensor|string, required): 单机平方误差和统计值。
-    - ins_num, (numpy.array|Tensor|string, required): 单机样本总数。
+    - total_ins_num, (numpy.array|Tensor|string, required): 单机样本总数。
     - scope, (Scope, optional)，作用域，若为None，则使用全局/默认作用域，默认为None。
-    - util, (UtilBase, optinal)，分布式训练工具类，若为None，则使用默认工具类 `fleet.util`， 默认作用域，默认为None。
+    - util, (UtilBase, optinal)，分布式训练工具类，若为None，则使用默认工具类 `fleet.util`， 默认为None。
 
 
 **用法示例：**
@@ -313,7 +314,7 @@ RMSE，均方根误差(Root Mean Squared Error)，是均方误差的算术平方
 
     - input, (numpy.array|Tensor|string, required)，需要分布式求最大值的输入参数。
     - scope, (Scope, optional)，作用域，若为None，则使用全局/默认作用域，默认为None。
-    - util, (UtilBase, optinal)，分布式训练工具类，若为None，则使用默认工具类 `fleet.util`， 默认作用域，默认为None。
+    - util, (UtilBase, optinal)，分布式训练工具类，若为None，则使用默认工具类 `fleet.util`， 默认为None。
 
 **用法示例：**
 
