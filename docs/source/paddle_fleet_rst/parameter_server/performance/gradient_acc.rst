@@ -18,7 +18,7 @@
 原理
 ----------
 
-.. image:: ../../../img/merge.png
+.. image:: ../../../_images/ps/merge.png
   :width: 600
   :alt: 梯度融合及发送流程
   :align: center

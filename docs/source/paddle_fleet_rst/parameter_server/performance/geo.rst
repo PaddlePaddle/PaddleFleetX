@@ -11,9 +11,9 @@
 原理
 ----
 
-.. image:: ../paddle_fleet/img/geosgd.png
+.. image:: ../../../_images/ps/geosgd.png
   :width: 600
-  :alt: heter_overview
+  :alt: geosgd
   :align: center
 
 在GeoSGD更新策略中，Trainer的参数更新也是在全异步的条件下进行的。但与异步参数服务器有以下不同：
