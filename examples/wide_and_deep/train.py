@@ -1,55 +1,72 @@
-
-from __future__ import print_function
-
-import os
-import unittest
-import time
-import threading
-import numpy
+from model import WideDeepModel
+from reader import WideDeepDataset
 
 import paddle
 paddle.enable_static()
-
-import paddle.fluid as fluid
+import numpy as np
 import paddle.distributed.fleet as fleet
+from paddle.distributed.fleet.utils.ps_util import DistributedInfer
 
+def train_loop(exe, train_model, train_data_path="./data", batch_size=10, epoch_num=1):
+    train_data = WideDeepDataset(data_path=train_data_path)
+    reader = train_model.loader.set_sample_generator(train_data, batch_size=batch_size, drop_last=True, places=paddle.CPUPlace())
+    
+    for epoch_id in range(epoch_num):
+        reader.start()
+        try:
+            while True:
+                loss_val = exe.run(program=paddle.static.default_main_program(),
+                                   fetch_list=[train_model.cost.name])
+                loss_val = np.mean(loss_val)
+                print("TRAIN ---> pass: {} loss: {}\n".format(epoch_id, loss_val))
+        except paddle.common_ops_import.core.EOFException:
+            reader.reset()
 
-from model import net
-from reader import data_reader
+def test_loop(exe, test_model, test_data_path="./data", batch_size=10):
+    train_data = WideDeepDataset(data_path=test_data_path)
+    reader = test_model.loader.set_sample_generator(train_data, batch_size=batch_size, drop_last=True, places=paddle.CPUPlace())
+    
+    reader.start()
+    try:
+        while True:
+            loss_val = exe.run(program=paddle.static.default_main_program(),
+                                fetch_list=[test_model.cost.name])
+            loss_val = np.mean(loss_val)
+            print("TEST ---> loss: {}\n".format(loss_val))
+    except paddle.common_ops_import.core.EOFException:
+        reader.reset()
 
+fleet.init(is_collective=False)
 
-fleet.init(role)
-feeds, predict, avg_cost = net()
+model = WideDeepModel()
+model.net(is_train=True)
 
-optimizer = fluid.optimizer.SGD(0.01)
-strategy = paddle.distributed.fleet.DistributedStrategy()
+optimizer = paddle.optimizer.SGD(learning_rate=0.0001)
+strategy = fleet.DistributedStrategy()
 strategy.a_sync = True
-
 optimizer = fleet.distributed_optimizer(optimizer, strategy)
-optimizer.minimize(avg_cost)
+optimizer.minimize(model.cost)
 
 if fleet.is_server():
     fleet.init_server()
     fleet.run_server()
 
 if fleet.is_worker():
-    exe = fluid.Executor(fluid.CPUPlace())
-    exe.run(fluid.default_startup_program())
+    place = paddle.CPUPlace()
+    exe = paddle.static.Executor(place)
+    exe.run(paddle.static.default_startup_program())
     fleet.init_worker()
 
-    train_reader = paddle.batch(fake_ctr_reader(), batch_size=4)
-    reader.decorate_sample_list_generator(train_reader)
-
-    for epoch_id in range(1):
-        reader.start()
-        try:
-            while True:
-                loss_val = exe.run(program=fluid.default_main_program(),
-                                   fetch_list=[avg_cost.name])
-                loss_val = np.mean(loss_val)
-                print("TRAIN ---> pass: {} loss: {}\n".format(epoch_id,
-                                                              loss_val))
-        except fluid.core.EOFException:
-            reader.reset()
+    train_loop(exe, model)
+    
+    test_origin_program = paddle.static.Program()
+    test_startup_program = paddle.static.Program()
+    with paddle.static.program_guard(main_program=test_origin_program, startup_program=test_startup_program):
+        with paddle.utils.unique_name.guard():
+            model.net(is_train=False)
+    
+    dist_infer = DistributedInfer(main_program=test_origin_program, startup_program=test_startup_program)
+    with paddle.static.program_guard(main_program=dist_infer.get_dist_infer_program()):
+        test_loop(exe, model)
 
     fleet.stop_worker()
