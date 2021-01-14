@@ -340,7 +340,7 @@
         min_loss = fleet.metrics.min(loss_val)
 
 使用方法
-~~~~~~~~~~~~
+--------------
 
 完整运行示例见 `examples/wide_and_deep`。
 
