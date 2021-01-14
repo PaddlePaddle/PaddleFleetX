@@ -22,20 +22,21 @@
     .. code:: python
         
         ...
-        predict, label = model()
+        pred, label = model()
 
         # 1. 定义中间状态统计值，样本总数和正确分类的样本数
-        correct_cnt = fluid.layers.create_global_var(name="right_cnt", persistable=True, dtype='float32', shape=[1], value=0)
-        total_cnt = fluid.layers.create_global_var(name="total_cnt", persistable=True, dtype='float32', shape=[1], value=0)
+        correct_cnt = paddle.static.create_global_var(name="right_cnt", persistable=True, dtype='float32', shape=[1], value=0)
+        total_cnt = paddle.static.create_global_var(name="total_cnt", persistable=True, dtype='float32', shape=[1], value=0)
         
         # 2. 训练节点自己的状态统计
-        batch_cnt = paddle.reduce_sum(
+        batch_cnt = paddle.sum(
             paddle.full(shape=[paddle.shape(label)[0], 1], fill_value=1.0))
-        batch_accuracy = paddle.metric.accuracy(input=predict, label=label)
+        batch_accuracy = paddle.static.accuracy(input=pred, label=label)
         batch_correct = batch_cnt * batch_accuracy
-
-        total_cnt = total_cnt + batch_cnt
-        correct_cnt = correct_cnt + batch_correct
+        
+        paddle.assign(correct_cnt + batch_correct, correct_cnt)
+        paddle.assign(total_cnt + batch_cnt, total_cnt)
+        accuracy = correct_cnt / total_cnt
 
 3. 所有训练节点间进行 `all_reduce` 操作，获取全局统计值，然后根据指标计算公式，计算全局指标。
 
@@ -43,10 +44,10 @@
         
         global_cnt = fleet.metrics.sum(total_cnt)
         global_correct = fleet.metrics.sum(corrent_cnt)
-        global_accuracy = float(global_correct[0]) / float(global_cnt[0])
+        global_accuracy = float(global_correct) / float(global_cnt)
 
 
-使用方法
+分布式指标
 -------------------
 为方便使用，Paddle在 `paddle.distributed.metrics` 下将常见的一些指标计算进行了封装，下面对这些API的功能及参数进行说明，并提供用法示例。
 
@@ -69,11 +70,11 @@
     .. code:: python
         
         ...
-        predict, label = model()
+        pred, label = model()
 
         # 1. 单机组网阶段，计算正负样例中间统计结果。
-        auc, batch_auc, [stat_pos, stat_neg, batch_stat_pos, batch_stat_neg] = \
-            paddle.metrics.auc(input=predict, label=label)
+        auc, batch_auc, [batch_stat_pos, batch_stat_neg, stat_pos, stat_neg] = \
+            paddle.static.auc(input=pred, label=label)
 
         # 2. 分布式训练阶段，计算全局AUC。
         global_auc = fleet.metrics.auc(stat_pos, stat_neg)
@@ -85,10 +86,10 @@
 .. py:function:: paddle.distributed.fleet.metrics.acc(correct, total, scope=None, util=None)
     
 分布式准确率。准确率（Accuracy）是分类任务中常用的一个效果评价指标。通过比对预测标签和实际标签是否一致，从而计算模型的分类效果，公式如下：
-    
+
     .. math::
 
-        accuarcy &= \frac{correct}{total}
+        accuracy &= \frac{correct}{total}
 
 其中，`correct` 是预测标签等于真实标签的样本总数，`total` 是全部样本总数。
 
@@ -105,22 +106,23 @@
     .. code:: python
         
         ...
-        predict, label = model()
+        pred, label = model()
 
         # 1. 单机组网阶段，计算样本总数和预测正确的样本数
-        correct_cnt = fluid.layers.create_global_var(name="right_cnt", persistable=True, dtype='float32', shape=[1], value=0)
-        total_cnt = fluid.layers.create_global_var(name="total_cnt", persistable=True, dtype='float32', shape=[1], value=0)
+        correct_cnt = paddle.static.create_global_var(name="right_cnt", persistable=True, dtype='float32', shape=[1], value=0)
+        total_cnt = paddle.static.create_global_var(name="total_cnt", persistable=True, dtype='float32', shape=[1], value=0)
         
-        batch_cnt = paddle.reduce_sum(
+        batch_cnt = paddle.sum(
             paddle.full(shape=[paddle.shape(label)[0], 1], fill_value=1.0))
-        batch_accuracy = paddle.metrics.accuracy(input=predict, label=label)
+        batch_accuracy = paddle.static.accuracy(input=pred, label=label)
         batch_correct = batch_cnt * batch_accuracy
-
-        correct_cnt = correct_cnt + batch_correct
-        total_cnt = total_cnt + batch_cnt
+        
+        paddle.assign(correct_cnt + batch_correct, correct_cnt)
+        paddle.assign(total_cnt + batch_cnt, total_cnt)
+        accuracy = correct_cnt / total_cnt
 
         # 2. 分布式训练阶段，计算全局准确率。
-        global_accuracy = fleet.metrics.accuarcy(correct_cnt, total_cnt) 
+        global_accuracy = fleet.metrics.acc(correct_cnt, total_cnt) 
 
 
 分布式MAE
@@ -151,18 +153,19 @@
     .. code:: python
         
         ...
-        predict, label = model()
+        pred, label = model()
 
         # 1. 单机组网阶段，计算绝对误差和样本总数
-        abserr = fluid.layers.create_global_var(name="abserr", persistable=True, dtype='float32', shape=[1], value=0)
-        total_cnt = fluid.layers.create_global_var(name="total_cnt", persistable=True, dtype='float32', shape=[1], value=0)
+        abserr = paddle.static.create_global_var(name="abserr", persistable=True, dtype='float32', shape=[1], value=0)
+        total_cnt = paddle.static.create_global_var(name="total_cnt", persistable=True, dtype='float32', shape=[1], value=0)
         
-        batch_cnt = paddle.reduce_sum(
+        batch_cnt = paddle.sum(
             paddle.full(shape=[paddle.shape(label)[0], 1], fill_value=1.0))
-        batch_abserr = paddle.nn.functional.l1_loss(input, label, reduction='sum')
-
-        total_cnt = total_cnt + batch_cnt
-        abserr = abserr + batch_abserr
+        batch_abserr = paddle.nn.functional.l1_loss(pred, label, reduction='sum')
+        
+        paddle.assign(abserr + batch_abserr, abserr)
+        paddle.assign(total_cnt + batch_cnt, total_cnt)
+        mae = abserr / total_cnt
 
         # 2. 分布式训练阶段，计算全局准确率。
         global_mae = fleet.metrics.mae(abserr, total_cnt) 
@@ -192,24 +195,25 @@
 
 **用法示例：**
 
-.. code:: python
-    
-    ...
-    predict, label = model()
+    .. code:: python
+        
+        ...
+        pred, label = model()
 
-    # 1. 单机组网阶段，计算平方误差和样本总数
-    sqrerr = fluid.layers.create_global_var(name="sqrerr", persistable=True, dtype='float32', shape=[1], value=0)
-    total_cnt = fluid.layers.create_global_var(name="total_cnt", persistable=True, dtype='float32', shape=[1], value=0)
-    
-    batch_cnt = paddle.reduce_sum(
-        paddle.full(shape=[paddle.shape(label)[0], 1], fill_value=1.0))
-    batch_sqrerr = paddle.nn.functional.mse_loss(input, label, reduction='sum')
+        # 1. 单机组网阶段，计算平方误差和样本总数
+        sqrerr = paddle.static.create_global_var(name="sqrerr", persistable=True, dtype='float32', shape=[1], value=0)
+        total_cnt = paddle.static.create_global_var(name="total_cnt", persistable=True, dtype='float32', shape=[1], value=0)
+        
+        batch_cnt = paddle.sum(
+            paddle.full(shape=[paddle.shape(label)[0], 1], fill_value=1.0))
+        batch_sqrerr = paddle.nn.functional.mse_loss(pred, label, reduction='sum')
+        
+        paddle.assign(sqrerr + batch_sqrerr, sqrerr)
+        paddle.assign(total_cnt + batch_cnt, total_cnt)
+        mse =  sqrerr / total_cnt
 
-    total_cnt = total_cnt + batch_cnt
-    sqrerr = sqrerr + batch_sqrerr
-
-    # 2. 分布式训练阶段，计算全局准确率。
-    global_mse = fleet.metrics.mse(sqrerr, total_cnt) 
+        # 2. 分布式训练阶段，计算全局准确率。
+        global_mse = fleet.metrics.mse(sqrerr, total_cnt) 
 
 分布式RMSE
 ~~~~~~~~~~~~~~
@@ -239,18 +243,20 @@
     .. code:: python
         
         ...
-        predict, label = model()
+        pred, label = model()
 
         # 1. 单机组网阶段，计算平方误差和样本总数
-        sqrerr = fluid.layers.create_global_var(name="sqrerr", persistable=True, dtype='float32', shape=[1], value=0)
-        total_cnt = fluid.layers.create_global_var(name="total_cnt", persistable=True, dtype='float32', shape=[1], value=0)
+        sqrerr = paddle.static.create_global_var(name="sqrerr", persistable=True, dtype='float32', shape=[1], value=0)
+        total_cnt = paddle.static.create_global_var(name="total_cnt", persistable=True, dtype='float32', shape=[1], value=0)
         
-        batch_cnt = paddle.reduce_sum(
+        batch_cnt = paddle.sum(
             paddle.full(shape=[paddle.shape(label)[0], 1], fill_value=1.0))
-        batch_sqrerr = paddle.nn.functional.mse_loss(input, label, reduction='sum')
-
-        total_cnt = total_cnt + batch_cnt
-        sqrerr = sqrerr + batch_sqrerr
+        batch_sqrerr = paddle.nn.functional.mse_loss(pred, label, reduction='sum')
+        
+        paddle.assign(sqrerr + batch_sqrerr, sqrerr)
+        paddle.assign(total_cnt + batch_cnt, total_cnt)
+        mse =  sqrerr / total_cnt
+        rmse = paddle.sqrt(mse)
 
         # 2. 分布式训练阶段，计算全局准确率。
         global_rmse = fleet.metrics.rmse(sqrerr, total_cnt) 
@@ -277,7 +283,9 @@
         loss = model()
 
         # 2. 分布式训练阶段，计算全局Loss和
-        total_loss = fleet.metrics.sum(loss) 
+        loss_val, = exe.run(paddle.static.default_main_program(),
+                            fetch_list=[loss.name])
+        loss_sum = fleet.metrics.sum(loss_val) 
 
 分布式Max
 ~~~~~~~~~~~~~~
@@ -301,7 +309,9 @@
         loss = model()
 
         # 2. 分布式训练阶段，计算全局最大Loss
-        total_loss = fleet.metrics.max(loss)
+        loss_val, = exe.run(paddle.static.default_main_program(),
+                            fetch_list=[loss.name])
+        max_loss = paddle.metrics.max(loss_val)
 
 分布式Min
 ~~~~~~~~~~~~~~
@@ -321,8 +331,21 @@
     .. code:: python
         
         ...
-        # 1. 单机组网阶段，计算Loss
+        # 1. 单机组网阶段
         loss = model()
 
         # 2. 分布式训练阶段，计算全局最小Loss
-        total_loss = fleet.metrics.min(loss)
+        loss_val, = exe.run(paddle.static.default_main_program(),
+                            fetch_list=[loss.name])
+        min_loss = fleet.metrics.min(loss_val)
+
+使用方法
+~~~~~~~~~~~~
+
+完整运行示例见 `examples/wide_and_deep`。
+
+通过\ ``fleetrun``\ 指令运行分布式任务。命令示例如下，其中\ ``server_num``, ``worker_num``\ 分别为服务节点和训练节点的数量。
+
+.. code:: sh
+
+   fleetrun --server_num=2 --worker_num=2 train.py

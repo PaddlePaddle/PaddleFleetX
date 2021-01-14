@@ -29,23 +29,25 @@
     **参数：**
         - main_program(paddle.static.Program, optional)，单机预测组网，若为None，则认为 `paddle.static.default_main_program()` 为单机预测组网。默认为None。
         - startup_program(paddle.static.Program, optional)，单机预测初始化组网，若为None，则认为 `paddle.static.default_startup_program()` 为单机预测初始化组网。默认为None。
-    
-.. py:method:: init_distributed_infer_env(exe, loss, role_maker=None, dirname=None)
 
-    初始化分布式集群环境，加载模型参数。需要注意，该接口仅在纯分布式预测的任务中才需要被调用，在先训练后预测的分布式一体任务里，此接口无需调用，且不会生效。
+    **方法：**
 
-    **参数：**
-        - exe, (paddle.static.Executor, required)，初始化分布式集群环境时需要用到的网络执行器。
-        - loss, (Tensor, required)， 预测网络 `loss` 变量。
-        - role_maker, (RoleMakerBase, optional)， 分布式训练（预测）任务环境配置，若为None，则框架会自动根据用户在环境变量中的配置进行分布式训练（预测）环境的初始化。默认为None。
-        - dirname, (String, optional)， 参数路径。若为None，则不加载参数。默认为None。
+    .. py:method:: init_distributed_infer_env(exe, loss, role_maker=None, dirname=None)
 
-.. py:method:: get_dist_infer_program():
+        初始化分布式集群环境，加载模型参数。需要注意，该接口仅在纯分布式预测的任务中才需要被调用，在先训练后预测的分布式一体任务里，此接口无需调用，且不会生效。
 
-    生成分布式预测组网。相较于单机预测组网，两者区别仅在于：将稀疏参数查询操作替换为分布式稀疏参数查询操作，即将 `lookup_table` 算子替换为 `distributed_lookup_table` 。
+        **参数：**
+            - exe, (paddle.static.Executor, required)，初始化分布式集群环境时需要用到的网络执行器。
+            - loss, (Tensor, required)， 预测网络 `loss` 变量。
+            - role_maker, (RoleMakerBase, optional)， 分布式训练（预测）任务环境配置，若为None，则框架会自动根据用户在环境变量中的配置进行分布式训练（预测）环境的初始化。默认为None。
+            - dirname, (String, optional)， 参数路径。若为None，则不加载参数。默认为None。
 
-    **返回：**
-        Program，分布式预测组网。
+    .. py:method:: get_dist_infer_program():
+
+        生成分布式预测组网。相较于单机预测组网，两者区别仅在于：将稀疏参数查询操作替换为分布式稀疏参数查询操作，即将 `lookup_table` 算子替换为 `distributed_lookup_table` 。
+
+        **返回：**
+            Program，分布式预测组网。
 
 使用方法
 --------
@@ -63,6 +65,8 @@
 .. code:: python
 
     ...
+    model = WideDeepModel()
+    model.net(is_train=True)
 
     if fleet.is_server():
         fleet.init_server()
@@ -72,28 +76,28 @@
         fleet.init_worker()
 
         # 分布式训练
-        do_distributed_training()
+        distributed_training(exe, model)
 
         # 1. 生成单机预测组网
         test_main_program = paddle.static.Program()
         test_startup_program = paddle.static.Program()
         with paddle.static.program_guard(main_program=test_main_program, startup_program=test_startup_program):
             with paddle.utils.unique_name.guard():
-                test_loss = model.net(is_train=False)
+                model.net(is_train=False)
         
         # 2. 生成分布式预测组网，定义reader，进行预测
         dist_infer = DistributedInfer(main_program=test_main_program, startup_program=test_startup_program)
         dist_infer_program = dist_infer.get_dist_infer_program()
         
-        test_reader = paddle.batch(fake_ctr_reader(), batch_size=batch_size)
-        reader.decorate_sample_list_generator(test_reader)
-
+        test_data = WideDeepDataset(data_path="./data")
+        reader = model.loader.set_sample_generator(test_data, batch_size=batch_size, drop_last=True, places=place)
+        
         reader.start()
         batch_idx = 0
         try:
             while True:
                 loss_val = exe.run(program=dist_infer_program,
-                                    fetch_list=[loss.name])
+                                    fetch_list=[model.cost.name])
                 if batch_idx % 10 == 0:
                     loss_val = np.mean(loss_val)
                     message = "TEST ---> batch_idx: {} loss: {}\n".format(batch_idx, loss_val)  
@@ -110,29 +114,28 @@
     ...
 
     # 1. 定义单机预测组网
-    loss = model.net(is_train=False)
+    model = WideDeepModel()
+    model.net(is_train=False)
 
     # 2. 初始化分布式预测环境，加载模型参数
-    from paddle.distributed.fleet.utils.ps_util import DistributedInfer
-
     dist_infer = DistributedInfer(main_program=test_main_program, startup_program=test_startup_program)
     exe = paddle.static.Executor()
     dirname = "./init_params/"
-    dist_infer.init_distributed_infer_env(exe, loss, dirname=dirname)
+    dist_infer.init_distributed_infer_env(exe, model.cost, dirname=dirname)
    
     # 3.生成分布式预测组网，定义reader，进行预测
     if fleet.is_worker():
         dist_infer_program = dist_infer.get_dist_infer_program()
         
-        test_reader = paddle.batch(fake_ctr_reader(), batch_size=batch_size)
-        reader.decorate_sample_list_generator(test_reader)
-
+        test_data = WideDeepDataset(data_path="./data")
+        reader = model.loader.set_sample_generator(test_data, batch_size=batch_size, drop_last=True, places=place)
+        
         reader.start()
         batch_idx = 0
         try:
             while True:
                 loss_val = exe.run(program=dist_infer_program,
-                                    fetch_list=[loss.name])
+                                    fetch_list=[model.cost.name])
                 if batch_idx % 10 == 0:
                     loss_val = np.mean(loss_val)
                     message = "TEST ---> batch_idx: {} loss: {}\n".format(batch_idx, loss_val)
@@ -141,3 +144,14 @@
             reader.reset()
         
         fleet.stop_worker()
+
+运行方法
+~~~~~~~~~~~~
+
+完整运行示例见 `examples/wide_and_deep`。该示例为分布式训练 + 预测一体任务。
+
+配置完成后，通过\ ``fleetrun``\ 指令运行分布式任务。命令示例如下，其中\ ``server_num``, ``worker_num``\ 分别为服务节点和训练节点的数量。
+
+.. code:: sh
+
+   fleetrun --server_num=2 --worker_num=2 train.py
