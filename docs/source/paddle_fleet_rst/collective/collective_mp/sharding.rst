@@ -31,7 +31,7 @@ Sharding-hybrid-dp
 ^^^^^^^^^^^^^^^^^^^^
 
 sharding hybrid数据并行策略，在sharding 并行的基础上再增加一层数据并行逻辑。
-该策略的目的是通过``限制sharding 通信的节点数`` 和 ``增加多路数据并行`` 来提高训练吞吐。该策略需要成倍增加在普通sharding 训练时的所需GPU 卡数。 
+该策略的目的是通过 ``限制sharding 通信的节点数`` 和 ``增加多路数据并行`` 来提高训练吞吐。该策略需要成倍增加在普通sharding 训练时的所需GPU 卡数。 
 
 Sharding-hybrid-dp 适用的场景如下： 
 
