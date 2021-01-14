@@ -9,7 +9,6 @@
 
 .. toctree::
    :maxdepth: 1
-   :numbered:
    :caption: 分布式训练概述
    :name: summarize
 

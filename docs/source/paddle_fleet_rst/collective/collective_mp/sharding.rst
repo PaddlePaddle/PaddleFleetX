@@ -45,6 +45,7 @@ Sharding-hybrid-dp 适用的场景如下：
   * sharding 中的 allreduce 通信 会涉及全部的32 张卡，且为跨节点通信。
 
 开启 hybrid-dp 并设置 ``sharding_group_size = 8`` 后， 每个节点内的 8 张卡组成一个完整的 sharding parallelism，4 个节点构成 4路 hybrid data parallelism：
+
   * sharding 中的broadcast 通信被限制在每个节点内的 8 张GPU 之间， 没有跨节点通信。
   * sharding 中的 allreduce 为跨节点通信，但每个allreduce 通信只涉及 对应 sharding_group 上 rank 相同的 4 张GPUs， 且每张GPU仅需要 allreduce通信 1/8 的模型参数。
 

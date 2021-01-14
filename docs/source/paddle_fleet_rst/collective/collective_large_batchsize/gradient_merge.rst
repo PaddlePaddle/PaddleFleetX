@@ -26,8 +26,7 @@ Size训练效果的目的。具体来说，就是使用若干原有大小的Batc
 网络计算得到梯度。其间会有一部分显存/内存用于存放梯度，然后对每个Batch计算出的梯度进行叠加，在计算完所有Batch后，使用累加的梯度对模型进行参数更新，从而达到使用大Batch数据训练的效果。
 
 在较大的粒度上看， GM 是将训练一个step的过程由原来的 “前向 + 反向 + 更新” 改变成 “（前向 + 反向 + 梯度累加）x k + 更新”， 通过在最终更新前进行 k 次梯度的累加模拟出 Batch Size 扩大 k 倍的效果。 
-更具体细节可以参考`[MG-WFBP: Efficient Data Communication for
-Distributed Synchronous SGD Algorithms] <https://arxiv.org/abs/1811.11141>`__ 。
+更具体细节可以参考`[MG-WFBP: Efficient Data Communication for Distributed Synchronous SGD Algorithms] <https://arxiv.org/abs/1811.11141>`__ 。
 
 使用方法
 ~~~~~~~~~
