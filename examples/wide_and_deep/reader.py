@@ -8,9 +8,11 @@ hash_dim_ = 1000001
 continuous_range_ = range(1, 14)
 categorical_range_ = range(14, 40)
 
+
 class WideDeepDataset:
     def __init__(self, data_path):
-        self.file_list = [os.path.join(data_path, x) for x in os.listdir(data_path)]
+        self.file_list = [os.path.join(data_path, x)
+                          for x in os.listdir(data_path)]
 
     def line_process(self, line):
         features = line.rstrip('\n').split('\t')
