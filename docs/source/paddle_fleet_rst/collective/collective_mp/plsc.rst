@@ -114,4 +114,4 @@ PLSC支持多机分布式训练。一方面，通过多机分布式训练可以�
                train.py
 
 
-更多PLSC使用文档，请参阅`PLSC Repo <https://github.com/PaddlePaddle/PLSC>`_。
+更多PLSC使用文档，请参阅: `PLSC Repo <https://github.com/PaddlePaddle/PLSC>`_。
