@@ -113,3 +113,5 @@ PLSC支持多机分布式训练。一方面，通过多机分布式训练可以�
                --selected_gpus=0,1,2,3,4,5,6,7 \
                train.py
 
+
+更多PLSC使用文档，请参阅`PLSC Repo <https://github.com/PaddlePaddle/PLSC>`_。
