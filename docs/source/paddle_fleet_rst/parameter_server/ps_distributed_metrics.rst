@@ -60,8 +60,8 @@
 
 **参数：**
 
-    - stat_pos, (numpy.array|Tensor|string, required): 单机正样例中间统计结果，即单机 `paddle.metrics.auc` 的 `stat_pos` 输出。
-    - stat_neg, (numpy.array|Tensor|string, required): 单机负样例中间统计结果，即单机 `paddle.metrics.auc` 的 `stat_neg` 输出。
+    - stat_pos, (numpy.array|Tensor|string, required): 单机正样例中间统计结果，即单机 `paddle.static.auc` 的 `stat_pos` 输出。
+    - stat_neg, (numpy.array|Tensor|string, required): 单机负样例中间统计结果，即单机 `paddle.static.auc` 的 `stat_neg` 输出。
     - scope, (Scope, optional)，作用域，若为None，则使用全局/默认作用域，默认为None。
     - util, (UtilBase, optinal)，分布式训练工具类，若为None，则使用默认工具类 `fleet.util`， 默认为None。
 
