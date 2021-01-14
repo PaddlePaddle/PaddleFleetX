@@ -22,8 +22,7 @@
 
 -  GEO更新策略会在训练过程中启动多个进程，负责参数更新及节点通信。在Trainer与Server的整个交互过程中，主进程会保持模型的训练，由子进程负责与server进行交互，在拿到与全局参数的diff后将其更新至主进程。
 
-GEO策略通过模型训练与节点通信同步进行的方式，在保证模型效果的前提下，大大提升了训练的速度。经过在SGD优化器上的测试，GEO策略相比异步参数服务器，训练速度提高了1倍。
-
+GEO策略通过模型训练与节点通信同步进行的方式，在保证模型效果的前提下，大大提升了训练的速度。在W2V模型上测试发现，GEO策略相比异步参数服务器，训练速度提高了3倍多（60877 words/s v.s. 19652 words/s，16节点 x 16线程）。
 
 使用方法
 --------
@@ -68,13 +67,13 @@ GEO策略通过模型训练与节点通信同步进行的方式，在保证模�
 
 想要使用GEO策略，用户首先需要打开异步参数服务器开关，即设置\ ``a_sync``\ 为True。
 
-然后用户需要通过\ ``dist_strategy.a_sync_configs``\ 设置Trainer上传参数的频率，下面的代码中我们设置Trainer每训练10000个Batch后与Server进行交互。
+然后用户需要通过\ ``dist_strategy.a_sync_configs``\ 设置Trainer上传参数的频率，下面的代码中我们设置Trainer每训练400个Batch后与Server进行交互。
 
 .. code:: python
 
    dist_strategy = fleet.DistributedStrategy()
    dist_strategy.a_sync = True
-   dist_strategy.a_sync_configs = {"k_steps": 10000}
+   dist_strategy.a_sync_configs = {"k_steps": 400}
 
    optimizer = paddle.optimizer.SGD(learning_rate=0.0001)
 
