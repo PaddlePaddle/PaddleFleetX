@@ -89,7 +89,7 @@
 
     .. math::
 
-        accuracy &= \frac{correct}{total}
+        accuracy = \frac{correct}{total}
 
 其中，`correct` 是预测标签等于真实标签的样本总数，`total` 是全部样本总数。
 
