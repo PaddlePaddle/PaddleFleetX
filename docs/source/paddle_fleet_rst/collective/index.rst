@@ -3,8 +3,7 @@ Collective训练
 
 
 .. toctree::
-   :maxdepth: 2 
-   :numbered:
+   :maxdepth: 2
    :caption: Collective多卡分布式训练 
    :name: collective 
 

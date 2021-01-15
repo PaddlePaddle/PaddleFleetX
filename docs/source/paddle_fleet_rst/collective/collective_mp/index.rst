@@ -3,8 +3,7 @@
 
 
 .. toctree::
-   :maxdepth: 2 
-   :numbered:
+   :maxdepth: 1 
    :caption: 模型并行
    :name: collective_mp
 
