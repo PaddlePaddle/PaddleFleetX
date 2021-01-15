@@ -18,4 +18,4 @@ Fleet 实现了底层通过改变通信拓扑，实现分层 allreduce。用户�
     dist_strategy.use_hierarchical_allreduce = True
     dist_strategy.hierarchical_allreduce_inter_nranks = 8
 
-基于ResNet50网络的communication_topology代码：`example/resnet <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_communication_topology.py>`_。
+基于ResNet50网络的communication_topology代码：`example/resnet/train_fleet_static_communication_topology.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_communication_topology.py>`_。

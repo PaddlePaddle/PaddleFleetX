@@ -31,4 +31,4 @@ Fleet 实现了底层通过改变通信拓扑，实现分层 allreduce。用户�
             else:
                 exe.run([])
 
-基于ResNet50网络的memory_pool代码：`example/resnet <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_memory_pool.py>`_。
+基于ResNet50网络的memory_pool代码：`example/resnet/train_fleet_static_memory_pool.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_memory_pool.py>`_。

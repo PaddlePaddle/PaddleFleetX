@@ -182,7 +182,7 @@ DGC 相关策略
     }
 
 
-基于ResNet50网络的DGC代码：`example/resnet <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_dgc.py>`_。
+基于ResNet50网络的DGC代码：`example/resnet/train_fleet_static_dgc.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_dgc.py>`_。
 
 
 
@@ -326,3 +326,4 @@ SGD和自适应步长 local SGD都仅支持SGD和Momentum两种优化器。
         "begin_step": 1, 
     } 
 
+基于ResNet50网络的Local SGD代码：`example/resnet/train_fleet_static_localsgd.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_localsgd.py>`_。

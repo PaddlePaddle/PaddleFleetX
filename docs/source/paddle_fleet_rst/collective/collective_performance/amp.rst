@@ -28,6 +28,7 @@ Paddle 支持自动混合精度计算, 并实现了 ``自动维护FP32 、FP16�
 
 -  TBA
 
+
 操作实践
 ----
 
@@ -50,4 +51,4 @@ otpimizers 作为其 inner-optimizer。只需要在reset网络基础上打开相
         "custom_black_list": [],
     }
 
-基于ResNet50网络的amp代码：`example/resnet <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_amp.py>`_。
+基于ResNet50网络的amp代码：`example/resnet/train_fleet_static_amp.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_amp.py>`_。

@@ -23,4 +23,4 @@ PaddlePaddle 使用“线程池”模型调度并执行Op，Op在启动GPU计算
     exe_strategy.num_threads = 3
     strategy.execution_strategy = exe_strategy
 
-基于ResNet50网络的communication_frequency代码：`example/resnet <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_communication_frequency.py>`_。
+基于ResNet50网络的代码：`example/resnet/train_fleet_static_others.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_others.py>`_。
