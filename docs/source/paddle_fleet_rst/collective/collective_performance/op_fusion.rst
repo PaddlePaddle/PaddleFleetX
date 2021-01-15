@@ -1,5 +1,6 @@
 OP融合（计算，通信）
-------------------
+===========================
+
 
 计算融合
 ----
@@ -50,5 +51,5 @@ AllReduce 融合默认情况下会将同一layer中参数的梯度的多个AllRe
     strategy.fuse_all_reduce_ops=True
 
 
-基于ResNet50网络的融合代码：`example/resnet <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_op_fusion.py>`_。
+基于ResNet50网络的融合代码：`example/resnet/train_fleet_static_op_fusion.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_op_fusion.py>`_。
 
