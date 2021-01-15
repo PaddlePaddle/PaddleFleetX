@@ -94,7 +94,7 @@ PLSC支持多机分布式训练。一方面，通过多机分布式训练可以�
 #.
    调用Entry类的train方法，开始训练过程。
 
-默认情况下，该训练脚本使用的loss值计算方法为'dist_arcface'，即将全连接层参数切分到多张GPU卡的模型并行方案，需要使用两张或以上的GPU卡。
+默认情况下，该训练脚本使用的loss值计算方法为'dist_arcface'，即将全连接层参数切分到多张GPU卡的模型并行方案，需要使用两张或以上的GPU卡。默认地，基础模型为ResNet50模型，关于如何自定义模型请参考 `文档 <https://github.com/PaddlePaddle/PLSC/blob/master/docs/source/md/advanced.md>`_。
 
 .. code-block:: python
 
