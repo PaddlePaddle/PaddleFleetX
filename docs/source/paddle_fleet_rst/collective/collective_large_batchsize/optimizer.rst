@@ -4,9 +4,9 @@
 简介
 ~~~~~
 
-在数据并行分布式训练场景中, 常使用增加GPU数量的方式来加速训练.
-为了保证GPU的算力得到充分利用, 每张GPU卡上的batch size都需要足够大.
-因此在增加GPU 数量同时, 训练的全局batch size 也会变大.
+在数据并行分布式训练场景中, 常使用增加GPU数量的方式来加速训练。
+为了保证GPU的算力得到充分利用, 每张GPU卡上的batch size都需要足够大。
+因此在增加GPU 数量同时, 训练的全局batch size 也会变大。
 
 但越大的全局batch size
 会带来训练的收敛问题\ `[1] <https://arxiv.org/abs/1404.5997>`__
@@ -17,13 +17,12 @@
 
 LARS\ `[3] <https://arxiv.org/abs/1708.03888>`__ 和
 LAMB\ `[4] <https://arxiv.org/abs/1904.00962>`__
-两个优化策略常用来解决上述超大batch 训练中的收敛问题.
+两个优化策略常用来解决上述超大batch 训练中的收敛问题。
 
-Paddle 实现了这两种优化策略，paddle.distributed.fleet 作为Paddle通用的分布式训练API提供了简单易用的接口, 用户只需要添加几行代码
-就可将策略加入到原有的训练中。 通过这两个优化策略,
+Paddle 实现了这两种优化策略，paddle.distributed.fleet 作为Paddle通用的分布式训练API提供了简单易用的接口, 用户只需要添加几行代码就可将策略加入到原有的训练中。 通过这两个优化策略,
 我们在超大batch 场景中实现了更快的收敛速度和无损的精度, 结合Fleet
 中其他的策略(e.g. `AMP <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/fleet_collective_training_speedup_with_amp_cn.html>`__)
-可以极大缩短的训练整体的time2train.
+可以缩短整体训练收敛时间。
 
 
 原理
@@ -31,6 +30,8 @@ Paddle 实现了这两种优化策略，paddle.distributed.fleet 作为Paddle通
 
 LARS
 ^^^^^^
+
+LARS 公式如下：
 
 .. math::
 
@@ -45,11 +46,13 @@ LARS
 
 可以看到LARS 其实是在 带\ ``weight decay`` 的\ ``momentum``
 优化器的基础上加入了\ ``local learning rate`` 的逻辑,
-对每一层的\ ``learning rate`` 进行了放缩. 
+对每一层的\ ``learning rate`` 进行了放缩。
 
 
 LAMB
 ^^^^^^
+
+LAMB 公式如下：
 
 .. math::
 
@@ -69,7 +72,7 @@ LAMB
 
 和LARS 类似, LAMB 也是在内层优化器的基础上,
 套了一个\ ``local learning rate`` 的逻辑, 对每一层的\ ``learning rate``
-进行了放缩.
+进行了放缩。
 
 
 效果
@@ -97,19 +100,19 @@ LARS
 ^^^^^^
 
 fleet 将 LARS实现为一个 fleet
-meta optimizer, 在使用时需要设置一下几点:
+meta optimizer, 在使用时需要设置以下几点:
 
 1. LARS meta optimizer 的 inner optimizer 必须为 ``momentum``, 并在
-   momentum 中定义 ``mu`` 和\ ``lr`` 参数.
-2. 在 fleet dist\_strategy 定义LARS 特有的 ``lars_coeff`` 参数和
-   ``lars_weight_decay`` 参数.
+   momentum 中定义 ``mu`` 和\ ``lr`` 参数。
+2. 在DistributedStrategy 中设置LARS 特有的 ``lars_coeff`` 参数和
+   ``lars_weight_decay`` 参数。
 
    -  LARS 已经将 ``weight decay`` 包含进公式中, 用户不需要再在
-      optimizer中设置 ``regularization``.
+      optimizer中设置 ``regularization``。
    -  fleet 中还提供 lars\_weight\_decay 过滤策略,
       可以通过在\ ``exclude_from_weight_decay`` 参数加入对应layer 的
-      ``name string``, 让这一 layer 的参数不进行 lars weight decay.
-      (通常我们将``BN`` 参数 和 ``FC_bias`` 从lars weight decay 中过滤)
+      ``name string``, 让这一 layer 的参数不进行 lars weight decay。
+      (通常我们将\ ``BN`` 参数 和\ ``FC_bias`` 从lars weight decay 中过滤)
 
 .. code:: python
 
@@ -184,19 +187,19 @@ LAMB
 ^^^^^^
 
 fleet 将 LAMB实现为一个 fleet
-meta optimizer, 在使用时需要设置一下几点:
+meta optimizer, 在使用时需要设置以下几点:
 
 1. LAMB meta optimizer 的 inner optimizer 必须为 ``adam``, 并在 adam
    中定义 学习率\ ``lr``, 一阶 moment 的指数衰减率\ ``beta1``
-   和二阶moment 的指数衰减率\ ``beta2`` 参数.
-2. 在 fleet dist\_strategy 定义LAMB 特有的 ``lamb_weight_decay`` 参数.
+   和二阶moment 的指数衰减率\ ``beta2`` 参数。
+2. 在 DistributedStrategy 里定设置AMB 特有的 ``lamb_weight_decay`` 参数.
 
    -  LAMB 已经将 ``weight decay`` 包含进公式中, 用户不需要再在
-      optimizer中设置 ``regularization``.
+      optimizer中设置 ``regularization``。
    -  fleet 中还提供 lamb\_weight\_decay 过滤策略,
       可以通过在\ ``exclude_from_weight_decay`` 参数加入对应layer 的
-      ``name string``, 让这一 layer 的参数不进行 lars weight decay.
-      (通常我们将``LN`` 从lamb weight decay 中过滤)
+      ``name string``, 让这一 layer 的参数不进行 lars weight decay。
+      (通常我们将\ ``LN`` 从lamb weight decay 中过滤)
 
 .. code:: python
 
