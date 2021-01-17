@@ -12,7 +12,6 @@
    communication_topology
    communication_frequency
    amp
-   memory_pool
    dali
    others
    
