@@ -6,7 +6,7 @@
 简介
 ----
 
-  计算图拆分目前仅支持Paddle静态图的参数服务器模式 
+**计算图拆分目前仅支持Paddle静态图的参数服务器模式** 
 
 参数服务器的分布式训练为一种常见的中心化共享参数的同步方式。与单机训练不同的是在参数服务器分布式训练中，各个节点充当着不同的角色：
 
@@ -142,6 +142,7 @@ PServer的计算图生成源代码位于 `build_pserver_program <https://github.
 
 .. code:: shell
 
+    export PSERVER_DEBUG=1
     fleetrun --worker_num=1 --server_num=1 server_demo.py
     cat log/serverlog.0
 
