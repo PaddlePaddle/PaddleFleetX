@@ -198,16 +198,15 @@ DGC 相关策略
    node）和通信延迟的影响。
 -  数据并行分布式增大了训练实际的batch size，过大的batch size
    会影响最终的训练精度。
-Local SGD通过延长节点间同步的间隔(局部异步训练)来减轻慢节点的影响和减少通信频率，以此提升训练的吞吐速度。
+Local SGD通过延长节点间同步的间隔(局部异步训练)来减轻慢节点的影响和减少通信频率，以此提升训练的吞吐。
 
 
 原理介绍
 ~~~~~~~~~~~~~~
-Local SGD一方面减轻慢节点的影响和减少通信频率，提升训练的吞吐速度；另一方面，为了减小相对于本地训练（小batch
+Local SGD减轻慢节点的影响和减少通信频率，提升训练的吞吐。为了减小相对于本地训练（小batch
 size）的精度损失，\ `[1] <https://arxiv.org/abs/1808.07217>`__ 和 `[2] <https://arxiv.org/abs/1810.08313>`__
 分别提出了：\ ``post-Local SGD`` 和 ``自适应步长 (Adaptive Communication) Local SGD``
-策略，来减少参数同步频率降低带来的精度损失。 同步SGD 和 Local
-SGD 在通信同步上的差异如下图所示。
+策略，来减少参数同步频率降低带来的精度损失。同步SGD和Local SGD在通信同步上的差异如下图所示。
 
 .. image:: ../img/localSGD_1.png
   :width: 600
@@ -215,8 +214,8 @@ SGD 在通信同步上的差异如下图所示。
   :align: center
 
 在Local SGD 训练中，集群中的每个 trainer 各自会独立的进行 H 个连续的 SGD
-更新， 然后集群中的所有 trainer 会进行通信，同步（averaging）所有 trainers
-上的参数。一个双 trainers，同步间隙为3 步长（iterations） 的Local
+更新，然后集群中的所有 trainer 会进行通信，同步（averaging）所有 trainers
+上的参数。一个双 trainers，同步间隙为3 步长（iterations）的Local
 SGD过程如下图所示。黄绿两条路径表示两个 trainers 各自的 Local SGD
 更新过程，中间的蓝色路径表示同步后的模型所在的位置。
 
@@ -226,16 +225,16 @@ SGD过程如下图所示。黄绿两条路径表示两个 trainers 各自的 Loc
   :align: center
 
 Local
-SGD中的一个关键问题是如何确定参数同步的间隔(频率)，以到达训练吞吐和训练精度间更好的平衡：
+SGD中的一个关键问题是如何确定参数同步的间隔(频率)，以达到训练吞吐和训练精度间更好的平衡：
 
--  增大参数同步的间隔可以减少 trainers 间通信延迟的影响提高训练吞吐.
+-  增大参数同步的间隔可以减少 trainers 间通信延迟的影响提高训练吞吐，
 -  但增大同步间隔可能会造成最终训练精度的损失。
    `[1] <https://arxiv.org/abs/1708.01012>`__
 
 以下两个策略从不同角度试图达到更好的平衡：
 
 -  `post Local SGD <https://arxiv.org/abs/1808.07217>`__
-   将训练过程分成两个阶段：第一阶段 wokers 间同步的间隔为 1
+   将训练过程分成两个阶段：第一阶段 trainers 间同步的间隔为 1
    个步长，即同步SGD，来保证最终训练精度；在第二阶段增大同步间隔到固定常数
    H，来提升训练吞吐。
 -  `Adaptive Communication Local
@@ -243,9 +242,7 @@ SGD中的一个关键问题是如何确定参数同步的间隔(频率)，以到
    通过动态的调整参数同步的间隔来尝试达到训练吞吐和精度间的更好的平衡。在训练初始或者上一段参数同步完成后，根据如下公式计算一下次参数同步的间隔（iteration）。详细的公式推导和参数定义请参考原论文。
 
 Fleet 中实现了 ``post Local SGD`` 和
-``Adaptive Communication Local SGD`` 两种策略。 中下文将给出 Fleet中
-Local SGD 的实践效果，并通过一个简单例子介绍如何在Fleet 中使用 Local
-SGD。
+``Adaptive Communication Local SGD`` 两种策略。
 
 功能效果
 ~~~~~~~~
@@ -277,26 +274,26 @@ SGD。
 +--------------+-----------+----------+----------+
 
 可以看到在 post Local SGD
-（固定同步间隔）情况下，更新间隔越长训练的吞吐越高，但是模型的最终进度也会损失越大。
+（固定同步间隔）情况下，更新间隔越长训练的吞吐越高，但是模型的最终精度也会损失越大。
 当使用 ADAPTIVE COMMUNICATION
 策略后，训练在吞吐和精度间达到了一个更好的平衡。
 
 使用方法
 ~~~~~~~~~~~~~~~~~~
 
-下文将以在单机8卡中训练 ResNet50 为例子简单介绍 Fleet 中 Local SGD
-的用法。 需要注意的是 单机八卡的通信都在同一节点内，
-一般情况下参数同步并不会成为训练的瓶颈， 这里只是以其为例子，介绍Fleet
+下文将以单机8卡训练 ResNet50 为例子，简单介绍Local SGD
+的用法。需要注意的是 单机八卡的通信都在同一机器节点内，
+一般情况下参数同步不会成为训练的瓶颈，这里只是以其为例子，介绍Fleet
 中 Local SGD 参数的设置。
 
 
 定义Local SGD 相关策略
 ^^^^^^^^^^^^^^^^^^^^^^
 
-用户首先需要定义paddle SGD 对象，并在SGD 对象中设置学习率参数。目前local
+用户首先需要定义paddle SGD 对象，并在SGD对象中设置学习率参数。目前local
 SGD和自适应步长 local SGD都仅支持SGD和Momentum两种优化器。
 
--  在\ **post Local SGD** 中，有两个用户设置参数 ``begin_step`` 和
+-  在\ **post Local SGD** 中，有两个参数 ``begin_step`` 和
    ``k_steps``\ ，局部更新和参数同步都由框架自动完成。begin\_step
    指定从第几个step之后进行local SGD算法，取值为大于0的整数；k\_step
    指定训练过程中的全局参数更新间隔，取值为大于0的整数。
@@ -311,10 +308,13 @@ SGD和自适应步长 local SGD都仅支持SGD和Momentum两种优化器。
     }
 
 
--  在 **自适应步长 local SGD** 中，有两个用户设置参数 ``begin_step`` 和
+-  在 **自适应步长 local SGD** 中，有两个参数 ``begin_step`` 和
    ``init_k_steps``\ 。begin\_step 指定从第几个step之后进行自适应local
-   SGD算法，取值为大于0的整数；用户需要设置init\_k\_steps作为第一次参数同步的间隔，之后的同步间隔将由上文中的公式动态确定，在学习率较大时，参数变化大，减小step，多进行通信从而保证快速收敛；在学习率较小时，参数变化小，增大step，减少通信次数，从而提升训练速度。
-   需要注意的是自适应步长策略中，系统会默认限制最大的同步间隔为 16
+   SGD算法，取值为大于0的整数；用户需要设置init\_k\_steps作为第一次参数同步的间隔，
+   之后的同步间隔将由上文中的公式动态确定，在学习率较大时，参数变化大，减小step，
+   多进行通信从而保证快速收敛；在学习率较小时，参数变化小，
+   增大step，减少通信次数，从而提升训练速度。
+   需要注意的是在自适应步长策略中，系统会默认限制最大的同步间隔为 16
    step，当公式计算出的间隔大于16 时，按16 steps 进行参数同步。
 
 .. code:: python
@@ -326,4 +326,41 @@ SGD和自适应步长 local SGD都仅支持SGD和Momentum两种优化器。
         "begin_step": 1, 
     } 
 
-基于ResNet50网络的Local SGD代码：`example/resnet/train_fleet_static_localsgd.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_localsgd.py>`_。
+
+上述例子存放在：\ `example/resnet/train_fleet_static_localsgd.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_localsgd.py>`_\ 下面，
+假设要运行2卡的任务，那么只需在命令行中执行:
+
+.. code-block:: sh
+
+   fleetrun --gpus=0,1 train_fleet_static_overlap.py
+
+您将看到显示如下日志信息：
+
+.. code-block::
+
+   -----------  Configuration Arguments -----------
+   gpus: 0,1
+   heter_worker_num: None
+   heter_workers:
+   http_port: None
+   ips: 127.0.0.1
+   log_dir: log
+   ...
+   ------------------------------------------------
+   ...
+   INFO 2021-01-18 22:01:11,969 launch_utils.py:472] Local start 2 processes. First process distributed environment info (Only For Debug):
+      +=======================================================================================+
+      |                        Distributed Envs                      Value                    |
+      +---------------------------------------------------------------------------------------+
+      |                 PADDLE_CURRENT_ENDPOINT                 127.0.0.1:10913               |
+      |                     PADDLE_TRAINERS_NUM                        2                      |
+      |                PADDLE_TRAINER_ENDPOINTS         127.0.0.1:10913,127.0.0.1:14758       |
+      |                     FLAGS_selected_gpus                        0                      |
+      |                       PADDLE_TRAINER_ID                        0                      |
+      +=======================================================================================+
+   ...
+   W0118 22:01:20.860090 45921 device_context.cc:362] Please NOTE: device: 0, GPU Compute Capability: 7.0, Driver API Version: 10.2, Runtime API Version: 9.2
+   W0118 22:01:20.864220 45921 device_context.cc:372] device: 0, cuDNN Version: 7.4.
+   W0118 22:01:25.578325 45921 gen_nccl_id_op_helper.cc:115] connect addr=127.0.0.1:14758 failed 1 times with reason: Connection refused retry after 0.5 seconds
+   [Epoch 0, batch 0] loss: 0.14602, acc1: 0.00000, acc5: 0.03125
+   [Epoch 0, batch 5] loss: 0.16445, acc1: 0.00000, acc5: 0.06250
