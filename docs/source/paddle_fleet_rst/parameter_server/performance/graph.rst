@@ -185,11 +185,11 @@ PServer的计算图生成源代码位于 `build_pserver_program <https://github.
         }
     }
 
-以上是server计算图的配置信息，可以看到一共有3个Table：
+以上是server计算图的配置信息，可以看到一共有3个数据表：
 
-- 0号Table存储了Dense参数，类型是 CommonDenseTable，维度是组网中所有FC层weight和b参数的累和，更新方式是adam
-- 1号Table存储了Sparse参数，类型是 CommonSparseTable，保存的参数是embedding_0.w_0， 维度是[1000, 128]，更新方式是adam
-- 2号Table是BarrierTable，控制各个节点间初始化的同步
+- 0号表存储了Dense参数，维度是组网中所有FC层weight和b参数的累和，更新方式是adam
+- 1号表存储了Sparse参数，保存的参数是embedding_0.w_0， 维度是[1000, 128]，更新方式是adam
+- 2号表是控制各个节点间初始化的同步
 
 ~~~~~~~~~~~~~~~~~~~
 计算图拆分——Worker
