@@ -342,7 +342,7 @@ Heter-Worker的计算图生成源代码位于 `build_trainer_program <https://gi
 
     paddle.enable_static()
 
-    with paddle.fluid.device_guard("cpu"):
+    with paddle.static.device_guard("cpu"):
         input_data = paddle.static.data(name="sparse_input", shape=[
             None, 1], dtype="int64")
         input_label = paddle.static.data(
@@ -351,7 +351,7 @@ Heter-Worker的计算图生成源代码位于 `build_trainer_program <https://gi
         embedding = paddle.static.nn.embedding(
             input_data, is_sparse=True, size=[1000, 128])
 
-    with paddle.fluid.device_guard("gpu"):
+    with paddle.static.device_guard("gpu"):
         fc1 = paddle.static.nn.fc(embedding, size=1024, activation="relu")
         fc2 = paddle.static.nn.fc(fc1, size=512, activation="relu")
         fc3 = paddle.static.nn.fc(fc2, size=256, activation="relu")
