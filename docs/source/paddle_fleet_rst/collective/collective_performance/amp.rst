@@ -51,4 +51,39 @@ otpimizers 作为其 inner-optimizer。只需要在reset网络基础上打开相
         "custom_black_list": [],
     }
 
-基于ResNet50网络的amp代码：`example/resnet/train_fleet_static_amp.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_amp.py>`_。
+上述例子存放在：`example/resnet/train_fleet_static_amp.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_amp.py>`_。
+假设要运行2卡的任务，那么只需在命令行中执行:
+
+.. code-block:: sh
+
+   fleetrun --gpus=0,1 train_fleet_static_amp.py
+
+您将看到显示如下日志信息：
+
+.. code-block::
+
+   -----------  Configuration Arguments -----------
+   gpus: None
+   heter_worker_num: None
+   heter_workers:
+   http_port: None
+   ips: 127.0.0.1
+   log_dir: log
+   ...
+   ------------------------------------------------
+   ...
+   INFO 2021-01-19 14:46:03,186 launch_utils.py:472] Local start 8 processes. First process distributed environment info (Only For Debug):
+      +=======================================================================================+
+      |                        Distributed Envs                      Value                    |
+      +---------------------------------------------------------------------------------------+
+      |                 PADDLE_CURRENT_ENDPOINT                 127.0.0.1:54114               |
+      |                     PADDLE_TRAINERS_NUM                        8                      |
+      |                PADDLE_TRAINER_ENDPOINTS  ... 0.1:24697,127.0.0.1:53564,127.0.0.1:37181|
+      |                     FLAGS_selected_gpus                        0                      |
+      |                       PADDLE_TRAINER_ID                        0                      |
+      +=======================================================================================+
+   W0119 14:46:16.315114 84038 device_context.cc:362] Please NOTE: device: 0, GPU Compute Capability: 7.0, Driver API Version: 10.2, Runtime API Version: 9.2
+   W0119 14:46:16.320163 84038 device_context.cc:372] device: 0, cuDNN Version: 7.4.
+   W0119 14:46:25.249166 84038 fuse_all_reduce_op_pass.cc:79] Find all_reduce operators: 161. To make the speed faster, some all_reduce ops are fused during training, after fusion, the number of all_reduce ops is 8.
+   [Epoch 0, batch 0] loss: 0.19354, acc1: 0.00000, acc5: 0.00000
+   [Epoch 0, batch 5] loss: 0.20044, acc1: 0.00000, acc5: 0.00000

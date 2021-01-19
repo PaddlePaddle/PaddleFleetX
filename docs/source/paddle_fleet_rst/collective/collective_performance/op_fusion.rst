@@ -51,5 +51,45 @@ AllReduce 融合默认情况下会将同一layer中参数的梯度的多个AllRe
     strategy.fuse_all_reduce_ops=True
 
 
-基于ResNet50网络的融合代码：`example/resnet/train_fleet_static_op_fusion.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_op_fusion.py>`_。
+上述例子存放在：`example/resnet/train_fleet_static_op_fusion.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_op_fusion.py>`_。
+假设要运行2卡的任务，那么只需在命令行中执行:
 
+.. code-block:: sh
+
+   fleetrun --gpus=0,1 train_fleet_static_op_fusion.py
+
+您将看到显示如下日志信息：
+
+.. code-block::
+
+    -----------  Configuration Arguments -----------
+    gpus: None
+    heter_worker_num: None
+    heter_workers:
+    http_port: None
+    ips: 127.0.0.1
+    log_dir: log
+    ...
+    ------------------------------------------------
+    WARNING 2021-01-19 14:53:04,943 launch.py:316] Not found distinct arguments and compiled with cuda. Default use collective mode
+    launch train in GPU mode
+    INFO 2021-01-19 14:53:04,945 launch_utils.py:472] Local start 8 processes. First process distributed environment info (Only For Debug):
+        +=======================================================================================+
+        |                        Distributed Envs                      Value                    |
+        +---------------------------------------------------------------------------------------+
+        |                 PADDLE_CURRENT_ENDPOINT                 127.0.0.1:28355               |
+        |                     PADDLE_TRAINERS_NUM                        8                      |
+        |                PADDLE_TRAINER_ENDPOINTS  ... 0.1:33653,127.0.0.1:27766,127.0.0.1:16631|
+        |                     FLAGS_selected_gpus                        0                      |
+        |                       PADDLE_TRAINER_ID                        0                      |
+        +=======================================================================================+
+    ...
+    W0119 14:53:16.871562 68031 device_context.cc:362] Please NOTE: device: 0, GPU Compute Capability: 7.0, Driver API Version: 10.2, Runtime API Version: 9.2
+    W0119 14:53:16.875859 68031 device_context.cc:372] device: 0, cuDNN Version: 7.4.
+    W0119 14:53:25.973377 68031 build_strategy.cc:116] Currently, fuse_broadcast_ops only works under Reduce mode.
+    I0119 14:53:27.382609 68031 graph_pattern_detector.cc:101] ---  detected 16 subgraphs
+    I0119 14:53:27.390769 68031 graph_pattern_detector.cc:101] ---  detected 16 subgraphs
+    W0119 14:53:27.407582 68031 fuse_optimizer_op_pass.cc:207] Find momentum operators : 161, and 161 for dense gradients. To make the speed faster, those optimization are fused during training.
+    W0119 14:53:27.436177 68031 fuse_all_reduce_op_pass.cc:79] Find all_reduce operators: 161. To make the speed faster, some all_reduce ops are fused during training, after fusion, the number of all_reduce ops is 6.
+    [Epoch 0, batch 0] loss: 0.15131, acc1: 0.00000, acc5: 0.03125
+    [Epoch 0, batch 5] loss: 1.15416, acc1: 0.00000, acc5: 0.03125
