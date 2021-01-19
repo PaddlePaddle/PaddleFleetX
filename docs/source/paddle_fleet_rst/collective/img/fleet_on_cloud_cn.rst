@@ -1,4 +1,4 @@
-通信频率优化
+优化低配网络的分布式GPU训练
 ===========================
 
 在网络带宽较低的训练场景（如：
@@ -155,7 +155,44 @@ DGC 快速开始
    DGC目前只支持GPU多卡及分布式collective训练，需要有相应的cuda、cuDNN、nccl环境。
 -  Paddle环境要求： DGC只支持GPU，所以需GPU版本的Paddle。
 
+添加依赖
+^^^^^^^^
 
+.. code:: python
+
+    import os
+    import fleetx as X
+    import paddle
+    import paddle.fluid as fluid
+    import paddle.distributed.fleet.base.role_maker as role_maker
+    import time
+    import paddle.distributed.fleet as fleet
+
+定义分布式模式并初始化
+^^^^^^^^^^^^^^^^^^^^^^
+
+通过\ ``X.parse_train_configs()``\ 接口，用户可以定义训练相关的参数，如：学习率、衰减率等。同时通过\ ``fleet.init()``\ 接口定义了分布式模型，下面代码中的\ ``is_collective=True``\ 表示采用集合通信的GPU分布式模式训练模型。
+
+.. code:: python
+
+    paddle.enable_static()
+    configs = X.parse_train_configs()
+    fleet.init(is_collective=True)
+
+加载模型及数据
+^^^^^^^^^^^^^^
+
+用户可以通过\ ``X.applications``\ 接口加载我们预先定义好的模型，如：Resnet50、VGG16、BERT等。并使用定制化的data\_loader加载模型，同时可以定义训练中使用的batch\_size等参数。
+
+.. code:: python
+
+    model = X.applications.Resnet50()
+    downloader = X.utils.Downloader()
+    local_path = downloader.download_from_bos(
+        fs_yaml='https://fleet.bj.bcebos.com/test/loader/small_imagenet.yaml',
+        local_path='./data')
+    batch_size = 32
+    loader = model.get_train_dataloader(local_path, batch_size=batch_size)
 
 DGC 相关策略
 ^^^^^^^^^^^^
@@ -172,69 +209,109 @@ DGC 相关策略
 
 .. code:: python
 
-    strategy = fleet.DistributedStrategy()
+    dist_strategy = fleet.DistributedStrategy()
 
-    strategy.dgc = True
-    strategy.dgc_configs = {
+    dist_strategy.dgc = True
+    dist_strategy.dgc_configs = {
         "rampup_begin_step": 1252*2,
         "rampup_step": 1252*3,
         "sparsity": [0.984375, 0.996, 0.999]
     }
 
+    optimizer = fluid.optimizer.Momentum(learning_rate=0.01, momentum=0.9)
+    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
+    optimizer.minimize(model.loss)
 
-基于ResNet50网络的DGC代码：`example/resnet/train_fleet_static_dgc.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_dgc.py>`_。
+开始训练
+^^^^^^^^
 
+这一部分和Fleet 中其他任务基本相同:
 
+.. code:: python
+
+    place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+    exe = fluid.Executor(place)
+    exe.run(fluid.default_startup_program())
+
+    for i, data in enumerate(loader()):
+        start_time = time.time()
+        cost_val = exe.run(model.main_prog,
+                            feed=data,
+                            fetch_list=[model.loss.name])
+
+        end_time = time.time()
+        print(
+            "worker_index: %d, step%d cost = %f, speed: %f"
+            % (fleet.worker_index(), i, cost_val[0], batch_size / (end_time - start_time)))
+
+运行训练脚本
+^^^^^^^^^^^^
+
+一行启动单机多卡分布式训练：
+
+.. code:: sh
+
+    fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log ./example_dgc.py 
+
+    # reader shuffle seed 0
+    # trainerid, trainer_count 0 8
+    # read images from 0, length: 160146, lines length: 160146, total: 1281168
+    # worker_index: 0, step0 cost = 7.151402, speed: 37.698432
+    # worker_index: 0, step1 cost = 7.112389, speed: 101.518513
+    # worker_index: 0, step2 cost = 7.004275, speed: 111.062341
+    # worker_index: 0, step3 cost = 7.039385, speed: 62.173126
+    # worker_index: 0, step4 cost = 6.985911, speed: 104.058060
+    # ......
 
 使用Local SGD 优化低带宽下分布式训练
 ------------------------------------
 
-简介
+Local SGD 简介
 ~~~~~~~~~~~~~~
 
-在使用 distributed SGD进行数据并行的分布式训练时，常会遇到以下两个问题：
+在使用 distributed SGD
+进行数据并行的分布式训练时，常会遇到以下两个问题：
 
 -  分布式训练的吞吐会受到集群中随机慢节点（straggling
    node）和通信延迟的影响。
 -  数据并行分布式增大了训练实际的batch size，过大的batch size
    会影响最终的训练精度。
-Local SGD通过延长节点间同步的间隔(局部异步训练)来减轻慢节点的影响和减少通信频率，以此提升训练的吞吐。
 
-
-原理介绍
-~~~~~~~~~~~~~~
-Local SGD减轻慢节点的影响和减少通信频率，提升训练的吞吐。为了减小相对于本地训练（小batch
+Local SGD
+通过延长节点间同步的间隔(局部异步训练)来减轻慢节点的影响和减少通信频率，以此提升训练的吞吐速度；另一方面，为了减小相对于本地训练（小batch
 size）的精度损失，\ `[1] <https://arxiv.org/abs/1808.07217>`__ 和 `[2] <https://arxiv.org/abs/1810.08313>`__
-分别提出了：\ ``post-Local SGD`` 和 ``自适应步长 (Adaptive Communication) Local SGD``
-策略，来减少参数同步频率降低带来的精度损失。同步SGD和Local SGD在通信同步上的差异如下图所示。
+分别提出了：\ ``post-Local SGD`` 和
+``自适应步长 (Adaptive Communication) Local SGD``
+策略，来减少参数同步频率降低带来的精度损失。 同步SGD 和 Local
+SGD 在通信同步上的差异如下图所示。
 
-.. image:: ../img/localSGD_1.png
+.. image:: ../paddle_fleet/img/localSGD_1.png
   :width: 600
   :alt: Synchronous SGD 和 Local SGD
   :align: center
 
 在Local SGD 训练中，集群中的每个 trainer 各自会独立的进行 H 个连续的 SGD
-更新，然后集群中的所有 trainer 会进行通信，同步（averaging）所有 trainers
-上的参数。一个双 trainers，同步间隙为3 步长（iterations）的Local
+更新， 然后集群中的所有 trainer 会进行通信，同步（averaging）所有 trainers
+上的参数。一个双 trainers，同步间隙为3 步长（iterations） 的Local
 SGD过程如下图所示。黄绿两条路径表示两个 trainers 各自的 Local SGD
 更新过程，中间的蓝色路径表示同步后的模型所在的位置。
 
-.. image:: ../img/localSGD_2.png
+.. image:: ../paddle_fleet/img/localSGD_2.png
   :width: 300
   :alt: Local SGD
   :align: center
 
 Local
-SGD中的一个关键问题是如何确定参数同步的间隔(频率)，以达到训练吞吐和训练精度间更好的平衡：
+SGD中的一个关键问题是如何确定参数同步的间隔(频率)，以到达训练吞吐和训练精度间更好的平衡：
 
--  增大参数同步的间隔可以减少 trainers 间通信延迟的影响提高训练吞吐，
+-  增大参数同步的间隔可以减少 trainers 间通信延迟的影响提高训练吞吐.
 -  但增大同步间隔可能会造成最终训练精度的损失。
    `[1] <https://arxiv.org/abs/1708.01012>`__
 
 以下两个策略从不同角度试图达到更好的平衡：
 
 -  `post Local SGD <https://arxiv.org/abs/1808.07217>`__
-   将训练过程分成两个阶段：第一阶段 trainers 间同步的间隔为 1
+   将训练过程分成两个阶段：第一阶段 wokers 间同步的间隔为 1
    个步长，即同步SGD，来保证最终训练精度；在第二阶段增大同步间隔到固定常数
    H，来提升训练吞吐。
 -  `Adaptive Communication Local
@@ -242,12 +319,14 @@ SGD中的一个关键问题是如何确定参数同步的间隔(频率)，以达
    通过动态的调整参数同步的间隔来尝试达到训练吞吐和精度间的更好的平衡。在训练初始或者上一段参数同步完成后，根据如下公式计算一下次参数同步的间隔（iteration）。详细的公式推导和参数定义请参考原论文。
 
 Fleet 中实现了 ``post Local SGD`` 和
-``Adaptive Communication Local SGD`` 两种策略。
+``Adaptive Communication Local SGD`` 两种策略。 中下文将给出 Fleet中
+Local SGD 的实践效果，并通过一个简单例子介绍如何在Fleet 中使用 Local
+SGD。
 
-功能效果
+试验效果
 ~~~~~~~~
 
-实验设置
+试验设置
 
 +------------+------------+--------------------+----------------+---------+--------------+-----------------------+
 | model      | dataset    | local batch size   | cluster        | dtype   | warming up   | learning rate decay   |
@@ -255,7 +334,7 @@ Fleet 中实现了 ``post Local SGD`` 和
 | resnet50   | Imagenet   | 128                | 4 x 8 x V100   | FP32    | 30           | polynomial            |
 +------------+------------+--------------------+----------------+---------+--------------+-----------------------+
 
-实验结果
+试验结果
 
 +--------------+-----------+----------+----------+
 | local step   | qps       | acc1     | acc5     |
@@ -274,93 +353,137 @@ Fleet 中实现了 ``post Local SGD`` 和
 +--------------+-----------+----------+----------+
 
 可以看到在 post Local SGD
-（固定同步间隔）情况下，更新间隔越长训练的吞吐越高，但是模型的最终精度也会损失越大。
+（固定同步间隔）情况下，更新间隔越长训练的吞吐越高，但是模型的最终进度也会损失越大。
 当使用 ADAPTIVE COMMUNICATION
 策略后，训练在吞吐和精度间达到了一个更好的平衡。
 
-使用方法
+Local SGD 快速开始
 ~~~~~~~~~~~~~~~~~~
 
-下文将以单机8卡训练 ResNet50 为例子，简单介绍Local SGD
-的用法。需要注意的是 单机八卡的通信都在同一机器节点内，
-一般情况下参数同步不会成为训练的瓶颈，这里只是以其为例子，介绍Fleet
+下文将以在单机8卡中训练 ResNet50 为例子简单介绍 Fleet 中 Local SGD
+的用法。 需要注意的是 单机八卡的通信都在同一节点内，
+一般情况下参数同步并不会成为训练的瓶颈， 这里只是以其为例子，介绍Fleet
 中 Local SGD 参数的设置。
 
+添加依赖
+^^^^^^^^
+
+.. code:: python
+
+    import os
+    import fleetx as X
+    import paddle
+    import paddle.fluid as fluid
+    import paddle.distributed.fleet.base.role_maker as role_maker
+    import time
+    import paddle.distributed.fleet as fleet
+
+定义分布式模式并初始化
+^^^^^^^^^^^^^^^^^^^^^^
+
+通过\ ``X.parse_train_configs()``\ 接口，用户可以定义训练相关的参数，如：学习率、衰减率等。同时通过\ ``fleet.init()``\ 接口定义了分布式模型，下面代码中的\ ``is_collective=True``\ 表示采用集合通信的GPU分布式模式训练模型。
+
+.. code:: python
+
+    paddle.enable_static()
+    configs = X.parse_train_configs()
+    fleet.init(is_collective=True)
+
+加载模型及数据
+^^^^^^^^^^^^^^
+
+用户可以通过\ ``X.applications``\ 接口加载我们预先定义好的模型，如：Resnet50、VGG16、BERT等。并使用定制化的data\_loader加载模型，同时可以定义训练中使用的batch\_size等参数。
+
+.. code:: python
+
+    model = X.applications.Resnet50()
+    downloader = X.utils.Downloader()
+    local_path = downloader.download_from_bos(
+        fs_yaml='https://fleet.bj.bcebos.com/test/loader/small_imagenet.yaml',
+        local_path='./data')
+    batch_size = 32
+    loader = model.get_train_dataloader(local_path, batch_size=batch_size)
 
 定义Local SGD 相关策略
 ^^^^^^^^^^^^^^^^^^^^^^
 
-用户首先需要定义paddle SGD 对象，并在SGD对象中设置学习率参数。目前local
+用户首先需要定义paddle SGD 对象，并在SGD 对象中设置学习率参数。目前local
 SGD和自适应步长 local SGD都仅支持SGD和Momentum两种优化器。
 
--  在\ **post Local SGD** 中，有两个参数 ``begin_step`` 和
+-  在\ **post Local SGD** 中，有两个用户设置参数 ``begin_step`` 和
    ``k_steps``\ ，局部更新和参数同步都由框架自动完成。begin\_step
    指定从第几个step之后进行local SGD算法，取值为大于0的整数；k\_step
    指定训练过程中的全局参数更新间隔，取值为大于0的整数。
 
 .. code:: python
 
-    strategy = fleet.DistributedStrategy()
-    strategy.localsgd = True
-    strategy.localsgd_configs = {
+    dist_strategy = fleet.DistributedStrategy()
+    dist_strategy.localsgd = True
+    dist_strategy.localsgd_configs = {
         "k_steps": 1,
         "begin_step": 1,
     }
 
+    optimizer = fluid.optimizer.SGD(learning_rate=0.01)
+    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
+    optimizer.minimize(model.loss)
 
--  在 **自适应步长 local SGD** 中，有两个参数 ``begin_step`` 和
+-  在 **自适应步长 local SGD** 中，有两个用户设置参数 ``begin_step`` 和
    ``init_k_steps``\ 。begin\_step 指定从第几个step之后进行自适应local
-   SGD算法，取值为大于0的整数；用户需要设置init\_k\_steps作为第一次参数同步的间隔，
-   之后的同步间隔将由上文中的公式动态确定，在学习率较大时，参数变化大，减小step，
-   多进行通信从而保证快速收敛；在学习率较小时，参数变化小，
-   增大step，减少通信次数，从而提升训练速度。
-   需要注意的是在自适应步长策略中，系统会默认限制最大的同步间隔为 16
+   SGD算法，取值为大于0的整数；用户需要设置init\_k\_steps作为第一次参数同步的间隔，之后的同步间隔将由上文中的公式动态确定，在学习率较大时，参数变化大，减小step，多进行通信从而保证快速收敛；在学习率较小时，参数变化小，增大step，减少通信次数，从而提升训练速度。
+   需要注意的是自适应步长策略中，系统会默认限制最大的同步间隔为 16
    step，当公式计算出的间隔大于16 时，按16 steps 进行参数同步。
 
 .. code:: python
 
-    strategy = fleet.DistributedStrategy() 
-    strategy.adaptive_localsgd = True 
-    strategy.adaptive_localsgd_configs = { 
+    dist_strategy = fleet.DistributedStrategy() 
+    dist_strategy.adaptive_localsgd = True 
+    dist_strategy.adaptive_localsgd_configs = { 
         "init_k_steps": 1, 
         "begin_step": 1, 
     } 
 
+    optimizer = fluid.optimizer.SGD(learning_rate=0.01) 
+    optimizer = fleet.distributed_optimizer(optimizer, dist_strategy) 
+    optimizer.minimize(model.loss) 
 
-上述例子存放在：\ `example/resnet/train_fleet_static_localsgd.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_localsgd.py>`_\ 下面，
-假设要运行2卡的任务，那么只需在命令行中执行:
+开始训练
+^^^^^^^^
 
-.. code-block:: sh
+这一部分和Fleet 中其他任务基本相同:
 
-   fleetrun --gpus=0,1 train_fleet_static_overlap.py
+.. code:: python
 
-您将看到显示如下日志信息：
+    place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+    exe = fluid.Executor(place)
+    exe.run(fluid.default_startup_program())
 
-.. code-block::
+    for i, data in enumerate(loader()):
+        start_time = time.time()
+        cost_val = exe.run(model.main_prog,
+                            feed=data,
+                            fetch_list=[model.loss.name])
 
-   -----------  Configuration Arguments -----------
-   gpus: 0,1
-   heter_worker_num: None
-   heter_workers:
-   http_port: None
-   ips: 127.0.0.1
-   log_dir: log
-   ...
-   ------------------------------------------------
-   ...
-   INFO 2021-01-18 22:01:11,969 launch_utils.py:472] Local start 2 processes. First process distributed environment info (Only For Debug):
-      +=======================================================================================+
-      |                        Distributed Envs                      Value                    |
-      +---------------------------------------------------------------------------------------+
-      |                 PADDLE_CURRENT_ENDPOINT                 127.0.0.1:10913               |
-      |                     PADDLE_TRAINERS_NUM                        2                      |
-      |                PADDLE_TRAINER_ENDPOINTS         127.0.0.1:10913,127.0.0.1:14758       |
-      |                     FLAGS_selected_gpus                        0                      |
-      |                       PADDLE_TRAINER_ID                        0                      |
-      +=======================================================================================+
-   ...
-   W0118 22:01:20.860090 45921 device_context.cc:362] Please NOTE: device: 0, GPU Compute Capability: 7.0, Driver API Version: 10.2, Runtime API Version: 9.2
-   W0118 22:01:20.864220 45921 device_context.cc:372] device: 0, cuDNN Version: 7.4.
-   W0118 22:01:25.578325 45921 gen_nccl_id_op_helper.cc:115] connect addr=127.0.0.1:14758 failed 1 times with reason: Connection refused retry after 0.5 seconds
-   [Epoch 0, batch 0] loss: 0.14602, acc1: 0.00000, acc5: 0.03125
-   [Epoch 0, batch 5] loss: 0.16445, acc1: 0.00000, acc5: 0.06250
+        end_time = time.time()
+        print(
+            "worker_index: %d, step%d cost = %f, speed: %f"
+            % (fleet.worker_index(), i, cost_val[0], batch_size / (end_time - start_time)))
+
+运行训练脚本
+^^^^^^^^^^^^
+
+一行启动单机多卡分布式训练：
+
+.. code:: sh
+
+    fleetrun --gpus 0,1,2,3,4,5,6,7 --log_dir log resnet50_localsgd.py
+
+    # reader shuffle seed 0
+    # trainerid, trainer_count 0 8
+    # read images from 0, length: 160146, lines length: 160146, total: 1281168
+    # worker_index: 0, step0 cost = 7.151402, speed: 37.698432
+    # worker_index: 0, step1 cost = 7.112389, speed: 101.518513
+    # worker_index: 0, step2 cost = 7.004275, speed: 111.062341
+    # worker_index: 0, step3 cost = 7.039385, speed: 62.173126
+    # worker_index: 0, step4 cost = 6.985911, speed: 104.058060
+    # ......
