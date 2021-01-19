@@ -52,11 +52,11 @@ otpimizers 作为其 inner-optimizer。只需要在reset网络基础上打开相
     }
 
 上述例子存放在：`example/resnet/train_fleet_static_amp.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_amp.py>`_。
-假设要运行2卡的任务，那么只需在命令行中执行:
+假设要运行8卡的任务，那么只需在命令行中执行:
 
 .. code-block:: sh
 
-   fleetrun --gpus=0,1 train_fleet_static_amp.py
+   fleetrun --gpus=0,1,2,3,4,5,6,7 train_fleet_static_amp.py
 
 您将看到显示如下日志信息：
 
@@ -77,7 +77,7 @@ otpimizers 作为其 inner-optimizer。只需要在reset网络基础上打开相
       |                        Distributed Envs                      Value                    |
       +---------------------------------------------------------------------------------------+
       |                 PADDLE_CURRENT_ENDPOINT                 127.0.0.1:54114               |
-      |                     PADDLE_TRAINERS_NUM                        8                      |
+      |                     PADDLE_TRAINERS_NUM                        2                      |
       |                PADDLE_TRAINER_ENDPOINTS  ... 0.1:24697,127.0.0.1:53564,127.0.0.1:37181|
       |                     FLAGS_selected_gpus                        0                      |
       |                       PADDLE_TRAINER_ID                        0                      |

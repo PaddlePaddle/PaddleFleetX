@@ -25,11 +25,11 @@ PaddlePaddle 使用“线程池”模型调度并执行Op，Op在启动GPU计算
     strategy.execution_strategy = exe_strategy
 
 上述例子存放在：`example/resnet/train_fleet_static_others.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_others.py>`_。
-假设要运行2卡的任务，那么只需在命令行中执行:
+假设要运行8卡的任务，那么只需在命令行中执行:
 
 .. code-block:: sh
 
-   fleetrun --gpus=0,1 train_fleet_static_others.py
+   fleetrun --gpus=0,1,2,3,4,5,6,7 train_fleet_static_others.py
 
 您将看到显示如下日志信息：
 
