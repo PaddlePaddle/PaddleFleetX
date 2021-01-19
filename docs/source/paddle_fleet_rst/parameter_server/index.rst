@@ -11,6 +11,8 @@ ParameterServer训练
    ps_quick_start	
    ps_benchmark	
    ps_summarize	
+   communication	
+   store	
    performance/index	
    ps_incremental_learning	
    ps_online_learning	
