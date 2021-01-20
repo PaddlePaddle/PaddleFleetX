@@ -14,6 +14,13 @@ Paddle
    **paddle.distributed**\ 。
 -  您只需要安装Paddle，就可以获得飞桨团队官方提供的所有分布式训练功能。
 
+安装CPU版本
+
+::
+
+    pip install paddlepaddle
+
+或者安装GPU版本
 ::
 
     pip install paddlepaddle-gpu
