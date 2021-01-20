@@ -9,7 +9,6 @@
 
 .. toctree::
    :maxdepth: 1
-   :numbered:
    :caption: 分布式训练概述
    :name: summarize
 
@@ -18,7 +17,6 @@
 
 .. toctree::
    :maxdepth: 1
-   :numbered:
    :caption: 如何设计分布式训练的搭建方案
    :name: design 
 
@@ -29,7 +27,6 @@
 
 .. toctree::
    :maxdepth: 1
-   :numbered:
    :caption: 前置基础配置
    :name: pre
 
@@ -38,7 +35,6 @@
 
 .. toctree::
    :maxdepth: 2 
-   :numbered:
    :caption: 配置分布式训练
    :name: distributed_training
 
@@ -48,7 +44,6 @@
 
 .. toctree::
    :maxdepth: 1
-   :numbered:
    :caption: 高阶内容
    :name: higher
 
@@ -60,7 +55,6 @@
 
 .. toctree::
    :maxdepth: 1
-   :numbered:
    :caption: 分布式训练FAQ
 
    paddle_fleet_rst/fleet_user_faq_cn

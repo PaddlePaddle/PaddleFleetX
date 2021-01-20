@@ -3,8 +3,7 @@
 
 
 .. toctree::
-   :maxdepth: 2 
-   :numbered:
+   :maxdepth: 1
    :caption: 超大Batch训练
    :name: collective_large_batchsize
 

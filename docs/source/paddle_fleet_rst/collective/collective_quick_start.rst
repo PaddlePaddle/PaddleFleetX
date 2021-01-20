@@ -1,136 +1,157 @@
 
-静态图分布式训练快速开始
-------------------------
+Collective训练
+--------------
 
-对于大部分用户来讲，数据并行训练基本可以解决实际业务中的训练要求。我们以一个非常经典的神经网络为例，介绍如何使用飞桨高级分布式API ``paddle.distributed.fleet``\ 进行数据并行训练。在数据并行方式下，通常可以采用两种架构进行并行训练，即集合通信训练（Collective Training）和参数服务器训练（Parameter Server Training），接下来的例子会分别说明两种架构的数据并行是如何实现的。
+Collective训练快速开始
+^^^^^^^^^^^^^^^^^^^^^^
+
+本节将采用CV领域非常经典的模型ResNet50为例，介绍如何使用Fleet API（paddle.distributed.fleet）完成Collective训练任务。数据方面我们采用Paddle内置的flowers数据集，优化器使用Momentum方法。循环迭代多个epoch，每轮打印当前网络具体的损失值和acc值。具体代码保存在\ `FleetX/examples/resnet <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet>`_\ 下面，其中resnet_static.py用于保存模型相关代码，而train_fleet_static.py为本节需要讲解的训练脚本。
 
 版本要求
 ^^^^^^^^
 
+在编写分布式训练程序之前，用户需要确保已经安装paddlepaddle-2.0.0-rc-cpu或paddlepaddle-2.0.0-rc-gpu及以上版本的飞桨开源框架。
 
-* paddlepaddle-2.0.0-rc-cpu / paddlepaddle-2.0.0-rc-gpu及以上
-
-模型描述
+操作方法
 ^^^^^^^^
 
-我们采用CV领域非常经典的模型ResNet50为例进行介绍。数据方面我们采用\ ``Paddle``\ 内置的\ ``flowers``\ 数据集，优化器使用Momentum方法。循环迭代多个epoch，每轮打印当前网络具体的损失值和acc值。代码整体存放在\ `example/resnet <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet>`_\ 下面。
-
-单机单卡训练
-^^^^^^^^^^^^
-
-下面是一个单机单卡程序的示例。
-
-.. code-block:: py
-
-   # -*- coding: UTF-8 -*-
-   import paddle
-   def train_resnet():
-      # 1.开启静态图模式
-      paddle.enable_static()
-
-      # 2. 定义网络对象，损失函数和优化器
-      paddle.vision.set_image_backend('cv2')
-      image = paddle.static.data(name="x", shape=[None, 3, 224, 224], dtype='float32')
-      label= paddle.static.data(name="y", shape=[None, 1], dtype='int64')
-      model = resnet.ResNet(layers=50)
-      out = model.net(input=image, class_dim=class_dim)
-      avg_cost = paddle.nn.functional.cross_entropy(input=out, label=label)
-      acc_top1 = paddle.metric.accuracy(input=out, label=label, k=1)
-      acc_top5 = paddle.metric.accuracy(input=out, label=label, k=5)
-
-      place = paddle.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
-      train_loader = get_train_loader([image, label], place)
-
-      optimizer = optimizer_setting()
-      optimizer.minimize(avg_cost)
-
-      exe = paddle.static.Executor(place)
-      exe.run(paddle.static.default_startup_program())
-
-      # 3. 进行模型训练（前向、反向、参数更新），并打印相关结果
-      epoch = 10
-      step = 0
-      for eop in range(epoch):
-         for batch_id, data in enumerate(train_loader()):
-            loss, acc1, acc5 = exe.run(paddle.static.default_main_program(), feed=data, fetch_list=[avg_cost.name, acc_top1.name, acc_top5.name])             
-            print("[Epoch %d, batch %d] loss: %.5f, acc1: %.5f, acc5: %.5f" % (eop, batch_id, loss, acc1, acc5))
-
-单机多卡训练
-^^^^^^^^^^^^
-
-使用Fleet接口进行动态图分布式训练其实非常的简单，只需修改3个步骤：
+与单机单卡的普通模型训练相比，Collective训练的代码主要需要补充三个部分代码：
 
 
-#. 
-   导入\ ``paddle.distributed.fleet``\ 包
+#. 导入分布式训练需要的依赖包。
+#. 初始化Fleet环境。
+#. 设置分布式训练需要的优化器。
+   下面将逐一进行讲解。
 
-   .. code-block:: py
+导入依赖
+~~~~~~~~
 
-      from paddle.distributed import fleet
+导入必要的依赖，例如分布式训练专用的Fleet API(paddle.distributed.fleet)。
 
-#. 
-   初始化fleet环境
+.. code-block::
 
-   .. code-block:: py
-
-      strategy = fleet.DistributedStrategy()
-      fleet.init(is_collective=True, strategy=strategy)
-
-#. 
-   通过fleet获取分布式优化器，参数传入paddle的基础优化器
-
-   .. code-block:: py
-
-      optimizer = fleet.distributed_optimizer(optimizer)
-
-根据我们最开始提供的单机单卡代码示例，再根据3步口诀进行修改，完整的单机多卡示例代码如下：
-
-.. code-block:: py
-
-   # -*- coding: UTF-8 -*-
-   import paddle
-   # 1. 导入`paddle.distributed.fleet`包
    from paddle.distributed import fleet
 
+初始化fleet环境
+~~~~~~~~~~~~~~~
+
+包括定义缺省的分布式策略，然后通过将参数is_collective设置为True，使训练架构设定为Collective架构。
+
+.. code-block::
+
+   strategy = fleet.DistributedStrategy()
+   fleet.init(is_collective=True, strategy=strategy)
+
+设置分布式训练使用的优化器
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+使用distributed_optimizer设置分布式训练优化器。
+
+.. code-block::
+
+   optimizer = fleet.distributed_optimizer(optimizer)
+
+完整代码
+~~~~~~~~
+
+train_fleet_static.py的完整训练代码如下所示。
+
+.. code-block:: py
+
+   # -*- coding: UTF-8 -*-
+   import numpy as np
+   import argparse
+   import ast
+   import paddle
+   # 导入必要分布式训练的依赖包
+   import paddle.distributed.fleet as fleet
+   # 导入模型文件
+   import resnet_static as resnet
+   import os
+
+   base_lr = 0.1   # 学习率
+   momentum_rate = 0.9 # 冲量
+   l2_decay = 1e-4 # 权重衰减
+
+   epoch = 10  #训练迭代次数
+   batch_size = 32 #训练批次大小
+   class_dim = 10
+
+   # 设置优化器
+   def optimizer_setting(parameter_list=None):
+       optimizer = paddle.optimizer.Momentum(
+           learning_rate=base_lr,
+           momentum=momentum_rate,
+           weight_decay=paddle.regularizer.L2Decay(l2_decay),
+           parameters=parameter_list)
+       return optimizer
+   # 设置数据读取器
+   def get_train_loader(feed_list, place):
+       def reader_decorator(reader):
+           def __reader__():
+               for item in reader():
+                   img = np.array(item[0]).astype('float32').reshape(3, 224, 224)
+                   label = np.array(item[1]).astype('int64').reshape(1)
+                   yield img, label
+
+           return __reader__
+       train_reader = paddle.batch(
+               reader_decorator(paddle.dataset.flowers.train(use_xmap=True)),
+               batch_size=batch_size,
+               drop_last=True)
+       train_loader = paddle.io.DataLoader.from_generator(
+           capacity=32,
+           use_double_buffer=True,
+           feed_list=feed_list,
+           iterable=True)
+       train_loader.set_sample_list_generator(train_reader, place)
+       return train_loader
+   # 设置训练函数
    def train_resnet():
-      paddle.enable_static()
-      paddle.vision.set_image_backend('cv2')
+       paddle.enable_static() # 使能静态图功能
+       paddle.vision.set_image_backend('cv2')
 
-      image = paddle.static.data(name="x", shape=[None, 3, 224, 224], dtype='float32')
-      label= paddle.static.data(name="y", shape=[None, 1], dtype='int64')
+       image = paddle.static.data(name="x", shape=[None, 3, 224, 224], dtype='float32')
+       label= paddle.static.data(name="y", shape=[None, 1], dtype='int64')
+       # 调用ResNet50模型
+       model = resnet.ResNet(layers=50)
+       out = model.net(input=image, class_dim=class_dim)
+       avg_cost = paddle.nn.functional.cross_entropy(input=out, label=label)
+       acc_top1 = paddle.metric.accuracy(input=out, label=label, k=1)
+       acc_top5 = paddle.metric.accuracy(input=out, label=label, k=5)
+       # 设置训练资源，本例使用GPU资源
+       place = paddle.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
 
-      model = resnet.ResNet(layers=50)
-      out = model.net(input=image, class_dim=class_dim)
-      avg_cost = paddle.nn.functional.cross_entropy(input=out, label=label)
-      acc_top1 = paddle.metric.accuracy(input=out, label=label, k=1)
-      acc_top5 = paddle.metric.accuracy(input=out, label=label, k=5)
+       train_loader = get_train_loader([image, label], place)
+       #初始化Fleet环境
+       strategy = fleet.DistributedStrategy()
+       fleet.init(is_collective=True, strategy=strategy)
+   optimizer = optimizer_setting()
 
-      place = paddle.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+       # 通过Fleet API获取分布式优化器，将参数传入飞桨的基础优化器
+       optimizer = fleet.distributed_optimizer(optimizer)
+       optimizer.minimize(avg_cost)
 
-      train_loader = get_train_loader([image, label], place)
+       exe = paddle.static.Executor(place)
+       exe.run(paddle.static.default_startup_program())
 
-      # 2. 初始化fleet环境
-      strategy = fleet.DistributedStrategy()
-      fleet.init(is_collective=True, strategy=strategy)
-      optimizer = optimizer_setting()
+       epoch = 10
+       step = 0
+       for eop in range(epoch):
+           for batch_id, data in enumerate(train_loader()):
+               loss, acc1, acc5 = exe.run(paddle.static.default_main_program(), feed=data, fetch_list=[avg_cost.name, acc_top1.name, acc_top5.name])             
+               if batch_id % 5 == 0:
+                   print("[Epoch %d, batch %d] loss: %.5f, acc1: %.5f, acc5: %.5f" % (eop, batch_id, loss, acc1, acc5))
+   # 启动训练
+   if __name__ == '__main__':
+       train_resnet()
 
-      # 3. 通过fleet获取分布式优化器，参数传入paddle的基础优化器
-      optimizer = fleet.distributed_optimizer(optimizer)
-      optimizer.minimize(avg_cost)
+运行示例
+^^^^^^^^
 
-      exe = paddle.static.Executor(place)
-      exe.run(paddle.static.default_startup_program())
+假设要运行2卡的任务，那么只需在命令行中执行:
 
-      epoch = 10
-      step = 0
-      for eop in range(epoch):
-         for batch_id, data in enumerate(train_loader()):
-            loss, acc1, acc5 = exe.run(paddle.static.default_main_program(), feed=data, fetch_list=[avg_cost.name, acc_top1.name, acc_top5.name])             
-            print("[Epoch %d, batch %d] loss: %.5f, acc1: %.5f, acc5: %.5f" % (eop, batch_id, loss, acc1, acc5))
-
-上述例子的完整代码存放在：\ `train_fleet_static.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static.py>`_\ 下面。假设要运行2卡的任务，那么只需在命令行中执行:
-
-.. code-block:: sh
+.. code-block::
 
    fleetrun --gpus=0,1 train_fleet_static.py
 
@@ -170,8 +191,14 @@
 
 完整2卡的日志信息也可在\ ``./log/``\ 目录下查看。了解更多\ ``fleetrun``\ 的用法可参考左侧文档\ ``fleetrun 启动分布式任务``\ 。
 
+单机八卡训练启动命令类似，只需正确指定\ ``gpus``\ 参数即可，如下所示：
 
-* 单机八卡训练启动命令
-  .. code-block:: shell
+.. code-block::
 
-     fleetrun --gpus 0,1,2,3,4,5,6,7 train_fleet_static.py
+   fleetrun --gpus 0,1,2,3,4,5,6,7 train_fleet_static.py
+
+从单机多卡到多机多卡训练，在代码上不需要做任何改动，只需再额外指定ips参数即可。其内容为多机的ip列表，命令如下所示：
+
+.. code-block::
+
+   fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" --gpus 0,1,2,3,4,5,6,7 train_fleet_static.py
