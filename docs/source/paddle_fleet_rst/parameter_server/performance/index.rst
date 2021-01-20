@@ -9,8 +9,6 @@
 
    graph
    gradient_acc
-   communication
-   store
    dataset
    geo
 
