@@ -12,9 +12,7 @@ Collective训练
    collective_benchmark
    collective_summarize
    collective_performance/index
-   collective_large_batchsize/index
    collective_mp/index
-   collective_pipeline
    collective_sdk
    collective_completed_example
 

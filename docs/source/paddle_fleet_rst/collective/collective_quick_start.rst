@@ -1,5 +1,5 @@
 
-Collective训练
+快速开始
 --------------
 
 Collective训练快速开始
