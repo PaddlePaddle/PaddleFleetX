@@ -66,6 +66,7 @@ PLSC支持多机分布式训练。一方面，通过多机分布式训练可以�
 .. image:: ../img/plsc_performance.png
    :target: ./plsc_performance.png
    :alt: performance
+   :align: center
 
 使用方法
 ========
