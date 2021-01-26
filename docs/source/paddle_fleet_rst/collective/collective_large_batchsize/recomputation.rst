@@ -56,7 +56,7 @@ Bert-Large由24个Encoder layers 串联而成，以两个子模块中间的变�
 Recompute-Offload 
 ^^^^^^^^^^^^^^^^^^^^
 
-在上面的Recomputation 步骤中，同样作为Forward 中间结果的checkpoints 会驻留显存，方便在Backward 中重计算。 然而在checkpoint 的生命周期中，仍有一段较长的未被使用的，从极致节省显存的角度去看， 这也是对显存的一种浪费。
+在上面的Recomputation 步骤中，同样作为Forward 中间结果的checkpoints 会驻留显存，方便在Backward 中进行重计算。 然而在checkpoint 的生命周期里，在前向和反向的两次调用之间仍有一段较长的未被调用的时间间隔。从极致节省显存的角度去看， 这也是对显存的一种浪费。
 Recompute-Offload 原理大致可以分为两步：
 
     * Forward： 当checkpoint在前向中被生成后，将其卸载(Offload)到Host 内存中，让其所占据的显存可以被释放。
