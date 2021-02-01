@@ -8,7 +8,6 @@
    :name: performance
 
    graph
-   gradient_acc
    dataset
    geo
 
