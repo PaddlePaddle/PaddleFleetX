@@ -20,6 +20,7 @@
 
 飞桨参数服务器概述
 ---------------------
+
 飞桨参数服务器的基本架构源自 `Parameter Server for Distributed Machine Learning <http://www.cs.cmu.edu/~muli/file/ps.pdf>`_ 和 `Large Scale Distributed Deep Networks <https://static.googleusercontent.com/media/research.google.com/en//archive/large_deep_networks_nips2012.pdf>`_，并在其基础上做了大量创新来满足百度和其他公司对于参数服务器性能和功能的需求。
 
 飞桨参数服务器拥有以下特性：
@@ -33,29 +34,36 @@
 飞桨参数服务器架构及原理
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+架构图如下所示：
+
+.. image:: ../../../_images/ps/ps_arch.png
+  :width: 600
+  :alt: ps_store
+  :align: center
+
 
 **基本组件描述**：
 
 1. FleetAPI: 贯穿整个分布式训练的API， 分布式所有对外暴露的API均由Fleet暴露，不允许其他任何组件暴露API。
-2. DistributedOptimizer: 编译期，结合配置将单机训练网络转换为分布式训练网络，生成适配于各个节点的Program。
+2. DistributedOptimizer: 编译期，结合配置将单机训练网络转换为分布式训练网络，生成适配于各个节点的Program及配置文件。
 3. Reader: 包含Dataset/DataLoader/Feeder， Reader与训练解耦，训练可以与任意Reader适配。
-4. Worker: 每个训练节点训练的主方法，  适配各种Reader， 分布式中只通过send/recv和外部进行交互。
-5. Communicator: Trainer端负责梯度/参数聚合、拆分、收发的核心模块， 独立运行，通过初始化配置及Trainer的send的内容进行工作。
-6. RPC/GLOO:   负责参数传递、节点控制等， 通信核心模块。 RPC逻辑会从收发Tensor更新为收发二进制, GLOO负责控制训练过程中对于训练流程的控制，包括Barrier，以及通过GLOO API实现分布式Auc/分布式Acc等逻辑。
-7. ParameterServer: 参数服务器模块， 独立运行于Server端， 包含Dense/Sparse参数处理、Decay/Clip/Show、Click等处理逻辑，PS端包含稀疏参数的通用存储。
+4. Executor: 每个训练节点(Worker)的主方法，适配各种Reader， 分布式中只通过send/recv和外部进行交互。
+5. Communicator: Worker端负责梯度/参数聚合、拆分、收发的核心模块，独立运行，通过初始化配置及编译期间生成的Worker参数收发配置文件的内容进行工作。
+6. RPC/GLOO: 负责参数传递、节点控制等，通信核心模块。 RPC逻辑会从收发Tensor更新为收发二进制, GLOO负责控制训练过程中对于训练流程的控制，包括Barrier，以及通过GLOO API实现分布式Auc/分布式Acc等逻辑。
+7. ParameterServer: 参数服务器模块，独立运行于PServer端，包含Dense/Sparse参数存储及更新、Decay/Clip/Show、Click等处理逻辑。
 
 
-**基本原理描述**：
+参数服务器整体架构分编译期和运行期两个阶段。
 
-    - 静态图编译阶段：用户定义的组网在FleetAPI的配合下，将单机的计算图拆分为三部分内容：
-        1. 参数更新节点(PServer)将PServer通过Protobuf转换成PServer独有的模型定义结构，以此启动PServer端RPC Server服务。
-        2. 计算节点(Worker)端计算图， Worker端的计算图主要由基础训练网络构成，包含数据读取，前向，反向及与梯度聚合及通信组件(Communicator)通信的算子。
-        3. 本地通信端配置，此部分主要包含参数服务器相关的梯度融合、通信及参数收发逻辑，它基于单机计算图及用户的配置进行正确的初始化，并根据配置进行梯度融合、通信及调整参数收发频率。
+编译阶段，框架需在FleetAPI的配合下，将用户定义的单机组网计算图拆分为两部分内容：
 
-    - 静态图运行阶段：
-        1. 启动PServer，参数更新节点(PServer)将PServer通过Protobuf转换成PServer独有的模型定义结构，以此启动PServer端RPC Server服务。
-        2. 启动Communicator，每个Worker节点，独立启动此模块，负责梯度/参数聚合、拆分、收发和PServer端通信，通过初始化配置及收到Worekr端计算图通过OP发送而来的数据进行操作。
-        3. 启动Worker端训练， 这是整个参数服务器端训练的主要阶段，每个Worker节点基于自己划分的训练数据，进行学习，将梯度(参数)发送给Communicator后，根据配置（同步、异步、GEO异步）来确定是等待通信完成，还是直接进行下一轮训练，以此来完成整个参数服务器的分布式训练。
+1. 计算节点(Worker)端计算图， Worker端的计算图主要由基础训练网络构成，包含数据读取，前向，反向及与梯度聚合及通信组件(Communicator)通信的算子。
+2. 配置文件，PServer端需据此启动RPC Server服务，以及生成参数的存储格式。Worker端需据此完成通信组件Communicator的配置。
+
+
+运行阶段，PServer端需启动RPC服务，监听并处理Worker的参数拉取、更新等请求。
+
+运行阶段，Worker端的训练线程需基于自己划分的训练数据，进行学习，将梯度(参数)发送给Communicator后，根据配置（同步、异步、GEO异步）来确定是等待通信完成，还是直接进行下一轮训练，以此来完成整个参数服务器的分布式训练。Worker端的Communicator通信组件也需在运行初就完成启动，并不断将当前Worker各个训练线程产出的梯度聚合后发送给PServer，然后从PServer上拉取最新参数以供训练线程使用。
 
 
 飞桨支持的分布式训练模式
