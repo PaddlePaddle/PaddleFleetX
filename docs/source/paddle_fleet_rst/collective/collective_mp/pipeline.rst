@@ -9,7 +9,7 @@
 原理介绍
 =======
 
-.. image:: ./img/pipeline-1.png
+.. image:: ../img/pipeline-1.png
   :width: 400
   :alt: pipeline
   :align: center
@@ -18,14 +18,14 @@
 
 下图给出流水线并行的时序图。最简配置流水线并行模型下，任意时刻只有单个计算设备处于计算状态，其它计算设备则处于空闲状态，因此设备利用率和计算效率较差。
 
-.. image:: ./img/pipeline-2.png
+.. image:: ../img/pipeline-2.png
   :width: 600
   :alt: pipeline_timeline1
   :align: center
 
 为了优化流水线并行中设备的计算效率，可以进一步将mini-batch切分成若干更小粒度的micro-batch，以提升流水线并行的并发度，进而达到提升设备利用率和计算效率的目的。如下图所示，一个mini-batch被切分为4个micro-batch；前向阶段，每个设备依次计算单个micro-batch的结果；从而增加了设备间的并发度，降低了流水线并行bubble空间比例，提高了计算效率。
 
-.. image:: ./img/pipeline-3.png
+.. image:: ../img/pipeline-3.png
   :width: 600
   :alt: pipeline_timeline2
   :align: center
