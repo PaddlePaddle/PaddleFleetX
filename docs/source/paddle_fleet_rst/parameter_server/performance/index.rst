@@ -11,5 +11,6 @@
    gradient_acc
    dataset
    geo
+   ps_gpu
 
 
