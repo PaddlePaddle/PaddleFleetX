@@ -26,7 +26,7 @@ PServer参数存储
 
 .. image:: ../../../_images/ps/ps_store.png
   :width: 600
-  :alt: geosgd
+  :alt: ps_store
   :align: center
 
 可以，无论是稠密参数（DenseTable）还是稀疏参数（SparseTable），最终存储的内容（ValueData）格式都一样，除参数本身外，还需额外存储参数优化计算公式中除梯度外所有的其他中间状态值，下面以sgd，adagrad，adam三种常见优化算法为例进行说明。

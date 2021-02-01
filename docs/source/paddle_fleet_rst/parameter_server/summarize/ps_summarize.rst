@@ -7,9 +7,12 @@
 
 工业界需要训练大型的机器学习模型，这些模型参数往往超大，达到了百GB甚至TB级别，超过了单台服务器的容纳能力，同时训练这些模型的数据量巨大，一次参与训练的数据可能达到上百TB，需要多台服务器共同分担，加速整个训练任务。在这种情况下，采用参数服务器架构可以很好的利用分布式计算的能力来提升训练任务中模型规模的上限和训练效率。
 
-一般参数服务器架构如图，`原图来自 <https://static.googleusercontent.com/media/research.google.com/en//archive/large_deep_networks_nips2012.pdf>`：
+一般参数服务器架构如图（`原图论文地址 <https://static.googleusercontent.com/media/research.google.com/en//archive/large_deep_networks_nips2012.pdf>`_）：
 
-
+.. image:: ../../../_images/ps/arch1.png
+  :width: 600
+  :alt: ps
+  :align: center
 
 即将整个训练节点划分为计算节点(Worker)和参数更新节点(PServer)两种，其中计算节点负责将分配到此节点的数据进行计算，将算得的梯度发送给对应的参数更新节点，后从参数更新节点获取最新的参数更新到本地。参数更新节点采用一定的参数划分方式，将模型参数均匀的划分在多个节点上，每个节点在收到梯度后根据优化策略进行参数更新，同时参数更新节点作为服务方，会对计算节点提供参数查询功能。
 
