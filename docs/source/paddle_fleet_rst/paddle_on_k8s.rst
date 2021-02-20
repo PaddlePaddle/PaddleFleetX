@@ -8,6 +8,8 @@ Kubernetes 部署
 在 kubernetes 上部署分布式任务需要安装 `paddle-operator <https://github.com/kuizhiqing/paddle-operator>`_ 。
 paddle-operator 通过添加自定义资源类型 (paddlejob) 以及部署 controller 和一系列 kubernetes 原生组件的方式实现简单定义即可运行 paddle 任务的需求。
 
+目前支持运行 ParameterServer (PS) 和 Collective 两种分布式任务，当然也支持运行单节点任务。
+
 paddle-operator 安装
 ^^^^^^^^
 
@@ -51,7 +53,11 @@ paddle-operator 安装
 ~~~~~~
 
 *注意默认部署的 namespace 为 paddle-system，如果希望在自定义的 namespace 中运行或者提交任务，
-需要先在 operator.yaml 文件中对应更改 namespace 配置。*
+需要先在 operator.yaml 文件中对应更改 namespace 配置，其中*
+
+* *namespace: paddle-system* 表示该资源部署的 namespace，可理解为系统 controller namespace；
+* Deployment 资源中 containers.args 中 *--namespace=paddle-system* 表示 controller 监控资源所在 namespace，即任务提交 namespace。
+
 
 执行以下部署命令，
 
@@ -67,7 +73,7 @@ paddle-operator 安装
     NAME                                         READY   STATUS    RESTARTS   AGE
     paddle-controller-manager-698dd7b855-n65jr   1/1     Running   0          1m
 
-通过以下命令查看 controller 日志以确保运行正常，
+通过查看 controller 日志以确保运行正常，
 
 .. code-block::
 
@@ -86,6 +92,9 @@ paddle-operator 安装
     $ kubectl -n paddle-system get pdj
     NAME                     STATUS      MODE   PS    WORKER   AGE
     wide-ande-deep-service   Completed   PS     2/2   0/2      4m4s
+
+以上信息可以看出：训练任务已经正确完成，该任务为 ps 模式，配置需求 2 个 pserver, 2 个在运行，需求 2 个 woker，0 个在运行（已完成退出）。
+可通过 cleanPodPolicy 配置任务完成/失败后的 pod 删除策略，详见任务配置。
 
 查看 pod 状态，
 
@@ -123,7 +132,7 @@ paddlejob 任务提交
 制作任务镜像
 ~~~~~~
 
-在 kubernetes 中使用镜像需要有可访问的镜像仓库，这里使用百度云 ccr 作为示例，用户需要自己配置，
+在 kubernetes 中使用镜像需要有可访问的镜像仓库，这里使用百度云 `ccr <https://cloud.baidu.com/doc/CCR/s/qk8gwqs4a>`_ 作为示例，用户需要自己配置。
 
 用于生成镜像的 Dockerfile 和代码目录，
 
@@ -154,6 +163,11 @@ Dockerfile 内容，
 
 用户可根据实际情况更改内容和安装额外依赖。
 
+注意：使用 gpu 训练时需要
+
+* 安装 gpu 版本的 paddlepaddle 和相关组件或选用 `官方 docker <https://www.paddlepaddle.org.cn/>`_ 作为基础镜像或环境;
+* 需要在集群中安装好对应 `驱动 <https://github.com/NVIDIA/nvidia-docker/wiki/Frequently-Asked-Questions#how-do-i-install-the-nvidia-driver>`_ 和  `工具包 <https://github.com/NVIDIA/nvidia-docker/blob/master/README.md#quickstart>`_ 支持。
+
 
 制作镜像
 
@@ -171,16 +185,18 @@ Dockerfile 内容，
 配置任务
 ~~~~~~
 
-向 kubernetes 提交任务的方式有多种，这里使用 kubectl 提交 yaml 配置文件，
+准备配置文件，
 
 .. code-block::
-
+    
+    $ cat pdj.yaml
     apiVersion: batch.paddlepaddle.org/v1
     kind: PaddleJob
     metadata:
       name: wide-ande-deep
     spec:
-      intranet: Service
+      withGloo: 1
+      intranet: PodIP
       cleanPodPolicy: OnCompletion
       worker:
         replicas: 2
@@ -201,9 +217,11 @@ Dockerfile 内容，
 
 * 提交命名需要唯一，如果存在冲突请先删除原 paddlejob 确保已经删除再提交;
 * ps 模式时需要同时配置 ps 和 worker，collective 模式时只需要配置 worker 即可；
+* withGloo 可选配置为 0 不启用， 1 只启动 worker 端， 2 启动全部(worker端和Server端)， 建议设置 1；
 * cleanPodPolicy 可选配置为 Always/Never/OnFailure/OnCompletion，表示任务终止（失败或成功）时，是否删除 pod，调试时建议 Never，生产时建议 OnCompletion；
 * intranet 可选配置为 Service/PodIP，表示 pod 间的通信方式，用户可以不配置, 默认使用 PodIP；
-* ps 和 worker 的内容为 podTemplate，用户可根据需要遵从 kubernetes 规范添加更多内容, 如 GPU 的配置.
+* ps 和 worker 的内容为 podTemplateSpec，用户可根据需要遵从 kubernetes 规范添加更多内容, 如 GPU 的配置.
+
 
 更多配置示例，
 
@@ -240,6 +258,12 @@ Dockerfile 内容，
                     nvidia.com/gpu: 1
             nodeSelector:
               accelerator: nvidia-tesla-p100
+
+使用 kubectl 提交 yaml 配置文件以创建任务，
+
+.. code-block::
+    
+    $ kubectl -n paddle-system create -f pdj.yaml
 
 数据存储
 ^^^^^^^^
@@ -339,3 +363,6 @@ Dockerfile 内容，
               - name: data
                 persistentVolumeClaim:
                   claimName: nfs-pvc
+
+该示例中，镜像仅提供运行环境，训练代码和数据均通过存储挂载的方式添加。
+
