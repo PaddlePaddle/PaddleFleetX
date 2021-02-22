@@ -59,6 +59,7 @@ def get_train_loader(feed_list, place):
     return train_loader
 
 def train_resnet():
+    print("Start collective training example:")
     paddle.enable_static()
     paddle.vision.set_image_backend('cv2')
 
@@ -72,6 +73,7 @@ def train_resnet():
     acc_top5 = paddle.metric.accuracy(input=out, label=label, k=5)
 
     place = paddle.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
+    print("Run on {}.".format(place))
     
     train_loader = get_train_loader([image, label], place)
 
@@ -82,10 +84,12 @@ def train_resnet():
     optimizer.minimize(avg_cost)
 
     exe = paddle.static.Executor(place)
+    print("Execute startup program.")
     exe.run(paddle.static.default_startup_program())
 
     epoch = 10
     step = 0
+    print("Start training:")
     for eop in range(epoch):
         for batch_id, data in enumerate(train_loader()):
             loss, acc1, acc5 = exe.run(paddle.static.default_main_program(), feed=data, fetch_list=[avg_cost.name, acc_top1.name, acc_top5.name])             
