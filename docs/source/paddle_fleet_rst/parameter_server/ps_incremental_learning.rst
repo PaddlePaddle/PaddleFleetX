@@ -29,7 +29,7 @@
 训练启动时每个Worker的基本初始流程如下：
 
 - 每个节点执行 `exe.run(paddle.static.default_startup_program())` 进行参数初始化。
-- 0号节点执行 `paddle.fluid.io.load_vars()` 指定要加载的稠密参数的名字列表和模型目录，将稠密参数通过此方式进行加载。
+- 0号节点执行 `paddle.static.load_vars()` 指定要加载的稠密参数的名字列表和模型目录，将稠密参数通过此方式进行加载。
 - 每个节点执行 `fleet.init_worker()` ， 其中0号节点的稠密参数将同步给相应的PServer，其他节点(非0号)会从PServer端将稠密参数取回本地赋值给本地的稠密参数。
 
 
@@ -77,7 +77,7 @@
     
         exe.run(paddle.static.default_startup_program())
         var_names = ["w", "b"]
-        fluid.io.load_vars(executor=exe, dirname=path, vars=var_names)
+        paddle.static.load_vars(executor=exe, dirname=path, vars=var_names)
         fleet.init_worker()
 
 
@@ -96,7 +96,7 @@
  + 当前框架并没有提供此稀疏参数重分布脚本，目前需要用户自行编写。
 
 - 加载指定稠密参数
- + 用户可以选择性的加载所需的稠密参数，具体是在 0号 Worker 执行 `fluid.io.load_vars`时 ，指定的 vars的列表来控制。
+ + 用户可以选择性的加载所需的稠密参数，具体是在 0号 Worker 执行 `paddle.static.load_vars`时 ，指定的 vars的列表来控制。
 
 - 加载指定稀疏参数
  + 用户可以选择性的加载指定的稀疏参数，具体是在PServer执行`init_server`时，指定`var_names`的列表，通过此列表来控制加载的参数名单。

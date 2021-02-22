@@ -422,7 +422,7 @@ Heter-Worker的计算图生成源代码位于 `build_trainer_program <https://gi
                 size=[id_num, id_value_shape],
                 is_sparse=True)
 
-- *paddle.fluid.layers.embedding*
+- *paddle.static.nn.embedding*
 
   .. code:: python
     
@@ -430,13 +430,13 @@ Heter-Worker的计算图生成源代码位于 `build_trainer_program <https://gi
     paddle.enable_static()
 
     # is_sparse=True, 触发参数的稀疏化，加快训练和通信速度
-    embedding = paddle.fluid.layers.embedding(
+    embedding = paddle.static.nn.embedding(
                 input=x,
                 size=[id_num, id_value_shape],
                 is_sparse=True)
 
 
-- *paddle.fluid.contrib.sparse_embedding*
+- *paddle.static.nn.sparse_embedding*
 
   .. code:: python
     
@@ -444,6 +444,6 @@ Heter-Worker的计算图生成源代码位于 `build_trainer_program <https://gi
     paddle.enable_static()
 
     # sparse_embedding 触发emb的大规模稀疏
-    embedding = paddle.fluid.contrib.sparse_embedding(
+    embedding = paddle.static.nn.sparse_embedding(
                 input=x,
                 size=[id_num, id_value_shape])
