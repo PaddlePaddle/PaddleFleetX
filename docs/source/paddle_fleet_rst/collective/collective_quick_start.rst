@@ -1,6 +1,6 @@
 
 快速开始
---------------
+--------
 
 Collective训练快速开始
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -126,7 +126,7 @@ train_fleet_static.py的完整训练代码如下所示。
        #初始化Fleet环境
        strategy = fleet.DistributedStrategy()
        fleet.init(is_collective=True, strategy=strategy)
-   optimizer = optimizer_setting()
+       optimizer = optimizer_setting()
 
        # 通过Fleet API获取分布式优化器，将参数传入飞桨的基础优化器
        optimizer = fleet.distributed_optimizer(optimizer)
