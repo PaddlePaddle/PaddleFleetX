@@ -39,7 +39,7 @@
     strategy.a_sync = True
 
     # 分布式训练图优化
-    adam = paddle.fluid.optimizer.Adam(learning_rate=5e-06)
+    adam = paddle.optimizer.Adam(learning_rate=5e-06)
     adam = fleet.distributed_optimizer(adam, strategy=strategy)
     adam.minimize(model.avg_cost)
 
