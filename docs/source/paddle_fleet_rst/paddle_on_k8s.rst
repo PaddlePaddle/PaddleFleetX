@@ -16,24 +16,29 @@ paddle-operator 安装
 准备
 ~~~~~~
 
-安装 paddle-operator 需要有已经安装的 kubernetes (v1.16+) 集群和 kubectl (v1.16+) 工具。
+安装 paddle-operator 需要有已经安装的 kubernetes (v1.8+) 集群和 kubectl (v1.8+) 工具。
 
 可以通过 *git clone* 或者复制文件内容保存以下 `文件 <https://github.com/kuizhiqing/paddle-operator/tree/main/deploy>`_ 到本地,
 
 .. code-block::
 
     deploy
-    ├── examples
-    │   ├── wide_and_deep.yaml
-    │   ├── wide_and_deep_podip.yaml
-    │   └── wide_and_deep_service.yaml
-    └── v1
-        ├── crd.yaml
-        └── operator.yaml
+    |-- examples
+    |   |-- wide_and_deep.yaml
+    |   |-- wide_and_deep_podip.yaml
+    |   `-- wide_and_deep_service.yaml
+    |-- v1
+    |   |-- crd.yaml
+    |   `-- operator.yaml
+    `-- v1beta1
+        |-- crd.yaml
+        `-- operator.yaml
 
 
 部署 CRD
 ~~~~~~
+
+*注意：kubernetes 1.15 及以下使用 v1beta1 目录，1.16 及以上使用目录 v1.*
 
 执行以下命令，
 
