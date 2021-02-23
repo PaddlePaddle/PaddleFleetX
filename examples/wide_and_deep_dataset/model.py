@@ -54,7 +54,8 @@ class WideDeepLayer(nn.Layer):
         # deep part
         sparse_embs = []
         for s_input in sparse_inputs:
-            emb = self.embedding(s_input)
+            #emb = self.embedding(s_input)
+            emb = paddle.static.nn.sparse_embedding(s_input, size = [1024, self.sparse_feature_dim])
             emb = paddle.reshape(emb, shape=[-1, self.sparse_feature_dim])
             sparse_embs.append(emb)
 
@@ -169,9 +170,6 @@ class WideDeepModel:
             name="label", shape=[None, 1], dtype="int64")
 
         self.inputs = [dense_input] + sparse_inputs + [label_input]
-
-        self.loader = paddle.io.DataLoader.from_generator(
-            feed_list=self.inputs, capacity=64, iterable=False)
 
         wide_deep_model = WideDeepLayer(self.sparse_feature_number, self.sparse_feature_dim,
                                         self.dense_input_dim, self.sparse_inputs_slots - 1, self.fc_sizes)
