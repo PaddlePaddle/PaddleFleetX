@@ -42,6 +42,6 @@ class WideDeepDatasetReader(fleet.MultiSlotDataGenerator):
 
 if __name__ == "__main__":
     my_data_generator = WideDeepDatasetReader()
-    my_data_generator.set_batch(16)
+    #my_data_generator.set_batch(16)
 
     my_data_generator.run_from_stdin()
