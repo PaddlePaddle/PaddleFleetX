@@ -26,7 +26,8 @@ paddle-operator 安装
     |-- examples
     |   |-- wide_and_deep.yaml
     |   |-- wide_and_deep_podip.yaml
-    |   `-- wide_and_deep_service.yaml
+    |   |-- wide_and_deep_service.yaml
+    |   `-- wide_and_deep_volcano.yaml
     |-- v1
     |   |-- crd.yaml
     |   `-- operator.yaml
@@ -46,6 +47,8 @@ paddle-operator 安装
 
    $ kubectl create -f deploy/v1/crd.yaml
 
+*注意：v1beta1 请根据报错信息添加 --validate=false 选项*
+
 通过以下命令查看是否成功，
 
 .. code-block::
@@ -57,7 +60,7 @@ paddle-operator 安装
 部署 controller 及相关组件
 ~~~~~~
 
-*注意默认部署的 namespace 为 paddle-system，如果希望在自定义的 namespace 中运行或者提交任务，
+*注意：默认部署的 namespace 为 paddle-system，如果希望在自定义的 namespace 中运行或者提交任务，
 需要先在 operator.yaml 文件中对应更改 namespace 配置，其中*
 
 * *namespace: paddle-system* 表示该资源部署的 namespace，可理解为系统 controller namespace；
@@ -228,6 +231,79 @@ Dockerfile 内容，
 * ps 和 worker 的内容为 podTemplateSpec，用户可根据需要遵从 kubernetes 规范添加更多内容, 如 GPU 的配置.
 
 
+
+提交任务
+~~~~~~
+
+使用 kubectl 提交 yaml 配置文件以创建任务，
+
+.. code-block::
+    
+    $ kubectl -n paddle-system create -f pdj.yaml
+
+
+更多配置
+^^^^^^^^
+
+Volcano 支持
+~~~~~~
+paddle-operator 支持使用 volcano 进行任务调度 (如实现 gan-scheduling)，使用前请先 `安装 <https://github.com/volcano-sh/volcano>`_ 。
+
+使用此功能需要进行如下配置：
+
+* 创建 paddlejob 同名 podgroup，具体配置信息参考 volcano 规范；
+* 在 paddlejob 任务配置中添加声明：schedulerName: volcano , 注意：需要且只需要在 worker 中配置。
+
+配置示例，
+
+.. code-block::
+
+    ---
+    apiVersion: batch.paddlepaddle.org/v1
+    kind: PaddleJob
+    metadata:
+      name: wide-ande-deep
+    spec:
+      cleanPodPolicy: Never
+      withGloo: 1
+      worker:
+        replicas: 2
+        template:
+          spec:
+            restartPolicy: "Never"
+            schedulerName: volcano
+            containers:
+              - name: paddle
+                image: registry.baidubce.com/kuizhiqing/demo-wide-and-deep:v1
+      ps:
+        replicas: 2
+        template:
+          spec:
+            restartPolicy: "Never"
+            containers:
+              - name: paddle
+                image: registry.baidubce.com/kuizhiqing/demo-wide-and-deep:v1
+    
+    ---
+    apiVersion: scheduling.volcano.sh/v1beta1
+    kind: PodGroup
+    metadata:
+      name: wide-ande-deep
+    spec:
+      minMember: 4
+
+在以上配置中，我们通过创建最小调度单元为 4 的 podgroup，并将 paddlejob 任务标记使用 volcano 调度，实现了任务的 gan-scheduling。
+
+可以通过以下命运提交上述任务查看结果，
+
+.. code-block::
+
+   $ kubectl -n paddle-system create -f deploy/examples/wide_and_deep.yaml
+
+
+GPU 和节点选择
+~~~~~~
+
 更多配置示例，
 
 .. code-block::
@@ -264,14 +340,8 @@ Dockerfile 内容，
             nodeSelector:
               accelerator: nvidia-tesla-p100
 
-使用 kubectl 提交 yaml 配置文件以创建任务，
-
-.. code-block::
-    
-    $ kubectl -n paddle-system create -f pdj.yaml
-
 数据存储
-^^^^^^^^
+~~~~~~
 
 在 kubernentes 中使用挂载存储建议使用 pv/pvc 配置，详见 `persistent-volumes <https://kubernetes.io/docs/concepts/storage/persistent-volumes/>`_ 。
 
