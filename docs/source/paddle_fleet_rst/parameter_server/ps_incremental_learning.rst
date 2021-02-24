@@ -59,7 +59,9 @@
         fleet.save_persistables(dirname)
 
 
-模型加载：
+模型加载(文章末尾附录了获取稀疏/稠密参数的代码，参考或复制使用)：
+
+**对于流式训练，模型加载需要使用全量保存的模型(fleet.save_persistable, 配置mode=0)，如果使用增量保存(Base+Detla)的方式，在拥有准入配置的情况下，可能会丢一部分未被准入的特征。**
 
 .. code-block:: python
 
@@ -67,17 +69,17 @@
     dirname = "/you/path/to/model"
     
     if fleet.is_server():
-        var_names = None
-        fleet.init_server(dirname, var_names)
+        sparse_varnames = [var.name for var in get_sparse_vars()]
+        fleet.init_server(dirname, sparse_varnames)
         fleet.run_server()
-    
+
     if fleet.is_worker():
         place = paddle.CPUPlace()
         exe = paddle.static.Executor(place)
     
         exe.run(paddle.static.default_startup_program())
-        var_names = ["w", "b"]
-        paddle.static.load_vars(executor=exe, dirname=path, vars=var_names)
+        dense_vars = get_dense_vars()
+        paddle.static.load_vars(executor=exe, dirname=path, vars=dense_vars)
         fleet.init_worker()
 
 
@@ -106,4 +108,55 @@
 ---------------------
 [略]
 
+附录
+------------------
+
+获取稀疏/稠密参数的代码
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+        def get_sparse_vars():
+            import paddle
+            program = paddle.static.default_main_program()
+            SPARSE_OP_TYPE_DICT = {"lookup_table", "lookup_table_v2"}
+
+            def is_sparse_op(op):
+                if op.type in SPARSE_OP_TYPE_DICT and op.attr('is_sparse') is True or \
+                    op.type == "distributed_lookup_table":
+                    return True
+                return False
+
+            def get_sparse_varnames():
+                tablenames = set()
+                for op in program.global_block().ops:
+                    if is_sparse_op(op):
+                        tablenames.add(op.input("W")[0])
+                return list(tablenames)
+
+            varnames = get_sparse_varnames()
+
+            sparse_vars = set()
+            for varname in varnames:
+                sparse_vars.add(program.global_block().vars[varname])
+            return list(sparse_vars)
+
+        def get_dense_vars():
+            import paddle
+            program = paddle.static.default_main_program()
+
+            def is_persistable(var):
+                if var.desc.type() == paddle.fluid.core.VarDesc.VarType.FEED_MINIBATCH or \
+                   var.desc.type() == paddle.fluid.core.VarDesc.VarType.FETCH_LIST or \
+                   var.desc.type() == paddle.fluid.core.VarDesc.VarType.READER:
+                    return False
+                return var.persistable
+
+            exe = paddle.static.Executor(paddle.CPUPlace())
+            sparse_varnames = [var.name for var in get_sparse_vars()]
+            dense_vars = set()
+            for name, var in program.global_block().vars.items():
+                if is_persistable(var) and var.name not in sparse_varnames:
+                    dense_vars.add(var)
+            return list(dense_vars)
 
