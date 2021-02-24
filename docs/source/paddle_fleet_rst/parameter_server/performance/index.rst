@@ -10,5 +10,6 @@
    graph
    dataset
    geo
+   ps_gpu
 
 
