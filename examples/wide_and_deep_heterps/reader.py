@@ -19,7 +19,7 @@ class WideDeepDatasetReader(fleet.MultiSlotDataGenerator):
         sparse_feature = []
         for idx in continuous_range_:
             if features[idx] == "":
-                dense_feature.append(0.0)
+                dense_feature.append(0)
             else:
                 dense_feature.append(
                     (float(features[idx]) - cont_min_[idx - 1]) / cont_diff_[idx - 1])
@@ -28,20 +28,21 @@ class WideDeepDatasetReader(fleet.MultiSlotDataGenerator):
                 [hash(str(idx) + features[idx]) % hash_dim_])
         label = [int(features[0])]
         return [dense_feature]+sparse_feature+[label]
-    
+
     def generate_sample(self, line):
         def wd_reader():
             input_data = self.line_process(line)
             feature_name = ["dense_input"]
             for idx in categorical_range_:
-                feature_name.append("C" + str(idx - 13))
+                #feature_name.append("C" + str(idx - 13))
+                feature_name.append(str(idx - 13))
             feature_name.append("label")
             yield zip(feature_name, input_data)
-        
+
         return wd_reader
 
 if __name__ == "__main__":
     my_data_generator = WideDeepDatasetReader()
-    #my_data_generator.set_batch(16)
+    my_data_generator.set_batch(16)
 
     my_data_generator.run_from_stdin()

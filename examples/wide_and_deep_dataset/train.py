@@ -2,7 +2,7 @@ from paddle.distributed.fleet.utils.ps_util import DistributedInfer
 import paddle.distributed.fleet as fleet
 import numpy as np
 from model import WideDeepModel
-from reader import WideDeepDataset
+from reader import WideDeepDatasetReader 
 import os
 import sys
 
@@ -10,16 +10,24 @@ import paddle
 paddle.enable_static()
 
 
-def distributed_training(exe, train_model, train_data_path="./data", batch_size=10, epoch_num=1):
-    dataset = paddle.distributed.InMemoryDataset()
+def distributed_training(exe, train_model, train_data_path="./data", batch_size=4, epoch_num=1):
+
+    # if you want to use InMemoryDataset, please invoke load_into_memory/release_memory at train_from_dataset front and back.
+    #dataset = paddle.distributed.InMemoryDataset()
+    #dataset.load_into_memory()
+    # train_from_dataset ...
+    #dataset.release_memory()
+
+    dataset = paddle.distributed.QueueDataset()
     thread_num = 1
     dataset.init(use_var=model.inputs, pipe_command="python reader.py", batch_size=batch_size, thread_num=thread_num)
+
     train_files_list = [os.path.join(train_data_path, x)
                           for x in os.listdir(train_data_path)]
     
-    dataset.set_filelist(train_files_list)
 
     for epoch_id in range(epoch_num):
+        dataset.set_filelist(train_files_list)
         exe.train_from_dataset(paddle.static.default_main_program(),
                                dataset,
                                paddle.static.global_scope(), 
@@ -46,10 +54,11 @@ fleet.init(is_collective=False)
 model = WideDeepModel()
 model.net(is_train=True)
 
-optimizer = paddle.optimizer.SGD(learning_rate=0.0001)
-
 strategy = fleet.DistributedStrategy()
 strategy.a_sync = True
+
+optimizer = paddle.optimizer.SGD(learning_rate=0.0001)
+
 optimizer = fleet.distributed_optimizer(optimizer, strategy)
 
 optimizer.minimize(model.cost)

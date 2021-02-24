@@ -1,1 +1,22 @@
-*.pyc
+
+*.DS_Store
+*.vs
+*.user
+*.tmp
+
+.vscode
+.idea
+.project
+.cproject
+.pydevproject
+.settings/
+CMakeSettings.json
+Makefile
+.test_env/
+
+*~
+bazel-*
+
+build_*
+# clion workspace.
+cmake-build-*

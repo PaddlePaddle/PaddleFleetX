@@ -2,7 +2,7 @@ import paddle
 import paddle.nn as nn
 import paddle.nn.functional as F
 import math
-
+from paddle.fluid.layers.nn import _pull_box_sparse
 
 class WideDeepLayer(nn.Layer):
     def __init__(self, sparse_feature_number, sparse_feature_dim,
@@ -21,14 +21,16 @@ class WideDeepLayer(nn.Layer):
                 initializer=paddle.nn.initializer.TruncatedNormal(
                     mean=0.0, std=1.0 / math.sqrt(self.dense_feature_dim))))
 
-        self.embedding = paddle.nn.Embedding(
+        #self.embedding = _pull_box_sparse(self.slots, size = self.sparse_feature_dim, is_distributed=True, is_sparse=True)
+	"""
+	self.embedding = paddle.nn.Embedding(
             self.sparse_feature_number,
             self.sparse_feature_dim,
             sparse=True,
             weight_attr=paddle.ParamAttr(
                 name="SparseFeatFactors",
                 initializer=paddle.nn.initializer.Uniform()))
-
+	"""
         sizes = [sparse_feature_dim * num_field + dense_feature_dim
                  ] + self.layer_sizes + [1]
         acts = ["relu" for _ in range(len(self.layer_sizes))] + [None]
@@ -52,13 +54,15 @@ class WideDeepLayer(nn.Layer):
         wide_output = self.wide_part(dense_inputs)
 
         # deep part
-        sparse_embs = []
+        #sparse_embs = []
+        sparse_embs = _pull_box_sparse(sparse_inputs, size = self.sparse_feature_dim, is_distributed=True, is_sparse=True)
+        """
         for s_input in sparse_inputs:
-            #emb = self.embedding(s_input)
-            emb = paddle.static.nn.sparse_embedding(s_input, size = [1024, self.sparse_feature_dim])
+            emb = self.embedding(s_input)
+            emb = _pull_box_sparse(, size = self.sparse_feature_dim, is_distributed=True, is_sparse=True)
             emb = paddle.reshape(emb, shape=[-1, self.sparse_feature_dim])
             sparse_embs.append(emb)
-
+	"""
         deep_output = paddle.concat(x=sparse_embs + [dense_inputs], axis=1)
         for n_layer in self._mlp_layers:
             deep_output = n_layer(deep_output)
@@ -160,11 +164,13 @@ class WideDeepModel:
                                          None, self.dense_input_dim], dtype="float32")
 
         sparse_inputs = [
-            paddle.static.data(name="C" + str(i),
+            paddle.static.data(name=str(i),
                                shape=[None, 1],
                                lod_level=1,
                                dtype="int64") for i in range(1, self.sparse_inputs_slots)
         ]
+
+        self.slots_name = [int(i) for i in range(1, self.sparse_inputs_slots)]
 
         label_input = paddle.static.data(
             name="label", shape=[None, 1], dtype="int64")

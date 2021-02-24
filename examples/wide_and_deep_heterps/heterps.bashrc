@@ -1,0 +1,17 @@
+# gcc
+export PATH=/opt/compiler/gcc-4.8.2/bin:$PATH
+export CMAKE_CXX_COMPILER=/opt/compiler/gcc-4.8.2/bin/g++
+# cuda
+export CUDA_ROOT=`pwd`/cuda-10.2
+export PATH=$CUDA_ROOT/bin:$PATH
+export LD_LIBRARY_PATH=$CUDA_ROOT/lib64:$LD_LIBRARY_PATH
+# cudnn
+export CUDNN_ROOT=`pwd`/cudnn_v7.4/cuda
+export LD_LIBRARY_PATH=$CUDNN_ROOT/lib64:$LD_LIBRARY_PATH
+# nccl
+export NCCL_ROOT=`pwd`/nccl2.7.3_cuda10.2
+export LD_LIBRARY_PATH=$NCCL_ROOT/lib:$LD_LIBRARY_PATH
+# install
+export PATH=`pwd`/python/bin:$PATH
+export LD_LIBRARY_PATH=`pwd`/python/lib:${LD_LIBRARY_PATH}
+#export NCCL_LL_THRESHOLD=0
