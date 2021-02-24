@@ -102,7 +102,7 @@
 保存及增量保存配置
 ~~~~~~~~~~~~~~~~~~~~~
 
-.. py:function:: paddle.distributed.fleet.save_persistables(exe, "output/epoch_{}".format(day), mode)
+.. py:function:: paddle.distributed.fleet.save_persistables(exe, dirname, mode)
 
 模型保存接口，使用该接口会将当前训练中涉及到的模型权重，优化器的中间值全量保存下来，供增量训练、恢复训练、在线预测使用。
 针对大规模稀疏，会提供对应的save_base、save_delta等增量保存方案，降低模型保存的磁盘占用及耗时。
