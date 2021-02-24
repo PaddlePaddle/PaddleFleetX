@@ -14,26 +14,6 @@
 
 下载最新版本
 ~~~~~~~~~~~~~~~~~~
-最新的官方正式版， 可以从`这里 <https://www.paddlepaddle.org.cn/documentation/docs/zh/install/Tables.html#whl-release>`__ 进行下载。
-最新的官方开发版， 可以从`这里 <https://www.paddlepaddle.org.cn/documentation/docs/zh/install/Tables.html#whl-dev>`__ 进行下载。
-
-
-源码编译支持分布式的Paddle
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-环境准备
-:::::::::
-PASS
-
-选择CPU/GPU
-::::::::::::::::::
-PASS
-
-编译命令
-::::::::::::::::::
-PASS
-
-包产出及安装
-::::::::::::::::::
-PASS
+-  官方正式版， 可以从 \ `这里 <https://www.paddlepaddle.org.cn/documentation/docs/zh/install/Tables.html#whl-release>`__ 进行下载。
+-  官方开发版， 可以从 \ `这里 <https://www.paddlepaddle.org.cn/documentation/docs/zh/install/Tables.html#whl-dev>`__ 进行下载。
 
