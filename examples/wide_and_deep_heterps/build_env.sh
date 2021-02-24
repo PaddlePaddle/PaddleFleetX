@@ -1,8 +1,6 @@
 #!/bin/bash
 date && echo 'begin build env...'
 
-PADDLEBOX_HOME=`pwd`/heterbox
-
 function fatal_error() {
    echo -e "FATAL: " "$1" >> /dev/stderr
    exit 1
@@ -14,7 +12,7 @@ function download_python() {
     rm python.tar.gz
 }
 
-function install_heterbox() {
+function install_heterps() {
     export PATH=`pwd`/python/bin:$PATH
     export LD_LIBRARY_PATH=`pwd`/python/lib:$LD_LIBRARY_PATH
     `pwd`/python/bin/python -m pip install bin/paddlepaddle_gpu-0.0.0-cp27-cp27mu-linux_x86_64.whl -U
@@ -46,8 +44,8 @@ unset http_proxy
 unset https_proxy
 download_python
 [ $? -ne 0 ] && fatal_error "download python failed"
-install_heterbox
-[ $? -ne 0 ] && fatal_error "install heterbox failed"
+install_heterps
+[ $? -ne 0 ] && fatal_error "install heterps failed"
 download_cuda
 [ $? -ne 0 ] && fatal_error "download cuda failed"
 download_cudnn

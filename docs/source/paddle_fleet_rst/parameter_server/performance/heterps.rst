@@ -27,22 +27,21 @@
 传统参数服务器的局限
 ~~~~~~~~~~~~~~~~~~
 
-当前参数服务器的\ ``Worker``\ 节点，通常仅使用CPU完成模型训练中的前向与反向部分。
-
-纯CPU机器训练在实际工业应用中，存在着以下问题：
+传统参数服务器采用纯CPU机器进行训练。在实际工业应用中，存在着以下问题：
 
 1. **CPU机器算力有瓶颈**
 
-   CPU机器通常核心数较多，并且机器价格也更便宜，可以充分利用CPU多核的优势，在简单模型上极大的提升数据吞吐，整体训练达到较好的性能。但是，随着深度学习模型的日渐复杂，在一些计算能力要求高的模型中，比如\ ``BERT``\ ，计算能力严重不足，模型计算耗时极高。
+   利用多台CPU机器多核的优势，在简单模型上极大的提升数据吞吐，整体训练达到较好的性能。但是，随着深度学习模型的日渐复杂，在一些计算能力要求高的模型中，比如\ ``BERT``\ ，计算能力严重不足，模型计算耗时极高。
 
 2. **分布式CPU机器成本大**
 
    由于工业场景下大规模和大参数的背景，通常会并发使用几十甚至几百台CPU机器进行离线训练，然而随着GPU的迅猛发展，GPU机器价格逐渐下降，上百台CPU带来的成本消耗比少量GPU机器带来的成本消耗少很多。
 
+
 异构参数服务器基本原理
 ~~~~~~~~~~~~~~~~
 
-PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，支持GPU混合训练，获得更高的加速效果。
+PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，支持纯GPU-ps训练，也支持CPU+GPU机器混合训练，将任务进行硬件感知切分，做到物尽其用。
 
 
 一个深度学习模型的训练过程可以拆分为三步：1、前向计算Loss；2、反向计算梯度；3、利用梯度更新参数。
@@ -53,16 +52,16 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
 
 ``CPU-Trainer``\ 执行数据的读取，Embedding查表，数据预处理等步骤后，将运算结果通过RPC请求发往\ ``Heter-Trainer``\ ；\ ``Heter-Trainer``\ 收到前向结果后，执行这些参数的后续的前向与反向步骤，运算结束后，将后续流程需要的上下文参数发回 \ ``CPU-Trainer``\ 。同时两个Trainer都独立与Server通信，发送当前设备上的产生的梯度，统一由Server执行Optimizer更新参数
 
-.. image:: ../../../_images/ps/heterbox.png
+.. image:: ../../../_images/ps/heterps.png
   :width: 600
-  :alt: heterbox
+  :alt: heterps
   :align: center
 
 
 异构参数服务器使用方法
 ----------------------------
 
-本节将采用推荐领域非常经典的模型wide_and_deep为例，介绍异构参数服务器的使用方法，本次快速开始的示例代码位于https://github.com/PaddlePaddle/FleetX/tree/develop/examples/wide_and_deep_heterbox
+本节将采用推荐领域非常经典的模型wide_and_deep为例，介绍异构参数服务器中纯GPU-ps训练的使用方法，示例代码位于https://github.com/PaddlePaddle/FleetX/tree/develop/examples/wide_and_deep_heterps
 
 环境构建
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -106,7 +105,7 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
 
 .. code:: python
 
-    # 模型定义参考examples/wide_and_deep_heterbox中model.py
+    # 模型定义参考examples/wide_and_deep_heterps中model.py
     from model import WideDeepModel
     model = WideDeepModel()
     model.net(is_train=True)
@@ -173,7 +172,7 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
 ::
 
     sh ./build_env.sh
-    source ./heterbox.bashrc
+    source ./heterps.bashrc
 
 
 调用 \ ``run_psgpu.sh`` \ 开启server端和trainer端的训练，此处需提前选择空闲端口，以便server端和trainer端的通信。

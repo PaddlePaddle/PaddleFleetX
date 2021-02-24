@@ -4,7 +4,7 @@ sh ./build_env.sh &> ./log/build_env.log
 
 # export environment config
 export GLOG_v=1
-source ./heterbox.bashrc
+source ./heterps.bashrc
 
 # run server 
 # port must be the same in run_psgpu.sh
