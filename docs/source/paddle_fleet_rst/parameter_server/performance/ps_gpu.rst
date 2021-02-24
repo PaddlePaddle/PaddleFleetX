@@ -55,7 +55,7 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
 
 .. image:: ../../../_images/ps/heterbox.png
   :width: 600
-  :alt: heter_example
+  :alt: heterbox
   :align: center
 
 
@@ -71,7 +71,7 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
 
 - docker准备：为了避免环境引起的运行错误，这里推荐使用docker容器运行本示例，docker镜像地址：registry.baidu.com/paddlecloud/paddlecloud-runenv-centos6u3-online:paddlecloud-v1.2.0-gcc482-cuda9.0_cudnn7 
 
-- 版本要求：paddlepaddle-2.0.0-gpu及以上版本的飞桨开源框架。推荐使用以下链接下载最新whl
+- 版本要求：paddlepaddle-2.0.1-gpu及以上版本的飞桨开源框架。推荐使用以下链接下载最新whl
 
 
 导入依赖
@@ -118,6 +118,7 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
 
 .. code:: python
 
+
     optimizer = paddle.fluid.optimizer.Adam(learning_rate=5e-06, beta1=0.99, beta2=0.9999)
     optimizer = fleet.distributed_optimizer(optimizer, strategy=config_fleet.config)
     optimizer.minimize(model.cost, startup_programs=[paddle.static.default_startup_program()])
@@ -131,9 +132,10 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
 
 同样对于训练节点，调用\ ``init_worker()``\ 接口进行基本初始化后，还需要调用PSGPU进行GPU相关的初始化，\ ``set_slot_vector``\ 接口传入模型中稀疏参数的名字列表，\ ``init_gpu_ps``\ 接口传入worker端所需GPU卡的地址，接着就可以执行训练任务。
 
-为了提高模型运行速度，我们使用 \ ``InMemoryDataset ``\ 进行训练，详细可参考：\ `使用InMemoryDataset/QueueDataset进行训练 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/parameter_server/performance/dataset.html>`_\ 
+为了提高模型运行速度，我们使用 \ ``InMemoryDataset``\ 进行训练，详细可参考：\ `使用InMemoryDataset/QueueDataset进行训练 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/parameter_server/performance/dataset.html>`_\ 
 
 .. code:: python
+
 
     if fleet.is_server():
         fleet.run_server()
@@ -154,6 +156,7 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
         fleet.stop_worker()
 
 
+
 运行训练脚本
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -163,7 +166,9 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
 
     sh run.sh
 
-脚本中首先进行环境下载，包括对python、cuda、cudnn、nccl的下载和paddlepaddle whl包安装；以及对环境变量的导入
+- 环境构建：包括对Python、CUDA、Cudnn、NCCL的下载和paddlepaddle whl包安装，仅需在第一次下载。
+
+- 环境变量的导入： 导入Python、CUDA等依赖。
 
 ::
 
@@ -171,7 +176,7 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
     source ./heterbox.bashrc
 
 
-server端和trainer端分别调用train.py脚本进行训练，此处需提前选择空闲端口，以便server端和trainer端的通信。
+调用 \ ``run_psgpu.sh`` \ 开启server端和trainer端的训练，此处需提前选择空闲端口，以便server端和trainer端的通信。
 
 ::
 
