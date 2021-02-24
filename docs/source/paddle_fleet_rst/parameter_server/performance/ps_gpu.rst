@@ -6,7 +6,7 @@
 什么是异构参数服务器？
 ----------------------------
 
-在开始使用\ ``异构参数服务器``\ 前，您需要先了解\ `参数服务器 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/fleet_ps_sync_and_async_cn.html>`_\ 的基本知识。我们先进行简单回顾：
+在开始使用\ ``异构参数服务器``\ 前，您需要先了解\ `参数服务器 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/parameter_server/summarize/ps_summarize.html>`_\ 的基本知识。我们先进行简单回顾：
 
 参数服务器的应用领域以及解决的问题
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -39,14 +39,11 @@
 
    由于工业场景下大规模和大参数的背景，通常会并发使用几十甚至几百台CPU机器进行离线训练，然而随着GPU的迅猛发展，GPU机器价格逐渐下降，上百台CPU带来的成本消耗比少量GPU机器带来的成本消耗少很多。
 
-异构参数服务器介绍
+异构参数服务器基本原理
 ~~~~~~~~~~~~~~~~
 
 PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，支持GPU混合训练，获得更高的加速效果。
 
-
-异构参数服务器基本原理
-^^^^^^^^^^^^^^^^^^^^^^
 
 一个深度学习模型的训练过程可以拆分为三步：1、前向计算Loss；2、反向计算梯度；3、利用梯度更新参数。
 
@@ -54,30 +51,33 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
 
 异构参数服务器模式中，我们可以将Embedding查表，输入数据的Reshape等IO密集型的OP放置于\ ``CPU-Trainer``\，将RNN，Attention等计算密集型的OP放置于\ ``Heter-Trainer``\ 。
 
-``CPU-Trainer``\ 执行数据的读取，Embedding查表，数据预处理等步骤后，将运算结果通过RPC请求发往\ ``Heter-Trainer``\ ；\ ``Heter-Trainer``\ 收到前向结果后，执行这些参数的后续的前向与反向步骤，运算结束后，将后续流程需要的上下文参数发回``CPU-Trainer`` 。同时两个Trainer都独立与Server通信，发送当前设备上的产生的梯度，统一由Server执行Optimizer更新参数
+``CPU-Trainer``\ 执行数据的读取，Embedding查表，数据预处理等步骤后，将运算结果通过RPC请求发往\ ``Heter-Trainer``\ ；\ ``Heter-Trainer``\ 收到前向结果后，执行这些参数的后续的前向与反向步骤，运算结束后，将后续流程需要的上下文参数发回 \ ``CPU-Trainer``\ 。同时两个Trainer都独立与Server通信，发送当前设备上的产生的梯度，统一由Server执行Optimizer更新参数
 
-.. image:: ../paddle_fleet/img/heter_example.png
+.. image:: ../../../_images/ps/heterbox.png
   :width: 600
   :alt: heter_example
   :align: center
 
+
 异构参数服务器使用方法
-^^^^^^^^^^^^^^^^^^^^^^
+----------------------------
 
 本节将采用推荐领域非常经典的模型wide_and_deep为例，介绍异构参数服务器的使用方法，本次快速开始的示例代码位于https://github.com/PaddlePaddle/FleetX/tree/develop/examples/wide_and_deep_heterbox
 
--  **1、环境构建**
+环境构建
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-机器准备：带有GPU卡的机器
-docker准备：为了避免环境引起的运行错误，这里推荐使用docker容器运行本示例，docker镜像地址：registry.baidu.com/paddlecloud/paddlecloud-runenv-centos6u3-online:paddlecloud-v1.2.0-gcc482-cuda9.0_cudnn7 
-版本要求：paddlepaddle-2.0.0-gpu及以上版本的飞桨开源框架。推荐使用以下链接下载最新whl
+- 机器准备：带有GPU卡的机器
 
--  **2、导入依赖**
+- docker准备：为了避免环境引起的运行错误，这里推荐使用docker容器运行本示例，docker镜像地址：registry.baidu.com/paddlecloud/paddlecloud-runenv-centos6u3-online:paddlecloud-v1.2.0-gcc482-cuda9.0_cudnn7 
 
-使用fleet
-api启动异构参数服务器，需要配置\ ``DistributedStrategy``\ ，使用上述组网生成的cost，参数服务器模式下，我们使用如下代码添加\ ``Optimizer``
+- 版本要求：paddlepaddle-2.0.0-gpu及以上版本的飞桨开源框架。推荐使用以下链接下载最新whl
 
-::
+
+导入依赖
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code:: python
 
     import paddle
     from paddle.fluid.incubate.fleet.parameter_server.pslib import fleet
@@ -89,7 +89,8 @@ api启动异构参数服务器，需要配置\ ``DistributedStrategy``\ ，使�
     import config_fleet
     
 
--  **3、定义分布式模式并初始化分布式训练环境**
+定义分布式模式并初始化分布式训练环境
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 通过\ ``fleet.init()``\ 接口，用户可以定义训练相关的环境，这里只需要配置初始化GLOO所需的ip和端口。
 
@@ -100,7 +101,8 @@ api启动异构参数服务器，需要配置\ ``DistributedStrategy``\ ，使�
     role_maker = GeneralRoleMaker(http_ip_port="127.0.0.1:8900")
     fleet.init(role_maker)
 
--  **4、加载模型及数据**
+加载模型及数据
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code:: python
 
@@ -109,7 +111,10 @@ api启动异构参数服务器，需要配置\ ``DistributedStrategy``\ ，使�
     model = WideDeepModel()
     model.net(is_train=True)
 
--  **5、定义Optimizer**
+定义Optimizer
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+选择 \ ``Optimizer`` \ 优化器，并调用minimize方法构建反向。
 
 .. code:: python
 
@@ -117,13 +122,16 @@ api启动异构参数服务器，需要配置\ ``DistributedStrategy``\ ，使�
     optimizer = fleet.distributed_optimizer(optimizer, strategy=config_fleet.config)
     optimizer.minimize(model.cost, startup_programs=[paddle.static.default_startup_program()])
 
--  **6、开始训练**
+开始训练
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 完成模型定义和优化器选择后，我们开始训练模型。和快速开始中介绍的训练方式一样，因为在参数服务器模式下会有不同的角色。
 
 对于服务器节点，首先用\ ``init_server()``\ 接口对其进行初始化，然后启动服务并开始监听由训练节点传来的梯度。
 
 同样对于训练节点，调用\ ``init_worker()``\ 接口进行基本初始化后，还需要调用PSGPU进行GPU相关的初始化，\ ``set_slot_vector``\ 接口传入模型中稀疏参数的名字列表，\ ``init_gpu_ps``\ 接口传入worker端所需GPU卡的地址，接着就可以执行训练任务。
+
+为了提高模型运行速度，我们使用 \ ``InMemoryDataset ``\ 进行训练，详细可参考：\ `使用InMemoryDataset/QueueDataset进行训练 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/parameter_server/performance/dataset.html>`_\ 
 
 .. code:: python
 
@@ -145,7 +153,9 @@ api启动异构参数服务器，需要配置\ ``DistributedStrategy``\ ，使�
 
         fleet.stop_worker()
 
--  **7、运行训练脚本**
+
+运行训练脚本
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 定义完训练脚本后，我们就可以用提供的运行脚本进行训练
 
