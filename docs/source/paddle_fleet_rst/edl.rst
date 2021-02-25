@@ -1,4 +1,4 @@
 弹性训练
 ------------------
 
--  TBA
+请参考 https://github.com/elasticdeeplearning/edl
