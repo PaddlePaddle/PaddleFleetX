@@ -18,3 +18,6 @@ help:
 # "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).
 %: Makefile
 	@$(SPHINXBUILD) -M -a $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+
+local:
+	@$(SPHINXBUILD) -b html source/ html/ && cd html && python3 -m http.server 8080

@@ -21,6 +21,7 @@
    :name: design 
 
    paddle_fleet_rst/public_cloud
+   paddle_fleet_rst/docker_image
    paddle_fleet_rst/paddle_on_k8s
    paddle_fleet_rst/install_cn
 

@@ -16,14 +16,16 @@ paddle-operator 安装
 准备
 ~~~~~~
 
-安装 paddle-operator 需要有已经安装的 kubernetes (v1.8+) 集群和 kubectl (v1.8+) 工具。
+安装 paddle-operator 需要有已经安装的 kubernetes (v1.8+) 集群和 `kubectl <https://kubernetes.io/docs/tasks/tools/install-kubectl/>`_  (v1.8+) 工具。
 
-可以通过 *git clone* 或者复制文件内容保存以下 `文件 <https://github.com/kuizhiqing/paddle-operator/tree/main/deploy>`_ 到本地,
+本节所需配置文件和示例可以在 `这里 <https://github.com/kuizhiqing/paddle-operator/tree/main/deploy>`_ 找到，
+可以通过 *git clone* 或者复制文件内容保存。
 
 .. code-block::
 
     deploy
     |-- examples
+    |   |-- resnet.yaml
     |   |-- wide_and_deep.yaml
     |   |-- wide_and_deep_podip.yaml
     |   |-- wide_and_deep_service.yaml
@@ -37,11 +39,17 @@ paddle-operator 安装
 
 
 部署 CRD
-~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 *注意：kubernetes 1.15 及以下使用 v1beta1 目录，1.16 及以上使用目录 v1.*
 
 执行以下命令，
+
+.. code-block::
+
+   $ kubectl create -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/dev/deploy/v1/crd.yaml
+
+或者
 
 .. code-block::
 
@@ -58,7 +66,7 @@ paddle-operator 安装
     paddlejobs.batch.paddlepaddle.org       2021-02-08T07:43:24Z
  
 部署 controller 及相关组件
-~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 *注意：默认部署的 namespace 为 paddle-system，如果希望在自定义的 namespace 中运行或者提交任务，
 需要先在 operator.yaml 文件中对应更改 namespace 配置，其中*
@@ -68,6 +76,12 @@ paddle-operator 安装
 
 
 执行以下部署命令，
+
+.. code-block::
+
+   $ kubectl create -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/dev/deploy/v1/operator.yaml
+
+或者
 
 .. code-block::
 
@@ -125,79 +139,19 @@ paddle-operator 安装
 paddlejob 任务提交
 ^^^^^^^^
 
-在上述安装过程中，我们使用了 wide-and-deep 的例子作为提交任务演示，本节详细描述任务封装和提交流程供用户参考提交自己的任务。
+在上述安装过程中，我们使用了 wide-and-deep 的例子作为提交任务演示，本节详细描述任务配置和提交流程供用户参考提交自己的任务，
+镜像的制作过程可在 *docker 镜像* 章节找到。
 
-代码准备
-~~~~~~
+示例 wide and deep
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-示例源码可在此获得，`wide_and_deep <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/wide_and_deep>`_ ，train.py 作为程序的入口点。
-
-本示例会在任务镜像中包含训练数据，实际应用过程中一般不会也不建议这样使用，常见用法分为以下两种：
-
-* 任务运行时，程序通过网络拉取数据到本地进行训练，该情形数据由程序维护，这里不需要额外配置；
-* 任务运行时，程序读取本地目录进行训练，该情形需要使用用户配置 kubernetes 支持的挂载存储，一般建议使用 pvc 抽象，详细示例见下一小节。 
-
-制作任务镜像
-~~~~~~
-
-在 kubernetes 中使用镜像需要有可访问的镜像仓库，这里使用百度云 `ccr <https://cloud.baidu.com/doc/CCR/s/qk8gwqs4a>`_ 作为示例，用户需要自己配置。
-
-用于生成镜像的 Dockerfile 和代码目录，
-
-.. code-block::
-
-    $ ls
-    Dockerfile   wide_and_deep
-
-Dockerfile 内容，
-
-.. code-block::
-
-    $ cat Dockerfile
-    FROM ubuntu:18.04
-
-    RUN apt update && \
-        apt install -y python3 python3-dev python3-pip
-    
-    RUN python3 -m pip install paddlepaddle==2.0.0 -i https://mirror.baidu.com/pypi/simple
-    
-    ## 以下根据用户内容修改
-
-    ADD wide_and_deep /wide_and_deep
-    
-    WORKDIR /wide_and_deep
-    
-    ENTRYPOINT ["python3", "train.py"]
-
-用户可根据实际情况更改内容和安装额外依赖。
-
-注意：使用 gpu 训练时需要
-
-* 安装 gpu 版本的 paddlepaddle 和相关组件或选用 `官方 docker <https://www.paddlepaddle.org.cn/>`_ 作为基础镜像或环境;
-* 需要在集群中安装好对应 `驱动 <https://github.com/NVIDIA/nvidia-docker/wiki/Frequently-Asked-Questions#how-do-i-install-the-nvidia-driver>`_ 和  `工具包 <https://github.com/NVIDIA/nvidia-docker/blob/master/README.md#quickstart>`_ 支持。
-
-
-制作镜像
-
-.. code-block::
-
-    docker build -t registry.baidubce.com/kuizhiqing/demo-wide-and-deep:v1 .
-
-提交镜像 (需要具有对应权限)
-
-.. code-block::
-
-    docker push registry.baidubce.com/kuizhiqing/demo-wide-and-deep:v1
-
-
-配置任务
-~~~~~~
+本示例采用 PS 模式，使用 cpu 进行训练，所以需要配置 ps 和 worker。
 
 准备配置文件，
 
 .. code-block::
     
-    $ cat pdj.yaml
+    $ cat demo-wide-and-deep.yaml
     apiVersion: batch.paddlepaddle.org/v1
     kind: PaddleJob
     metadata:
@@ -212,14 +166,14 @@ Dockerfile 内容，
           spec:
             containers:
               - name: paddle
-                image: registry.baidubce.com/kuizhiqing/demo-wide-and-deep:v1
+                image: registry.baidubce.com/paddle-operator/demo-wide-and-deep:v1
       ps:
         replicas: 2
         template:
           spec:
             containers:
               - name: paddle
-                image: registry.baidubce.com/kuizhiqing/demo-wide-and-deep:v1
+                image: registry.baidubce.com/paddle-operator/demo-wide-and-deep:v1
 
 说明：
 
@@ -231,23 +185,73 @@ Dockerfile 内容，
 * ps 和 worker 的内容为 podTemplateSpec，用户可根据需要遵从 kubernetes 规范添加更多内容, 如 GPU 的配置.
 
 
-
-提交任务
-~~~~~~
-
-使用 kubectl 提交 yaml 配置文件以创建任务，
+提交任务: 使用 kubectl 提交 yaml 配置文件以创建任务，
 
 .. code-block::
     
-    $ kubectl -n paddle-system create -f pdj.yaml
+    $ kubectl -n paddle-system create -f demo-wide-and-deep.yaml
 
+示例 resnet
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+本示例采用 Collective 模式，使用 gpu 进行训练，所以只需要配置 worker，且需要配置 gpu。
+
+准备配置文件，
+
+.. code-block::
+
+    $ cat resnet.yaml
+    apiVersion: batch.paddlepaddle.org/v1
+    kind: PaddleJob
+    metadata:
+      name: resnet
+    spec:
+      cleanPodPolicy: Never
+      worker:
+        replicas: 2
+        template:
+          spec:
+            containers:
+              - name: paddle
+                image: registry.baidubce.com/paddle-operator/demo-resnet:v1
+                command:
+                - python
+                args:
+                - "-m"
+                - "paddle.distributed.launch"
+                - "train_fleet.py"
+                volumeMounts:
+                - mountPath: /dev/shm
+                  name: dshm
+                resources:
+                  limits:
+                    nvidia.com/gpu: 1
+            volumes:
+            - name: dshm
+              emptyDir:
+                medium: Memory
+        
+
+注意：
+
+* 这里需要添加 shared memory 挂载以防止缓存出错；
+* 本示例采用内置 flower 数据集，程序启动后会进行下载，根据网络环境可能等待较长时间。
+
+提交任务: 使用 kubectl 提交 yaml 配置文件以创建任务，
+
+.. code-block::
+    
+    $ kubectl -n paddle-system create -f resnet.yaml
 
 更多配置
 ^^^^^^^^
 
 Volcano 支持
-~~~~~~
-paddle-operator 支持使用 volcano 进行任务调度 (如实现 gan-scheduling)，使用前请先 `安装 <https://github.com/volcano-sh/volcano>`_ 。
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+paddle-operator 支持使用 volcano 进行复杂任务调度，使用前请先 `安装 <https://github.com/volcano-sh/volcano>`_ 。
+
+本节使用 volcano 实现 paddlejob 运行的 gan-scheduling。
 
 使用此功能需要进行如下配置：
 
@@ -302,7 +306,7 @@ paddle-operator 支持使用 volcano 进行任务调度 (如实现 gan-schedulin
 
 
 GPU 和节点选择
-~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 更多配置示例，
 
@@ -341,7 +345,7 @@ GPU 和节点选择
               accelerator: nvidia-tesla-p100
 
 数据存储
-~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 在 kubernentes 中使用挂载存储建议使用 pv/pvc 配置，详见 `persistent-volumes <https://kubernetes.io/docs/concepts/storage/persistent-volumes/>`_ 。
 
