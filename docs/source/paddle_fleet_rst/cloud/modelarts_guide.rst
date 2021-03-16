@@ -195,10 +195,11 @@ train_with_fleet.py
 提交分布式训练任务
 ^^^^^
 
+提交Paddle任务前需要将运行脚本和组网代码上传到obs，并从obs选择代码目录。
 
-在ModelArts上提交Paddle任务的示例截图：
+在ModelArts上提交Paddle任务：
 
-.. image:: ../img/cloud/modelarts_submit_paddle_job.png
+.. image:: ./img/modelarts_submit_paddle_job.png
   :width: 600
   :alt: modelarts_submit_paddle_job
   :align: center
@@ -206,5 +207,3 @@ train_with_fleet.py
 
 启动命令：
 bash /home/work/run_train.sh python /home/work/user-job-dir/run.sh
-
-提交Paddle任务前需要将运行脚本和组网代码上传到obs，并从obs选择代码目录。
