@@ -73,6 +73,7 @@ run_train.sh
 Dockerfile
 
 .. code-block::
+
     # modelarts提供了各种类型的基础镜像，详细：https://support.huaweicloud.com/engineers-modelarts/modelarts_23_0217.html#modelarts_23_0217__section1126616610513，请根据需要按需选择基础镜像，该示例中选择的是GPU镜像
     FROM swr.cn-north-1.myhuaweicloud.com/modelarts-job-dev-image/custom-base-cuda10.0-cp36-ubuntu18.04-x86:1.1
     COPY --chown=work:work run_train.sh /home/work/
