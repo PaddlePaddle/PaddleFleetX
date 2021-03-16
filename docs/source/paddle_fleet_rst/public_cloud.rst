@@ -30,10 +30,10 @@
 * 部署 paddle-opeartor，详见下节；
 * 提交 paddle 任务。
 
+2、在AI训练平台产品上使用 paddle
 
 .. toctree::
-   :maxdepth: 2
-   :caption: 2、在AI训练平台产品上使用 paddle 
+   :maxdepth: 2 
    :name: cloud
 
    cloud/bml_guide.rst 
