@@ -31,6 +31,7 @@
 * 提交 paddle 任务。
 
 2、在AI训练平台产品上使用 paddle
+----
 
 .. toctree::
    :maxdepth: 2 
