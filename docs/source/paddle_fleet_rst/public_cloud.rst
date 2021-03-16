@@ -46,24 +46,86 @@
 
 -  准备dockerfile
 
+run_train.sh 
 .. code-block::
-    # modelarts提供了各种类型的基础镜像，详细：https://support.huaweicloud.com/engineers-modelarts/modelarts_23_0217.html#modelarts_23_0217__section1126616610513，请根据需要按需选择基础镜像，该示例中选择的是cpu镜像
-    FROM swr.cn-north-4.myhuaweicloud.com/modelarts-job-dev-image/custom-cpu-base:1.3
 
-    # 安装Paddle，详细：https://www.paddlepaddle.org.cn/，该示例选择的是Paddle 2.0.1\Ubuntu\pip\CPU版本
-    RUN python -m pip install paddlepaddle -i https://mirror.baidu.com/pypi/simple
+    #!/bin/bash
+    # Initialize environment
+    
+    DLS_USER_HOME_DIR="$( cd "$(dirname "$0")" ; pwd -P )"
+    cd "$DLS_USER_HOME_DIR"
+    DLS_USER_JOB_DIR="$DLS_USER_HOME_DIR/user-job-dir"
+    export PYTHONPATH="$DLS_USER_JOB_DIR:$PYTHONPATH"
+    export PYTHONUNBUFFERED=1
+    
+    # Get job/task-related information from environmental variables
+    source utils.sh
+    dls_fix_dns
+    unset_job_env_except_self "$DLS_JOB_ID"
+    decrypt_dls_aes_env
+    
+    app_url="$DLS_APP_URL"
+    log_url="/tmp/dls-task-$DLS_TASK_INDEX.log"
+    
+    echo "user: `id`"
+    echo "pwd: $PWD"
+    echo "app_url: $app_url"
+    echo "log_url: $log_url"
+    echo "command:" "$@"
+    
+    # Launch process (task)
+    
+    mkdir -p "$DLS_USER_JOB_DIR" && cd "$DLS_USER_JOB_DIR"
+    
+    dls_create_log "$log_url"
+    tail -F "$log_url" &
+    TAIL_PID=$!
+    DLS_DOWNLOADER_LOG_FILE=/tmp/dls-downloader.log
+    dls_get_app "$app_url" 2>&1 | tee "$DLS_DOWNLOADER_LOG_FILE"
+    if [ "${PIPESTATUS[0]}" = "0" ]
+    then
+        stdbuf -oL -eL "$@" 2>&1 | dls_logger "$log_url"
+        RET_CODE=${PIPESTATUS[0]}
+    else
+        (echo "App download error: "; cat "$DLS_DOWNLOADER_LOG_FILE") | dls_logger "$log_url"
+        RET_CODE=127
+    fi
+    
+    if [ ! -z "$DLS_USE_UPLOADER" ] && [ "$DLS_USE_UPLOADER" != "0" ]
+    then
+        dls_upload_log "$log_url" "$DLS_UPLOAD_LOG_OBS_DIR" 2>&1 | tee -a "$DLS_DOWNLOADER_LOG_FILE"
+        if [ "${PIPESTATUS[0]}" != "0" ]
+        then
+            (echo "Log upload error: "; cat "$DLS_DOWNLOADER_LOG_FILE") | dls_logger "$log_url" "append"
+        fi
+    fi
+    
+    sleep 3
+    kill $TAIL_PID
+    exit $RET_CODE
+
+来源：https://github.com/huaweicloud/ModelArts-Lab/blob/master/docs/custom_image/mnist/run_train.sh
+
+Dockerfile
+.. code-block::
+    # modelarts提供了各种类型的基础镜像，详细：https://support.huaweicloud.com/engineers-modelarts/modelarts_23_0217.html#modelarts_23_0217__section1126616610513，请根据需要按需选择基础镜像，该示例中选择的是GPU镜像
+    FROM swr.cn-north-1.myhuaweicloud.com/modelarts-job-dev-image/custom-base-cuda10.0-cp36-ubuntu18.04-x86:1.1
+    COPY --chown=work:work run_train.sh /home/work/
+
+    # 安装Paddle，详细：https://www.paddlepaddle.org.cn/，该示例选择的是Paddle 2.0.1\Linux\pip\GPU版本
+    RUN python -m pip install paddlepaddle-gpu==2.0.1.post100 -f https://paddlepaddle.org.cn/whl/mkl/stable.html
 
 -  构建docker镜像
 
 .. code-block::
 
-    docker build -f Dockerfile . -t swr.cn-north-4.myhuaweicloud.com/deep-learning-diy/paddle-cpu-2.0.1:latest
+    docker build -f Dockerfile . -t swr.cn-north-4.myhuaweicloud.com/deep-learning-diy/paddle-gpu-cuda10-2.0.1:latest
 
 -  将docker镜像推入镜像仓库
 
 .. code-block::
 
-    docker push swr.cn-north-4.myhuaweicloud.com/deep-learning-diy/paddle-cpu-2.0.1:latest
+    docker push swr.cn-north-4.myhuaweicloud.com/deep-learning-diy/paddle-gpu-cuda10-2.0.1:latest
 
 准备运行脚本(Collective模式)
 ^^^^^
@@ -78,11 +140,24 @@ run.sh
         config="--selected_gpus=0,1,2,3,4,5,6,7 --log_dir mylog"
         python -m paddle.distributed.launch ${config} train.py
     else
+        node_host_str=""
+        for i in $(seq 0 $[DLS_TASK_NUMBER-1])
+        do
+            env_key=BATCH_CUSTOM${i}_HOSTS
+            if [[ $i == $[DLS_TASK_NUMBER-1] ]]; then
+                node_host_str="${node_host_str}$(eval echo '$'$env_key)"
+            else
+                node_host_str="${node_host_str}$(eval echo '$'$env_key),"
+            fi
+        done
+
+        node_hosts=${node_host_str}
+        node_ip=${BATCH_CURRENT_HOST}
+
         python -m paddle.distributed.launch \
-            --cluster_node_ips=192.168.1.2,192.168.1.3 \
-            --node_ip=192.168.1.3 \
-            --started_port=6170 \
-            --selected_gpus=0,1,2,3 \
+            --cluster_node_ips=${node_hosts} \
+            --node_ip=${node_ip} \
+            --selected_gpus=0,1,2,3,4,5,6,7 \
             train_with_fleet.py
     fi
 
@@ -155,9 +230,15 @@ train_with_fleet.py
 ^^^^^
 
 
+在ModelArts上提交Paddle任务的示例截图：
+<img src='../_images/cloud/modelarts_submit_paddle_job.png' width = "1080" height = "488" align="middle" description="xxxxxxxxxx" />
 
 
-注意：如果是GPU或者Ascend（NPU），ModelArts会根据当前节点的GPU/Ascend（NPU）数量来自动启动多进程，
+启动命令：
+bash /home/work/run_train.sh python /home/work/user-job-dir/run.sh
+
+提交Paddle任务前需要将运行脚本和组网代码上传到obs，并从obs选择代码目录。
+
 
 2.3、阿里云PAI平台
 ^^^^^^^^
