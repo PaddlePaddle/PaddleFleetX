@@ -1,6 +1,6 @@
 
-华为云ModelArts平台上使用Paddle指南
---------
+2.2、华为云ModelArts平台
+^^^^^^^^
 
 'ModelArts使用自定义镜像创建训练作业 <https://support.huaweicloud.com/engineers-modelarts/modelarts_23_0087.html>'
 

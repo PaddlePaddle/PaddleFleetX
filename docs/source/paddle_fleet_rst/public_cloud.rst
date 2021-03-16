@@ -33,27 +33,13 @@
 2、在AI训练平台产品上使用 paddle
 ----
 
-2.1、百度云BML平台
-^^^^^^^^
 
 .. toctree::
    :maxdepth: 2
-   :caption: 百度云BML平台 
+   :caption: 云AI平台 
    :name: cloud
 
    cloud/bml_guide.rst 
+   cloud/modelarts_guide.rst
+   cloud/aliyun_pai_guide.rst
 
-2.2、华为云ModelArts平台
-
-.. toctree::
-   :maxdepth: 2
-   :caption: 华为云ModelArts平台 
-   :name: cloud
-
-   cloud/modelarts_guide.rst 
-
-
-2.3、阿里云PAI平台
-^^^^^^^^
-
-由于阿里云PAI平台不支持自定义框架的方式来提交训练任务，目前 paddle 还无法在阿里云PAI平台上运行。
