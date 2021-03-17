@@ -103,11 +103,13 @@ Dockerfile
 run.sh
 
 .. code-block::
-
+    
     if [[ ${DLS_TASK_NUMBER} == 1 ]]; then
+        # 单机
         config="--selected_gpus=0,1,2,3,4,5,6,7 --log_dir mylog"
         python -m paddle.distributed.launch ${config} train.py
     else
+        # 分布式
         node_host_str=""
         for i in $(seq 0 $[DLS_TASK_NUMBER-1])
         do
