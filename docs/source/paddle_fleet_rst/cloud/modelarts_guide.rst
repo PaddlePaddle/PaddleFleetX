@@ -197,7 +197,7 @@ train_with_fleet.py
 提交分布式训练任务
 ^^^^^
 
-提交PaddlePaddle任务前需要将运行脚本和组网代码上传到obs，并从obs选择代码目录。
+
 
 在ModelArts上提交PaddlePaddle任务：
 
@@ -206,6 +206,8 @@ train_with_fleet.py
   :alt: modelarts_submit_paddle_job
   :align: center
 
-
-启动命令：
-bash /home/work/run_train.sh python /home/work/user-job-dir/run.sh
+如上图所示，需要填入
+* 镜像地址：swr.cn-north-4.myhuaweicloud.com/deep-learning-diy/paddle-gpu-cuda10-2.0.1:latest
+* 代码目录：从obs选择运行脚本和组网代码，提交PaddlePaddle任务前需要将运行脚本和组网代码上传到obs，然后才能从obs选择代码目录。
+* 启动命令：bash /home/work/run_train.sh python /home/work/user-job-dir/run.sh， 注意：需要完整的复制该命令
+* 选择数据集：数据集需要事先导入到ModelArts数据集中或者上传到Obs存储里，当前示例中使用的是自行构造的数据，无需上传数据集，选择一个obs空目录即可。
