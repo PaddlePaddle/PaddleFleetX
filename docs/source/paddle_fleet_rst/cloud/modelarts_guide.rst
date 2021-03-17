@@ -127,6 +127,7 @@ run.sh
         python -m paddle.distributed.launch \
             --cluster_node_ips=${node_hosts} \
             --node_ip=${node_ip} \
+            --started_port=${BATCH_CURRENT_PORT} \
             --selected_gpus=0,1,2,3,4,5,6,7 \
             train_with_fleet.py
     fi
