@@ -2,7 +2,9 @@
 2.2、华为云ModelArts平台
 --------
 
-'ModelArts使用自定义镜像创建训练作业 <https://support.huaweicloud.com/engineers-modelarts/modelarts_23_0087.html>'
+ModelArts是面向开发者的一站式AI开发平台，我们采用 `ModelArts使用自定义镜像创建训练作业 <https://support.huaweicloud.com/engineers-modelarts/modelarts_23_0087.html>` 方式在ModelArts上使用PaddlePaddle
+
+使用步骤：
 
 制作PaddlePaddle Docker镜像
 ^^^^^

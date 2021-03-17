@@ -1,8 +1,7 @@
 2.1、百度公有云BML平台
 --------
 
-
-'百度公有云BML平台 <https://cloud.baidu.com/product/bml>'，BML平台上预制了对PaddlePaddle的支持，发起PaddlePaddle分布式训练任务比较简单，可开箱即用。
+`百度BML全功能AI开发平台 <https://cloud.baidu.com/product/bml>`，为企业及个人开发者提供机器学习和深度学习一站式AI开发服务，BML平台上预制了对PaddlePaddle的支持，发起PaddlePaddle分布式训练任务比较简单，可开箱即用。
 
 使用步骤：
 
