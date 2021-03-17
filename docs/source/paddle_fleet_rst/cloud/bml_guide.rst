@@ -2,9 +2,11 @@
 --------
 
 
-BML平台上已经预制了对Paddle的支持，发起Paddle分布式训练任务比较简单，'百度公有云BML平台 <https://cloud.baidu.com/product/bml>'
+'百度公有云BML平台 <https://cloud.baidu.com/product/bml>'，BML平台上预制了对PaddlePaddle的支持，发起PaddlePaddle分布式训练任务比较简单，可开箱即用。
 
-使用自定义作业
+使用步骤：
+
+1、模型训练-自定义作业
 ^^^^^
 
 .. image:: ./img/baidu_bml_custom_paddle.png
@@ -12,7 +14,7 @@ BML平台上已经预制了对Paddle的支持，发起Paddle分布式训练任�
   :alt: baidu_bml_custom_paddle
   :align: center
 
-发起Paddle分布式训练任务
+2、发起自定义Paddle分布式训练任务
 ^^^^^
 
 .. image:: ./img/baidu_bml_paddle_job.png

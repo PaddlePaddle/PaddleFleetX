@@ -4,7 +4,7 @@
 
 'ModelArts使用自定义镜像创建训练作业 <https://support.huaweicloud.com/engineers-modelarts/modelarts_23_0087.html>'
 
-制作paddle docker镜像
+制作PaddlePaddle Docker镜像
 ^^^^^
 
 -  准备dockerfile
@@ -78,7 +78,7 @@ Dockerfile
     FROM swr.cn-north-1.myhuaweicloud.com/modelarts-job-dev-image/custom-base-cuda10.0-cp36-ubuntu18.04-x86:1.1
     COPY --chown=work:work run_train.sh /home/work/
 
-    # 安装Paddle，详细：https://www.paddlepaddle.org.cn/，该示例选择的是Paddle 2.0.1\Linux\pip\GPU版本
+    # 安装PaddlePaddle，详细：https://www.paddlepaddle.org.cn/，该示例选择的是PaddlePaddle 2.0.1\Linux\pip\GPU版本
     RUN python -m pip install paddlepaddle-gpu==2.0.1.post100 -f https://paddlepaddle.org.cn/whl/mkl/stable.html
 
 -  构建docker镜像
@@ -195,9 +195,9 @@ train_with_fleet.py
 提交分布式训练任务
 ^^^^^
 
-提交Paddle任务前需要将运行脚本和组网代码上传到obs，并从obs选择代码目录。
+提交PaddlePaddle任务前需要将运行脚本和组网代码上传到obs，并从obs选择代码目录。
 
-在ModelArts上提交Paddle任务：
+在ModelArts上提交PaddlePaddle任务：
 
 .. image:: ./img/modelarts_submit_paddle_job.png
   :width: 600
