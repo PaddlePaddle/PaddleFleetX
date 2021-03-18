@@ -20,3 +20,5 @@
   :width: 600
   :alt: baidu_bml_paddle_job
   :align: center
+
+示例代码：https://ai.baidu.com/ai-doc/BML/pkhxhgo5v
