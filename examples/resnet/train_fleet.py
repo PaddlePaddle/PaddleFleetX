@@ -25,7 +25,7 @@ l2_decay = 1e-4
 
 epoch = 10
 batch_size = 32
-class_dim = 10
+class_dim = 102
 
 
 def reader_decorator(reader):
