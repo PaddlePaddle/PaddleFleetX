@@ -57,8 +57,10 @@ resnet_static.py为静态图模型相关代码，而train_fleet_static.py为静�
 
 
 
-动态图完整代码 train_fleet_dygraph.py
+动态图完整代码
 ~~~~~~~~
+
+train_fleet_dygraph.py的完整训练代码如下所示。
 
 .. code-block:: py
 
@@ -150,7 +152,7 @@ resnet_static.py为静态图模型相关代码，而train_fleet_static.py为静�
         train_resnet()
 
 
-静态图完整代码 train_fleet_static.py
+静态图完整代码
 ~~~~~~~~
 
 train_fleet_static.py的完整训练代码如下所示。
@@ -251,6 +253,7 @@ train_fleet_static.py的完整训练代码如下所示。
 假设要运行2卡的任务，那么只需在命令行中执行:
 
 动态图：
+
 .. code-block::
 
    fleetrun --gpus=0,1 train_fleet_dygraph.py
@@ -289,6 +292,7 @@ train_fleet_static.py的完整训练代码如下所示。
     ...
 
 静态图：
+
 .. code-block::
 
    fleetrun --gpus=0,1 train_fleet_static.py
