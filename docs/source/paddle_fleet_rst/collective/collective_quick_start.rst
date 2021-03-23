@@ -5,7 +5,11 @@
 Collective训练快速开始
 ^^^^^^^^^^^^^^^^^^^^^^
 
-本节将采用CV领域非常经典的模型ResNet50为例，介绍如何使用Fleet API（paddle.distributed.fleet）完成Collective训练任务。数据方面我们采用Paddle内置的flowers数据集，优化器使用Momentum方法。循环迭代多个epoch，每轮打印当前网络具体的损失值和acc值。具体代码保存在\ `FleetX/examples/resnet <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet>`_\ 下面，其中resnet_static.py用于保存模型相关代码，而train_fleet_static.py为本节需要讲解的训练脚本。
+本节将采用CV领域非常经典的模型ResNet50为例，介绍如何使用Fleet API（paddle.distributed.fleet）完成Collective训练任务。
+数据方面我们采用Paddle内置的flowers数据集，优化器使用Momentum方法。循环迭代多个epoch，每轮打印当前网络具体的损失值和acc值。
+具体代码保存在\ `FleetX/examples/resnet <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet>`_\ 下面，
+其中包含动态图和静态图两种执行方式。resnet_dygraph.py为动态图模型相关代码，train_fleet_dygraph.py为动态图训练脚本。
+resnet_static.py为静态图模型相关代码，而train_fleet_static.py为静态图训练脚本。
 
 版本要求
 ^^^^^^^^
@@ -15,7 +19,7 @@ Collective训练快速开始
 操作方法
 ^^^^^^^^
 
-与单机单卡的普通模型训练相比，Collective训练的代码主要需要补充三个部分代码：
+与单机单卡的普通模型训练相比，无论静态图还是动态图，Collective训练的代码都只需要补充三个部分代码：
 
 
 #. 导入分布式训练需要的依赖包。
@@ -51,7 +55,104 @@ Collective训练快速开始
 
    optimizer = fleet.distributed_optimizer(optimizer)
 
-完整代码
+
+
+动态图完整代码
+~~~~~~~~
+
+train_fleet_dygraph.py的完整训练代码如下所示。
+
+.. code-block:: py
+
+    # -*- coding: UTF-8 -*-
+    import numpy as np
+    import argparse
+    import ast
+    import paddle
+    # 导入必要分布式训练的依赖包
+    from paddle.distributed import fleet
+    # 导入模型文件
+    from resnet_dygraph import ResNet
+
+    base_lr = 0.1   # 学习率
+    momentum_rate = 0.9 # 冲量
+    l2_decay = 1e-4 # 权重衰减
+
+    epoch = 10  #训练迭代次数
+    batch_size = 32 #训练批次大小
+    class_dim = 102
+
+    # 设置数据读取器
+    def reader_decorator(reader):
+        def __reader__():
+            for item in reader():
+                img = np.array(item[0]).astype('float32').reshape(3, 224, 224)
+                label = np.array(item[1]).astype('int64').reshape(1)
+                yield img, label
+
+        return __reader__
+
+    # 设置优化器
+    def optimizer_setting(parameter_list=None):
+        optimizer = paddle.optimizer.Momentum(
+            learning_rate=base_lr,
+            momentum=momentum_rate,
+            weight_decay=paddle.regularizer.L2Decay(l2_decay),
+            parameters=parameter_list)
+        return optimizer
+
+    # 设置训练函数
+    def train_resnet():
+        # 初始化Fleet环境
+        fleet.init(is_collective=True)
+
+        resnet = ResNet(class_dim=class_dim, layers=50)
+
+        optimizer = optimizer_setting(parameter_list=resnet.parameters())
+        optimizer = fleet.distributed_optimizer(optimizer)
+        # 通过Fleet API获取分布式model，用于支持分布式训练
+        resnet = fleet.distributed_model(resnet)
+
+        train_reader = paddle.batch(
+                reader_decorator(paddle.dataset.flowers.train(use_xmap=True)),
+                batch_size=batch_size,
+                drop_last=True)
+
+        train_loader = paddle.io.DataLoader.from_generator(
+            capacity=32,
+            use_double_buffer=True,
+            iterable=True,
+            return_list=True,
+            use_multiprocess=True)
+        train_loader.set_sample_list_generator(train_reader)
+
+        for eop in range(epoch):
+            resnet.train()
+            
+            for batch_id, data in enumerate(train_loader()):
+                img, label = data
+                label.stop_gradient = True
+
+                out = resnet(img)
+                loss = paddle.nn.functional.cross_entropy(input=out, label=label)
+                avg_loss = paddle.mean(x=loss)
+                acc_top1 = paddle.metric.accuracy(input=out, label=label, k=1)
+                acc_top5 = paddle.metric.accuracy(input=out, label=label, k=5)
+
+                dy_out = avg_loss.numpy()
+                
+                avg_loss.backward()
+
+                optimizer.minimize(avg_loss)
+                resnet.clear_gradients()
+                if batch_id % 5 == 0:
+                    print("[Epoch %d, batch %d] loss: %.5f, acc1: %.5f, acc5: %.5f" % (eop, batch_id, dy_out, acc_top1, acc_top5))
+    # 启动训练
+    if __name__ == '__main__':
+        train_resnet()
+
+
+静态图完整代码
 ~~~~~~~~
 
 train_fleet_static.py的完整训练代码如下所示。
@@ -151,6 +252,47 @@ train_fleet_static.py的完整训练代码如下所示。
 
 假设要运行2卡的任务，那么只需在命令行中执行:
 
+动态图：
+
+.. code-block::
+
+   fleetrun --gpus=0,1 train_fleet_dygraph.py
+
+您将看到显示如下日志信息：
+
+.. code-block::
+
+    -----------  Configuration Arguments -----------
+    gpus: 0,1
+    heter_worker_num: None
+    heter_workers:
+    http_port: None
+    ips: 127.0.0.1
+    log_dir: log
+    ...
+    ------------------------------------------------
+    launch train in GPU mode
+    INFO 2021-03-23 14:11:38,107 launch_utils.py:481] Local start 2 processes. First process distributed environment info (Only For Debug):
+        +=======================================================================================+
+        |                        Distributed Envs                      Value                    |
+        +---------------------------------------------------------------------------------------+
+        |                 PADDLE_CURRENT_ENDPOINT                 127.0.0.1:59648               |
+        |                     PADDLE_TRAINERS_NUM                        2                      |
+        |                PADDLE_TRAINER_ENDPOINTS         127.0.0.1:59648,127.0.0.1:50871       |
+        |                     FLAGS_selected_gpus                        0                      |
+        |                       PADDLE_TRAINER_ID                        0                      |
+        +=======================================================================================+
+
+    I0323 14:11:39.383992  3788 nccl_context.cc:66] init nccl context nranks: 2 local rank: 0 gpu id: 0 ring id: 0
+    W0323 14:11:39.872674  3788 device_context.cc:368] Please NOTE: device: 0, GPU Compute Capability: 7.0, Driver API Version: 10.2, Runtime API Version: 9.2
+    W0323 14:11:39.877283  3788 device_context.cc:386] device: 0, cuDNN Version: 7.4.
+    [Epoch 0, batch 0] loss: 4.77086, acc1: 0.00000, acc5: 0.00000
+    [Epoch 0, batch 5] loss: 15.69098, acc1: 0.03125, acc5: 0.18750
+    [Epoch 0, batch 10] loss: 23.41379, acc1: 0.00000, acc5: 0.09375
+    ...
+
+静态图：
+
 .. code-block::
 
    fleetrun --gpus=0,1 train_fleet_static.py
@@ -194,11 +336,19 @@ train_fleet_static.py的完整训练代码如下所示。
 单机八卡训练启动命令类似，只需正确指定\ ``gpus``\ 参数即可，如下所示：
 
 .. code-block::
-
+   # 动态图
+   fleetrun --gpus 0,1,2,3,4,5,6,7 train_fleet_dygraph.py
+   
+   # 静态图
    fleetrun --gpus 0,1,2,3,4,5,6,7 train_fleet_static.py
+
 
 从单机多卡到多机多卡训练，在代码上不需要做任何改动，只需再额外指定ips参数即可。其内容为多机的ip列表，命令如下所示：
 
 .. code-block::
 
+   # 动态图
+   fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" --gpus 0,1,2,3,4,5,6,7 train_fleet_dygraph.py
+
+    # 静态图
    fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" --gpus 0,1,2,3,4,5,6,7 train_fleet_static.py
