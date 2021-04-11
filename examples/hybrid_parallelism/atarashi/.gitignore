@@ -1,0 +1,10 @@
+*.un~
+*~
+*.pyc
+*.swp
+*.swn
+*.swo
+dist
+build
+*.egg-info
+tags
