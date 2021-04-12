@@ -261,53 +261,22 @@ def train(args):
     acc_steps = bsz_per_dp // micro_bsz
 
     # sharding \ model parallel \ pipeline
-    if args.use_sharding:
-        dist_strategy.sharding_configs = {"segment_broadcast_MB": 32,
-                                           "sharding_degree": args.num_sharding,
-                                           "mp_degree": args.num_mp,
-                                           "pp_degree": args.num_pp,
-                                           "dp_degree":args.num_dp,
-                                           "hybrid_dp": False,
-                                           "pp_allreduce_in_optimize": False,
-                                           "gradient_merge_acc_step": 1,
-                                           "optimize_offload": False,
-                                           }
-        dist_strategy.pipeline_configs = {"schedule_mode": "1F1B",
-                                          "micro_batch_size": micro_bsz,
-                                          "accumulate_steps": acc_steps,
-                                          }
-    else:
-        if args.num_pp == 1 and args.num_mp == 1:
-            if acc_steps > 1:
-                log.info(f'using grad merge {acc_steps}')
-                dist_strategy.gradient_merge = True
-                dist_strategy.gradient_merge_configs = {"k_steps": acc_steps, "avg": True}
-            log.info('using pure dp')
-
-        elif args.num_pp > 1 and args.num_mp == 1:
-            assert topo.dp.size == 1, 'caonnot do pure dp + pp'
-            raise NotImplementedError()
-            log.info(f'using pure pp, {topo}')
-
-        elif args.num_pp == 1 and args.num_mp > 1:
-            dist_strategy.pipeline = 1
-            assert topo.dp.size == 1, 'caonnot do pure dp + mp'
-            assert acc_steps == 1, f'cannot do gradient accumualte with pure mp, global:{args.global_bsz} micro:{micro_bsz}, dp_world:{dp_worldsize}'
-            raise NotImplementedError()
-            log.info(f'using pure mp, {topo}')
-
-        else:
-            assert topo.dp.size == 1, 'caonnot do pure dp + mp + pp'
-            dist_strategy.pipeline = True
-            #dist_strategy.model_parallel = True
-            #dist_strategy.model_parallel_configs = {"parallelism": topo.mp.size}
-            log.info(f'using pp + mp, {topo}')                                                                           
-            dist_strategy.pipeline_configs = {                                                                          
-                "micro_batch": acc_steps,                                                                               
-                "tensor_model_parallel": topo.mp.size,                                                                  
-                "pp_num": args.num_pp,
-            } 
-    log.info(f"using globa_bsz: {args.global_bsz} micro_bsz: {micro_bsz}, acc_steps: {acc_steps}")
+    assert dist_strategy.sharding = True
+    dist_strategy.sharding_configs = {"segment_broadcast_MB": 32,
+                                      "sharding_degree": args.num_sharding,
+                                      "mp_degree": args.num_mp,
+                                      "pp_degree": args.num_pp,
+                                      "dp_degree":args.num_dp,
+                                      "hybrid_dp": False,
+                                      "pp_allreduce_in_optimize": False,
+                                      "gradient_merge_acc_step": 1,
+                                      "optimize_offload": True,
+                                      }
+    dist_strategy.pipeline_configs = {"schedule_mode": "1F1B",
+                                      "micro_batch_size": micro_bsz,
+                                      "accumulate_steps": acc_steps,
+                                      }
+        log.info(f"using globa_bsz: {args.global_bsz} micro_bsz: {micro_bsz}, acc_steps: {acc_steps}")
 
     dist_strategy.amp = args.use_amp
     dist_strategy.amp_configs = {
