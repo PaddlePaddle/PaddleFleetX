@@ -19,10 +19,10 @@ rm -rf ${output_dir}
 python -m paddle.distributed.fleet.launch \
 	--log_dir ${output_dir}/log \
 run_pretraining.py \
-	--global_bsz 4096 \
-	--micro_bsz 8 \
+	--global_bsz 64 \
+	--micro_bsz 1 \
 	--max_seq_len 512 \
-	--ernie_config_file config/ernie_230b_config_proj.json \
+	--ernie_config_file config/ernie_base_config.json \
 	--learning_rate 1e-4 \
 	--log_steps 1 \
 	--num_train_steps 1000000 \
@@ -31,8 +31,8 @@ run_pretraining.py \
 	--use_recompute true \
 	--use_sharding true \
 	--use_sop false \
-	--num_mp=4 \
+	--num_mp=2 \
         --num_sharding=2 \
-	--num_pp=32 \
+	--num_pp=2 \
 	--num_dp=1 \
 
