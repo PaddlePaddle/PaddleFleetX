@@ -26,6 +26,18 @@ ERNIE千亿级模型采用100多层transformer网络结构，计算复杂，训�
 
 对于混合并行，假设每个mini-batch切分为micro_step个micro batches，每个micro-batch的batch size为micro_bsz，并假设流水线的级数为pp_num。那么，对于sharding，每个micro step需要对参数进行2次broadcast和1次reduce操作，因此每个micro step中总的通信量为2*M+M=3M,其中M为参数量大小。对于数据并行，每个micro step需要使用allreduce sum操作同步当前机器上所有参数的梯度信息。假设模型参数在所有流水线间均匀切分，那么每个流水线级中包含的参数量为M/pp_num，因此每个micro step总的通信量为2M/pp_num，其中2表示allreduce sum的通信因子。对于流水线并行，每个micro step传输的通信量为流水线相邻层间activation的大小；对于Transformer类模型，相邻层间的activation大小为hid_size * micro_bsz * seq_len；其中，hid_size表示模型参数隐层大小，seq_len表示模型参数序列长度，micro_bsz表示每个micro的batch size。对于模型并行，每个Transformer Encoder层包含两次allreduce sum通信，每次通信量大小为hid_size*micro_bsz*seq_len;由于结合流水线并行，每个流水线级中包含的Transformer Encoder的层数为L/pp_num，其中，其中L表示模型总的Transformer Encoder的层数，起于各参数的意义同上；因此，模型并行配置下每台机器内部每个micro step的通信总量为4L*(hid_size*micro_bsz*seq_len)/pp_num，其中因子4表示allreduce_sum通信因子2与每个Transformer Encoder层包含两次allreduce sum通信次数的乘积。
 
+下表给出集中典型策略组合下的通信量。
+
++--------------+----------+-----------+
+| 策略组合 | 机器间通信量 | 机器内通信量  |
++--------------+----------+-----------+
+| PP64+Sharding4+MP2        | (hid_size*micro_bsz*seq_len)*(2*micro_step)          | (hid_size*micro_bsz*seq_len*4L/pp_num+3M/pp_num)*micro_step           |
++--------------+----------+-----------+
+| DP2+PP32+MP8        | (hid_size*micro_bsz*seq_len)*(2*micro_step)+2M/pp_num         | (hid_size*micro_bsz*seq_len*4L/pp_num)*micro_step           |
++--------------+----------+-----------+
+| DP2+PP32+Sharding4+MP2        | (hid_size*micro_bsz*seq_len)*(2*micro_step)+2M/pp_num         | (hid_size*micro_bsz*seq_len*4L/pp_num+3M/pp_num)*micro_step          |
++--------------+----------+-----------+
+
 使用方法
 =======
 
