@@ -94,22 +94,29 @@ ERNIE千亿级模型采用100多层transformer网络结构，计算复杂，训�
 使用方法
 =======
 
-通过设定\ ``dist_strategy.pipeline`` 为True，将流水线并行的策略激活。
+可以通过DistributedStrategy配置使用混合并行训练。
 
 .. code-block:: python
 
    fleet.init(is_collective=True)
    dist_strategy = paddle.distributed.fleet.DistributedStrategy()
-   dist_strategy.pipeline = True
+   dist_strategy.sharding = args.use_sharding
+   dist_strategy.pipeline = args.num_pp > 1
+   dist_strategy.sharding_configs = {"segment_broadcast_MB": 32,
+                                     "sharding_degree": args.num_sharding,
+                                     "mp_degree": args.num_mp,
+                                     "pp_degree": args.num_pp,
+                                     "dp_degree":args.num_dp,
+                                     "hybrid_dp": False,
+                                     "pp_allreduce_in_optimize": False,
+                                     "gradient_merge_acc_step": 1,
+                                     "optimize_offload": False,
+                                     }
+   dist_strategy.pipeline_configs = {"schedule_mode": "1F1B",
+                                     "micro_batch_size": micro_bsz,
+                                     "accumulate_steps": acc_steps,
+                                     }
 
-进一步地，可以通过\ ``dist_strategy.pipeline_configs`` 配置流水线并行中mini-batch的切分粒度。假设mini-batch的大小为128，可以通过下述代码将mini-batch切为4份更小粒度的micro-batch，每个micro-batch的大小为32。需要注意地是，用户需要保证mini-batch大小是micro-batch大小的整数倍。
 
-.. code-block:: python
-
-   fleet.init(is_collective=True)
-   dist_strategy = paddle.distributed.fleet.DistributedStrategy()
-   strategy.pipeline_configs = {"micro_batch": 4}
-
-
-示例代码可参见：`example/resnet <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/pipeline>`_。
+示例代码可参见：`examples/hybrid_parallelism <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/hybrid_parallelism>`_。
 
