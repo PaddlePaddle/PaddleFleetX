@@ -267,9 +267,6 @@ def train(args):
                                       "mp_degree": args.num_mp,
                                       "pp_degree": args.num_pp,
                                       "dp_degree":args.num_dp,
-                                      "hybrid_dp": False,
-                                      "pp_allreduce_in_optimize": False,
-                                      "gradient_merge_acc_step": 1,
                                       "optimize_offload": True,
                                       }
     dist_strategy.pipeline_configs = {"schedule_mode": "1F1B",
