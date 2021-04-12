@@ -261,7 +261,7 @@ def train(args):
     acc_steps = bsz_per_dp // micro_bsz
 
     # sharding \ model parallel \ pipeline
-    assert dist_strategy.sharding = True
+    assert dist_strategy.sharding == True
     dist_strategy.sharding_configs = {"segment_broadcast_MB": 32,
                                       "sharding_degree": args.num_sharding,
                                       "mp_degree": args.num_mp,
