@@ -238,6 +238,7 @@ def train(args):
        log.info("using recompute.")
     dist_strategy.recompute = args.use_recompute
     dist_strategy.sharding = args.use_sharding
+    dist_strategy.pipeline = args.num_pp > 1
 
     # define topology structure for dp/pp/mp
     topo = Topology(rank=fleet.worker_index(),
@@ -262,17 +263,19 @@ def train(args):
     # sharding \ model parallel \ pipeline
     if args.use_sharding:
         dist_strategy.sharding_configs = {"segment_broadcast_MB": 32,
-                                            "acc_steps": acc_steps,
-                                            "schedule_mode": 1,
-                                            "pp_bz": micro_bsz,
-                                            "pp_allreduce_in_optimize": False,
-                                            "optimize_offload": True,
-                                            "sharding_degree": args.num_sharding,
-                                            "mp_degree": args.num_mp,
-                                            "pp_degree": args.num_pp,
-                                            "pure_dp_degree":args.num_dp,
-                                            "hybrid_dp": True,
-                                            }
+                                           "sharding_degree": args.num_sharding,
+                                           "mp_degree": args.num_mp,
+                                           "pp_degree": args.num_pp,
+                                           "dp_degree":args.num_dp,
+                                           "hybrid_dp": False,
+                                           "pp_allreduce_in_optimize": False,
+                                           "gradient_merge_acc_step": 1,
+                                           "optimize_offload": False,
+                                           }
+        dist_strategy.pipeline_configs = {"schedule_mode": "1F1B",
+                                          "micro_batch_size": micro_bsz,
+                                          "accumulate_steps": acc_steps,
+                                          }
     else:
         if args.num_pp == 1 and args.num_mp == 1:
             if acc_steps > 1:
