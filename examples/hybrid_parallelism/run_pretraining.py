@@ -276,7 +276,7 @@ def train(args):
                                       "micro_batch_size": micro_bsz,
                                       "accumulate_steps": acc_steps,
                                       }
-        log.info(f"using globa_bsz: {args.global_bsz} micro_bsz: {micro_bsz}, acc_steps: {acc_steps}")
+    log.info(f"using globa_bsz: {args.global_bsz} micro_bsz: {micro_bsz}, acc_steps: {acc_steps}")
 
     dist_strategy.amp = args.use_amp
     dist_strategy.amp_configs = {
