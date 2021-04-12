@@ -13,6 +13,6 @@
    plsc
    sharding
    pipeline
-
+   hybrid_parallelism.rst
 
 
