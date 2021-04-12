@@ -31,7 +31,7 @@ run_pretraining.py \
 	--use_recompute true \
 	--use_sharding true \
 	--use_sop false \
-	--num_mp=2 \
+	--num_mp=4 \
         --num_sharding=2 \
 	--num_pp=2 \
 	--num_dp=1 \
