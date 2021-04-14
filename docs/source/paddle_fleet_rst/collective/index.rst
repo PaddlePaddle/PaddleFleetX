@@ -15,5 +15,6 @@ Collective训练
    collective_mp/index
    collective_sdk
    collective_completed_example
+   fleet_model_parallel
 
 
