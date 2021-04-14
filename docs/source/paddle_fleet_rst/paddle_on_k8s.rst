@@ -5,7 +5,7 @@ Kubernetes 部署
 概述
 ^^^^^^^^^^^^^^^^^^^^^^
 
-在 kubernetes 上部署分布式任务需要安装 `paddle-operator <https://github.com/kuizhiqing/paddle-operator>`_ 。
+在 kubernetes 上部署分布式任务需要安装 `paddle-operator <https://github.com/PaddleFlow/paddle-operator>`_ 。
 paddle-operator 通过添加自定义资源类型 (paddlejob) 以及部署 controller 和一系列 kubernetes 原生组件的方式实现简单定义即可运行 paddle 任务的需求。
 
 目前支持运行 ParameterServer (PS) 和 Collective 两种分布式任务，当然也支持运行单节点任务。
@@ -18,7 +18,7 @@ paddle-operator 安装
 
 安装 paddle-operator 需要有已经安装的 kubernetes (v1.8+) 集群和 `kubectl <https://kubernetes.io/docs/tasks/tools/install-kubectl/>`_  (v1.8+) 工具。
 
-本节所需配置文件和示例可以在 `这里 <https://github.com/kuizhiqing/paddle-operator/tree/main/deploy>`_ 找到，
+本节所需配置文件和示例可以在 `这里 <https://github.com/PaddleFlow/paddle-operator/tree/main/deploy>`_ 找到，
 可以通过 *git clone* 或者复制文件内容保存。
 
 .. code-block::
@@ -278,7 +278,7 @@ paddle-operator 支持使用 volcano 进行复杂任务调度，使用前请先 
             schedulerName: volcano
             containers:
               - name: paddle
-                image: registry.baidubce.com/kuizhiqing/demo-wide-and-deep:v1
+                image: registry.baidubce.com/paddle-operator/demo-wide-and-deep:v1
       ps:
         replicas: 2
         template:
@@ -286,7 +286,7 @@ paddle-operator 支持使用 volcano 进行复杂任务调度，使用前请先 
             restartPolicy: "Never"
             containers:
               - name: paddle
-                image: registry.baidubce.com/kuizhiqing/demo-wide-and-deep:v1
+                image: registry.baidubce.com/paddle-operator/demo-wide-and-deep:v1
     
     ---
     apiVersion: scheduling.volcano.sh/v1beta1
@@ -325,7 +325,7 @@ GPU 和节点选择
           spec:
             containers:
               - name: paddle
-                image: registry.baidubce.com/kuizhiqing/demo-wide-and-deep:v1
+                image: registry.baidubce.com/paddle-operator/demo-wide-and-deep:v1
                 resources:
                   limits:
                     nvidia.com/gpu: 1
@@ -337,7 +337,7 @@ GPU 和节点选择
           spec:
             containers:
               - name: paddle
-                image: registry.baidubce.com/kuizhiqing/demo-wide-and-deep:v1
+                image: registry.baidubce.com/paddle-operator/demo-wide-and-deep:v1
                 resources:
                   limits:
                     nvidia.com/gpu: 1
@@ -415,7 +415,7 @@ GPU 和节点选择
             restartPolicy: "Never"
             containers:
               - name: paddle
-                image: registry.baidubce.com/kuizhiqing/paddle-ubuntu:2.0.0-18.04
+                image: registry.baidubce.com/paddle-operator/paddle-ubuntu:2.0.0-18.04
                 command: ["bash","-c"]
                 args: ["cd /nas/wide_and_deep; python3 train.py"]
                 volumeMounts:
@@ -432,7 +432,7 @@ GPU 和节点选择
             restartPolicy: "Never"
             containers:
               - name: paddle
-                image: registry.baidubce.com/kuizhiqing/paddle-ubuntu:2.0.0-18.04
+                image: registry.baidubce.com/paddle-operator/paddle-ubuntu:2.0.0-18.04
                 command: ["bash","-c"]
                 args: ["cd /nas/wide_and_deep; python3 train.py"]
                 volumeMounts:
