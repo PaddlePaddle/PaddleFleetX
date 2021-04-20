@@ -27,6 +27,7 @@
 使用流程：
 
 * 购买服务，包括节点及 cpu 或 gpu 计算资源；
+
 * \ `构建Docker镜像 <./docker_image.html>`__\、\ `kubernetes部署paddle-opeartor <./paddle_on_k8s.html>`__\；
 * \ `提交PaddlePaddle任务 <./paddle_on_k8s.html#paddlejob>`__\。 
 
