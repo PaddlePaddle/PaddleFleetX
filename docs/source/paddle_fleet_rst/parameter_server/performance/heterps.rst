@@ -61,7 +61,7 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
 异构参数服务器使用方法
 ----------------------------
 
-本节将采用推荐领域非常经典的模型wide_and_deep为例，介绍异构参数服务器中纯GPU-ps训练的使用方法，示例代码位于https://github.com/PaddlePaddle/FleetX/tree/develop/examples/wide_and_deep_heterps
+本节将采用推荐领域非常经典的DNN模型为例，介绍异构参数服务器中纯GPU-ps训练的使用方法，详细示例代码可参考：https://github.com/PaddlePaddle/PaddleRec/tree/master/tools/static_gpubox_trainer.py
 
 
 环境构建
@@ -69,11 +69,7 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
 
 - 机器准备：带有GPU卡的机器
 
-- docker准备：为了避免环境引起的运行错误，这里强烈推荐使用docker容器运行本示例，docker镜像地址：paddlefleet/heterps:centos_gcc4.8.2_cuda10.2_cudnn7
-
-- 版本要求：paddlepaddle-2.0.1-gpu及以上版本的飞桨开源框架。推荐使用以下链接下载最新whl: https://paddlepaddledeps.bj.bcebos.com/heterps/paddlepaddle_gpu-0.0.0-cp27-cp27mu-linux_x86_64.whl 。 
-
-docker镜像中已预装好CUDA、Cudnn、NCCL、paddlepaddle等所有环境，paddlepaddle安装可省略，如若有版本更新，可自行下载whl包后执行\ ``reinstall_paddle.sh``\ 进行安装。
+- 版本要求：paddlepaddle-2.1-gpu及以上版本的飞桨开源框架。推荐使用以下链接下载最新whl: https://fleet.bj.bcebos.com/heterps/paddlepaddle_gpu-0.0.0-cp27-cp27mu-linux_x86_64.whl 。 
 
 
 导入依赖
@@ -82,36 +78,31 @@ docker镜像中已预装好CUDA、Cudnn、NCCL、paddlepaddle等所有环境，p
 .. code:: python
 
     import paddle
-    from paddle.fluid.incubate.fleet.parameter_server.pslib import fleet
-    from paddle.fluid.incubate.fleet.base.role_maker import GeneralRoleMaker
+    import paddle.distributed.fleet as fleet
 
-    import numpy as np    
-    import os
-    import sys
-    import config_fleet
-    
 
 定义分布式模式并初始化分布式训练环境
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-通过\ ``fleet.init()``\ 接口，用户可以定义训练相关的环境，这里只需要配置初始化GLOO所需的ip和端口。
+通过\ ``fleet.init()``\ 接口，进行分布式模式初始化。
 
 .. code:: python
 
     # 当前参数服务器模式只支持静态图模式， 因此训练前必须指定`paddle.enable_static()`
     paddle.enable_static()
-    role_maker = GeneralRoleMaker(http_ip_port="127.0.0.1:8900")
-    fleet.init(role_maker)
+    fleet.init()
 
 加载模型及数据
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+通过\ ``get_model``\ 加载模型，\ ``get_reader``\ 加载数据dataset，模型和dataset具体的配置可参考：models/rank/dnn/config_gpubox.yaml
+
 .. code:: python
 
-    # 模型定义参考examples/wide_and_deep_heterps中model.py
-    from model import WideDeepModel
-    model = WideDeepModel()
-    model.net(is_train=True)
+    # 模型定义参考models/rank/dnn/net.py
+    self.model = get_model(self.config)
+    self.metrics = self.model.net(self.input_data)
+    self.reader, self.file_list = get_reader(self.input_data, self.config)
 
 定义Optimizer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -121,9 +112,10 @@ docker镜像中已预装好CUDA、Cudnn、NCCL、paddlepaddle等所有环境，p
 .. code:: python
 
 
-    optimizer = paddle.fluid.optimizer.Adam(learning_rate=5e-06, beta1=0.99, beta2=0.9999)
-    optimizer = fleet.distributed_optimizer(optimizer, strategy=config_fleet.config)
-    optimizer.minimize(model.cost, startup_programs=[paddle.static.default_startup_program()])
+    # 优化器调用参考models/rank/dnn/static_model.py
+    optimizer = paddle.fluid.optimizer.Adam(learning_rate=5e-06)
+    optimizer = fleet.distributed_optimizer(optimizer, strategy)
+    optimizer.minimize(model.cost)
 
 开始训练
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -149,11 +141,13 @@ docker镜像中已预装好CUDA、Cudnn、NCCL、paddlepaddle等所有环境，p
         exe.run(paddle.static.default_startup_program())
 
         fleet.init_worker()
+        gpus_env = os.getenv("FLAGS_selected_gpus")
         psgpu = paddle.fluid.core.PSGPU()
         psgpu.set_slot_vector(model.slots_name)
-        psgpu.init_gpu_ps([0, 1, 2, 3, 4, 5, 6, 7])
+        psgpu.init_gpu_ps([int(s) for s in gpus_env.split(",")])
 
-        distributed_training(psgpu, exe, model)
+        for epoch in range(epochs):
+            self.dataset_train_loop(epoch)
 
         fleet.stop_worker()
 
@@ -162,27 +156,18 @@ docker镜像中已预装好CUDA、Cudnn、NCCL、paddlepaddle等所有环境，p
 运行训练脚本
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-定义完训练脚本后，我们就可以用提供的运行脚本进行训练
+在PaddleRec根目录下，我们可以用提供的运行脚本进行训练
 
 ::
 
-    sh run.sh
-
-- 环境变量的导入： 导入Python、CUDA等环境依赖。
-
-::
-
-    source ./heterps.bashrc
+    sh run_gpubox.sh
 
 
-调用 \ ``run_psgpu.sh`` \ 开启server端和trainer端的训练，此处需提前选择空闲端口，以便server端和trainer端的通信。
+脚本中通过 \ ``fleetrun`` \ 命令启动分布式任务，其中 \ ``server_num`` \ , \ ``worker_num`` \分别为服务节点和训练节点的数量，在我们的gpu任务中设为1即可。
 
 ::
 
-    # run server 
-    # port must be the same in run_psgpu.sh
-    sh run_psgpu.sh PSERVER 8500 &
-
-    # run worker
-    sh run_psgpu.sh TRAINER 8200 &
+    # 防止worker端等待server端口，故此处设置FLAGS_LAUNCH_BARRIER=0
+    export FLAGS_LAUNCH_BARRIER=0
+    fleetrun --worker_num=1 --server_num=1 tools/static_gpubox_trainer.py -m models/rank/dnn/config_gpubox.yaml
 
