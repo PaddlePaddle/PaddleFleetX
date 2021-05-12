@@ -83,22 +83,42 @@ Sharding 结合 amp + recompute，可以在 128 张 32GB V100 并行的情况下
 使用方法
 ~~~~~~~~~
 
-对于sharding，用户需要设置 \ ``fuse_broadcast_MB``\ 参数。该参数控制广播通信中参数融合的阈值，会影响sharding 训练中的通信速度，是一个需要根据具体模型大小和网络拓扑设定的经验值。
+sharding 可以设置以下参数：
 
-若开启hybrid-dp，用户需要设置 \ ``hybrid_dp``\ 为True，并指定 \ ``sharding_group_size``\。 
+**sharding_segment_strategy(float, optional):** 选择sharding 中用来将前向反向program 切segments 的策略。目前可选策略有："segment_broadcast_MB" 和 "segment_anchors"。 segment 是sharding中引入的一个内部概念，目的是用来让通信和计算相互重叠掩盖（overlap）。默认值是 segment_broadcast_MB. 
+
+**segment_broadcast_MB(float, optional):** 根据sharding 广播通信中的参数量来切segments，仅当 sharding_segment_strategy = segment_broadcast_MB时生效。sharding 会在前向和反向中引入参数广播，在该segment 策略下，每当参数广播量达到 “segment_broadcast_MB”时，在program 中切出一个segment。该参数是一个经验值，最优值会受模型大小和网咯拓扑的影响。 默认值是 32. 
+
+**segment_anchors(list):** 根据用户选定的锚点切割 segments，仅当 sharding_segment_strategy = segment_anchors 生效。该策略可以让用户更精确的控制program 的切分，目前还在实验阶段。
+
+**sharding_degree(int, optional):** sharding并行数。 sharding_degree=1 时，sharding 策略会被关闭。 默认值是 8。
+
+**gradient_merge_acc_step(int, optional):** 梯度累积中的累积步数。 gradient_merge_acc_step=1 梯度累积会被关闭。 默认值是 1。
+
+**optimize_offload(bool, optional):** 优化器状态卸载开关。 开启后会将优化器中的状态(moment) 卸载到Host 的内存中，以到达节省GPU 显存、支持更大模型的目的。开启后，优化器状态会在训练的更新阶段经历：预取-计算-卸载（offload）三个阶段，更新阶段耗时会增加。 这个策略需要权衡显存节省量和训练速度，仅推荐在开启梯度累积并且累积步数较大时开启。 因为累积步数较大时，训练中更新阶段的比例将远小于前向&反向阶段， 卸载引入的耗时将不明显。
+
+**dp_degree(int, optional):** 数据并行的路数。 当dp_degree>=2 时，会在内层并行的基础上，再引入dp_degree路 数据并行。用户需要保证 global_world_size = mp_degree * sharding_degree * pp_degree * dp_degree。 默认值是 1。
+
+**mp_degree(int, optional):** [仅在混合并行中使用] megatron 并行数。 mp_degree=1 时，mp 策略会被关闭。 默认值是 1。
+
+**pp_degree(int, optional):** [仅在混合并行中使用] pipeline 并行数。 pp_degree=1 时，pipeline 策略会被关闭。 默认值是 1。
+
+**pp_allreduce_in_optimize(bool, optional):** [仅在混合并行中使用] 在开启pipeline 并行后，将allreduce 操作从反向阶段移动到更新阶段。根据不同的网络拓扑，该选项会影响训练速度，该策略目前还在实验阶段。 默认值是 False。
+
 
 为了示例代码的简练，下面例子中使用较小 resnet50 模型作为演示。实际训练中，sharding 的目标是通过牺牲训练速度以换取对更大模型的支持，故不适用于 resnet50 等单卡就能训练的模型。
 
-因为resnet50 较小，我们可以令\ ``sharding_group_size = 2``\ 让模型参数被切分为2 个shards，然后在 一个单机4卡 v100 的节点上组成 2 路 hybrid-dp 并行进行演示。
+因为resnet50 较小，我们可以令\ ``sharding_degree = 2``\ 让模型参数被切分为2 个shards，然后在 一个单机4卡 v100 的节点上组成 2 路 dp 并行进行演示。
 
 .. code:: python
 
     strategy = fleet.DistributedStrategy()
     strategy.sharding = True
     strategy.sharding_configs = {
-        "fuse_broadcast_MB": 32,
-        "hybrid_dp": True,
-        "sharding_group_size": 2,
+        "sharding_segment_strategy": "segment_broadcast_MB",
+        "segment_broadcast_MB": 32,
+        "sharding_degree": 2,
+        "dp_degree": 2,
     }
 
 
@@ -134,36 +154,62 @@ Sharding 结合 amp + recompute，可以在 128 张 32GB V100 并行的情况下
     |                     FLAGS_selected_gpus                        4                      |
     +=======================================================================================+
     ...
-    INFO:root:Using Sharing&DP mode !
-    INFO:root:global word size: 4
-    INFO:root:global rank: 0
-    INFO:root:sharding group_size: 2
-    INFO:root:sharding rank: 0
-    INFO:root:dp group size: 2
-    INFO:root:dp rank: 0
-    INFO:root:current endpoint: 127.0.0.1:18362
-    INFO:root:sharding group endpoints: ['127.0.0.1:18362', '127.0.0.1:23911']
-    INFO:root:dp group endpoints: ['127.0.0.1:18362', '127.0.0.1:35135']
-    INFO:root:global word endpoints: ['127.0.0.1:18362', '127.0.0.1:23911', '127.0.0.1:35135', '127.0.0.1:38263']
-    server not ready, wait 3 sec to retry...
-    not ready endpoints:['127.0.0.1:23911']
+    2021-05-12 12:02:20 INFO     Hybrid DP mode turn on !
+    2021-05-12 12:02:20 INFO     global word size: 4
+    2021-05-12 12:02:20 INFO     global rank: 0
+    2021-05-12 12:02:20 INFO     global endpoints: ['127.0.0.1:10033', '127.0.0.1:21161', '127.0.0.1:13997', '127.0.0.1:27877']
+    2021-05-12 12:02:20 INFO     global ring id: 3
+    2021-05-12 12:02:20 INFO     ##############################
+    2021-05-12 12:02:20 INFO     mp group size: 1
+    2021-05-12 12:02:20 INFO     mp rank: -1
+    2021-05-12 12:02:20 INFO     mp group id: -1
+    2021-05-12 12:02:20 INFO     mp group endpoints: []
+    2021-05-12 12:02:20 INFO     mp ring id: -1
+    2021-05-12 12:02:20 INFO     ##############################
+    2021-05-12 12:02:20 INFO     sharding group size: 2
+    2021-05-12 12:02:20 INFO     sharding rank: 0
+    2021-05-12 12:02:20 INFO     sharding group id: 0
+    2021-05-12 12:02:20 INFO     sharding group endpoints: ['127.0.0.1:10033', '127.0.0.1:21161']
+    2021-05-12 12:02:20 INFO     sharding ring id: 1
+    2021-05-12 12:02:20 INFO     ##############################
+    2021-05-12 12:02:20 INFO     pp group size: 1
+    2021-05-12 12:02:20 INFO     pp rank: -1
+    2021-05-12 12:02:20 INFO     pp group id: -1
+    2021-05-12 12:02:20 INFO     pp group endpoints: []
+    2021-05-12 12:02:20 INFO     pp ring id: -1
+    2021-05-12 12:02:20 INFO     ##############################
+    2021-05-12 12:02:20 INFO     pure dp group size: 2
+    2021-05-12 12:02:20 INFO     pure dp rank: 0
+    2021-05-12 12:02:20 INFO     pure dp group endpoints: ['127.0.0.1:10033', '127.0.0.1:13997']
+    2021-05-12 12:02:20 INFO     pure dp ring id: 2
+    2021-05-12 12:02:20 INFO     ##############################
     ...
     +==============================================================================+
     |                      sharding=True <-> sharding_configs                      |
     +------------------------------------------------------------------------------+
-    |                     fuse_broadcast_MB                   32.0                 |
-    |                             hybrid_dp                   True                 |
-    |                   sharding_group_size                    2                   |
+    |             sharding_segment_strategy           segment_broadcast_MB         |
+    |                  segment_broadcast_MB                   32.0                 |
+    |                       sharding_degree                    2                   |
+    |                             mp_degree                    1                   |
+    |                             dp_degree                    2                   |
+    |                             hybrid_dp                  False                 |
+    |               gradient_merge_acc_step                    1                   |
+    |                      optimize_offload                  False                 |
+    |              pp_allreduce_in_optimize                  False                 |
+    |                             pp_degree                    1                   |
     +==============================================================================+
     ...
     W0114 18:07:51.588716 16234 device_context.cc:346] Please NOTE: device: 4, GPU Compute Capability: 7.0, Driver API Version: 11.0, Runtime API Version: 10.0
     W0114 18:07:51.593963 16234 device_context.cc:356] device: 4, cuDNN Version: 7.6.
-    [Epoch 0, batch 0] loss: 0.14651, acc1: 0.00000, acc5: 0.00000
-    [Epoch 0, batch 5] loss: 1.82926, acc1: 0.00000, acc5: 0.00000
-    [Epoch 0, batch 10] loss: 0.00000, acc1: 0.00000, acc5: 0.00000
-    [Epoch 0, batch 15] loss: 0.13787, acc1: 0.03125, acc5: 0.03125
-    [Epoch 0, batch 20] loss: 0.12400, acc1: 0.03125, acc5: 0.06250
-    [Epoch 0, batch 25] loss: 0.17749, acc1: 0.00000, acc5: 0.00000
+    [Epoch 0, batch 0] loss: 4.58475, acc1: 0.03125, acc5: 0.18750
+    [Epoch 0, batch 5] loss: 23.57863, acc1: 0.06250, acc5: 0.06250
+    [Epoch 0, batch 10] loss: 13.08259, acc1: 0.00000, acc5: 0.06250
+    [Epoch 0, batch 15] loss: 9.19330, acc1: 0.00000, acc5: 0.06250
+    [Epoch 0, batch 20] loss: 7.46575, acc1: 0.03125, acc5: 0.06250
+    [Epoch 0, batch 25] loss: 4.44061, acc1: 0.15625, acc5: 0.18750
+    [Epoch 0, batch 30] loss: 5.20638, acc1: 0.06250, acc5: 0.12500
+    [Epoch 0, batch 35] loss: 4.75518, acc1: 0.03125, acc5: 0.09375
+    [Epoch 0, batch 40] loss: 5.02654, acc1: 0.06250, acc5: 0.09375
     ...
 
 

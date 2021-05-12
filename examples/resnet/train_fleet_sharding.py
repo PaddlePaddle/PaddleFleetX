@@ -82,11 +82,12 @@ def train_resnet():
     # sharding
     strategy.sharding = True
     strategy.sharding_configs = {
-        "fuse_broadcast_MB": 32,
-        "hybrid_dp": True,
-        "sharding_group_size": 2,
+        "sharding_segment_strategy": "segment_broadcast_MB",
+        "segment_broadcast_MB": 32,
+        "sharding_degree": 2,
+        "dp_degree": 2,
     }
-
+    
     fleet.init(is_collective=True, strategy=strategy)
     optimizer = optimizer_setting()
     optimizer = fleet.distributed_optimizer(optimizer)
