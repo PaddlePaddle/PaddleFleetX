@@ -97,6 +97,7 @@ class ResNet():
                             data_format=data_format)
                 offset += 1
 
+        offset -= 1
         with fluid.device_guard("gpu:%d"%(offset)):
             pool = fluid.layers.pool2d(
                 input=conv,
