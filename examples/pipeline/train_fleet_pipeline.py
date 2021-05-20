@@ -26,7 +26,7 @@ l2_decay = 1e-4
 
 epoch = 10
 batch_size = 32
-class_dim = 10
+class_dim = 1000
 
 def optimizer_setting(parameter_list=None):
     optimizer = paddle.optimizer.Momentum(
@@ -35,7 +35,6 @@ def optimizer_setting(parameter_list=None):
         weight_decay=paddle.regularizer.L2Decay(l2_decay),
         parameters=parameter_list)
     return optimizer
-
 
 def get_train_loader(feed_list, place):
     def reader_decorator(reader):
@@ -46,10 +45,11 @@ def get_train_loader(feed_list, place):
                 yield img, label
 
         return __reader__
+
     train_reader = paddle.batch(
-            reader_decorator(paddle.dataset.flowers.train(use_xmap=True)),
-            batch_size=batch_size,
-            drop_last=True)
+        reader_decorator(paddle.dataset.flowers.train(use_xmap=False)),
+        batch_size=batch_size,
+        drop_last=True)
     train_loader = paddle.io.DataLoader.from_generator(
         capacity=32,
         use_double_buffer=True,
@@ -78,7 +78,8 @@ def train_resnet():
 
     strategy = fleet.DistributedStrategy()
     strategy.pipeline = True
-    strategy.pipeline_configs = {"micro_batch": 1}
+    strategy.pipeline_configs = {"accumulate_steps": 8,
+                                 "micro_batch_size": batch_size}
     fleet.init(is_collective=True, strategy=strategy)
     optimizer = optimizer_setting()
     optimizer = fleet.distributed_optimizer(optimizer)
@@ -94,12 +95,12 @@ def train_resnet():
         batch_id = 0
         while True:
             try:
-                if fleet.worker_index() == 4:
+                if fleet.worker_index() == 3:
                     loss, acc1, acc5 = exe.run(paddle.static.default_main_program(), fetch_list=[avg_cost, acc_top1, acc_top5])             
                 else:
                     exe.run(paddle.static.default_main_program())             
                 batch_id += 1
-                if batch_id % 5 == 0 and fleet.worker_index() == 4:
+                if batch_id % 5 == 0 and fleet.worker_index() == 3:
                     print("[Epoch %d, batch %d] loss: %.5f, acc1: %.5f, acc5: %.5f" % (eop, batch_id, loss, acc1, acc5))
             except paddle.fluid.core.EOFException:
                 train_loader.reset()
