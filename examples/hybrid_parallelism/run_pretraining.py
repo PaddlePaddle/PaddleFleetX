@@ -95,7 +95,7 @@ def exclude_from_weight_decay(n):
     return False
 
 
-def create_model(args, phase, micro_bsz, dp_sharding_rank, dp_worldsize, topo):
+def create_model(args, phase, micro_bsz, dp_sharding_rank, dp_sharding_worldsize, topo):
     if args.use_sop:
         from reader.pretraining_ds_ernie_full_sent import make_pretrain_dataset
     else:
@@ -133,10 +133,10 @@ def create_model(args, phase, micro_bsz, dp_sharding_rank, dp_worldsize, topo):
             lines = line.strip().split('\t')
             vocab[lines[0]] = int(lines[1])
 
-    log.debug("========= worker: {} of {} ==========".format(dp_sharding_rank, dp_worldsize))
+    log.debug("========= dp_sharding worker: {} of {} ==========".format(dp_sharding_rank, dp_sharding_worldsize))
 
     data_reader = make_pretrain_dataset('pt', train_file_list, True, vocab, micro_bsz, len(vocab),
-            args.max_seq_len, dp_sharding_rank, dp_worldsize)
+            args.max_seq_len, dp_sharding_rank, dp_sharding_worldsize)
     with fluid.device_guard("gpu:0"):
         data_loader = fluid.io.DataLoader.from_generator(
             feed_list=inputs, capacity=70, iterable=False)
@@ -161,6 +161,9 @@ def create_model(args, phase, micro_bsz, dp_sharding_rank, dp_worldsize, topo):
 
     ernie_config = ErnieConfig(args.ernie_config_file)._config_dict
     ernie_config["preln"] = args.preln
+
+    # NOTE when trying to compare the loss between mp with non-parallelism-sinlge model, 
+    # should disable weight share for non-parallelism-sinlge run
 
     weight_sharing = (topo.mp.size == 1 and  topo.pp.size == 1) # pp mp should not do weight sharing
     with fluid.device_guard("gpu:0"):
@@ -211,6 +214,36 @@ def create_model(args, phase, micro_bsz, dp_sharding_rank, dp_worldsize, topo):
         }
     return graph_vars
 
+def create_broadcast_program(ref_program, ring_id = 0, root_rank = 0):
+    broadcast_program = fluid.Program()
+    from paddle.fluid.framework import Parameter
+    def is_parameter(var):
+        return isinstance(var, Parameter)
+    parameter_list = list(filter(is_parameter, ref_program.list_vars()))
+
+    # create vars
+    broadcast_main_block = broadcast_program.global_block()
+    broadcast_params = []
+    for param in parameter_list:
+        if not param.is_distributed:
+            print("[broadcast program] create var: {}".format(param.name))
+            gradient_merge_var = broadcast_main_block.create_parameter(
+                name=param.name,
+                shape=param.shape,
+                dtype=param.dtype,
+                type=param.type,
+                stop_gradient=param.stop_gradient)
+            broadcast_params.append(param)
+
+    # append ops
+    with fluid.program_guard(broadcast_program, None):
+        with fluid.unique_name.guard():
+            for param in broadcast_params:
+                fluid.layers.collective._c_broadcast(param, root=root_rank, ring_id=ring_id, use_calc_stream=True)
+        
+    return broadcast_program
+
+
 
 def train(args):
     log.info("pretraining start")
@@ -249,30 +282,37 @@ def train(args):
                     mp=args.num_mp)
 
     is_last = False
-    if topo.pp.rank ==  (topo.pp.size -1) :
+    if topo.pp.rank == (topo.pp.size -1):
         is_last = True
 
     dp_sharding_rank = topo.dp.rank * topo.sharding.size + topo.sharding.rank
-    dp_worldsize = topo.dp.size * topo.sharding.size
-    bsz_per_dp = args.global_bsz // dp_worldsize
+    # dp and sharding are both data parallelism and need to take an unique partition of global batch size
+    dp_sharding_worldsize = topo.dp.size * topo.sharding.size
+    bsz_per_dp = args.global_bsz // dp_sharding_worldsize
 
     micro_bsz = args.micro_bsz
-    assert args.global_bsz % micro_bsz == 0, f"cannot do gradient accumulate, globa_bsz: {args.bsz} micro_bsz: {micro_bsz}"
+    assert args.global_bsz >= micro_bsz * dp_sharding_worldsize, f"[micro bsz x dp_sharding_worldsize] larger than global bsz, globa_bsz: {args.global_bsz} micro_bsz: {micro_bsz}, dp_sharding_worldsize: {dp_sharding_worldsize}"
+    assert args.global_bsz % micro_bsz == 0, f"cannot do gradient accumulate, globa_bsz: {args.global_bsz} micro_bsz: {micro_bsz}"
     acc_steps = bsz_per_dp // micro_bsz
 
-    # sharding \ model parallel \ pipeline
-    assert dist_strategy.sharding == True
-    dist_strategy.sharding_configs = {"segment_broadcast_MB": 32,
-                                      "sharding_degree": args.num_sharding,
-                                      "mp_degree": args.num_mp,
-                                      "pp_degree": args.num_pp,
-                                      "dp_degree":args.num_dp,
-                                      "optimize_offload": True,
-                                      }
-    dist_strategy.pipeline_configs = {"schedule_mode": "1F1B",
-                                      "micro_batch_size": micro_bsz,
-                                      "accumulate_steps": acc_steps,
-                                      }
+    if args.num_mp == 1 and args.num_pp == 1 and args.num_sharding == 1:
+        # single 
+        assert args.num_dp == 1, "normal data parallelism should not use sharding config"
+    else:
+        # sharding \ model parallel \ pipeline
+        assert dist_strategy.sharding == True
+        dist_strategy.sharding_configs = {"segment_broadcast_MB": 32,
+                                        "sharding_degree": args.num_sharding,
+                                        "mp_degree": args.num_mp,
+                                        "pp_degree": args.num_pp,
+                                        "dp_degree":args.num_dp,
+                                        "gradient_merge_acc_step": acc_steps,
+                                        "optimize_offload": False,
+                                        }
+        dist_strategy.pipeline_configs = {"schedule_mode": "1F1B",
+                                        "micro_batch_size": micro_bsz,
+                                        "accumulate_steps": acc_steps,
+                                        }
     log.info(f"using globa_bsz: {args.global_bsz} micro_bsz: {micro_bsz}, acc_steps: {acc_steps}")
 
     dist_strategy.amp = args.use_amp
@@ -298,7 +338,7 @@ def train(args):
     startup_program = fluid.Program()
     with fluid.program_guard(train_program, startup_program):
          with fluid.unique_name.guard():
-            graph_vars = create_model(args, 'train', micro_bsz, dp_sharding_rank, dp_worldsize, topo)
+            graph_vars = create_model(args, 'train', micro_bsz, dp_sharding_rank, dp_sharding_worldsize, topo)
             data_loader = graph_vars['data_loader']
             for op in train_program.global_block().ops:
                 if op.type == 'fill_constant':
@@ -312,9 +352,16 @@ def train(args):
                         }
                                                   
             log.debug("base lr: {}".format(args.learning_rate))
+
+            warmup_steps = args.warmup_steps
+            num_train_steps = args.num_train_steps         
+            # refine the lr decay for sharding-gm
+            if args.num_sharding > 1 and args.num_pp == 1 and acc_steps > 1:
+                warmup_steps = warmup_steps * acc_steps
+                num_train_steps = num_train_steps * acc_steps
             scheduled_lr = linear_warmup_decay(learning_rate=args.learning_rate,
-                                               warmup_steps=args.warmup_steps,
-                                               num_train_steps=args.num_train_steps)
+                                               warmup_steps=warmup_steps,
+                                               num_train_steps=num_train_steps)
 
             clip_norm_thres = 1.0
             optimizer = fluid.optimizer.Adam(learning_rate=scheduled_lr,
@@ -333,20 +380,40 @@ def train(args):
             log.info("final strategy: {}".format(final_strategy))
             log.info("applied_meta_list: {}".format(applied_meta_list))
 
+    if args.num_mp > 1:
+        broadcast_program = create_broadcast_program(train_program)
+
+    # save program
     program_desc_dir = os.path.join(args.output_dir, "program_desc")
     if not os.path.isdir(program_desc_dir):
         os.mkdir(program_desc_dir)
 
-    with open(program_desc_dir + "/main_program.txt.%d" % (int(os.environ.get('FLAGS_selected_gpus', 0))), 'w') as f:
-        f.write(str(train_program))
+    # save the true pp program
+    if args.num_pp > 1 and args.num_sharding <= 1:
+        with open(program_desc_dir + "/main_program.txt.%d" % (int(os.environ.get('FLAGS_selected_gpus', 0))), 'w') as f:
+            f.write(str(train_program._pipeline_opt['section_program']))
 
-    with open(program_desc_dir + "/startup_program.txt.%d" % (int(os.environ.get('FLAGS_selected_gpus', 0))), 'w') as f:
-        f.write(str(startup_program))
+        with open(program_desc_dir + "/startup_program.txt.%d" % (int(os.environ.get('FLAGS_selected_gpus', 0))), 'w') as f:
+            f.write(str(startup_program._pipeline_opt['startup_program']))
+    else:
+        with open(program_desc_dir + "/main_program.txt.%d" % (int(os.environ.get('FLAGS_selected_gpus', 0))), 'w') as f:
+            f.write(str(train_program))
+
+        with open(program_desc_dir + "/startup_program.txt.%d" % (int(os.environ.get('FLAGS_selected_gpus', 0))), 'w') as f:
+            f.write(str(startup_program))
+
+    if args.num_mp > 1:
+        with open(program_desc_dir + "/broadcast_program.txt.%d" % (int(os.environ.get('FLAGS_selected_gpus', 0))), 'w') as f:
+            f.write(str(broadcast_program))
 
     exe = fluid.Executor(place)
+    # # TODO
+    if args.num_mp > 1 :
+        paddle.seed(2021 + int(os.environ.get('FLAGS_selected_gpus', 0)))
     exe.run(startup_program)
 
-    optimizer.amp_init(place)
+    if args.use_amp:
+        optimizer.amp_init(place)
 
     #save_path = os.path.join(args.output_dir, 'step_0')
     #log.debug("saving models to {}".format(save_path))
@@ -370,6 +437,11 @@ def train(args):
     steps = 0
     log_path = 'train_log/node-%d' % fleet.worker_index()
     start_time = time.time()
+
+    # # TODO
+    if args.num_mp > 1:
+        exe.run(broadcast_program, fetch_list=[])
+
     with LogWriter(os.path.join(args.output_dir, log_path)) as swriter:
         data_loader.start()
         while True:
@@ -456,7 +528,7 @@ def train(args):
                 log.debug("saving models to {}".format(save_path))
                 save_persistables(exe, save_path, train_program)
 
-            if steps == args.num_train_steps:
+            if steps == num_train_steps:
                 if args.use_hybrid_dp and fleet.worker_index() > 8:
                     continue
                 save_path = os.path.join(output_dir, 'final_step_' + str(steps))
