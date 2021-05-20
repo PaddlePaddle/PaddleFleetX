@@ -162,6 +162,9 @@ def create_model(args, phase, micro_bsz, dp_sharding_rank, dp_sharding_worldsize
     ernie_config = ErnieConfig(args.ernie_config_file)._config_dict
     ernie_config["preln"] = args.preln
 
+    # NOTE when trying to compare the loss between mp with non-parallelism-sinlge model, 
+    # should disable weight share for non-parallelism-sinlge run
+
     weight_sharing = (topo.mp.size == 1 and  topo.pp.size == 1) # pp mp should not do weight sharing
     with fluid.device_guard("gpu:0"):
         ernie = ErnieModel(src_ids,
@@ -211,21 +214,35 @@ def create_model(args, phase, micro_bsz, dp_sharding_rank, dp_sharding_worldsize
         }
     return graph_vars
 
-def print_params(program):
+def create_broadcast_program(ref_program, ring_id = 0, root_rank = 0):
+    broadcast_program = fluid.Program()
     from paddle.fluid.framework import Parameter
     def is_parameter(var):
         return isinstance(var, Parameter)
-    def get_tensor(var):
-        t = paddle.fluid.global_scope().find_var(var.name).get_tensor()
-        return np.array(t)
-    def get_name(var):
-        return var.name
-    parameter_list = list(filter(is_parameter, program.list_vars()))
-    print("#####" * 6)
-    for p in sorted(parameter_list, key=get_name):
-        print("{} : {}".format(p.name, p.shape))
-        print(get_tensor(p).flatten().tolist()[:30])
-    print("#####" * 6)
+    parameter_list = list(filter(is_parameter, ref_program.list_vars()))
+
+    # create vars
+    broadcast_main_block = broadcast_program.global_block()
+    broadcast_params = []
+    for param in parameter_list:
+        if not param.is_distributed:
+            print("[broadcast program] create var: {}".format(param.name))
+            gradient_merge_var = broadcast_main_block.create_parameter(
+                name=param.name,
+                shape=param.shape,
+                dtype=param.dtype,
+                type=param.type,
+                stop_gradient=param.stop_gradient)
+            broadcast_params.append(param)
+
+    # append ops
+    with fluid.program_guard(broadcast_program, None):
+        with fluid.unique_name.guard():
+            for param in broadcast_params:
+                fluid.layers.collective._c_broadcast(param, root=root_rank, ring_id=ring_id, use_calc_stream=True)
+        
+    return broadcast_program
+
 
 
 def train(args):
@@ -363,6 +380,8 @@ def train(args):
             log.info("final strategy: {}".format(final_strategy))
             log.info("applied_meta_list: {}".format(applied_meta_list))
 
+    if args.num_mp > 1:
+        broadcast_program = create_broadcast_program(train_program)
 
     # save program
     program_desc_dir = os.path.join(args.output_dir, "program_desc")
@@ -383,10 +402,18 @@ def train(args):
         with open(program_desc_dir + "/startup_program.txt.%d" % (int(os.environ.get('FLAGS_selected_gpus', 0))), 'w') as f:
             f.write(str(startup_program))
 
+    if args.num_mp > 1:
+        with open(program_desc_dir + "/broadcast_program.txt.%d" % (int(os.environ.get('FLAGS_selected_gpus', 0))), 'w') as f:
+            f.write(str(broadcast_program))
+
     exe = fluid.Executor(place)
+    # # TODO
+    if args.num_mp > 1 :
+        paddle.seed(2021 + int(os.environ.get('FLAGS_selected_gpus', 0)))
     exe.run(startup_program)
 
-    optimizer.amp_init(place)
+    if args.use_amp:
+        optimizer.amp_init(place)
 
     #save_path = os.path.join(args.output_dir, 'step_0')
     #log.debug("saving models to {}".format(save_path))
@@ -411,8 +438,10 @@ def train(args):
     log_path = 'train_log/node-%d' % fleet.worker_index()
     start_time = time.time()
 
-    # TODO
-    print_params(train_program)
+    # # TODO
+    if args.num_mp > 1:
+        exe.run(broadcast_program, fetch_list=[])
+
     with LogWriter(os.path.join(args.output_dir, log_path)) as swriter:
         data_loader.start()
         while True:
@@ -507,10 +536,6 @@ def train(args):
                 log.debug("saving final models to {}".format(save_path))
                 log.debug("end of training, total steps: {}".format(steps))
 
-            if steps == 150:
-                # TODO
-                print_params(train_program)
-                break
 
 if __name__ == "__main__":
     args = define_args()

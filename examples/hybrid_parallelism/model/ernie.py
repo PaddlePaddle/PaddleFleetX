@@ -174,8 +174,11 @@ class ErnieModel(object):
 
         self_attn_mask = fluid.layers.scale(
             x=self_attn_mask, scale=10000.0, bias=-1.0, bias_after_scale=False)
+        stack_time = self._n_head
+        if self.topo.mp.size > 1:
+            stack_time = stack_time // self.topo.mp.size
         n_head_self_attn_mask = fluid.layers.stack(
-            x=[self_attn_mask] * self._n_head, axis=1)
+            x=[self_attn_mask] * stack_time, axis=1)
         n_head_self_attn_mask.stop_gradient = True
 
         self._enc_out, self._checkpoints = encoder(

@@ -174,6 +174,8 @@ def multi_head_attention(queries,
         out = layers.matmul(weights, v)
         return out
 
+    if topo.mp.size > 1:
+        n_head = n_head // topo.mp.size
     q, k, v = __compute_qkv(queries, keys, values, n_head, d_key, d_value)
 
     if cache is not None:  # use cache and concat time steps
