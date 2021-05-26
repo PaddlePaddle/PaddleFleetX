@@ -95,7 +95,7 @@ def exclude_from_weight_decay(n):
     return False
 
 
-def create_model(args, phase, micro_bsz, dp_sharding_rank, dp_sharding_worldsize, topo):
+def create_model(args, phase, micro_bsz, dp_sharding_rank, dp_sharding_worldsize, topo, acc_steps):
     if args.use_sop:
         from reader.pretraining_ds_ernie_full_sent import make_pretrain_dataset
     else:
@@ -165,7 +165,7 @@ def create_model(args, phase, micro_bsz, dp_sharding_rank, dp_sharding_worldsize
     # NOTE when trying to compare the loss between mp with non-parallelism-sinlge model, 
     # should disable weight share for non-parallelism-sinlge run
 
-    weight_sharing = (topo.mp.size == 1 and  topo.pp.size == 1) # pp mp should not do weight sharing
+    weight_sharing = False
     with fluid.device_guard("gpu:0"):
         ernie = ErnieModel(src_ids,
                            sent_ids,
@@ -193,6 +193,20 @@ def create_model(args, phase, micro_bsz, dp_sharding_rank, dp_sharding_worldsize
                 # checkpoints.extend([mean_sop_loss.name, sop_acc.name])
             total_loss.persistable = True
             # checkpoints.append(total_loss.name)
+        pp_total_loss = None
+        pp_total_loss_name = None
+        if topo.pp.size > 1:
+            pp_total_loss = paddle.fluid.layers.fill_constant([1,], 'float32', 0.0)
+            pp_total_loss.persistable = True
+            pp_total_loss_name = pp_total_loss.name 
+            block = fluid.default_main_program().global_block()
+            tmp = total_loss / acc_steps
+            block.append_op(
+                type='elementwise_add',
+                inputs={'X': [pp_total_loss],
+                        'Y': [tmp]},
+                outputs={'Out': [pp_total_loss]}
+            )
 
     if args.use_sop:
         graph_vars = {
@@ -210,6 +224,8 @@ def create_model(args, phase, micro_bsz, dp_sharding_rank, dp_sharding_worldsize
             'mask_lm_loss': mask_lm_loss,
             'mean_mask_lm_loss': mean_mask_lm_loss,
             'total_loss': total_loss,
+            'pp_total_loss': pp_total_loss,
+            'pp_total_loss_name': pp_total_loss_name,
             'checkpoints': checkpoints,
         }
     return graph_vars
@@ -309,7 +325,7 @@ def train(args):
                                         "gradient_merge_acc_step": acc_steps,
                                         "optimize_offload": False,
                                         }
-        dist_strategy.pipeline_configs = {"schedule_mode": "1F1B",
+        dist_strategy.pipeline_configs = {"schedule_mode": "F-then-B",
                                         "micro_batch_size": micro_bsz,
                                         "accumulate_steps": acc_steps,
                                         }
@@ -338,7 +354,7 @@ def train(args):
     startup_program = fluid.Program()
     with fluid.program_guard(train_program, startup_program):
          with fluid.unique_name.guard():
-            graph_vars = create_model(args, 'train', micro_bsz, dp_sharding_rank, dp_sharding_worldsize, topo)
+            graph_vars = create_model(args, 'train', micro_bsz, dp_sharding_rank, dp_sharding_worldsize, topo, acc_steps)
             data_loader = graph_vars['data_loader']
             for op in train_program.global_block().ops:
                 if op.type == 'fill_constant':
@@ -364,6 +380,13 @@ def train(args):
                                                num_train_steps=num_train_steps)
 
             clip_norm_thres = 1.0
+            if args.num_pp > 1:
+                #pp_loss = graph_vars['pp_total_loss']
+                pp_loss_name = graph_vars['pp_total_loss_name']
+                for op in train_program.global_block().ops:
+                    if op.type == "fill_constant" and op.desc.output_arg_names()[0] == pp_loss_name:
+                        op._set_attr("op_role", 16)
+                        op._set_attr('op_device', "gpu:%d"%(args.num_pp-1)) # XXX: hack: https://github.com/PaddlePaddle/Paddle/blob/develop/python/paddle/fluid/layers/tensor.py#L1376
             optimizer = fluid.optimizer.Adam(learning_rate=scheduled_lr,
                                              grad_clip=fluid.clip.GradientClipByGlobalNorm(clip_norm=clip_norm_thres),
                                              #multi_precision=True,
@@ -411,6 +434,16 @@ def train(args):
     if args.num_mp > 1 :
         paddle.seed(2021 + int(os.environ.get('FLAGS_selected_gpus', 0)))
     exe.run(startup_program)
+
+    if args.num_pp == 1:
+        paddle.fluid.io.save_persistables(exe, './saved_model', main_program=train_program)
+    else:
+        def predicate(var):
+            #if var.persistable and train_program._pipeline_opt['section_program'].global_block().has_var(var.name) and "create_py_reader_0" not in var.name and "GRAD" not in var.name and "double_buffer_0" not in var.name and "stack_0.tmp_0" not in var.name and "softmax" not in var.name and 'loss' not in var.name:
+            if os.path.exists('./saved_model/%s'%var.name):
+                return True
+            return False
+        paddle.fluid.io.load_vars(exe, "./saved_model", main_program=train_program._pipeline_opt['section_program'], predicate=predicate)
 
     if args.use_amp:
         optimizer.amp_init(place)
@@ -470,8 +503,12 @@ def train(args):
                     cost_val, lm_loss, lr, sop_acc, sop_loss, loss_scaling_0 = ret
                 elif args.use_sop:
                     cost_val, lm_loss, lr, sop_acc, sop_loss = ret
-                elif args.use_amp:
+                elif args.use_amp and args.num_pp <= 1:
                     cost_val, lm_loss, lr, loss_scaling_0 = ret
+                elif args.num_pp > 1 and args.use_amp:
+                    cost_val, lm_loss, lr, loss_scaling_0, pp_loss = ret
+                elif args.num_pp > 1:
+                    cost_val, lm_loss, lr, pp_loss = ret
                 else:
                     cost_val, lm_loss, lr = ret
                 cost_vals.append(cost_val[0])
@@ -499,6 +536,8 @@ def train(args):
                         swriter.add_scalar('lr/loss_scaling', loss_scaling_0[0], steps)
                     else:
                         loss_scaling_0 = [0.0]
+                    if args.num_pp <= 1:
+                        pp_loss = [0.0]
 
                     log.info(
                         "worker_index: %d, step: %d, cost: %f, "
@@ -506,13 +545,14 @@ def train(args):
                         "speed: %f steps/s, "
                         "speed: %f samples/s, "
                         "speed: %f tokens/s, "
-                        "learning rate: %.3e, loss_scalings: %f"
+                        "learning rate: %.3e, loss_scalings: %f, "
+                        "pp_loss: %f"
                         % (fleet.worker_index(), steps, cost_val,
                         lm_loss, sop_acc,
                         args.log_steps / total_time,
                         args.log_steps * args.global_bsz / total_time,
                         args.log_steps * args.global_bsz * args.max_seq_len / total_time,
-                        lr[0], loss_scaling_0[0]))
+                        lr[0], loss_scaling_0[0], pp_loss[0]))
 
                     cost_vals, lm_losses, sop_accs = [], [], []
                     start_time = time.time()
