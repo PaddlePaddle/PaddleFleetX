@@ -23,8 +23,8 @@ import six
 import unicodedata
 from typing import Iterable, Iterator, Optional, List, Any, Callable, Union
 
-from paddlenlp.utils.downloader import get_path_from_url
-from paddlenlp.utils.env import MODEL_HOME
+from package.utils.downloader import get_path_from_url
+from package.utils.env import MODEL_HOME
 
 from ..data.vocab import Vocab
 from .utils import InitTrackerMeta, fn_args_to_dict

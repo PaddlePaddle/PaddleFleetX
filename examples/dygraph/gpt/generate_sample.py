@@ -20,9 +20,9 @@ import argparse
 import numpy as np
 
 import paddle
-from paddlenlp.transformers import GPT2Model, GPT2ForPretraining
-from paddlenlp.transformers import GPT2ChineseTokenizer, GPT2Tokenizer
-from paddlenlp.utils.log import logger
+from package.transformers import GPT2Model, GPT2ForPretraining
+from package.transformers import GPT2ChineseTokenizer, GPT2Tokenizer
+from package.utils.log import logger
 
 MODEL_CLASSES = {
     "gpt2-base-cn": (GPT2ForPretraining, GPT2ChineseTokenizer),

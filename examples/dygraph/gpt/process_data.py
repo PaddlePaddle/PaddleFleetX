@@ -19,7 +19,7 @@ import json
 import multiprocessing
 
 import numpy as np
-from paddlenlp.transformers import GPT2Tokenizer
+from package.transformers import GPT2Tokenizer
 from tqdm import tqdm
 
 

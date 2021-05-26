@@ -22,10 +22,10 @@ import numpy as np
 import paddle
 from paddle.io import DataLoader, Dataset
 
-from paddlenlp.data import Stack, Tuple, Pad
-from paddlenlp.transformers import GPT2Model, GPT2ForPretraining, GPT2PretrainingCriterion, GPT2ModelPipe
-from paddlenlp.transformers import GPT2Tokenizer, GPT2ChineseTokenizer
-from paddlenlp.utils.log import logger
+from package.data import Stack, Tuple, Pad
+from package.transformers import GPT2Model, GPT2ForPretraining, GPT2PretrainingCriterion, GPT2ModelPipe
+from package.transformers import GPT2Tokenizer, GPT2ChineseTokenizer
+from package.utils.log import logger
 from data import GPT2Dataset
 from args import parse_args
 import lr
