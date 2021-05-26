@@ -38,6 +38,7 @@ from propeller.data import Dataset
 from propeller import log
 
 log.setLevel(logging.DEBUG)
+r.seed(100)
 
 if six.PY3:
     from itertools import accumulate
@@ -264,7 +265,7 @@ def make_pretrain_dataset(name, gz_files, is_train, vocab, batch_size, vocab_siz
         #dataset = dataset.repeat().shuffle(buffer_size=len(gz_files))
         #dataset = dataset.shuffle(buffer_size=len(gz_files))
     dataset = dataset.interleave(map_fn=bb_to_segments, cycle_length=cycle_length, block_length=1)
-    dataset = dataset.shuffle(buffer_size=10000) # must shuffle to ensure negative sample randomness
+    #dataset = dataset.shuffle(buffer_size=10000) # must shuffle to ensure negative sample randomness
     dataset = sample_negative(dataset)
 
     dataset = dataset.padded_batch(batch_size, (0, -1, 0), max_seqlen) \

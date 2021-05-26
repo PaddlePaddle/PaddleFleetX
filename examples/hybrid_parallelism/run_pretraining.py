@@ -346,7 +346,8 @@ def train(args):
     exe = fluid.Executor(place)
     exe.run(startup_program)
 
-    optimizer.amp_init(place)
+    if args.use_amp:
+        optimizer.amp_init(place)
 
     #save_path = os.path.join(args.output_dir, 'step_0')
     #log.debug("saving models to {}".format(save_path))
