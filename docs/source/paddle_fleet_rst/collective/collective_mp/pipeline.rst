@@ -71,7 +71,8 @@
 
    fleet.init(is_collective=True)
    dist_strategy = paddle.distributed.fleet.DistributedStrategy()
-   strategy.pipeline_configs = {"micro_batch": 4}
+   strategy.pipeline_configs = {"accumulate_steps": 4,
+                                "micro_batch_size": 32}
 
 
 基于ResNet50网络的流水线并行代码：`example/resnet <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/pipeline>`_。
