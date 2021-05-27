@@ -1,0 +1,292 @@
+/opt/conda/envs/py37/bin/python
+{
+  "use_profiler": false,
+  "use_k8s": false,
+  "is_distributed": true,
+  "save_path": "./output",
+  "train_file": "./data/train.gz",
+  "valid_file": "./data/valid.gz",
+  "start_step": 0,
+  "num_epochs": 10,
+  "log_steps": 10,
+  "validation_steps": 1000,
+  "save_steps": 0,
+  "eval_metric": "-loss",
+  "save_checkpoint": true,
+  "Model": {
+    "model": "SparseMoE",
+    "config_path": "./projects/SparseMoE/24L.json",
+    "init_checkpoint": "",
+    "init_pretraining_params": "",
+    "optimizer": "AdamW",
+    "learning_rate": 0.0005,
+    "warmup_steps": 4000,
+    "lr_scheduler": "noam",
+    "max_training_steps": 2000,
+    "min_learning_rate": 0,
+    "weight_decay": 0.01,
+    "max_grad_norm": 0.1,
+    "use_recompute": false,
+    "use_amp": true,
+    "amp_loss_scaling": 32768.0,
+    "without_graph_optimization": true,
+    "weight_sharing": true,
+    "mem_efficient": false,
+    "use_role": false,
+    "use_turn": false,
+    "aux_loss_coef": 0.0,
+    "pre_encoder_cmd": "d",
+    "preprocess_cmd": "n",
+    "postprocess_cmd": "da",
+    "post_cls_cmd": "n",
+    "cls_bias": true,
+    "attention_probs_dropout_prob": 0.1,
+    "hidden_act": "gelu",
+    "hidden_dropout_prob": 0.1,
+    "hidden_size": 1024,
+    "initializer_range": 0.02,
+    "max_position_embeddings": 256,
+    "num_attention_heads": 16,
+    "num_hidden_layers": 12,
+    "num_experts": 8,
+    "experts_capacity": 1280,
+    "type_vocab_size": 2,
+    "role_type_size": 32,
+    "vocab_size": 8001
+  },
+  "Generator": {
+    "min_dec_len": 1,
+    "max_dec_len": 64,
+    "decoding_strategy": "topk_sampling",
+    "temperature": 1.0,
+    "ignore_unk": true,
+    "num_samples": null,
+    "topk": 10,
+    "topp": 0.9,
+    "beam_size": 10,
+    "length_average": true,
+    "length_penalty": 0.0
+  },
+  "Task": {
+    "task": "DialogGeneration",
+    "do_generation": true,
+    "is_cn": false,
+    "filter_cross_repetition": true,
+    "nsp_inference_model_path": null,
+    "nsp_attention_style": "bidirectional",
+    "ranking_score": "decode_score"
+  },
+  "Reader": {
+    "max_src_len": 128,
+    "max_tgt_len": 128,
+    "max_seq_len": 256,
+    "max_knowledge_len": 0,
+    "knowledge_position": "post_src",
+    "knowledge_style": "original",
+    "truncate_first_turn": false,
+    "file_format": "file",
+    "data_format": "numerical",
+    "in_tokens": true,
+    "batch_size": 8192,
+    "position_style": "continuous",
+    "random_seed": 11,
+    "shuffle_pool_size": 0,
+    "sort_pool_size": 65536
+  },
+  "Tokenizer": {
+    "tokenizer": "SentencePieceTokenizer",
+    "vocab_path": "./package/dialog_en/vocab.txt",
+    "specials_path": "",
+    "do_lower_case": false,
+    "spm_model_file": "./package/dialog_en/spm.model"
+  }
+}
+    +==============================================================================+
+    |                                                                              |
+    |                         DistributedStrategy Overview                         |
+    |                                                                              |
+    +==============================================================================+
+    |                           amp=True <-> amp_configs                           |
+    +------------------------------------------------------------------------------+
+    |                     init_loss_scaling                 32768.0                |
+    |                    incr_every_n_steps                   1000                 |
+    |               decr_every_n_nan_or_inf                    2                   |
+    |                            incr_ratio                   2.0                  |
+    |                            decr_ratio            0.800000011920929           |
+    |              use_dynamic_loss_scaling                   True                 |
+    |                         use_pure_fp16                  False                 |
+    |                        use_fp16_guard                   True                 |
+    +==============================================================================+
+    |                        a_sync=True <-> a_sync_configs                        |
+    +------------------------------------------------------------------------------+
+    |                               k_steps                    -1                  |
+    |                     max_merge_var_num                    1                   |
+    |                       send_queue_size                    16                  |
+    |               independent_recv_thread                  False                 |
+    |         min_send_grad_num_before_recv                    1                   |
+    |                      thread_pool_size                    1                   |
+    |                       send_wait_times                    1                   |
+    |               runtime_split_send_recv                  False                 |
+    |                        launch_barrier                   True                 |
+    |             heter_worker_device_guard                   cpu                  |
+    |                        lr_decay_steps                    10                  |
+    |                            use_ps_gpu                    0                   |
+    +==============================================================================+
+    |                    Environment Flags, Communication Flags                    |
+    +------------------------------------------------------------------------------+
+    |                                  mode                    1                   |
+    |                               elastic                  False                 |
+    |                                  auto                  False                 |
+    |                   sync_nccl_allreduce                   True                 |
+    |                         nccl_comm_num                    1                   |
+    |            use_hierarchical_allreduce                  False                 |
+    |   hierarchical_allreduce_inter_nranks                    1                   |
+    |                       sync_batch_norm                  False                 |
+    |                   fuse_all_reduce_ops                   True                 |
+    |                  fuse_grad_size_in_MB                    32                  |
+    |              fuse_grad_size_in_TFLOPS                   50.0                 |
+    |               cudnn_exhaustive_search                  False                 |
+    |             conv_workspace_size_limit                   512                  |
+    |    cudnn_batchnorm_spatial_persistent                  False                 |
+    |                        fp16_allreduce                  False                 |
+    |               last_comm_group_size_MB                   1.0                  |
+    |                find_unused_parameters                  False                 |
+    |            without_graph_optimization                   True                 |
+    +==============================================================================+
+    |                                Build Strategy                                |
+    +------------------------------------------------------------------------------+
+    |           enable_sequential_execution                  False                 |
+    |              fuse_elewise_add_act_ops                  False                 |
+    |                       fuse_bn_act_ops                  False                 |
+    |              fuse_relu_depthwise_conv                  False                 |
+    |                    fuse_broadcast_ops                  False                 |
+    |                fuse_all_optimizer_ops                  False                 |
+    |                        enable_inplace                  False                 |
+    |     enable_backward_optimizer_op_deps                   True                 |
+    |                 cache_runtime_context                  False                 |
+    |                   fuse_bn_add_act_ops                   True                 |
+    |                    enable_auto_fusion                  False                 |
+    |                          enable_addto                  False                 |
+    +==============================================================================+
+    |                              Execution Strategy                              |
+    +------------------------------------------------------------------------------+
+    |                           num_threads                    4                   |
+    |          num_iteration_per_drop_scope                    1                   |
+    |                 num_iteration_per_run                    1                   |
+    |                    use_thread_barrier                  False                 |
+    +==============================================================================+
+
+/opt/conda/envs/py37/lib/python3.7/site-packages/paddle/fluid/layers/math_op_patch.py:299: UserWarning: /home/liji09/toyer/FleetX/examples/moe/knover/models/unified_transformer.py:155
+The behavior of expression A + B has been unified with elementwise_add(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_add(X, Y, axis=0) instead of A + B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/opt/conda/envs/py37/lib/python3.7/site-packages/paddle/fluid/framework.py:690: DeprecationWarning: `np.bool` is a deprecated alias for the builtin `bool`. To silence this warning, use `bool` by itself. Doing this will not modify any behavior and is safe. If you specifically wanted the numpy scalar type, use `np.bool_` here.
+Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+  elif dtype == np.bool:
+/opt/conda/envs/py37/lib/python3.7/site-packages/paddle/fluid/layers/math_op_patch.py:299: UserWarning: /home/liji09/toyer/FleetX/examples/moe/knover/modules/transformer_block.py:113
+The behavior of expression A + B has been unified with elementwise_add(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_add(X, Y, axis=0) instead of A + B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/opt/conda/envs/py37/lib/python3.7/site-packages/paddle/fluid/layers/math_op_patch.py:299: UserWarning: /home/liji09/toyer/FleetX/examples/moe/knover/modules/transformer_block.py:214
+The behavior of expression A + B has been unified with elementwise_add(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_add(X, Y, axis=0) instead of A + B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/opt/conda/envs/py37/lib/python3.7/site-packages/paddle/fluid/layers/math_op_patch.py:299: UserWarning: /home/liji09/toyer/FleetX/examples/moe/knover/modules/moe_transformer_block.py:57
+The behavior of expression A * B has been unified with elementwise_mul(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_mul(X, Y, axis=0) instead of A * B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/opt/conda/envs/py37/lib/python3.7/site-packages/paddle/fluid/layers/math_op_patch.py:299: UserWarning: /home/liji09/toyer/FleetX/examples/moe/knover/modules/moe_transformer_block.py:65
+The behavior of expression A * B has been unified with elementwise_mul(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_mul(X, Y, axis=0) instead of A * B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/opt/conda/envs/py37/lib/python3.7/site-packages/paddle/fluid/layers/math_op_patch.py:299: UserWarning: /home/liji09/toyer/FleetX/examples/moe/knover/modules/moe_transformer_block.py:73
+The behavior of expression A + B has been unified with elementwise_add(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_add(X, Y, axis=0) instead of A + B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/opt/conda/envs/py37/lib/python3.7/site-packages/paddle/fluid/layers/math_op_patch.py:299: UserWarning: /home/liji09/toyer/FleetX/examples/moe/knover/modules/moe_transformer_block.py:75
+The behavior of expression A * B has been unified with elementwise_mul(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_mul(X, Y, axis=0) instead of A * B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/opt/conda/envs/py37/lib/python3.7/site-packages/paddle/fluid/layers/math_op_patch.py:299: UserWarning: /home/liji09/toyer/FleetX/examples/moe/knover/modules/moe_transformer_block.py:86
+The behavior of expression A + B has been unified with elementwise_add(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_add(X, Y, axis=0) instead of A + B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/opt/conda/envs/py37/lib/python3.7/site-packages/paddle/fluid/layers/math_op_patch.py:299: UserWarning: /home/liji09/toyer/FleetX/examples/moe/knover/modules/moe_transformer_block.py:100
+The behavior of expression A * B has been unified with elementwise_mul(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_mul(X, Y, axis=0) instead of A * B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/opt/conda/envs/py37/lib/python3.7/site-packages/paddle/fluid/layers/math_op_patch.py:299: UserWarning: /home/liji09/toyer/FleetX/examples/moe/knover/modules/moe_transformer_block.py:103
+The behavior of expression A * B has been unified with elementwise_mul(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_mul(X, Y, axis=0) instead of A * B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/opt/conda/envs/py37/lib/python3.7/site-packages/paddle/fluid/layers/math_op_patch.py:299: UserWarning: /home/liji09/toyer/FleetX/examples/moe/knover/modules/moe_transformer_block.py:103
+The behavior of expression A + B has been unified with elementwise_add(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_add(X, Y, axis=0) instead of A + B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/opt/conda/envs/py37/lib/python3.7/site-packages/paddle/fluid/layers/math_op_patch.py:299: UserWarning: /home/liji09/toyer/FleetX/examples/moe/knover/modules/moe_transformer_block.py:106
+The behavior of expression A * B has been unified with elementwise_mul(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_mul(X, Y, axis=0) instead of A * B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/opt/conda/envs/py37/lib/python3.7/site-packages/paddle/fluid/layers/math_op_patch.py:299: UserWarning: /home/liji09/toyer/FleetX/examples/moe/knover/modules/moe_transformer_block.py:106
+The behavior of expression A - B has been unified with elementwise_sub(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_sub(X, Y, axis=0) instead of A - B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/home/liji09/toyer/FleetX/examples/moe/knover/models/unified_transformer.py:470: DeprecationWarning: [93m
+Warning:
+API "paddle.nn.functional.loss.softmax_with_cross_entropy" is deprecated since 2.0.0, and will be removed in future versions. Please use "paddle.nn.functional.cross_entropy" instead.
+reason: Please notice that behavior of "paddle.nn.functional.softmax_with_cross_entropy" and "paddle.nn.functional.cross_entropy" is different. [0m
+  logits=tgt_logits, label=inputs["tgt_label"])
+/opt/conda/envs/py37/lib/python3.7/site-packages/paddle/distributed/fleet/base/fleet_base.py:756: UserWarning: It is recommended to use DistributedStrategy in fleet.init(). The strategy here is only for compatibility. If the strategy in fleet.distributed_optimizer() is not None, then it will overwrite the DistributedStrategy in fleet.init(), which will take effect in distributed training.
+  "It is recommended to use DistributedStrategy "
+server not ready, wait 3 sec to retry...
+not ready endpoints:['127.0.0.1:10061']
+server not ready, wait 3 sec to retry...
+not ready endpoints:['127.0.0.1:10061']
+server not ready, wait 3 sec to retry...
+not ready endpoints:['127.0.0.1:10061']
+server not ready, wait 3 sec to retry...
+not ready endpoints:['127.0.0.1:10061']
+server not ready, wait 3 sec to retry...
+not ready endpoints:['127.0.0.1:10061']
+W0524 21:14:02.805078 13354 device_context.cc:430] Please NOTE: device: 0, GPU Compute Capability: 7.0, Driver API Version: 11.0, Runtime API Version: 10.1
+W0524 21:14:02.810366 13354 device_context.cc:448] device: 0, cuDNN Version: 7.6.
+I0524 21:14:07.282235 13354 gen_comm_id_helper.cc:181] Server listening on: 127.0.0.1:26555 successful.
+Training is start.
+/opt/conda/envs/py37/lib/python3.7/site-packages/paddle/fluid/reader.py:139: DeprecationWarning: `np.object` is a deprecated alias for the builtin `object`. To silence this warning, use `object` by itself. Doing this will not modify any behavior and is safe. 
+Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+  if arr.dtype == np.object:
+[train][1] progress: 1/1 step: 10, time: 12.691, queue size: 64, speed: 0.788 steps/s
+	current lr: 0.0000012
+	lm_loss: 9.0389, ppl: 8424.8295, aux_loss: 0.0000, loss: 9.0389, loss_scaling: 32768.0000
+[train][1] progress: 1/1 step: 20, time: 4.036, queue size: 64, speed: 2.478 steps/s
+	current lr: 0.0000025
+	lm_loss: 8.8344, ppl: 6866.2703, aux_loss: 0.0000, loss: 8.8344, loss_scaling: 32768.0000
+[train][1] progress: 1/1 step: 30, time: 4.271, queue size: 64, speed: 2.341 steps/s
+	current lr: 0.0000038
+	lm_loss: 8.5170, ppl: 4999.2211, aux_loss: 0.0000, loss: 8.5170, loss_scaling: 32768.0000
+[train][1] progress: 1/1 step: 40, time: 4.169, queue size: 64, speed: 2.399 steps/s
+	current lr: 0.0000050
+	lm_loss: 8.1948, ppl: 3622.0644, aux_loss: 0.0000, loss: 8.1948, loss_scaling: 32768.0000
+[train][1] progress: 1/1 step: 50, time: 4.150, queue size: 64, speed: 2.410 steps/s
+	current lr: 0.0000062
+	lm_loss: 8.1812, ppl: 3573.2183, aux_loss: 0.0000, loss: 8.1812, loss_scaling: 32768.0000
+[train][1] progress: 1/1 step: 60, time: 4.184, queue size: 64, speed: 2.390 steps/s
+	current lr: 0.0000075
+	lm_loss: 7.9621, ppl: 2869.9899, aux_loss: 0.0000, loss: 7.9621, loss_scaling: 32768.0000
+[train][1] progress: 1/1 step: 70, time: 4.217, queue size: 64, speed: 2.371 steps/s
+	current lr: 0.0000088
+	lm_loss: 7.8538, ppl: 2575.5882, aux_loss: 0.0000, loss: 7.8538, loss_scaling: 32768.0000
+[train][1] progress: 1/1 step: 80, time: 4.170, queue size: 64, speed: 2.398 steps/s
+	current lr: 0.0000100
+	lm_loss: 7.7125, ppl: 2236.2207, aux_loss: 0.0000, loss: 7.7125, loss_scaling: 32768.0000
+[train][1] progress: 1/1 step: 90, time: 4.272, queue size: 64, speed: 2.341 steps/s
+	current lr: 0.0000113
+	lm_loss: 7.6256, ppl: 2049.9531, aux_loss: 0.0000, loss: 7.6256, loss_scaling: 32768.0000
+[train][1] progress: 1/1 step: 100, time: 4.166, queue size: 64, speed: 2.400 steps/s
+	current lr: 0.0000125
+	lm_loss: 7.4659, ppl: 1747.4983, aux_loss: 0.0000, loss: 7.4659, loss_scaling: 32768.0000
+Traceback (most recent call last):
+  File "./knover/scripts/train.py", line 326, in <module>
+    train(args)
+  File "./knover/scripts/train.py", line 162, in train
+    outputs = task.train_step(model, data)
+  File "/home/liji09/toyer/FleetX/examples/moe/knover/core/task.py", line 34, in train_step
+    outputs = model.train_step(inputs)
+  File "/home/liji09/toyer/FleetX/examples/moe/knover/core/model.py", line 449, in train_step
+    use_program_cache=True)
+  File "/home/liji09/toyer/FleetX/examples/moe/knover/core/model.py", line 432, in _execute
+    fetch_vars = self.exe.run(program, feed, fetch_list, **kwargs)
+  File "/opt/conda/envs/py37/lib/python3.7/site-packages/paddle/fluid/executor.py", line 1108, in run
+    return_merged=return_merged)
+  File "/opt/conda/envs/py37/lib/python3.7/site-packages/paddle/fluid/executor.py", line 1239, in _run_impl
+    use_program_cache=use_program_cache)
+  File "/opt/conda/envs/py37/lib/python3.7/site-packages/paddle/fluid/executor.py", line 1332, in _run_program
+    False)
+KeyboardInterrupt
