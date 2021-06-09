@@ -24,7 +24,7 @@ from utils.args import str2bool, print_arguments
 
 def define_args():
     parser = argparse.ArgumentParser('ERNIE-en model with Paddle')
-    parser.add_argument('--debug', type=str2bool, default=False)
+    parser.add_argument('--debug', type=str2bool, default=False, help="For aligning loss")
 
     # Model Args
     parser.add_argument('--ernie_config_file', type=str, default='./config/ernie_config.json')
@@ -54,7 +54,6 @@ def define_args():
     parser.add_argument('--weight_decay', type=float, default=0.01)
     parser.add_argument('--use_lamb', type=str2bool, default=False)
     parser.add_argument('--seed', type=int, default=2021)
-    parser.add_argument('--use_sop', type=str2bool, default=False)
 
     # Fleet Args
     parser.add_argument('--use_sharding', type=str2bool, default=False)

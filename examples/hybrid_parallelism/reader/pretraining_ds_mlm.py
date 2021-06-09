@@ -38,7 +38,6 @@ from propeller.data import Dataset
 from propeller import log
 
 log.setLevel(logging.DEBUG)
-r.seed(100)
 
 if six.PY3:
     from itertools import accumulate
@@ -272,5 +271,3 @@ def make_pretrain_dataset(name, gz_files, is_train, vocab, batch_size, vocab_siz
                      .map(after)
     dataset.name = name
     return dataset
-
-
