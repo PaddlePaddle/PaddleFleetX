@@ -38,7 +38,6 @@ from propeller.data import Dataset
 from propeller import log
 
 log.setLevel(logging.DEBUG)
-r.seed(1000)
 
 if six.PY3:
     from itertools import accumulate
