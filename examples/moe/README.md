@@ -16,7 +16,6 @@ Knover is a toolkit for knowledge grounded dialogue generation based on PaddlePa
 * termcolor
 * If you want to run distributed training, you'll also need [NCCL](https://developer.nvidia.com/nccl/nccl-download)
 * Install Knover locally:
-
 ```bash
 git clone https://github.com/PaddlePaddle/Knover.git
 cd Knover
@@ -29,10 +28,18 @@ pip3 install -e .
 export PYTHONPATH=/abs/path/to/Knover:$PYTHONPATH
 ```
 
-* you also should install expt, the whl package we put in the folder:
+* You should download the data
+```bash
+wget https://fleet.bj.bcebos.com/moe/data.tar
+tar -xvf data.tar
+```
+
+* You also should install expt, the whl package we put in the folder:
 
 ```bash
+cd data
 pip install -U expt_client-0.1.1-py2.py3-none-any.whl
+cd ..
 ```
 
 ## Basic usage

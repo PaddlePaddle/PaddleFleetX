@@ -14,5 +14,6 @@
    sharding
    pipeline
    hybrid_parallelism.rst
-
+   gpt
+   moe
 
