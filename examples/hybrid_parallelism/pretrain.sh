@@ -11,22 +11,22 @@ export FLAGS_allocator_strategy=naive_best_fit
 rm -rf *.prototxt
 rm -rf core.*
 
-task_name='gpt3-2dp2mp2pp'
+task_name='gpt3-test'
 output_dir=output/${task_name}
 rm -rf ${output_dir}
 
 python -m paddle.distributed.fleet.launch \
-        --gpus="0,1,2,3,4,5,6,7" \
+        --gpus="0,1,2,3" \
 	--log_dir ${output_dir}/log \
 run_pretraining.py \
-	--global_bsz 16 \
+	--global_bsz 8 \
 	--micro_bsz 8 \
 	--max_seq_len 512 \
 	--ernie_config_file config/ernie_base_config.json \
 	--learning_rate 1e-4 \
 	--log_steps 1 \
-	--num_train_steps 200000 \
-	--save_steps 100000 \
+	--num_train_steps 11 \
+	--save_steps 10 \
 	--output_dir ${output_dir} \
 	--use_recompute true \
 	--use_sharding true \

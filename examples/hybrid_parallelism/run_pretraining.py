@@ -197,13 +197,15 @@ def create_broadcast_program(ref_program, ring_id = 0, root_rank = 0):
     return broadcast_program
 
 def train(args):
+    print("to run startup")
     log.info("pretraining start")
 
     place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
 
     # set seed
-    random.seed(args.seed)
-    np.random.seed(args.seed)
+    if args.debug:
+        random.seed(args.seed)
+        np.random.seed(args.seed)
     paddle.seed(args.seed)
     get_rng_state_tracker().add('global_seed', args.seed)
     get_rng_state_tracker().add('local_seed', args.seed + fleet.worker_index() + 2021)
@@ -249,7 +251,7 @@ def train(args):
                                           "mp_degree": args.num_mp,
                                           "pp_degree": args.num_pp,
                                           "dp_degree":args.num_dp,
-                                          #"gradient_merge_acc_step": acc_steps,
+                                          "gradient_merge_acc_step": acc_steps,
                                           "optimize_offload": False,
                                          }
         dist_strategy.pipeline_configs = {"schedule_mode": "F-then-B",
@@ -280,7 +282,6 @@ def train(args):
     with fluid.program_guard(train_program, startup_program):
         with fluid.unique_name.guard():
             graph_vars = create_model(args, 'train', micro_bsz, dp_sharding_rank, dp_sharding_worldsize, topo, acc_steps)
-            #graph_vars = create_model(args, 'train', micro_bsz, 0, 1, topo, acc_steps)
             data_loader = graph_vars['data_loader']
             for op in train_program.global_block().ops:
                 if op.type == 'fill_constant':
@@ -353,43 +354,25 @@ def train(args):
     exe = fluid.Executor(place)
     # # TODO
     if args.num_mp > 1 :
-        paddle.seed(2021 + int(os.environ.get('FLAGS_selected_gpus', 0)) % 4)
+        paddle.seed(2021 + int(os.environ.get('FLAGS_selected_gpus', 0)))
     exe.run(startup_program)
 
-    #if args.num_pp == 1:
-    #    paddle.fluid.io.save_persistables(exe, './saved_model', main_program=train_program)
-    #    paddle.fluid.io.save_persistables(exe, './saved_model', main_program=train_program)
-    #else:
-    #    def predicate(var):
-    #        #if var.persistable and train_program._pipeline_opt['section_program'].global_block().has_var(var.name) and "create_py_reader_0" not in var.name and "GRAD" not in var.name and "double_buffer_0" not in var.name and "stack_0.tmp_0" not in var.name and "softmax" not in var.name and 'loss' not in var.name:
-    #        if os.path.exists('./saved_model/%s'%var.name):
-    #            return True
-    #        return False
-    #    paddle.fluid.io.load_vars(exe, "./saved_model", main_program=train_program._pipeline_opt['section_program'], predicate=predicate)
-    #def predicate(var):
-    #    if os.path.exists('./saved_model/%s'%var.name):
-    #        return True
-    #    return False
-    #paddle.fluid.io.load_vars(exe, "./saved_model", main_program=train_program, predicate=predicate)
-    #paddle.fluid.io.save_persistables(exe, './saved_model', main_program=train_program)
+    if args.num_pp == 1 and args.num_mp == 1 and args.num_dp == 1:
+        paddle.fluid.io.save_persistables(exe, './saved_model', main_program=train_program)
+    elif args.debug:
+        def predicate(var):
+            if os.path.exists('./saved_model/%s'%var.name):
+                return True
+            return False
+        if args.num_pp > 1:
+            paddle.fluid.io.load_vars(exe, "./saved_model", main_program=train_program._pipeline_opt['section_program'], predicate=predicate)
+        else:
+            paddle.fluid.io.load_vars(exe, "./saved_model", main_program=train_program, predicate=predicate)
 
     if args.use_amp:
         optimizer.amp_init(place)
 
-    #save_path = os.path.join(args.output_dir, 'step_0')
-    #log.debug("saving models to {}".format(save_path))
-    #save_persistables(exe, save_path, train_program)
-
-    if args.init_checkpoint and args.init_checkpoint != "":
-        log.info(' ')
-        log.info('############################WARNING############################')
-        log.info('####### using ini_checkpoint, not init_pretraining_params ####')
-        log.info('## meaning hyper param e.g. lr will inherit from checkpoint ##')
-        log.info('###############################################################')
-        init_checkpoint(exe, args.init_checkpoint, train_program)
-        log.info(' ')
-
-    output_dir = args.output_dir
+    output_dir = args.output_dir + '_' + str(fleet.worker_index())
     save_steps = args.save_steps
     total_time = 0
     cost_vals, lm_losses, sop_accs = [], [], []
@@ -483,6 +466,7 @@ def train(args):
                 save_persistables(exe, save_path, train_program)
                 log.debug("saving final models to {}".format(save_path))
                 log.debug("end of training, total steps: {}".format(steps))
+                break
 
 
 if __name__ == "__main__":
