@@ -599,8 +599,8 @@ def encoder(enc_input,
 
     for i in range(n_layer // n_layer_per_block):
         with fluid.device_guard(f'gpu:{i//layer_per_stage}'):
-            attn_bias.stop_gradient = True
-            attn_bias.persistable = True
+            #attn_bias.stop_gradient = True
+            #attn_bias.persistable = True
             enc_output, cp = enc_fn(
                 enc_input,
                 attn_bias,
