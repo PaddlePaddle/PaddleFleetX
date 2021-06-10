@@ -57,11 +57,10 @@
 .. toctree::
    :maxdepth: 1
    :caption: 分布式训练FAQ
+   :name: faq
 
    paddle_fleet_rst/faq
 
-.. toctree::
-   :maxdepth
 
 =======
 
