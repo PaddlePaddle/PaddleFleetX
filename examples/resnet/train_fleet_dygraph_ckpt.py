@@ -56,7 +56,6 @@ def train_resnet():
     fleet.init(is_collective=True)
 
     resnet = ResNet(class_dim=class_dim, layers=50)
-    start_epoch = 0
 
     ## recover from checkpoint
     if int(fleet.local_rank()) == 0 and checkpoint_path and os.path.isfile(checkpoint_path):
@@ -65,7 +64,7 @@ def train_resnet():
             chkpt = paddle.load(checkpoint_path)
             resnet.set_state_dict(chkpt)
             start_epoch = chkpt.get('epoch',0)
-            print("load checkpoint succuss")
+            print("load checkpoint succuss for epoch", start_epoch)
         except Exception as e:
             print("load checkpoint failed", e)
 
@@ -82,12 +81,11 @@ def train_resnet():
         capacity=32,
         use_double_buffer=True,
         iterable=True,
-        return_list=True,
-        use_multiprocess=True)
+        return_list=True)
     train_loader.set_sample_list_generator(train_reader)
 
     # keep going with previous epoch
-    for eop in range(start_epoch, epoch):
+    for eop in range(epoch):
         resnet.train()
 
         for batch_id, data in enumerate(train_loader()):
