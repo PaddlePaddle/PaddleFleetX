@@ -242,7 +242,7 @@ Sharding 会为每一个 Rank 创建两个通信组：
 Sharding 通信Ops
 ^^^^^^^^^^^^^^^^^^
 
-通信组建立好后，Sharding 会向模型的前向、反向组网中插入同步通信ops （broadcast）。 用户可以通过打印 Sharidng 生效后生成的 (Program)[https://www.paddlepaddle.org.cn/documentation/docs/zh/api/paddle/static/Program_cn.html#program] 查看 Sharidng 通信ops 具体插入的位置。
+通信组建立好后，Sharding 会向模型的前向、反向组网中插入同步通信ops （broadcast）。 用户可以通过打印 Sharidng 生效后生成的 ` Program <https://www.paddlepaddle.org.cn/documentation/docs/zh/api/paddle/static/Program_cn.html#program>`__ 查看 Sharidng 通信ops 具体插入的位置。
 
 **同步通信操作的乱序（各rank 间同步通信op插入/执行的顺序的不匹配）非常容易造成训练 hang死或计算错误，所以用户组网中如果希望引入自定义通信op，需要主动避免和原有Sharding 通信ops 产生乱序。**
 
@@ -250,11 +250,9 @@ Sharidng 通信op 的插入逻辑建立在每个rank 相同的组网之上（因
 
 “执行乱序”的情况比较特殊，会涉及到模型具体执行逻辑和调度方式。Sharding 中的调度方式是将Sharding 通信ops 和模型计算ops 分别调度到不同的stream上，让通信和计算能最大程度重叠。 一个简单但不太高效的方法是在模型组网里的自定义通信ops 的前后，插入强制的同步， 避免执行时的通信乱序。Paddle 静态图中提供了两个强制同步 op：
 
-  * (c_sync_comm_stream)[https://github.com/PaddlePaddle/Paddle/blob/develop/paddle/fluid/operators/collective/c_sync_comm_stream_op.cc]: 同步通信流
-  * (c_sync_calc_stream)[https://github.com/PaddlePaddle/Paddle/blob/develop/paddle/fluid/operators/collective/c_sync_calc_stream_op.cc]: 同步计算流
+  * ` c_sync_comm_stream <https://github.com/PaddlePaddle/Paddle/blob/develop/paddle/fluid/operators/collective/c_sync_comm_stream_op.cc>`__: 同步通信流
+  * ` c_sync_calc_stream <https://github.com/PaddlePaddle/Paddle/blob/develop/paddle/fluid/operators/collective/c_sync_calc_stream_op.cc>`__: 同步计算流
 
-用户可以也尝试使用 (wait op)[https://github.com/PaddlePaddle/Paddle/pull/31463] 做更进阶的同步和重叠。
-
-
+用户可以也尝试使用 ` wait op <https://github.com/PaddlePaddle/Paddle/pull/31463>`__ 做更进阶的同步和重叠。
 
 
