@@ -31,7 +31,7 @@ Sharding-hybrid-dp
 ^^^^^^^^^^^^^^^^^^^^
 
 Sharding hybrid数据并行策略，在sharding 并行的基础上再增加一层数据并行逻辑。
-该策略的目的是通过 \ ``限制sharding 通信的节点数`` 和 \ ``增加多路数据并行`` 来提高训练吞吐。 如果一个模型在普通Sharding 训练时需要M 张GPU，则则开启hybrid-dp 至少需要 N*M GPU （N>= 2）。
+该策略的目的是通过 \ ``限制sharding 通信的节点数``和 \ ``增加多路数据并行``来提高训练吞吐。 如果一个模型在普通Sharding 训练时需要M 张GPU，则则开启hybrid-dp 至少需要 N*M GPU （N>= 2）。
 
 Sharding-hybrid-dp 适用的场景如下： 
 
@@ -44,7 +44,7 @@ Sharding-hybrid-dp 适用的场景如下：
   * Sharding 中的broadcast 通信 会涉及全部的32 张卡，且为跨节点通信。
   * Sharding 中的 allreduce 通信 会涉及全部的32 张卡，且为跨节点通信。
 
-开启 hybrid-dp 并设置 \ ``sharding_group_size = 8`` 后， 每个节点内的 8 张卡组成一个完整的 Sharding parallelism，4 个节点构成 4路 hybrid data parallelism：
+开启 hybrid-dp 并设置 \ ``sharding_group_size = 8``后， 每个节点内的 8 张卡组成一个完整的 Sharding parallelism，4 个节点构成 4路 hybrid data parallelism：
 
   * Sharding 中的broadcast 通信被限制在每个节点内的 8 张GPU 之间， 没有跨节点通信。
   * Sharding 中的 allreduce 为跨节点通信，但每个allreduce 通信只涉及 对应 sharding_group 上 rank 相同的 4 张GPUs， 且每张GPU仅需要 allreduce通信 1/8 的模型参数。
@@ -242,7 +242,7 @@ Sharding 会为每一个 Rank 创建两个通信组：
 Sharding 通信Ops
 ^^^^^^^^^^^^^^^^^^
 
-通信组建立好后，Sharding 会向模型的前向、反向组网中插入同步通信ops （broadcast）。 用户可以通过打印 Sharidng 生效后生成的 ` Program <https://www.paddlepaddle.org.cn/documentation/docs/zh/api/paddle/static/Program_cn.html#program>`__ 查看 Sharidng 通信ops 具体插入的位置。
+通信组建立好后，Sharding 会向模型的前向、反向组网中插入同步通信ops （broadcast）。 用户可以通过打印 Sharidng 生效后生成的 `Program <https://www.paddlepaddle.org.cn/documentation/docs/zh/api/paddle/static/Program_cn.html#program>`__ 查看 Sharidng 通信ops 具体插入的位置。
 
 **同步通信操作的乱序（各rank 间同步通信op插入/执行的顺序的不匹配）非常容易造成训练 hang死或计算错误，所以用户组网中如果希望引入自定义通信op，需要主动避免和原有Sharding 通信ops 产生乱序。**
 
@@ -250,9 +250,9 @@ Sharidng 通信op 的插入逻辑建立在每个rank 相同的组网之上（因
 
 “执行乱序”的情况比较特殊，会涉及到模型具体执行逻辑和调度方式。Sharding 中的调度方式是将Sharding 通信ops 和模型计算ops 分别调度到不同的stream上，让通信和计算能最大程度重叠。 一个简单但不太高效的方法是在模型组网里的自定义通信ops 的前后，插入强制的同步， 避免执行时的通信乱序。Paddle 静态图中提供了两个强制同步 op：
 
-  * ` c_sync_comm_stream <https://github.com/PaddlePaddle/Paddle/blob/develop/paddle/fluid/operators/collective/c_sync_comm_stream_op.cc>`__: 同步通信流
-  * ` c_sync_calc_stream <https://github.com/PaddlePaddle/Paddle/blob/develop/paddle/fluid/operators/collective/c_sync_calc_stream_op.cc>`__: 同步计算流
+  * `c_sync_comm_stream <https://github.com/PaddlePaddle/Paddle/blob/develop/paddle/fluid/operators/collective/c_sync_comm_stream_op.cc>`__: 同步通信流
+  * `c_sync_calc_stream <https://github.com/PaddlePaddle/Paddle/blob/develop/paddle/fluid/operators/collective/c_sync_calc_stream_op.cc>`__: 同步计算流
 
-用户可以也尝试使用 ` wait op <https://github.com/PaddlePaddle/Paddle/pull/31463>`__ 做更进阶的同步和重叠。
+用户可以也尝试使用 `wait op <https://github.com/PaddlePaddle/Paddle/pull/31463>`__ 做更进阶的同步和重叠。
 
 
