@@ -214,3 +214,44 @@ sharding 可以设置以下参数：
 
 
 完整4卡的日志信息也可在\ ``./log/``\ 目录下查看。了解更多\ ``fleetrun``\ 的用法可参考左侧文档\ ``fleetrun 启动分布式任务``\ 。
+
+
+进阶方法
+~~~~~~~~~
+
+上面例子介绍了静态图 sharding 的基本用法，能直接应用于 resnet、 transformer 等常见组网组网。 如果用户的组网比较特殊或希望修改sharding 的逻辑可以阅读下面内容。
+
+
+Sharding 里的通信
+^^^^^^^^^^^^^^^^^^
+Sharding 会自动每一个Rank（GPU）创建其通信所需的资源 ———— 通信组（groups）， 在Paddle 静态图中每一个通信组都有一个唯一 ring_id 标识。
+Sharding 会为每一个 Rank 创建两个通信组：
+
+  * Sharding 通信组（必须）：ring_id=1, group_size = sharding_degree
+  * DP 通信组（当开启sharidng-dp 时）：ring_id=2, group_size = dp_degree
+
+
+例如在上文 sharding_degree = 2， dp_degree = 2 的例子中， rank0 上的两个通信组为：
+
+  * Sharding 通信组：ring_id=1, group_size = 2，成员为[rank0, rank1]
+  * DP 通信组：ring_id=2, group_size = 2, 成员为[rank0, rank3]
+
+用户也可以从训练开始前打印的日志信息中看到对应的信息。 **如果用户希望在模型中引入新的通信组， 需要避免sharding已经占用的 ring_id （1 和 2）。**
+
+
+通信组建立好后，sharding 会向模型的前向、反向组网中插入同步通信ops （broadcast）。 用户可以通过打印sharidng后生成的[Program](https://www.paddlepaddle.org.cn/documentation/docs/zh/api/paddle/static/Program_cn.html#program) 查看sharidng通信ops 具体插入的位置。
+
+同步通信操作的乱序（各ranks 间同步通信op插入/执行的顺序的不匹配）非常容易造成训练 hang死或计算错误，所以用户组网中如果希望引入自定义通信op 时，需要主动避免和原有sharding 通信ops 产生乱序。
+
+sharidng 通信op 插入建立在每个rank 相同的数据并行组网之上，并在每一rank上执行相同的插入规则， 不会和组网中已存在的用户自定义通信ops 产生组网的插入乱序。
+
+执行乱序的情况比较特殊，会涉及到模型具体执行逻辑和调度方式， 一个简单但不太高效的方法是在模型组网里的自定义通信op前后，插入强制的同步， 避免执行时的通信乱序。Paddle 静态图中提供了两个强制同步 op：
+
+  * [c_sync_comm_stream](https://github.com/PaddlePaddle/Paddle/blob/develop/paddle/fluid/operators/collective/c_sync_comm_stream_op.cc): 同步通信流
+  * [c_sync_calc_stream](https://github.com/PaddlePaddle/Paddle/blob/develop/paddle/fluid/operators/collective/c_sync_calc_stream_op.cc): 同步计算流
+
+用户可以也尝试使用 [wait op]（https://github.com/PaddlePaddle/Paddle/pull/31463）做更进阶的同步等待。
+
+
+
+
