@@ -76,7 +76,8 @@ def multi_head_attention(queries,
                          cache=None,
                          param_initializer=None,
                          name='multi_head_att',
-                         topo=None):
+                         topo=None,
+                         fuse=True):
     """
     Multi-Head Attention. Note that attn_bias is added to the logit before
     computing softmax activiation to mask certain selected positions so that
@@ -94,32 +95,50 @@ def multi_head_attention(queries,
         Add linear projection to queries, keys, and values.
         """
         if topo is None or topo.mp.size == 1:
-            q = layers.fc(input=queries,
-                          size=d_key * n_head,
-                          num_flatten_dims=2,
-                          param_attr=fluid.ParamAttr(
-                              name=name + '_query_fc.w_0',
-                              initializer=param_initializer),
-                          bias_attr=name + '_query_fc.b_0')
-            k = layers.fc(input=keys,
-                          size=d_key * n_head,
-                          num_flatten_dims=2,
-                          param_attr=fluid.ParamAttr(
-                              name=name + '_key_fc.w_0',
-                              initializer=param_initializer),
-                          bias_attr=name + '_key_fc.b_0')
-            v = layers.fc(input=values,
-                          size=d_value * n_head,
-                          num_flatten_dims=2,
-                          param_attr=fluid.ParamAttr(
-                              name=name + '_value_fc.w_0',
-                              initializer=param_initializer),
-                          bias_attr=name + '_value_fc.b_0')
+            if fuse:
+                assert queries == keys == values
+                qkv = layers.fc(input=queries,
+                                size=3 * d_key * n_head,
+                                num_flatten_dims=2,
+                                param_attr=fluid.ParamAttr(
+                                    name=name + '_qkv_fc.w_0',
+                                    initializer=param_initializer),
+                                bias_attr=name + '_qkv_fc.b_0')
+                return qkv
+            else:
+                q = layers.fc(input=queries,
+                              size=d_key * n_head,
+                              num_flatten_dims=2,
+                              param_attr=fluid.ParamAttr(
+                                  name=name + '_query_fc.w_0',
+                                  initializer=param_initializer),
+                              bias_attr=name + '_query_fc.b_0')
+                k = layers.fc(input=keys,
+                              size=d_key * n_head,
+                              num_flatten_dims=2,
+                              param_attr=fluid.ParamAttr(
+                                  name=name + '_key_fc.w_0',
+                                  initializer=param_initializer),
+                              bias_attr=name + '_key_fc.b_0')
+                v = layers.fc(input=values,
+                              size=d_value * n_head,
+                              num_flatten_dims=2,
+                              param_attr=fluid.ParamAttr(
+                                  name=name + '_value_fc.w_0',
+                                  initializer=param_initializer),
+                              bias_attr=name + '_value_fc.b_0')
+                return q, k, v
         else:
-            q = _build_linear_column_parallel(queries, d_model, d_model, name+'_query_fc_'+str(topo.mp.rank), param_initializer, topo.mp.size)
-            k = _build_linear_column_parallel(keys, d_model, d_model, name+'_key_fc_'+str(topo.mp.rank), param_initializer, topo.mp.size)
-            v = _build_linear_column_parallel(values, d_model, d_model, name+'_value_fc_'+str(topo.mp.rank), param_initializer, topo.mp.size)
-        return q, k, v
+            if fuse:
+                assert queries == keys == values
+                qkv = _build_linear_column_parallel(queries, d_model, 3 * d_model, name + '_qkv_fc_' + str(topo.mp.rank),
+                                                  param_initializer, topo.mp.size)
+                return qkv
+            else:
+                q = _build_linear_column_parallel(queries, d_model, d_model, name+'_query_fc_'+str(topo.mp.rank), param_initializer, topo.mp.size)
+                k = _build_linear_column_parallel(keys, d_model, d_model, name+'_key_fc_'+str(topo.mp.rank), param_initializer, topo.mp.size)
+                v = _build_linear_column_parallel(values, d_model, d_model, name+'_value_fc_'+str(topo.mp.rank), param_initializer, topo.mp.size)
+                return q, k, v
 
     def __split_heads(x, n_head):
         """
@@ -137,6 +156,25 @@ def multi_head_attention(queries,
         # permuate the dimensions into:
         # [batch_size, n_head, max_sequence_len, hidden_size_per_head]
         return layers.transpose(x=reshaped, perm=[0, 2, 1, 3])
+
+    def __fuse_split_heads(x, n_head):
+        """
+        Reshape the last dimension of inpunt tensor x so that it becomes two
+        dimensions and then transpose. Specifically, input a tensor with shape
+        [bs, max_sequence_length, n_head * hidden_dim] then output a tensor
+        with shape [bs, n_head, max_sequence_length, hidden_dim].
+        """
+        hidden_size = x.shape[-1]
+        # The value 0 in shape attr means copying the corresponding dimension
+        # size of the input as the output dimension size.
+        reshaped = layers.reshape(
+            x=x, shape=[0, 0, n_head, hidden_size // n_head], inplace=True)
+
+        # permuate the dimensions into:
+        # [batch_size, n_head, max_sequence_len, hidden_size_per_head]
+        mix_layer = layers.transpose(x=reshaped, perm=[0, 2, 1, 3])
+        q, k, v = paddle.split(mix_layer, num_or_sections=3, axis=-1)
+        return q, k, v
 
     def __combine_heads(x):
         """
@@ -175,9 +213,12 @@ def multi_head_attention(queries,
 
     if topo.mp.size > 1:
         n_head = n_head // topo.mp.size
-    q, k, v = __compute_qkv(queries, keys, values, n_head, d_key, d_value)
+    if fuse:
+        qkv = __compute_qkv(queries, keys, values, n_head, d_key, d_value)
+    else:
+        q, k, v = __compute_qkv(queries, keys, values, n_head, d_key, d_value)
 
-    if cache is not None:  # use cache and concat time steps
+    if not fuse and cache is not None:  # use cache and concat time steps
         # Since the inplace reshape in __split_heads changes the shape of k and
         # v, which is the cache input for next time step, reshape the cache
         # input from the previous time step first.
@@ -188,9 +229,12 @@ def multi_head_attention(queries,
             [layers.reshape(
                 cache["v"], shape=[0, 0, d_model]), v], axis=1)
 
-    q = __split_heads(q, n_head)
-    k = __split_heads(k, n_head)
-    v = __split_heads(v, n_head)
+    if fuse:
+        q, k, v = __fuse_split_heads(qkv, n_head)
+    else:
+        q = __split_heads(q, n_head)
+        k = __split_heads(k, n_head)
+        v = __split_heads(v, n_head)
 
     ctx_multiheads = scaled_dot_product_attention(q, k, v, attn_bias, d_key,
                                                   dropout_rate)
