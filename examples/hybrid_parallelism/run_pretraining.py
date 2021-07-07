@@ -467,6 +467,7 @@ def train(args):
                 log.debug("saving final models to {}".format(save_path))
                 log.debug("end of training, total steps: {}".format(steps))
                 break
+        data_loader.reset()
 
 
 if __name__ == "__main__":
