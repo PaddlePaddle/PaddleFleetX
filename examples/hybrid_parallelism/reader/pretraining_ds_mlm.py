@@ -26,6 +26,7 @@ import six
 from glob import glob
 from functools import reduce, partial
 import itertools
+import paddle
 
 #import sentencepiece as spm
 #from tqdm import tqdm
@@ -59,6 +60,14 @@ else:
         for element in it:
             total = func(total, element)
             yield total
+
+# device->dtype
+if paddle.is_compiled_with_cuda():
+    device = "gpu"
+    int_type = "int64"
+elif paddle.is_compiled_with_npu():
+    device = "npu"
+    int_type = 'int32'
 
 #debug_dict = {i: j.strip() for i, j in enumerate(open('./data/vocab.txt', encoding='utf8'))}
 #def debugfunc(i):
@@ -240,15 +249,27 @@ def make_pretrain_dataset(name, gz_files, is_train, vocab, batch_size, vocab_siz
         batch_size, seqlen = sentence.shape
         sentence, mask_pos, mlm_label = apply_mask(sentence, seg_info, 1., 0.15, vocab_size, vocab)
         #return {'input_ids': sentence, 'token_type_ids': segments, 'sentence_order_label': label, 'labels': mlm_label, 'mlm_mask': mlm_mask}
-        sentence = sentence.reshape([-1, seqlen, 1])
-        segments = segments.reshape([-1, seqlen, 1])
+        if device == "gpu":
+            sentence = sentence.reshape([-1, seqlen, 1])
+            segments = segments.reshape([-1, seqlen, 1])
+        elif device == "npu":
+            sentence = sentence.reshape([-1, seqlen])
+            segments = segments.reshape([-1, seqlen])
         mlm_label = mlm_label.reshape([-1, 1])
         mask_pos_reshape = []
         for i, p in zip(mask_pos[0], mask_pos[1]):
             p += i * seqlen
             mask_pos_reshape.append(p)
         mask_pos = np.array(mask_pos_reshape).reshape([-1, 1])
-        return sentence, segments, mlm_label, mask_pos
+        position_ids = np.array(list(map(lambda x: np.arange(0, len(x), 1, int_type), sentence.tolist()))).reshape([-1, seqlen])
+        if device == "npu":
+            output = list(map(lambda x: x.astype(np.int32), [sentence, segments, mlm_label, mask_pos]))
+            sentence, segments, mlm_label, mask_pos = output
+            mask_label = [200] * int(batch_size * 512 * 0.15)
+            mask_pos = list(range(int(batch_size * 512 * 0.15)))
+            mlm_label = np.array(mask_label).astype("int32").reshape([-1, 1])
+            mask_pos = np.array(mask_pos).astype("int32").reshape([-1, 1])
+        return sentence, segments, position_ids, mlm_label, mask_pos
 
     # pretrain pipeline
     dataset = Dataset.from_list(gz_files)
