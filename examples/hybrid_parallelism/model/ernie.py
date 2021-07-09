@@ -230,8 +230,7 @@ class ErnieModel(object):
         zero = fluid.layers.fill_constant([1], dtype=int_type, value=0)
         input_mask = fluid.layers.logical_not(fluid.layers.equal(src_ids, zero))  # assume pad id == 0
         input_mask = fluid.layers.cast(input_mask, 'float32')
-        if device == "npu":
-            input_mask = fluid.layers.unsqueeze(input_mask, [-1])
+        input_mask = fluid.layers.unsqueeze(input_mask, [-1])
         input_mask.stop_gradient = True
         return input_mask
 

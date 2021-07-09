@@ -17,6 +17,7 @@ rm -rf ${output_dir}
 
 #--gpus="0,1,2,3"
 python -m paddle.distributed.fleet.launch \
+	--gpus="0,1,2,3" \
 	--log_dir ${output_dir}/log \
 	--run_mode=collective \
 run_pretraining.py \

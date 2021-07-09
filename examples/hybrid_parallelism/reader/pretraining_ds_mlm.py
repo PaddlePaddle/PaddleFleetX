@@ -147,7 +147,7 @@ def apply_mask(sentence, seg_info, mask_jb_coef, mask_rate, vocab_size, vocab):
     np.random.shuffle(u_seginfo)
     sample_num = max(1, int(len(u_seginfo) * mask_rate))
 
-    # layer_norm_grad OP on NUP doesn't support len(mask.reshape(-1)) == 1,
+    # layer_norm_grad OP on NUP doesn't support mask.sum() <= 1,
     # so the purpose of this branch is to ensure the length to be larger than 1
     if device == 'npu' and sample_num == 1:
         u_seginfo = np.array([i for i in u_seginfo if np.sum(val_seg_info == i) > 1])
@@ -266,12 +266,8 @@ def make_pretrain_dataset(name, gz_files, is_train, vocab, batch_size, vocab_siz
         batch_size, seqlen = sentence.shape
         sentence, mask_pos, mlm_label = apply_mask(sentence, seg_info, 1., 0.15, vocab_size, vocab)
         #return {'input_ids': sentence, 'token_type_ids': segments, 'sentence_order_label': label, 'labels': mlm_label, 'mlm_mask': mlm_mask}
-        if device == "gpu":
-            sentence = sentence.reshape([-1, seqlen, 1])
-            segments = segments.reshape([-1, seqlen, 1])
-        elif device == "npu":
-            sentence = sentence.reshape([-1, seqlen])
-            segments = segments.reshape([-1, seqlen])
+        sentence = sentence.reshape([-1, seqlen])
+        segments = segments.reshape([-1, seqlen])
         mlm_label = mlm_label.reshape([-1, 1])
         mask_pos_reshape = []
         for i, p in zip(mask_pos[0], mask_pos[1]):
@@ -282,10 +278,10 @@ def make_pretrain_dataset(name, gz_files, is_train, vocab, batch_size, vocab_siz
         if device == "npu":
             output = list(map(lambda x: x.astype(np.int32), [sentence, segments, mlm_label, mask_pos]))
             sentence, segments, mlm_label, mask_pos = output
-            mask_label = [200] * int(batch_size * 512 * 0.15)
-            mask_pos = list(range(int(batch_size * 512 * 0.15)))
-            mlm_label = np.array(mask_label).astype("int32").reshape([-1, 1])
-            mask_pos = np.array(mask_pos).astype("int32").reshape([-1, 1])
+            # mask_label = [200] * int(batch_size * 512 * 0.15)
+            # mask_pos = list(range(int(batch_size * 512 * 0.15)))
+            # mlm_label = np.array(mask_label).astype("int32").reshape([-1, 1])
+            # mask_pos = np.array(mask_pos).astype("int32").reshape([-1, 1])
         return sentence, segments, position_ids, mlm_label, mask_pos
 
     # pretrain pipeline
