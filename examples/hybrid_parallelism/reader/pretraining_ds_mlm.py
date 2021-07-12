@@ -133,9 +133,26 @@ def apply_mask(sentence, seg_info, mask_jb_coef, mask_rate, vocab_size, vocab):
     seg_info = np.add.accumulate(np.array([0 if s == 0 else 1 for s in seg_info_incr])).reshape(shape)
     seg_info[invalid_pos] = -1
 
-    u_seginfo = np.array([i for i in np.unique(seg_info) if i != -1])
+    if device == 'npu':
+        # Becasue later there will be a line 'mask[:,0] = false',
+        # we can ignore col 0 of seg_info when getting u_seginfo on this step, using val_seg_info.
+        # Especially with npu, this val_seg_info will be used to filt u_seginfo when sample_num is 1
+        val_seg_info_mask = np.ones_like(seg_info)
+        val_seg_info_mask[:, 0] = 0
+        val_seg_info = np.where(val_seg_info_mask == 1, seg_info, -1)
+    else:
+        val_seg_info = seg_info
+    
+    u_seginfo = np.array([i for i in np.unique(val_seg_info) if i != -1])
     np.random.shuffle(u_seginfo)
     sample_num = max(1, int(len(u_seginfo) * mask_rate))
+
+    # layer_norm_grad OP on NUP doesn't support mask.sum() <= 1,
+    # so the purpose of this branch is to ensure the length to be larger than 1
+    if device == 'npu' and sample_num == 1:
+        u_seginfo = np.array([i for i in u_seginfo if np.sum(val_seg_info == i) > 1])
+        assert len(u_seginfo) >= 1 , "at least one value's count is larger than 1 when sample num is 1"
+
     u_seginfo = u_seginfo[: sample_num]
     mask = reduce(np.logical_or, [seg_info == i for i in u_seginfo])
 
