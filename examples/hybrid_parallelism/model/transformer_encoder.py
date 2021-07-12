@@ -24,11 +24,6 @@ import paddle.fluid as fluid
 import paddle.fluid.layers as layers
 import numpy as np
 
-if paddle.is_compiled_with_cuda():
-    device = "gpu"
-elif paddle.is_compiled_with_npu():
-    device = 'npu'
-
 def gelu(x):
   """Gaussian Error Linear Unit.
 
@@ -572,7 +567,8 @@ def encoder(enc_input,
             name='',
             param_share=None,
             topo=None,
-            preln=False):
+            preln=False,
+            device="gpu"):
     """
     The encoder is composed of a stack of identical layers returned by calling
     encoder_layer .
