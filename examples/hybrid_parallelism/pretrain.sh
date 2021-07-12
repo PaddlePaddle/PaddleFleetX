@@ -15,7 +15,6 @@ task_name='gpt3-test'
 output_dir=./output/${task_name}
 rm -rf ${output_dir}
 
-#--gpus="0,1,2,3"
 python -m paddle.distributed.fleet.launch \
 	--gpus="0,1,2,3" \
 	--log_dir ${output_dir}/log \
