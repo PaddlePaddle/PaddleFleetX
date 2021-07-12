@@ -28,14 +28,6 @@ from functools import partial
 from model.transformer_encoder import encoder, pre_process_layer
 from model.transformer_encoder import gelu
 
-if paddle.is_compiled_with_cuda():
-    device = "gpu"
-    int_type = "int64"
-elif paddle.is_compiled_with_npu():
-    device = "npu"
-    int_type = 'int32'
-
-
 class ErnieConfig(object):
     def __init__(self, config_path):
         self._config_dict = self._parse(config_path)
@@ -66,7 +58,8 @@ class ErnieModel(object):
                  config,
                  task_ids=None,
                  weight_sharing=True,
-                 topo=None):
+                 topo=None,
+                 device="gpu"):
 
         self._emb_size = config['emb_size'] if config['emb_mapping_in'] else config['hidden_size']
         self._hidden_size = config['hidden_size']
@@ -93,6 +86,14 @@ class ErnieModel(object):
         self._task_emb_name = "task_embedding"
         self._dtype = "float32"
         self._emb_dtype = "float32"
+        self._device = device
+
+        if device == "gpu":
+            self._int_type = "int64"
+        elif device == "npu":
+            self._int_type = "int32"
+        else:
+            raise ValueError(f"error device: {device}")
 
         # Initialize all weigths by truncated normal initializer, and all biases
         # will be initialized by constant zero by default.
@@ -211,7 +212,8 @@ class ErnieModel(object):
             epsilon=self.config['epsilon'],
             n_layer_per_block=self.config['n_layer_per_block'],
             topo=self.topo,
-            preln=self.preln)
+            preln=self.preln,
+            device=self._device)
 
     def _build_position_ids(self, src_ids):
         d_shape = fluid.layers.shape(src_ids)
@@ -227,7 +229,7 @@ class ErnieModel(object):
         return position_ids
 
     def _build_input_mask(self, src_ids):
-        zero = fluid.layers.fill_constant([1], dtype=int_type, value=0)
+        zero = fluid.layers.fill_constant([1], dtype=self._int_type, value=0)
         input_mask = fluid.layers.logical_not(fluid.layers.equal(src_ids, zero))  # assume pad id == 0
         input_mask = fluid.layers.cast(input_mask, 'float32')
         input_mask = fluid.layers.unsqueeze(input_mask, [-1])
@@ -261,10 +263,10 @@ class ErnieModel(object):
             param_attr=fluid.ParamAttr(
                 name="next_sent_fc.w_0", initializer=self._param_initializer),
             bias_attr="next_sent_fc.b_0")
-        if device == "gpu":
+        if self._device == "gpu":
             next_sent_fc_out = fluid.layers.reshape(
                 next_sent_fc_out, [-1, 33], inplace=True)
-        elif device == "npu":
+        elif self._device == "npu":
             next_sent_fc_out = fluid.layers.reshape(
                 next_sent_fc_out, [-1, 33])
         next_sent_loss, next_sent_softmax = fluid.layers.softmax_with_cross_entropy(

@@ -118,7 +118,7 @@ def create_model(args, phase, micro_bsz, dp_sharding_rank, dp_sharding_worldsize
     log.debug("========= dp_sharding worker: {} of {} ==========".format(dp_sharding_rank, dp_sharding_worldsize))
 
     data_reader = make_pretrain_dataset('pt', train_file_list, True, vocab, micro_bsz, len(vocab),
-            args.max_seq_len, dp_sharding_rank, dp_sharding_worldsize)
+            args.max_seq_len, dp_sharding_rank, dp_sharding_worldsize, device)
     with fluid.device_guard(f"{device}:0"):
         data_loader = fluid.io.DataLoader.from_generator(
             feed_list=inputs, capacity=70, iterable=False)
@@ -146,7 +146,8 @@ def create_model(args, phase, micro_bsz, dp_sharding_rank, dp_sharding_worldsize
                            pos_ids,
                            ernie_config,
                            weight_sharing=weight_sharing,
-                           topo=topo)
+                           topo=topo,
+                           device=device)
     checkpoints = ernie._checkpoints
     checkpoints.pop(-1)
 

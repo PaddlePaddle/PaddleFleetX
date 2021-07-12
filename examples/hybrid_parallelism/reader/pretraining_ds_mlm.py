@@ -185,9 +185,16 @@ def sample_geo():
     return np.random.choice(cand, replace=True, p=prob)
 
 
-def make_pretrain_dataset(name, gz_files, is_train, vocab, batch_size, vocab_size, max_seqlen, global_rank, world_size):
+def make_pretrain_dataset(name, gz_files, is_train, vocab, batch_size, vocab_size, max_seqlen, global_rank, world_size, device="gpu"):
     max_input_seqlen = max_seqlen
     max_pretrain_seqlen = lambda: max_input_seqlen if r.random() > 0.15 else r.randint(1, max_input_seqlen) # short sentence rate
+
+    if device == "gpu":
+        int_type = "int64"
+    elif device == "npu":
+        int_type = "int32"
+    else:
+        raise ValueError(f"error device: {device}")
 
     def _parse_gz(record_str): # function that takes python_str as input
         ex = propeller.data.example_pb2.SequenceExample()
