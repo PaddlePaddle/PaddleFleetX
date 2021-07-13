@@ -67,9 +67,11 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
 环境构建
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- 机器准备：带有GPU卡的机器
+- 机器准备：带有GPU卡的Linux机器
 
-- 版本要求：paddlepaddle-2.1-gpu及以上版本的飞桨开源框架。推荐使用以下链接下载最新whl: https://fleet.bj.bcebos.com/heterps/paddlepaddle_gpu-0.0.0-cp27-cp27mu-linux_x86_64.whl 。 
+- 版本要求：paddlepaddle-2.1-gpu及以上版本的飞桨开源框架。推荐使用以下链接下载最新whl: 
+    - Centos机器或镜像：https://fleet.bj.bcebos.com/heterps/centos/paddlepaddle_gpu-0.0.0-cp37-cp37m-linux_x86_64.whl
+    - Ubuntu机器或镜像：https://fleet.bj.bcebos.com/heterps/ubuntu/paddlepaddle_gpu-0.0.0-cp37-cp37m-linux_x86_64.whl
 
 
 导入依赖
@@ -147,8 +149,14 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
         psgpu.init_gpu_ps([int(s) for s in gpus_env.split(",")])
 
         for epoch in range(epochs):
-            self.dataset_train_loop(epoch)
-
+            self.reader._set_use_ps_gpu(1)
+            psgpu.begin_pass()
+            exe.train_from_dataset(
+                program=paddle.static.default_main_program(),
+                dataset=self.reader)
+            self.reader.release_memory()
+            psgpu.end_pass()
+        psgpu.finalize()
         fleet.stop_worker()
 
 
@@ -156,18 +164,23 @@ PaddlePaddle基于工业实践，创新性的提出了异构参数服务器，�
 运行训练脚本
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-在PaddleRec根目录下，我们可以用提供的运行脚本进行训练
+在PaddleRec根目录下，使用已提供的运行脚本进行训练即可。
 
 ::
 
     sh run_gpubox.sh
 
 
-脚本中通过 \ ``fleetrun`` \ 命令启动分布式任务，其中 \ ``server_num`` \ , \ ``worker_num`` \分别为服务节点和训练节点的数量，在我们的gpu任务中设为1即可。
+脚本中通过 \ ``fleetrun`` \ 命令启动分布式任务，其中需要关注并设置的参数有： 
 
 ::
 
-    # 防止worker端等待server端口，故此处设置FLAGS_LAUNCH_BARRIER=0
-    export FLAGS_LAUNCH_BARRIER=0
-    fleetrun --worker_num=1 --server_num=1 tools/static_gpubox_trainer.py -m models/rank/dnn/config_gpubox.yaml
+    # set free port if 29011 is occupied
+    export PADDLE_PSERVERS_IP_PORT_LIST="127.0.0.1:29011"
+    export PADDLE_PSERVER_PORT_ARRAY=(29011)
 
+    # set gpu numbers according to your device
+    export FLAGS_selected_gpus="0,1,2,3,4,5,6,7"
+
+    # set your model yaml
+    SC="tools/static_gpubox_trainer.py -m models/rank/dnn/config_gpubox.yaml"
