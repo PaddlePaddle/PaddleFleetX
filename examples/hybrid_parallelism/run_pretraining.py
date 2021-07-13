@@ -477,17 +477,27 @@ def train(args):
                         start_time = time.time()
 
                 if steps > 0 and args.save_steps > 0 and steps % args.save_steps == 0:
-                    if args.use_hybrid_dp and fleet.worker_index() > 8:
+                    if args.num_dp > 1 and fleet.worker_index() > args.num_pp * args.num_mp:
                         continue
-                    save_path = os.path.join(output_dir, 'step_' + str(steps))
+                    save_path = os.path.join(output_dir, 'step_' + str(steps) + "_" + str(fleet.worker_index()))
                     log.debug("saving models to {}".format(save_path))
-                    save_persistables(exe, save_path, train_program)
+                    if args.num_sharding > 1:
+                        save_persistables(exe, save_path, train_program)
+                    elif args.num_pp > 1:
+                        paddle.fluid.io.save_persistables(exe, save_path, train_program._pipeline_opt['section_program'])
+                    else: 
+                        paddle.fluid.io.save_persistables(exe, save_path, train_program)
 
                 if steps == num_train_steps:
-                    if args.use_hybrid_dp and fleet.worker_index() > 8:
-                        continue
-                    save_path = os.path.join(output_dir, 'final_step_' + str(steps))
-                    save_persistables(exe, save_path, train_program)
+                    if args.num_dp > 1 and fleet.worker_index() > args.num_pp * args.num_mp:
+                        break
+                    save_path = os.path.join(output_dir, 'final_step_' + str(steps) + "_" + str(fleet.worker_index()))
+                    if args.num_sharding > 1:
+                        save_persistables(exe, save_path, train_program)
+                    elif args.num_pp > 1:
+                        paddle.fluid.io.save_persistables(exe, save_path, train_program._pipeline_opt['section_program'])
+                    else: 
+                        paddle.fluid.io.save_persistables(exe, save_path, train_program)
                     log.debug("saving final models to {}".format(save_path))
                     log.debug("end of training, total steps: {}".format(steps))
                     break
@@ -562,17 +572,27 @@ def train(args):
                     start_time = time.time()
 
             if steps > 0 and args.save_steps > 0 and steps % args.save_steps == 0:
-                if args.use_hybrid_dp and fleet.worker_index() > 8:
+                if args.num_dp > 1 and fleet.worker_index() > args.num_pp * args.num_mp:
                     continue
-                save_path = os.path.join(output_dir, 'step_' + str(steps))
+                save_path = os.path.join(output_dir, 'step_' + str(steps) + "_" + str(fleet.worker_index()))
                 log.debug("saving models to {}".format(save_path))
-                save_persistables(exe, save_path, train_program)
+                if args.num_sharding > 1:
+                    save_persistables(exe, save_path, train_program)
+                elif args.num_pp > 1:
+                    paddle.fluid.io.save_persistables(exe, save_path, train_program._pipeline_opt['section_program'])
+                else: 
+                    paddle.fluid.io.save_persistables(exe, save_path, train_program)
 
             if steps == num_train_steps:
-                if args.use_hybrid_dp and fleet.worker_index() > 8:
-                    continue
-                save_path = os.path.join(output_dir, 'final_step_' + str(steps))
-                save_persistables(exe, save_path, train_program)
+                if args.num_dp > 1 and fleet.worker_index() > args.num_pp * args.num_mp:
+                    break
+                save_path = os.path.join(output_dir, 'final_step_' + str(steps) + "_" + str(fleet.worker_index()))
+                if args.num_sharding > 1:
+                    save_persistables(exe, save_path, train_program)
+                elif args.num_pp > 1:
+                    paddle.fluid.io.save_persistables(exe, save_path, train_program._pipeline_opt['section_program'])
+                else: 
+                    paddle.fluid.io.save_persistables(exe, save_path, train_program)
                 log.debug("saving final models to {}".format(save_path))
                 log.debug("end of training, total steps: {}".format(steps))
                 break
