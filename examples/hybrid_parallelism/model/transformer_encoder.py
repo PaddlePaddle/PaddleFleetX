@@ -96,7 +96,8 @@ def multi_head_attention(queries,
         """
         if topo is None or topo.mp.size == 1:
             if fuse:
-                assert queries == keys == values
+                # NOTE(wangxi): must use id, or will insert equal op
+                assert id(queries) == id(keys) == id(values)
                 qkv = layers.fc(input=queries,
                                 size=3 * d_key * n_head,
                                 num_flatten_dims=2,
@@ -130,7 +131,8 @@ def multi_head_attention(queries,
                 return q, k, v
         else:
             if fuse:
-                assert queries == keys == values
+                # NOTE(wangxi): must use id, or will insert equal op
+                assert id(queries) == id(keys) == id(values)
                 qkv = _build_linear_column_parallel(queries, d_model, 3 * d_model, name + '_qkv_fc_' + str(topo.mp.rank),
                                                   param_initializer, topo.mp.size)
                 return qkv
