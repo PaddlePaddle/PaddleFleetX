@@ -195,7 +195,7 @@ def create_broadcast_program(ref_program, ring_id = 0, root_rank = 0):
     broadcast_params = []
     for param in parameter_list:
         if not param.is_distributed:
-            print("[broadcast program] create var: {}".format(param.name))
+            log.info("[broadcast program] create var: {}".format(param.name))
             gradient_merge_var = broadcast_main_block.create_parameter(
                 name=param.name,
                 shape=param.shape,
@@ -378,18 +378,6 @@ def train(args):
         paddle.seed(2021 + int(os.environ.get(f'FLAGS_selected_{device}s', 0)))
     exe.run(startup_program)
 
-    if args.num_pp == 1 and args.num_mp == 1 and args.num_dp == 1:
-        paddle.fluid.io.save_persistables(exe, './saved_model', main_program=train_program)
-    elif args.debug:
-        def predicate(var):
-            if os.path.exists('./saved_model/%s'%var.name):
-                return True
-            return False
-        if args.num_pp > 1:
-            paddle.fluid.io.load_vars(exe, "./saved_model", main_program=train_program._pipeline_opt['section_program'], predicate=predicate)
-        else:
-            paddle.fluid.io.load_vars(exe, "./saved_model", main_program=train_program, predicate=predicate)
-
     if args.use_amp:
         optimizer.amp_init(place)
 
@@ -401,6 +389,15 @@ def train(args):
     steps = 0
     log_path = 'train_log/node-%d' % fleet.worker_index()
     start_time = time.time()
+
+    if args.init_checkpoint_step:
+        idx = fleet.worker_index() % (fleet.worker_num() // args.num_dp)
+        init_checkpoint_path = os.path.join(args.output_dir + '_' + str(idx), 'step_' + args.init_checkpoint_step + "_" + str(idx))
+        if args.num_pp > 1:
+            init_checkpoint(exe, init_checkpoint_path, train_program._pipeline_opt['section_program'])
+        else:
+            init_checkpoint(exe, init_checkpoint_path, train_program)
+        steps = int(args.init_checkpoint_step)
 
     # # TODO
     if args.num_mp > 1:
@@ -477,7 +474,7 @@ def train(args):
                         start_time = time.time()
 
                 if steps > 0 and args.save_steps > 0 and steps % args.save_steps == 0:
-                    if args.num_dp > 1 and fleet.worker_index() > args.num_pp * args.num_mp:
+                    if topo.dp.rank > 0:
                         continue
                     save_path = os.path.join(output_dir, 'step_' + str(steps) + "_" + str(fleet.worker_index()))
                     log.debug("saving models to {}".format(save_path))
@@ -489,7 +486,7 @@ def train(args):
                         paddle.fluid.io.save_persistables(exe, save_path, train_program)
 
                 if steps == num_train_steps:
-                    if args.num_dp > 1 and fleet.worker_index() > args.num_pp * args.num_mp:
+                    if topo.dp.rank > 0:
                         break
                     save_path = os.path.join(output_dir, 'final_step_' + str(steps) + "_" + str(fleet.worker_index()))
                     if args.num_sharding > 1:
@@ -572,7 +569,7 @@ def train(args):
                     start_time = time.time()
 
             if steps > 0 and args.save_steps > 0 and steps % args.save_steps == 0:
-                if args.num_dp > 1 and fleet.worker_index() > args.num_pp * args.num_mp:
+                if topo.dp.rank > 0:
                     continue
                 save_path = os.path.join(output_dir, 'step_' + str(steps) + "_" + str(fleet.worker_index()))
                 log.debug("saving models to {}".format(save_path))
@@ -584,7 +581,7 @@ def train(args):
                     paddle.fluid.io.save_persistables(exe, save_path, train_program)
 
             if steps == num_train_steps:
-                if args.num_dp > 1 and fleet.worker_index() > args.num_pp * args.num_mp:
+                if topo.dp.rank > 0:
                     break
                 save_path = os.path.join(output_dir, 'final_step_' + str(steps) + "_" + str(fleet.worker_index()))
                 if args.num_sharding > 1:

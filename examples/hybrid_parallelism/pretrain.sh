@@ -36,4 +36,5 @@ run_pretraining.py \
 	--num_pp=2 \
 	--num_dp=1 \
     --debug false \
+    --init_checkpoint_step "" \
 
