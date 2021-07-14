@@ -211,20 +211,21 @@ class ErnieModel(object):
             else:
                 self._word_emb_name = self._word_emb_name + '_' + str(self.topo.mp.rank)
                 src_ids = fluid.layers.squeeze(self.src_ids, [-1])
-                # emb_out = paddle.distributed.split(
-                #     src_ids,
-                #     size=(self._voc_size, self._emb_size),
-                #     operation='embedding',
-                #     weight_attr=fluid.ParamAttr(
-                #         name=self._word_emb_name, initializer=self._param_initializer),
-                #     num_partitions=self.topo.mp.size)
-
-                self.word_embeddings = ParallelEmbedding(
-                    self._voc_size, self._emb_size, self.topo,
-                    weight_attr=paddle.ParamAttr(
-                        name=self._word_emb_name, initializer=self._param_initializer)
-                )
-                emb_out = self.word_embeddings(src_ids)
+                if paddle.is_compiled_with_npu():
+                    emb_out = paddle.distributed.split(
+                        src_ids,
+                        size=(self._voc_size, self._emb_size),
+                        operation='embedding',
+                        weight_attr=fluid.ParamAttr(
+                            name=self._word_emb_name, initializer=self._param_initializer),
+                        num_partitions=self.topo.mp.size)
+                else:
+                    self.word_embeddings = ParallelEmbedding(
+                        self._voc_size, self._emb_size, self.topo,
+                        weight_attr=paddle.ParamAttr(
+                            name=self._word_emb_name, initializer=self._param_initializer)
+                    )
+                    emb_out = self.word_embeddings(src_ids)
         else:
             emb.stop_gradient = True
             emb_out = fluid.layers.gather_nd(emb, self.src_ids)
@@ -528,12 +529,12 @@ class ErnieModel(object):
         # if self.topo is None or self.topo.mp.size == 1:
         if True:
             loss_func = paddle.nn.CrossEntropyLoss(reduction="none")
+            if paddle.is_compiled_with_npu():
+                loss_func = fluid.layers.softmax_with_cross_entropy
         else:
             loss_func = fleet.meta_parallel.ParallelCrossEntropy()
-        mask_lm_loss = loss_func(fc_out, mask_label)
 
-        # mask_lm_loss = fluid.layers.softmax_with_cross_entropy(
-        #     logits=fc_out, label=mask_label)
+        mask_lm_loss = loss_func(fc_out, mask_label)
         mean_mask_lm_loss = fluid.layers.mean(mask_lm_loss, name="mean_mask_lm_loss")
 
         return mask_lm_loss, mean_mask_lm_loss
