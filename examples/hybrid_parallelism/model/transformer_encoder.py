@@ -90,6 +90,8 @@ def multi_head_attention(queries,
     #        "Inputs: quries, keys and values should all be 3-D tensors. but {} v.s. {} v.s. {}"\
     #                .format(queries.shape, keys.shape, values.shape))
 
+    fuse = paddle.is_compiled_with_cuda() and fuse
+
     def __compute_qkv(queries, keys, values, n_head, d_key, d_value):
         """
         Add linear projection to queries, keys, and values.
