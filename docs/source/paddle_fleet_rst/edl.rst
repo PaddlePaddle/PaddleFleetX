@@ -7,7 +7,10 @@
 在分布式训练中，单节点故障导致这个任务失败的情况时有发生，尤其是节点较多的场景，不仅出错概率增加，重新运行任务的代价也相对更高。
 针对这样的场景，弹性训练的需求应运而生。
 
-paddle 目前已支持基于热重启的容错方案。
+paddle 目前已支持 Collective 训练模式基于热重启的容错方案。
+
+
+*热重启即用户的任务进程会被重启，所以需要用户代码中做好 checkpoint 逻辑。*
 
 容错
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -27,7 +30,20 @@ paddle 目前已支持基于热重启的容错方案。
 使用方法
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-推荐通过 paddle-operator 使用该功能，详见 `kubernetes 部署 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/paddle_on_k8s.html>`_ .
+推荐通过 paddle-operator 使用该功能，
+在提交任务时指定需要开启弹性功能，
+
+.. code-block::
+
+    apiVersion: batch.paddlepaddle.org/v1
+    kind: PaddleJob
+    metadata:
+      name: job-elastic
+    spec:
+      elastic: 1
+    ...
+
+详见 `kubernetes 部署 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/paddle_on_k8s.html>`_ .
 
 以下通过 resnet 示例介绍使用方法：
 
@@ -68,7 +84,7 @@ save 环节
 
 注意：如示例中所示，save 和 load 均在 rank 为 0 的节点上进行，checkpoint 所在目录要确保能够被访问。
 
-3. 用户程序入口需要使用 fleetrun 启动，相关参数可通过环境变量或者启动参数提供
+3. 用户程序入口需要使用 python -m paddle.distributed.launch 启动，相关参数可通过环境变量或者启动参数提供
 
 在环境中添加以下变量
 
@@ -84,11 +100,56 @@ save 环节
 
 .. code-block::
 
-    fleetrun --elastic_server=127.0.0.1:2379 --np=2 --job_id=XXXXXX --host=10.10.10.2 train_fleet_dygraph_ckpt.py
+    python -m paddle.distributed.launch --elastic_server=127.0.0.1:2379 --np=2 --job_id=XXXXXX train_fleet_dygraph_ckpt.py
 
 
 弹性
 ^^^^^^^^^^^^^^^^^^^^^^
 
-弹性功能正在开发中。。。
+概述
+^^^^^^^^^^^^^^^^^^^^^^
+
+在分布式训练中，除了容错外，集群的资源剩余情况可能随时间而不同、任务的优先级也可能有不同，
+基于这样的场景，实现弹性训练即任务可以在运行时动态调整训练资源而不影响或尽可能小地影响训练进程，能够最大限度地实现资源利用率提升同时提升训练任务质量。
+
+paddle 目前已支持 Collective 训练模式基于热重启的弹性训练方案。
+
+*热重启即用户的任务进程会被重启，所以需要用户代码中做好 checkpoint 逻辑，同时如 batchsize 和 learning rate 这样需要随节点数变化的参数也需要用户进程自动调整。*
+
+方案概述
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+本方案以上述容错为基础，分为扩容和缩容两种情况，流程如下：
+
+1. 正常启动训练；
+2. 主动更改训练任务所需节点数，这时任务节点感知节点需求变化，判断为不满足训练条件，进入等待；
+3. 若为扩容，当节点加入满足所需训练节点要求时，各节点感知判断满足训练条件，继续训练； 若为缩容，当节点剩余节点满足所需训练节点要求时，各节点感知判断满足训练条件，继续训练；
+
+> 这里的节点加入和退出需要外部调度系统负责实现。
+
+使用方法
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+推荐通过 paddle-operator 使用该功能，首先在提交任务中开启弹性功能，然后任务正常运行中通过 kubectl 或 api 的其他方式修改 paddlejob 中的 replicas 字段即可实现改功能。
+详见 `kubernetes 部署 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/paddle_on_k8s.html>`_ .
+
+以下通过 resnet 示例介绍本地使用弹性方法：
+
+1. 运行任务 (注意需要在 np 个节点上都运行该命令)，
+
+.. code-block::
+
+    python -m paddle.distributed.launch --elastic_server=127.0.0.1:2379 --np=2 --job_id=XXXXXX train_fleet_dygraph_ckpt.py
+
+2. 修改扩容或缩容参数
+
+.. code-block::
+
+    python -m paddle.distributed.elastic --elastic_server=127.0.0.1:2379 --np=4 --job_id=XXXXXX scale
+
+3. 启动新节点（扩容）或退出节点以满足新节点要求。注意启动新节点时请使用新节点数。
+
+.. code-block::
+
+    python -m paddle.distributed.launch --elastic_server=127.0.0.1:2379 --np=4 --job_id=XXXXXX train_fleet_dygraph_ckpt.py
 
