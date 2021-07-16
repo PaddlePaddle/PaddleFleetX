@@ -62,8 +62,9 @@ else:
     raise Exception('paddle must compiled with cuda or npu')
 
 paddle.enable_static()
-fleet.init(is_collective=True)
+# fleet.init(is_collective=True)
 np.set_printoptions(threshold=1e6)
+
 
 def linear_warmup_decay(learning_rate, warmup_steps, num_train_steps):
     """ Applies linear warmup of learning rate from 0 and decay to 0."""
@@ -136,7 +137,7 @@ def create_model(args, phase, micro_bsz, dp_sharding_rank, dp_sharding_worldsize
     ernie_config = ErnieConfig(args.ernie_config_file)._config_dict
     ernie_config["preln"] = args.preln
 
-    # NOTE when trying to compare the loss between mp with non-parallelism-sinlge model, 
+    # NOTE when trying to compare the loss between mp with non-parallelism-sinlge model,
     # should disable weight share for non-parallelism-sinlge run
     weight_sharing = False
 
@@ -183,11 +184,13 @@ def create_model(args, phase, micro_bsz, dp_sharding_rank, dp_sharding_worldsize
     }
     return graph_vars
 
-def create_broadcast_program(ref_program, ring_id = 0, root_rank = 0):
+
+def create_broadcast_program(ref_program, ring_id=0, root_rank=0):
     broadcast_program = fluid.Program()
     from paddle.fluid.framework import Parameter
     def is_parameter(var):
         return isinstance(var, Parameter)
+
     parameter_list = list(filter(is_parameter, ref_program.list_vars()))
 
     # create vars
@@ -209,12 +212,16 @@ def create_broadcast_program(ref_program, ring_id = 0, root_rank = 0):
         with fluid.unique_name.guard():
             for param in broadcast_params:
                 fluid.layers.collective._c_broadcast(param, root=root_rank, ring_id=ring_id, use_calc_stream=True)
-        
+
     return broadcast_program
+
 
 def train(args):
     print("to run startup")
     log.info("pretraining start")
+
+    worker_num = paddle.distributed.get_world_size()
+    worker_index = paddle.distributed.get_rank()
 
     if not ascend:
         place = fluid.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
@@ -227,26 +234,25 @@ def train(args):
         np.random.seed(args.seed)
     paddle.seed(args.seed)
     get_rng_state_tracker().add('global_seed', args.seed)
-    get_rng_state_tracker().add('local_seed', args.seed + fleet.worker_index() + 2021)
+    get_rng_state_tracker().add('local_seed', args.seed + worker_index + 2021)
 
     # define distribution strategy
     dist_strategy = fleet.DistributedStrategy()
     if args.use_recompute:
-       log.info("using recompute.")
+        log.info("using recompute.")
     dist_strategy.recompute = args.use_recompute
     dist_strategy.sharding = args.use_sharding
     dist_strategy.pipeline = args.num_pp > 1
-
     # define topology structure for dp/pp/mp
-    topo = Topology(rank=fleet.worker_index(),
-                    world_size=fleet.worker_num(),
+    topo = Topology(rank=worker_index,
+                    world_size=worker_num,
                     dp=args.num_dp,
                     pp=args.num_pp,
                     sharding=args.num_sharding,
                     mp=args.num_mp)
 
     is_last = False
-    if topo.pp.rank == (topo.pp.size -1):
+    if topo.pp.rank == (topo.pp.size - 1):
         is_last = True
 
     dp_sharding_rank = topo.dp.rank * topo.sharding.size + topo.sharding.rank
@@ -260,8 +266,10 @@ def train(args):
     acc_steps = bsz_per_dp // micro_bsz
 
     if args.num_mp == 1 and args.num_pp == 1 and args.num_sharding == 1:
-        # single 
+        # single
         assert args.num_dp == 1, "normal data parallelism should not use sharding config"
+        if paddle.is_compiled_with_npu():
+            dist_strategy.without_graph_optimization = True
     else:
         # sharding \ model parallel \ pipeline
         assert dist_strategy.sharding == True
@@ -269,14 +277,14 @@ def train(args):
                                           "sharding_degree": args.num_sharding,
                                           "mp_degree": args.num_mp,
                                           "pp_degree": args.num_pp,
-                                          "dp_degree":args.num_dp,
+                                          "dp_degree": args.num_dp,
                                           "gradient_merge_acc_step": acc_steps,
                                           "optimize_offload": False,
-                                         }
-        dist_strategy.pipeline_configs = {"schedule_mode": "1F1B",
-                                          "micro_batch_size": micro_bsz,
-                                          "accumulate_steps": acc_steps,
-                                         }
+                                          }
+        dist_strategy.pipeline_configs = {
+            "schedule_mode": "1F1B",
+            "micro_batch_size": micro_bsz,
+            "accumulate_steps": acc_steps}
     log.info(f"using globa_bsz: {args.global_bsz} micro_bsz: {micro_bsz}, acc_steps: {acc_steps}")
 
     dist_strategy.amp = args.use_amp
@@ -297,22 +305,30 @@ def train(args):
         'lamb_weight_decay': 0.01,
         'exclude_from_weight_decay': ['layer_norm_bias', 'layer_norm_scale', '.b_0']
     }
+    fleet.init(is_collective=True, strategy=dist_strategy)
+    hcg = fleet.get_hybrid_communicate_group()
+    if topo.mp.size > 1:
+        print('model group={}'.format(hcg.get_model_parallel_group()))
 
     train_program = fluid.Program()
     startup_program = fluid.Program()
     with fluid.program_guard(train_program, startup_program):
         with fluid.unique_name.guard():
-            graph_vars = create_model(args, 'train', micro_bsz, dp_sharding_rank, dp_sharding_worldsize, topo, acc_steps)
+            graph_vars = create_model(args, 'train', micro_bsz,
+                                      dp_sharding_rank, dp_sharding_worldsize,
+                                      topo, acc_steps)
             data_loader = graph_vars['data_loader']
             for op in train_program.global_block().ops:
                 if op.type == 'fill_constant':
-                    op._set_attr('op_device', f"{device}:0") # XXX: hack: https://github.com/PaddlePaddle/Paddle/blob/develop/python/paddle/fluid/layers/tensor.py#L1376
+                    if op.has_attr('op_device') and op.attr('op_device') == 'cpu':
+                        op._set_attr('op_device',
+                                     f"{device}:0")  # XXX: hack: https://github.com/PaddlePaddle/Paddle/blob/develop/python/paddle/fluid/layers/tensor.py#L1376
 
             if args.use_recompute:
                 dist_strategy.recompute_configs = {
                     "checkpoints": graph_vars['checkpoints'],
                 }
-                                                  
+
             log.debug("base lr: {}".format(args.learning_rate))
 
             warmup_steps = args.warmup_steps
@@ -332,17 +348,26 @@ def train(args):
                 for op in train_program.global_block().ops:
                     if op.type == "fill_constant" and op.desc.output_arg_names()[0] == pp_loss_name:
                         op._set_attr("op_role", 16)
-                        op._set_attr('op_device', f"{device}:%d"%(args.num_pp-1))
+                        op._set_attr('op_device', f"{device}:%d" % (args.num_pp - 1))
+
+            # save program
+            program_desc_dir = os.path.join(args.output_dir, "program_desc")
+            if not os.path.isdir(program_desc_dir):
+                os.mkdir(program_desc_dir)
+
+            with open(program_desc_dir + "/forward_program.txt.%d" % (int(os.environ.get('FLAGS_selected_gpus', 0))),
+                      'w') as f:
+                f.write(str(train_program))
+
             optimizer = fluid.optimizer.Adam(learning_rate=scheduled_lr,
-                                             grad_clip=fluid.clip.GradientClipByGlobalNorm(clip_norm=clip_norm_thres),
-                                            )
+                                             grad_clip=fluid.clip.GradientClipByGlobalNorm(clip_norm=clip_norm_thres))
             optimizer = fleet.distributed_optimizer(optimizer, dist_strategy)
             optimizer.minimize(graph_vars['total_loss'])
 
             final_strategy = fleet._final_strategy()
             applied_meta_list = fleet._get_applied_meta_list()
             if device == "gpu":
-                log.info(f"using dist strategy: {dist_strategy}") 
+                log.info(f"using dist strategy: {dist_strategy}")
                 log.info("final strategy: {}".format(final_strategy))
                 log.info("applied_meta_list: {}".format(applied_meta_list))
 
@@ -351,42 +376,40 @@ def train(args):
     elif args.num_mp > 1 and args.num_pp > 1:
         broadcast_program = create_broadcast_program(train_program._pipeline_opt['section_program'])
 
-    # save program
-    program_desc_dir = os.path.join(args.output_dir, "program_desc")
-    if not os.path.isdir(program_desc_dir):
-        os.makedirs(program_desc_dir)
-
     # save the true pp program
+    dev_id = int(os.environ.get(f'FLAGS_selected_{device}s', 0))
     if args.num_pp > 1:
-        with open(program_desc_dir + "/main_program.txt.%d" % (int(os.environ.get('FLAGS_selected_gpus', 0))), 'w') as f:
+        with open(program_desc_dir + "/main_program.txt.%d" % dev_id, 'w') as f:
             f.write(str(train_program._pipeline_opt['section_program']))
-        with open(program_desc_dir + "/startup_program.txt.%d" % (int(os.environ.get('FLAGS_selected_gpus', 0))), 'w') as f:
+        with open(program_desc_dir + "/startup_program.txt.%d" % dev_id, 'w') as f:
             f.write(str(startup_program._pipeline_opt['startup_program']))
     else:
-        with open(program_desc_dir + "/main_program.txt.%d" % (int(os.environ.get('FLAGS_selected_gpus', 0))), 'w') as f:
+        with open(program_desc_dir + "/main_program.txt.%d" % dev_id, 'w') as f:
             f.write(str(train_program))
-        with open(program_desc_dir + "/startup_program.txt.%d" % (int(os.environ.get('FLAGS_selected_gpus', 0))), 'w') as f:
+        with open(program_desc_dir + "/startup_program.txt.%d" % dev_id, 'w') as f:
             f.write(str(startup_program))
 
     if args.num_mp > 1:
-        with open(program_desc_dir + "/broadcast_program.txt.%d" % (int(os.environ.get('FLAGS_selected_gpus', 0))), 'w') as f:
+        with open(program_desc_dir + "/broadcast_program.txt.%d" % dev_id, 'w') as f:
             f.write(str(broadcast_program))
 
     exe = fluid.Executor(place)
     # # TODO
-    if args.num_mp > 1 :
-        paddle.seed(2021 + int(os.environ.get(f'FLAGS_selected_{device}s', 0)))
+    if args.num_mp > 1:
+        paddle.seed(2021 + dev_id)
     exe.run(startup_program)
 
     if args.num_pp == 1 and args.num_mp == 1 and args.num_dp == 1:
         paddle.fluid.io.save_persistables(exe, './saved_model', main_program=train_program)
     elif args.debug:
         def predicate(var):
-            if os.path.exists('./saved_model/%s'%var.name):
+            if os.path.exists('./saved_model/%s' % var.name):
                 return True
             return False
+
         if args.num_pp > 1:
-            paddle.fluid.io.load_vars(exe, "./saved_model", main_program=train_program._pipeline_opt['section_program'], predicate=predicate)
+            paddle.fluid.io.load_vars(exe, "./saved_model", main_program=train_program._pipeline_opt['section_program'],
+                                      predicate=predicate)
         else:
             paddle.fluid.io.load_vars(exe, "./saved_model", main_program=train_program, predicate=predicate)
 
@@ -406,7 +429,9 @@ def train(args):
     if args.num_mp > 1:
         exe.run(broadcast_program, fetch_list=[])
         print("Done broadcast")
-
+    if args.init_checkpoint and args.init_checkpoint != '':
+        log.info("init from {args.init_checkpoint}")
+        init_checkpoint(exe, args.init_checkpoint, train_program)
     if device == "gpu":
         with LogWriter(os.path.join(args.output_dir, log_path)) as swriter:
             data_loader.start()
@@ -424,8 +449,8 @@ def train(args):
                     if args.num_pp > 1:
                         pp_total_loss = graph_vars['pp_total_loss']
                         fetch_list.append(pp_total_loss)
-                
-                log.info(f"********exe.run_{steps}******* ")        
+
+                log.info(f"********exe.run_{steps}******* ")
                 ret = exe.run(train_program, fetch_list=fetch_list, use_program_cache=True) # run one mini-batch(=acc_steps micro-batch)
                 log.info("*******exe .run .end ******")
                 steps += 1
