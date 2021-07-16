@@ -10,6 +10,8 @@ export FLAGS_allocator_strategy=naive_best_fit
 
 rm -rf *.prototxt
 rm -rf core.*
+rm -rf main_*
+rm -rf start_*
 
 task_name='gpt3-test'
 output_dir=./output/${task_name}
