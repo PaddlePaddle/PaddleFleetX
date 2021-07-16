@@ -198,7 +198,7 @@ def create_broadcast_program(ref_program, ring_id=0, root_rank=0):
     broadcast_params = []
     for param in parameter_list:
         if not param.is_distributed:
-            log.info("[broadcast program] create var: {}".format(param.name))
+            print("[broadcast program] create var: {}".format(param.name))
             gradient_merge_var = broadcast_main_block.create_parameter(
                 name=param.name,
                 shape=param.shape,
