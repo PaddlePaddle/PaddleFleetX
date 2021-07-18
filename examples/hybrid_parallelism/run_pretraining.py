@@ -353,8 +353,10 @@ def train(args):
             # save program
             program_desc_dir = os.path.join(args.output_dir, "program_desc")
             if not os.path.isdir(program_desc_dir):
-                os.mkdir(program_desc_dir)
-
+                try:
+                    os.mkdir(program_desc_dir)
+                except:
+                    assert os.path.isdir(program_desc_dir), f"{program_desc_dir} is not a dir but still can not be created"
             with open(program_desc_dir + "/forward_program.txt.%d" % (int(os.environ.get('FLAGS_selected_gpus', 0))),
                       'w') as f:
                 f.write(str(train_program))
