@@ -38,7 +38,7 @@ import paddle.fluid.profiler as profiler
 from paddle.distributed.fleet.meta_optimizers.sharding.utils import add_sync_comm, save_persistables
 
 from pretraining_args import define_args
-from utils.init import init_checkpoint, init_pretraining_params
+from utils.init import init_checkpoint, init_pretraining_params, checkpoint_rearrange
 from utils.topo import Topology
 from utils.random import get_rng_state_tracker
 from propeller import log
@@ -402,7 +402,7 @@ def train(args):
     if args.use_amp:
         optimizer.amp_init(place)
 
-    output_dir = args.output_dir + '_' + str(fleet.worker_index())
+    save_model_dir = os.path.join(args.output_dir, 'saved_model_pp%dmp%d'%(args.num_pp, args.num_mp))
     save_steps = args.save_steps
     total_time = 0
     cost_vals, lm_losses, sop_accs = [], [], []
@@ -411,22 +411,23 @@ def train(args):
     log_path = 'train_log/node-%d' % fleet.worker_index()
     start_time = time.time()
 
-    if args.init_checkpoint_step:
+    if args.init_checkpoint and args.init_checkpoint_step > 0:
+        log.info(f"load checkpoint from {args.init_checkpoint}")
         idx = fleet.worker_index() % (fleet.worker_num() // args.num_dp)
-        init_checkpoint_path = os.path.join(args.output_dir + '_' + str(idx), 'step_' + args.init_checkpoint_step + "_" + str(idx))
+        if save_model_dir != args.init_checkpoint:
+            checkpoint_rearrange(save_model_dir, args.init_checkpoint, idx, args.num_pp, args.num_mp, args.init_checkpoint_step, topo.dp.rank)
+            
+        init_checkpoint_path = os.path.join(save_model_dir, 'rank_' + str(idx), 'step_' + str(args.init_checkpoint_step))
         if args.num_pp > 1:
             init_checkpoint(exe, init_checkpoint_path, train_program._pipeline_opt['section_program'])
         else:
             init_checkpoint(exe, init_checkpoint_path, train_program)
-        steps = int(args.init_checkpoint_step)
+        steps = args.init_checkpoint_step
 
     # # TODO
     if args.num_mp > 1:
         exe.run(broadcast_program, fetch_list=[])
         print("Done broadcast")
-    if args.init_checkpoint and args.init_checkpoint != '':
-        log.info("init from {args.init_checkpoint}")
-        init_checkpoint(exe, args.init_checkpoint, train_program)
     if device == "gpu":
         with LogWriter(os.path.join(args.output_dir, log_path)) as swriter:
             data_loader.start()
@@ -499,7 +500,7 @@ def train(args):
                 if steps > 0 and args.save_steps > 0 and steps % args.save_steps == 0:
                     if topo.dp.rank > 0:
                         continue
-                    save_path = os.path.join(output_dir, 'step_' + str(steps) + "_" + str(fleet.worker_index()))
+                    save_path = os.path.join(save_model_dir, 'rank_' + str(fleet.worker_index()), 'step_' + str(steps))
                     log.debug("saving models to {}".format(save_path))
                     if args.num_sharding > 1:
                         save_persistables(exe, save_path, train_program)
@@ -511,7 +512,7 @@ def train(args):
                 if steps == num_train_steps:
                     if topo.dp.rank > 0:
                         break
-                    save_path = os.path.join(output_dir, 'final_step_' + str(steps) + "_" + str(fleet.worker_index()))
+                    save_path = os.path.join(save_model_dir, 'rank_' + str(fleet.worker_index()), 'final_step_' + str(steps))
                     if args.num_sharding > 1:
                         save_persistables(exe, save_path, train_program)
                     elif args.num_pp > 1:
@@ -594,7 +595,7 @@ def train(args):
             if steps > 0 and args.save_steps > 0 and steps % args.save_steps == 0:
                 if topo.dp.rank > 0:
                     continue
-                save_path = os.path.join(output_dir, 'step_' + str(steps) + "_" + str(fleet.worker_index()))
+                save_path = os.path.join(save_model_dir, 'rank_' + str(fleet.worker_index()), 'step_' + str(steps))
                 log.debug("saving models to {}".format(save_path))
                 if args.num_sharding > 1:
                     save_persistables(exe, save_path, train_program)
@@ -606,7 +607,7 @@ def train(args):
             if steps == num_train_steps:
                 if topo.dp.rank > 0:
                     break
-                save_path = os.path.join(output_dir, 'final_step_' + str(steps) + "_" + str(fleet.worker_index()))
+                save_path = os.path.join(save_model_dir, 'rank_' + str(fleet.worker_index()), 'final_step_' + str(steps))
                 if args.num_sharding > 1:
                     save_persistables(exe, save_path, train_program)
                 elif args.num_pp > 1:
