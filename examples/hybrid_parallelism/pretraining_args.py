@@ -29,7 +29,8 @@ def define_args():
     # Model Args
     parser.add_argument('--ernie_config_file', type=str, default='./config/ernie_config.json')
     parser.add_argument('--vocab_file', type=str, default='./config/30k-clean.vocab.albert')
-    parser.add_argument('--init_checkpoint_step', type=str, default="")
+    parser.add_argument('--init_checkpoint', type=str, default="")
+    parser.add_argument('--init_checkpoint_step', type=int, default=-1)
     parser.add_argument('--max_seq_len', type=int, default=512)
     parser.add_argument('--preln', type=str2bool, default=False)
 
