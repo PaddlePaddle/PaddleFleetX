@@ -376,6 +376,18 @@ def train(args):
     elif args.num_mp > 1 and args.num_pp > 1:
         broadcast_program = create_broadcast_program(train_program._pipeline_opt['section_program'])
 
+    if args.use_quantize:
+        from paddle.fluid.contrib.slim.quantization.quantize_transpiler_v2 import QuantizeTranspilerV2
+        activation_quant_type='abs_max'
+        weight_quant_type='abs_max'
+        qt = QuantizeTranspilerV2(
+            activation_quantize_type=activation_quant_type,
+            weight_quantize_type=weight_quant_type)
+        if args.num_pp > 1:
+            qt.apply(train_program._pipeline_opt['section_program'], startup_program, is_test=False)
+        else:
+            qt.apply(train_program, startup_program, is_test=False)
+
     # save the true pp program
     dev_id = int(os.environ.get(f'FLAGS_selected_{device}s', 0))
     if args.num_pp > 1:
