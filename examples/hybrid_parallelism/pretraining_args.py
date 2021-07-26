@@ -62,6 +62,7 @@ def define_args():
     parser.add_argument('--use_amp', type=str2bool, default=True)
     parser.add_argument('--use_recompute', type=str2bool, default=True)
     parser.add_argument('--use_offload', type=str2bool, default=False)
+    parser.add_argument('--use_quantize', type=str2bool, default=False)
     parser.add_argument('--grad_merge', type=int, default=0)
     parser.add_argument('--num_mp', type=int, default=1, help="num of model parallel")
     parser.add_argument('--num_pp', type=int, default=1, help="num of pipeline")
