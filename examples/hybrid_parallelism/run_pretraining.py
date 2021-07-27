@@ -378,11 +378,7 @@ def train(args):
 
     if args.use_quantize:
         from paddle.fluid.contrib.slim.quantization.quantize_transpiler_v2 import QuantizeTranspilerV2
-        activation_quant_type='abs_max'
-        weight_quant_type='abs_max'
-        qt = QuantizeTranspilerV2(
-            activation_quantize_type=activation_quant_type,
-            weight_quantize_type=weight_quant_type)
+        qt = QuantizeTranspilerV2()
         if args.num_pp > 1:
             qt.apply(train_program._pipeline_opt['section_program'], startup_program, is_test=False)
         else:
