@@ -92,6 +92,9 @@ batch size = #seq * seq_max_len
 使用方法
 ~~~~~~~~~
 
+静态图
+^^^^^^^^
+
 为了使用Recompute策略，我们将\ ``dist_strategy.recompute``\ 设置为True
 并设置我们事先定义好的checkpoints。 checkpoint 的选取可以参考论文 `《Training Deep Nets with Sublinear Memory Cost》 <https://arxiv.org/abs/1604.06174>`__ 。
 
@@ -189,3 +192,9 @@ res2a.add.output.5.tmp_0 等是用户组网时定义的 \ `variable name  <https
 
 
 完整2卡的日志信息也可在\ ``./log/``\ 目录下查看。了解更多\ ``fleetrun``\ 的用法可参考左侧文档\ ``fleetrun 启动分布式任务``\ 。
+
+
+动态图
+^^^^^^^
+
+完整代码存放在：\ `Dygraph Recompute <https://github.com/PaddlePaddle/Paddle/pull/32516>`_\ 下面。
