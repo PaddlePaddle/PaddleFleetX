@@ -25,6 +25,7 @@ from paddle.fluid.framework import in_dygraph_mode
 from paddle.nn.layer.transformer import _convert_param_attr_to_list
 from paddle.fluid.initializer import Normal, Constant, NumpyArrayInitializer
 from paddle.distributed.fleet import fleet
+import paddle.incubate as incubate
 
 from .. import PretrainedModel, register_base_model
 import paddlenlp
@@ -230,12 +231,13 @@ class MultiHeadAttention(nn.Layer):
         # scale dot product attention
         product = layers.matmul(
             x=q, y=k, transpose_y=True, alpha=self.head_dim**-0.5)
-        if attn_mask is not None:
-            product = product + attn_mask
-            #product = product * attn_mask
-            #mask_score = (attn_mask - 1.0) * 10000.0
-            #product = product + mask_score
-        weights = F.softmax(product)
+        fuse = True
+        if fuse:
+            weights = incubate.softmax_mask_fuse_upper_triangle(product)
+        else:
+            if attn_mask is not None:
+                product = product + attn_mask
+            weights = F.softmax(product)
         if self.dropout:
             weights = F.dropout(
                 weights,

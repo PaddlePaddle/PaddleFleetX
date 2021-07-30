@@ -117,7 +117,7 @@ def dist_optimizer(args, topo):
     if args.use_amp:
         dist_strategy.amp = True
         dist_strategy.amp_configs = {
-            "custom_white_list": ['softmax', 'layer_norm', 'gelu', 'fused_elemwise_activation'],
+            "custom_white_list": ['softmax', 'layer_norm', 'gelu', 'fused_elemwise_activation', 'fused_softmax_mask_upper_triangle'],
             "init_loss_scaling": 32768,
             "use_dynamic_loss_scaling": True,
         }
