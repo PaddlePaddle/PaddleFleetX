@@ -24,8 +24,9 @@ import time
 
 import numpy as np
 import paddle.fluid as fluid
+import paddle.distributed.fleet as fleet
+import paddle
 from .topo import Topology
-
 
 def init_pretraining_params(exe,
                             pretraining_params_path,
@@ -109,3 +110,30 @@ def checkpoint_rearrange(save_model_dir, init_checkpoint_path, index, num_pp, nu
                 time.sleep(1)
             else:
                 break
+
+def save_checkpoint(exe, save_path, train_program, num_sharding=1, num_pp=1):
+    if num_sharding > 1:
+        fleet.meta_optimizers.sharding.utils.save_persistables(exe, save_path, train_program)
+    elif num_pp > 1:
+        fluid.io.save_persistables(exe, save_path, train_program._pipeline_opt['section_program'])
+    else: 
+        fluid.io.save_persistables(exe, save_path, train_program)
+
+def save_inference_model(dirname,
+                         feeded_vars,
+                         fetch_vars,
+                         exe,
+                         train_program,
+                         num_sharding=1,
+                         num_pp=1):
+    if num_sharding > 1:
+        raise Exception('num_sharding > 1 do not supported save_inference_model now.')
+    elif num_pp > 1:
+        print('feeded_vars', feeded_vars)
+        print('fetch_vars', fetch_vars)
+        paddle.static.save_inference_model(dirname, feeded_vars, fetch_vars, exe,
+            program=train_program._pipeline_opt['section_program'])
+#            program=train_program)
+    else: 
+        paddle.static.save_inference_model(dirname, feeded_vars, fetch_vars, exe,
+            program=train_program)
