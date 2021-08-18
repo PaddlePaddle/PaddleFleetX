@@ -33,6 +33,10 @@ def define_args():
     parser.add_argument('--init_checkpoint_step', type=int, default=-1)
     parser.add_argument('--max_seq_len', type=int, default=512)
     parser.add_argument('--preln', type=str2bool, default=False)
+    
+    # Inference Export Args
+    parser.add_argument('--exported_feeded_var_names', nargs="+", default=['src_ids', 'sent_ids', 'pos_ids'])
+    parser.add_argument('--exported_fetch_var_names', nargs="+", default=['fc_1.tmp_1'])
 
     # Data Args
     parser.add_argument('--data_dir', type=str, default='./data')
