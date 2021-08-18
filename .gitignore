@@ -3,7 +3,9 @@
 *.vs
 *.user
 *.tmp
+*.pyc
 
+__pycache__/
 .vscode
 .idea
 .project

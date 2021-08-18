@@ -24,12 +24,13 @@ from utils.args import str2bool, print_arguments
 
 def define_args():
     parser = argparse.ArgumentParser('ERNIE-en model with Paddle')
-    parser.add_argument('--debug', type=str2bool, default=False)
+    parser.add_argument('--debug', type=str2bool, default=False, help="For aligning loss")
 
     # Model Args
     parser.add_argument('--ernie_config_file', type=str, default='./config/ernie_config.json')
     parser.add_argument('--vocab_file', type=str, default='./config/30k-clean.vocab.albert')
     parser.add_argument('--init_checkpoint', type=str, default="")
+    parser.add_argument('--init_checkpoint_step', type=int, default=-1)
     parser.add_argument('--max_seq_len', type=int, default=512)
     parser.add_argument('--preln', type=str2bool, default=False)
 
@@ -54,7 +55,6 @@ def define_args():
     parser.add_argument('--weight_decay', type=float, default=0.01)
     parser.add_argument('--use_lamb', type=str2bool, default=False)
     parser.add_argument('--seed', type=int, default=2021)
-    parser.add_argument('--use_sop', type=str2bool, default=False)
 
     # Fleet Args
     parser.add_argument('--use_sharding', type=str2bool, default=False)
@@ -62,6 +62,7 @@ def define_args():
     parser.add_argument('--use_amp', type=str2bool, default=True)
     parser.add_argument('--use_recompute', type=str2bool, default=True)
     parser.add_argument('--use_offload', type=str2bool, default=False)
+    parser.add_argument('--use_quantize', type=str2bool, default=False)
     parser.add_argument('--grad_merge', type=int, default=0)
     parser.add_argument('--num_mp', type=int, default=1, help="num of model parallel")
     parser.add_argument('--num_pp', type=int, default=1, help="num of pipeline")

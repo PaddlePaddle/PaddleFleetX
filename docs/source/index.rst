@@ -17,7 +17,7 @@
 
 .. toctree::
    :maxdepth: 1
-   :caption: 如何设计分布式训练的搭建方案
+   :caption: 分布式训练搭建方案
    :name: design 
 
    paddle_fleet_rst/public_cloud
@@ -57,11 +57,10 @@
 .. toctree::
    :maxdepth: 1
    :caption: 分布式训练FAQ
+   :name: faq
 
    paddle_fleet_rst/faq
 
-.. toctree::
-   :maxdepth
 
 =======
 

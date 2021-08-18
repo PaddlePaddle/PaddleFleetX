@@ -26,6 +26,7 @@ import six
 from glob import glob
 from functools import reduce, partial
 import itertools
+import paddle
 
 #import sentencepiece as spm
 #from tqdm import tqdm
@@ -59,6 +60,14 @@ else:
         for element in it:
             total = func(total, element)
             yield total
+
+# device->dtype
+if paddle.is_compiled_with_cuda():
+    device = "gpu"
+    int_type = "int64"
+elif paddle.is_compiled_with_npu():
+    device = "npu"
+    int_type = 'int32'
 
 #debug_dict = {i: j.strip() for i, j in enumerate(open('./data/vocab.txt', encoding='utf8'))}
 #def debugfunc(i):
@@ -124,9 +133,26 @@ def apply_mask(sentence, seg_info, mask_jb_coef, mask_rate, vocab_size, vocab):
     seg_info = np.add.accumulate(np.array([0 if s == 0 else 1 for s in seg_info_incr])).reshape(shape)
     seg_info[invalid_pos] = -1
 
-    u_seginfo = np.array([i for i in np.unique(seg_info) if i != -1])
+    if device == 'npu':
+        # Becasue later there will be a line 'mask[:,0] = false',
+        # we can ignore col 0 of seg_info when getting u_seginfo on this step, using val_seg_info.
+        # Especially with npu, this val_seg_info will be used to filt u_seginfo when sample_num is 1
+        val_seg_info_mask = np.ones_like(seg_info)
+        val_seg_info_mask[:, 0] = 0
+        val_seg_info = np.where(val_seg_info_mask == 1, seg_info, -1)
+    else:
+        val_seg_info = seg_info
+    
+    u_seginfo = np.array([i for i in np.unique(val_seg_info) if i != -1])
     np.random.shuffle(u_seginfo)
     sample_num = max(1, int(len(u_seginfo) * mask_rate))
+
+    # layer_norm_grad OP on NUP doesn't support mask.sum() <= 1,
+    # so the purpose of this branch is to ensure the length to be larger than 1
+    if device == 'npu' and sample_num == 1:
+        u_seginfo = np.array([i for i in u_seginfo if np.sum(val_seg_info == i) > 1])
+        assert len(u_seginfo) >= 1 , "at least one value's count is larger than 1 when sample num is 1"
+
     u_seginfo = u_seginfo[: sample_num]
     mask = reduce(np.logical_or, [seg_info == i for i in u_seginfo])
 
@@ -159,9 +185,16 @@ def sample_geo():
     return np.random.choice(cand, replace=True, p=prob)
 
 
-def make_pretrain_dataset(name, gz_files, is_train, vocab, batch_size, vocab_size, max_seqlen, global_rank, world_size):
+def make_pretrain_dataset(name, gz_files, is_train, vocab, batch_size, vocab_size, max_seqlen, global_rank, world_size, device="gpu"):
     max_input_seqlen = max_seqlen
     max_pretrain_seqlen = lambda: max_input_seqlen if r.random() > 0.15 else r.randint(1, max_input_seqlen) # short sentence rate
+
+    if device == "gpu":
+        int_type = "int64"
+    elif device == "npu":
+        int_type = "int32"
+    else:
+        raise ValueError(f"error device: {device}")
 
     def _parse_gz(record_str): # function that takes python_str as input
         ex = propeller.data.example_pb2.SequenceExample()
@@ -240,15 +273,23 @@ def make_pretrain_dataset(name, gz_files, is_train, vocab, batch_size, vocab_siz
         batch_size, seqlen = sentence.shape
         sentence, mask_pos, mlm_label = apply_mask(sentence, seg_info, 1., 0.15, vocab_size, vocab)
         #return {'input_ids': sentence, 'token_type_ids': segments, 'sentence_order_label': label, 'labels': mlm_label, 'mlm_mask': mlm_mask}
-        sentence = sentence.reshape([-1, seqlen, 1])
-        segments = segments.reshape([-1, seqlen, 1])
+        sentence = sentence.reshape([-1, seqlen])
+        segments = segments.reshape([-1, seqlen])
         mlm_label = mlm_label.reshape([-1, 1])
         mask_pos_reshape = []
         for i, p in zip(mask_pos[0], mask_pos[1]):
             p += i * seqlen
             mask_pos_reshape.append(p)
         mask_pos = np.array(mask_pos_reshape).reshape([-1, 1])
-        return sentence, segments, mlm_label, mask_pos
+        position_ids = np.array(list(map(lambda x: np.arange(0, len(x), 1, int_type), sentence.tolist()))).reshape([-1, seqlen])
+        if device == "npu":
+            output = list(map(lambda x: x.astype(np.int32), [sentence, segments, mlm_label, mask_pos]))
+            sentence, segments, mlm_label, mask_pos = output
+            # mask_label = [200] * int(batch_size * 512 * 0.15)
+            # mask_pos = list(range(int(batch_size * 512 * 0.15)))
+            # mlm_label = np.array(mask_label).astype("int32").reshape([-1, 1])
+            # mask_pos = np.array(mask_pos).astype("int32").reshape([-1, 1])
+        return sentence, segments, position_ids, mlm_label, mask_pos
 
     # pretrain pipeline
     dataset = Dataset.from_list(gz_files)
@@ -264,12 +305,10 @@ def make_pretrain_dataset(name, gz_files, is_train, vocab, batch_size, vocab_siz
         #dataset = dataset.repeat().shuffle(buffer_size=len(gz_files))
         #dataset = dataset.shuffle(buffer_size=len(gz_files))
     dataset = dataset.interleave(map_fn=bb_to_segments, cycle_length=cycle_length, block_length=1)
-    dataset = dataset.shuffle(buffer_size=10000) # must shuffle to ensure negative sample randomness
+    #dataset = dataset.shuffle(buffer_size=10000) # must shuffle to ensure negative sample randomness
     dataset = sample_negative(dataset)
 
     dataset = dataset.padded_batch(batch_size, (0, -1, 0), max_seqlen) \
                      .map(after)
     dataset.name = name
     return dataset
-
-

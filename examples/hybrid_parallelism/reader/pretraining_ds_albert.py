@@ -33,6 +33,8 @@ import itertools
 import random as r
 import propeller
 from propeller.data import Dataset
+r.random.seed(2000)
+paddle.sedd(2000)
 
 #import jieba
 from propeller import log

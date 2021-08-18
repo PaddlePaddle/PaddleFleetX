@@ -1,5 +1,8 @@
 sphinx==2.1.0
-mistune
-sphinx_rtd_theme
+mistune==0.8.4
+docutils==0.16
+sphinx_rtd_theme==0.4.3
+recommonmark==0.7.1
+commonmark==0.9.1
 paddlepaddle>=1.8
 zmq

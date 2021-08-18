@@ -24,7 +24,6 @@ import paddle.fluid as fluid
 import paddle.fluid.layers as layers
 import numpy as np
 
-
 def gelu(x):
   """Gaussian Error Linear Unit.
 
@@ -77,7 +76,8 @@ def multi_head_attention(queries,
                          cache=None,
                          param_initializer=None,
                          name='multi_head_att',
-                         topo=None):
+                         topo=None,
+                         fuse=True):
     """
     Multi-Head Attention. Note that attn_bias is added to the logit before
     computing softmax activiation to mask certain selected positions so that
@@ -90,37 +90,59 @@ def multi_head_attention(queries,
     #        "Inputs: quries, keys and values should all be 3-D tensors. but {} v.s. {} v.s. {}"\
     #                .format(queries.shape, keys.shape, values.shape))
 
+    fuse = paddle.is_compiled_with_cuda() and fuse
+
     def __compute_qkv(queries, keys, values, n_head, d_key, d_value):
         """
         Add linear projection to queries, keys, and values.
         """
         if topo is None or topo.mp.size == 1:
-            q = layers.fc(input=queries,
-                          size=d_key * n_head,
-                          num_flatten_dims=2,
-                          param_attr=fluid.ParamAttr(
-                              name=name + '_query_fc.w_0',
-                              initializer=param_initializer),
-                          bias_attr=name + '_query_fc.b_0')
-            k = layers.fc(input=keys,
-                          size=d_key * n_head,
-                          num_flatten_dims=2,
-                          param_attr=fluid.ParamAttr(
-                              name=name + '_key_fc.w_0',
-                              initializer=param_initializer),
-                          bias_attr=name + '_key_fc.b_0')
-            v = layers.fc(input=values,
-                          size=d_value * n_head,
-                          num_flatten_dims=2,
-                          param_attr=fluid.ParamAttr(
-                              name=name + '_value_fc.w_0',
-                              initializer=param_initializer),
-                          bias_attr=name + '_value_fc.b_0')
+            if fuse:
+                # NOTE(wangxi): must use id, or will insert equal op
+                assert id(queries) == id(keys) == id(values)
+                qkv = layers.fc(input=queries,
+                                size=3 * d_key * n_head,
+                                num_flatten_dims=2,
+                                param_attr=fluid.ParamAttr(
+                                    name=name + '_qkv_fc.w_0',
+                                    initializer=param_initializer),
+                                bias_attr=name + '_qkv_fc.b_0')
+                return qkv
+            else:
+                q = layers.fc(input=queries,
+                              size=d_key * n_head,
+                              num_flatten_dims=2,
+                              param_attr=fluid.ParamAttr(
+                                  name=name + '_query_fc.w_0',
+                                  initializer=param_initializer),
+                              bias_attr=name + '_query_fc.b_0')
+                k = layers.fc(input=keys,
+                              size=d_key * n_head,
+                              num_flatten_dims=2,
+                              param_attr=fluid.ParamAttr(
+                                  name=name + '_key_fc.w_0',
+                                  initializer=param_initializer),
+                              bias_attr=name + '_key_fc.b_0')
+                v = layers.fc(input=values,
+                              size=d_value * n_head,
+                              num_flatten_dims=2,
+                              param_attr=fluid.ParamAttr(
+                                  name=name + '_value_fc.w_0',
+                                  initializer=param_initializer),
+                              bias_attr=name + '_value_fc.b_0')
+                return q, k, v
         else:
-            q = _build_linear_column_parallel(queries, d_model, d_model, name+'_query_fc_'+str(topo.mp.rank), param_initializer, topo.mp.size)
-            k = _build_linear_column_parallel(keys, d_model, d_model, name+'_key_fc_'+str(topo.mp.rank), param_initializer, topo.mp.size)
-            v = _build_linear_column_parallel(values, d_model, d_model, name+'_value_fc_'+str(topo.mp.rank), param_initializer, topo.mp.size)
-        return q, k, v
+            if fuse:
+                # NOTE(wangxi): must use id, or will insert equal op
+                assert id(queries) == id(keys) == id(values)
+                qkv = _build_linear_column_parallel(queries, d_model, 3 * d_model, name + '_qkv_fc_' + str(topo.mp.rank),
+                                                  param_initializer, topo.mp.size)
+                return qkv
+            else:
+                q = _build_linear_column_parallel(queries, d_model, d_model, name+'_query_fc_'+str(topo.mp.rank), param_initializer, topo.mp.size)
+                k = _build_linear_column_parallel(keys, d_model, d_model, name+'_key_fc_'+str(topo.mp.rank), param_initializer, topo.mp.size)
+                v = _build_linear_column_parallel(values, d_model, d_model, name+'_value_fc_'+str(topo.mp.rank), param_initializer, topo.mp.size)
+                return q, k, v
 
     def __split_heads(x, n_head):
         """
@@ -138,6 +160,25 @@ def multi_head_attention(queries,
         # permuate the dimensions into:
         # [batch_size, n_head, max_sequence_len, hidden_size_per_head]
         return layers.transpose(x=reshaped, perm=[0, 2, 1, 3])
+
+    def __fuse_split_heads(x, n_head):
+        """
+        Reshape the last dimension of inpunt tensor x so that it becomes two
+        dimensions and then transpose. Specifically, input a tensor with shape
+        [bs, max_sequence_length, n_head * hidden_dim] then output a tensor
+        with shape [bs, n_head, max_sequence_length, hidden_dim].
+        """
+        hidden_size = x.shape[-1]
+        # The value 0 in shape attr means copying the corresponding dimension
+        # size of the input as the output dimension size.
+        reshaped = layers.reshape(
+            x=x, shape=[0, 0, n_head, hidden_size // n_head], inplace=True)
+
+        # permuate the dimensions into:
+        # [batch_size, n_head, max_sequence_len, hidden_size_per_head]
+        mix_layer = layers.transpose(x=reshaped, perm=[0, 2, 1, 3])
+        q, k, v = paddle.split(mix_layer, num_or_sections=3, axis=-1)
+        return q, k, v
 
     def __combine_heads(x):
         """
@@ -161,7 +202,7 @@ def multi_head_attention(queries,
         Scaled Dot-Product Attention
         """
         scaled_q = layers.scale(x=q, scale=d_key**-0.5)
-        product = layers.matmul(x=scaled_q, y=k, transpose_y=True)
+        product = paddle.matmul(x=scaled_q, y=k, transpose_y=True)
         if attn_bias:
             product += attn_bias
         weights = layers.softmax(product)
@@ -171,14 +212,17 @@ def multi_head_attention(queries,
                 dropout_prob=dropout_rate,
                 dropout_implementation="upscale_in_train",
                 is_test=False)
-        out = layers.matmul(weights, v)
+        out = paddle.matmul(weights, v)
         return out
 
     if topo.mp.size > 1:
         n_head = n_head // topo.mp.size
-    q, k, v = __compute_qkv(queries, keys, values, n_head, d_key, d_value)
+    if fuse:
+        qkv = __compute_qkv(queries, keys, values, n_head, d_key, d_value)
+    else:
+        q, k, v = __compute_qkv(queries, keys, values, n_head, d_key, d_value)
 
-    if cache is not None:  # use cache and concat time steps
+    if not fuse and cache is not None:  # use cache and concat time steps
         # Since the inplace reshape in __split_heads changes the shape of k and
         # v, which is the cache input for next time step, reshape the cache
         # input from the previous time step first.
@@ -189,9 +233,12 @@ def multi_head_attention(queries,
             [layers.reshape(
                 cache["v"], shape=[0, 0, d_model]), v], axis=1)
 
-    q = __split_heads(q, n_head)
-    k = __split_heads(k, n_head)
-    v = __split_heads(v, n_head)
+    if fuse:
+        q, k, v = __fuse_split_heads(qkv, n_head)
+    else:
+        q = __split_heads(q, n_head)
+        k = __split_heads(k, n_head)
+        v = __split_heads(v, n_head)
 
     ctx_multiheads = scaled_dot_product_attention(q, k, v, attn_bias, d_key,
                                                   dropout_rate)
@@ -568,7 +615,8 @@ def encoder(enc_input,
             name='',
             param_share=None,
             topo=None,
-            preln=False):
+            preln=False,
+            device="gpu"):
     """
     The encoder is composed of a stack of identical layers returned by calling
     encoder_layer .
@@ -598,9 +646,9 @@ def encoder(enc_input,
     layer_per_stage = n_layer // topo.pp.size
 
     for i in range(n_layer // n_layer_per_block):
-        with fluid.device_guard(f'gpu:{i//layer_per_stage}'):
-            attn_bias.stop_gradient = True
-            attn_bias.persistable = True
+        with fluid.device_guard(f'{device}:{i//layer_per_stage}'):
+            #attn_bias.stop_gradient = True
+            #attn_bias.persistable = True
             enc_output, cp = enc_fn(
                 enc_input,
                 attn_bias,
@@ -626,7 +674,7 @@ def encoder(enc_input,
             enc_input = enc_output
 
     if preln:
-        with fluid.device_guard(f'gpu:{topo.pp.size-1}'):
+        with fluid.device_guard(f'{device}:{topo.pp.size-1}'):
             enc_output = post_process_layer(
                 None,
                 enc_output,
@@ -634,7 +682,7 @@ def encoder(enc_input,
                 prepostprocess_dropout,
                 name='post_encoder',
                 epsilon=epsilon)
-    with fluid.device_guard(f'gpu:{topo.pp.size-1}'):
+    with fluid.device_guard(f'{device}:{topo.pp.size-1}'):
         enc_output = pre_process_layer(
             enc_output,
             preprocess_cmd,
