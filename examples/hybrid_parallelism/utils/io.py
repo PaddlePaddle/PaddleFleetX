@@ -120,20 +120,88 @@ def save_checkpoint(exe, save_path, train_program, num_sharding=1, num_pp=1):
         fluid.io.save_persistables(exe, save_path, train_program)
 
 def save_inference_model(dirname,
-                         feeded_vars,
-                         fetch_vars,
+                         feeded_var_names,
+                         fetch_var_names,
                          exe,
                          train_program,
                          num_sharding=1,
-                         num_pp=1):
+                         num_pp=1,
+                         is_first=False,
+                         is_last=False):
     if num_sharding > 1:
         raise Exception('num_sharding > 1 do not supported save_inference_model now.')
     elif num_pp > 1:
-        print('feeded_vars', feeded_vars)
-        print('fetch_vars', fetch_vars)
+        op_role_key = fluid.core.op_proto_and_checker_maker.kOpRoleAttrName()
+        op_role_forward = int(fluid.core.op_proto_and_checker_maker.OpRole.Forward)
+
+        ops = train_program._pipeline_opt['section_program'].global_block().ops
+        if is_first:
+            fetch_var_names = []
+            program_input_names = []
+            last_idx = -1
+            for idx, op in enumerate(ops):
+                if op.type == 'partial_send' and op.attr(op_role_key) == op_role_forward:
+                    fetch_var_names += op.input("X")
+                    last_idx = max(last_idx, idx)
+                elif op.type == 'read' and op.attr(op_role_key) == op_role_forward:
+                    program_input_names += op.output("Out")
+                    
+            for idx, op in enumerate(ops):
+                if idx > last_idx:
+                    break
+                for input_name in program_input_names:
+                    if input_name in op.input_arg_names and input_name not in feeded_var_names:
+                        feeded_var_names.append(input_name)
+                
+        elif is_last:
+            feeded_var_names = []
+            program_input_names = []
+            last_idx = -1
+            for idx, op in enumerate(ops):
+                if op.type == 'partial_recv' and op.attr(op_role_key) == op_role_forward:
+                    feeded_var_names += op.output("Out")
+                elif op.type == 'read' and op.attr(op_role_key) == op_role_forward:
+                    program_input_names += op.output("Out")
+                    
+                for output_name in fetch_var_names:
+                    if output_name in op.output_arg_names:
+                        last_idx = max(last_idx, idx)
+                        
+            for idx, op in enumerate(ops):
+                if idx > last_idx:
+                    break
+                for input_name in program_input_names:
+                    if input_name in op.input_arg_names and input_name not in feeded_var_names:
+                        feeded_var_names.append(input_name)
+                        
+        else:
+            feeded_var_names = []
+            fetch_var_names = []
+            program_input_names = []
+            last_idx = -1
+            for idx, op in enumerate(ops):
+                if op.type == 'partial_recv' and op.attr(op_role_key) == op_role_forward:
+                    feeded_var_names += op.output("Out")
+                elif op.type == 'partial_send' and op.attr(op_role_key) == op_role_forward:
+                    fetch_var_names += op.input("X")
+                    last_idx = max(last_idx, idx)
+                elif op.type == 'read' and op.attr(op_role_key) == op_role_forward:
+                    program_input_names += op.output("Out")
+                    
+            for idx, op in enumerate(ops):
+                if idx > last_idx:
+                    break
+                for input_name in program_input_names:
+                    if input_name in op.input_arg_names and input_name not in feeded_var_names:
+                        feeded_var_names.append(input_name)
+
+        feeded_vars = [train_program.global_block().vars[var_name] for var_name in feeded_var_names]
+        fetch_vars = [train_program.global_block().vars[var_name] for var_name in fetch_var_names]
+                    
         paddle.static.save_inference_model(dirname, feeded_vars, fetch_vars, exe,
             program=train_program._pipeline_opt['section_program'])
-#            program=train_program)
     else: 
+        feeded_vars = [train_program.global_block().vars[var_name] for var_name in feeded_var_names]
+        fetch_vars = [train_program.global_block().vars[var_name] for var_name in fetch_var_names]
         paddle.static.save_inference_model(dirname, feeded_vars, fetch_vars, exe,
             program=train_program)

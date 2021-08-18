@@ -251,9 +251,13 @@ def train(args):
                     sharding=args.num_sharding,
                     mp=args.num_mp)
 
+    is_first = False
     is_last = False
+    if topo.pp.rank == 0:
+        is_first = True
     if topo.pp.rank == (topo.pp.size - 1):
         is_last = True
+
 
     dp_sharding_rank = topo.dp.rank * topo.sharding.size + topo.sharding.rank
     # dp and sharding are both data parallelism and need to take an unique partition of global batch size
@@ -518,18 +522,10 @@ def train(args):
                         break
                     save_path = os.path.join(save_model_dir, 'rank_' + str(fleet.worker_index()), 'final_step_' + str(steps))
                     save_checkpoint(exe, save_path, train_program, args.num_sharding, args.num_pp)
-#                    inference_model_save_path = os.path.join(inference_model_dir, 'rank_' + str(fleet.worker_index()), 'final_step_' + str(steps))
-#                    if not is_last:
-#                        feeded_var_names = ['src_ids', 'sent_ids', 'pos_ids']
-#                        feeded_vars = [train_program.global_block().vars[var_name] for var_name in feeded_var_names]
-#                        fetch_var_names = ['layer_norm_2.tmp_2']
-#                        fetch_vars = [train_program.global_block().vars[var_name] for var_name in fetch_var_names]
-#                    else:
-#                        feeded_var_names = ['layer_norm_2.tmp_2']
-#                        feeded_vars = [train_program.global_block().vars[var_name] for var_name in feeded_var_names]
-#                        fetch_var_names = ['fc_9.tmp_1']
-#                        fetch_vars = [train_program.global_block().vars[var_name] for var_name in fetch_var_names]
-#                    save_inference_model(inference_model_save_path, feeded_vars, fetch_vars, exe, train_program, args.num_sharding, args.num_pp)
+
+                    inference_model_save_path = os.path.join(inference_model_dir, 'rank_' + str(fleet.worker_index()), 'final_step_' + str(steps))
+                    save_inference_model(inference_model_save_path, args.exported_feeded_var_names, args.exported_fetch_var_names, exe, train_program, args.num_sharding, args.num_pp, is_first, is_last)
+
                     log.debug("saving final models to {}".format(save_path))
                     log.debug("end of training, total steps: {}".format(steps))
                     break
