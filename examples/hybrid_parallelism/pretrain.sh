@@ -33,23 +33,23 @@ fi
 
 python -m paddle.distributed.fleet.launch \
     --gpus=${gpus} \
-	--log_dir ${output_dir}/log \
+    --log_dir ${output_dir}/log \
 run_pretraining.py \
-	--global_bsz ${global_bsz} \
-	--micro_bsz ${micro_bsz} \
-	--max_seq_len 512 \
-	--ernie_config_file ./config/ernie_small_base_config.json \
-	--learning_rate 1e-4 \
-	--log_steps 1 \
-	--num_train_steps 10 \
-	--save_steps 10 \
-	--output_dir ${output_dir} \
-	--use_recompute true \
+    --global_bsz ${global_bsz} \
+    --micro_bsz ${micro_bsz} \
+    --max_seq_len 512 \
+    --ernie_config_file ./config/ernie_small_base_config.json \
+    --learning_rate 1e-4 \
+    --log_steps 1 \
+    --num_train_steps 10 \
+    --save_steps 10 \
+    --output_dir ${output_dir} \
+    --use_recompute true \
     --use_sharding ${use_sharding} \
-	--num_mp=${num_mp} \
-	--num_sharding=1 \
-	--num_pp=${num_pp} \
-	--num_dp=${num_dp} \
+    --num_mp=${num_mp} \
+    --num_sharding=1 \
+    --num_pp=${num_pp} \
+    --num_dp=${num_dp} \
     --debug ${debug} \
     --init_checkpoint ${output_dir}/saved_model_pp${num_pp}mp${num_mp} \
     --init_checkpoint_step -1 \

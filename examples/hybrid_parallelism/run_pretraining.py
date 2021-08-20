@@ -185,33 +185,55 @@ def create_model(args, phase, micro_bsz, dp_sharding_rank, dp_sharding_worldsize
     return graph_vars
 
 
-def create_broadcast_program(ref_program, ring_id=0, root_rank=0):
+def create_broadcast_program(ref_program, main_program=None, ring_id=0, root_rank=0):
     broadcast_program = fluid.Program()
     from paddle.fluid.framework import Parameter
+    from paddle.fluid import core
+    
     def is_parameter(var):
         return isinstance(var, Parameter)
+    
+    def is_persistable(var):
+        if var.desc.type() == core.VarDesc.VarType.FEED_MINIBATCH or \
+            var.desc.type() == core.VarDesc.VarType.FETCH_LIST or \
+            var.desc.type() == core.VarDesc.VarType.READER:
+            return False
+        return var.persistable
 
-    parameter_list = list(filter(is_parameter, ref_program.list_vars()))
+    persistable_list = list(filter(is_persistable, ref_program.list_vars()))
+    
+    if main_program is not None:
+        main_parameter_list = list(filter(is_parameter, main_program.list_vars()))
+        main_parameter_dict = {p.name : p for p in main_parameter_list}
 
     # create vars
     broadcast_main_block = broadcast_program.global_block()
-    broadcast_params = []
-    for param in parameter_list:
-        if not param.is_distributed:
-            print("[broadcast program] create var: {}".format(param.name))
-            gradient_merge_var = broadcast_main_block.create_parameter(
-                name=param.name,
-                shape=param.shape,
-                dtype=param.dtype,
-                type=param.type,
-                stop_gradient=param.stop_gradient)
-            broadcast_params.append(param)
+    broadcast_vars = []
+    for var in persistable_list:
+        if var.name in main_parameter_dict and not main_parameter_dict[var.name].is_distributed:
+            print("[broadcast program] create var: {}".format(var.name))
+            if is_parameter(var):
+                gradient_merge_var = broadcast_main_block.create_parameter(
+                    name=var.name,
+                    shape=var.shape,
+                    dtype=var.dtype,
+                    type=var.type,
+                    stop_gradient=var.stop_gradient)                
+            else:
+                gradient_merge_var = broadcast_main_block.create_var(
+                    name=var.name,
+                    shape=var.shape,
+                    dtype=var.dtype,
+                    type=var.type,
+                    stop_gradient=var.stop_gradient,
+                    persistable=var.persistable)
+            broadcast_vars.append(var)
 
     # append ops
     with fluid.program_guard(broadcast_program, None):
         with fluid.unique_name.guard():
-            for param in broadcast_params:
-                fluid.layers.collective._c_broadcast(param, root=root_rank, ring_id=ring_id, use_calc_stream=True)
+            for var in broadcast_vars:
+                fluid.layers.collective._c_broadcast(var, root=root_rank, ring_id=ring_id, use_calc_stream=True)
 
     return broadcast_program
 
@@ -376,9 +398,9 @@ def train(args):
                 log.info("applied_meta_list: {}".format(applied_meta_list))
 
     if args.num_mp > 1 and args.num_pp == 1:
-        broadcast_program = create_broadcast_program(train_program)
+        broadcast_program = create_broadcast_program(train_program, train_program)
     elif args.num_mp > 1 and args.num_pp > 1:
-        broadcast_program = create_broadcast_program(train_program._pipeline_opt['section_program'])
+        broadcast_program = create_broadcast_program(train_program._pipeline_opt['section_program'], train_program)
 
     if args.use_quantize:
         from paddle.fluid.contrib.slim.quantization.quantize_transpiler_v2 import QuantizeTranspilerV2
