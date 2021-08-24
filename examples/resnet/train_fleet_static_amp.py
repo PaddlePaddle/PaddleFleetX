@@ -18,6 +18,7 @@ import ast
 import paddle
 from paddle.distributed import fleet
 import resnet_static as resnet
+from enable_ir_pass import update_strategy, fix_seed
 import os
 
 base_lr = 0.1
@@ -47,7 +48,7 @@ def get_train_loader(feed_list, place):
 
         return __reader__
     train_reader = paddle.batch(
-            reader_decorator(paddle.dataset.flowers.train(use_xmap=True)),
+            reader_decorator(paddle.dataset.flowers.train(use_xmap=False)),
             batch_size=batch_size,
             drop_last=True)
     train_loader = paddle.io.DataLoader.from_generator(
@@ -60,6 +61,7 @@ def get_train_loader(feed_list, place):
 
 def train_resnet():
     paddle.enable_static()
+    fix_seed()
     paddle.vision.set_image_backend('cv2')
 
     image = paddle.static.data(name="x", shape=[None, 3, 224, 224], dtype='float32')
@@ -76,6 +78,7 @@ def train_resnet():
     train_loader = get_train_loader([image, label], place)
 
     strategy = fleet.DistributedStrategy()
+    strategy.without_graph_optimization = paddle.fluid.core.globals()['FLAGS_apply_pass_to_program']
 
     strategy.amp = True
     strategy.amp_configs = {

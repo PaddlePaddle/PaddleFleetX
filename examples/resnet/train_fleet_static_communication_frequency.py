@@ -47,7 +47,7 @@ def get_train_loader(feed_list, place):
 
         return __reader__
     train_reader = paddle.batch(
-            reader_decorator(paddle.dataset.flowers.train(use_xmap=True)),
+            reader_decorator(paddle.dataset.flowers.train(use_xmap=False)),
             batch_size=batch_size,
             drop_last=True)
     train_loader = paddle.io.DataLoader.from_generator(
@@ -60,6 +60,7 @@ def get_train_loader(feed_list, place):
 
 def train_resnet():
     paddle.enable_static()
+    fix_seed()
     paddle.vision.set_image_backend('cv2')
 
     image = paddle.static.data(name="x", shape=[None, 3, 224, 224], dtype='float32')
@@ -80,7 +81,7 @@ def train_resnet():
     exe_strategy = paddle.static.ExecutionStrategy()
     exe_strategy.num_threads = 3
     strategy.execution_strategy = exe_strategy
-
+    update_strategy(strategy)
     fleet.init(is_collective=True, strategy=strategy)
     optimizer = optimizer_setting()
     optimizer = fleet.distributed_optimizer(optimizer)
