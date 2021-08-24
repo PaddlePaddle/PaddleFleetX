@@ -78,7 +78,6 @@ def train_resnet():
     train_loader = get_train_loader([image, label], place)
 
     strategy = fleet.DistributedStrategy()
-    strategy.without_graph_optimization = paddle.fluid.core.globals()['FLAGS_apply_pass_to_program']
     strategy.adaptive_localsgd = True 
     strategy.adaptive_localsgd_configs = { 
         "init_k_steps": 1, 

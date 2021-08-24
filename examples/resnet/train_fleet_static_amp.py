@@ -78,7 +78,6 @@ def train_resnet():
     train_loader = get_train_loader([image, label], place)
 
     strategy = fleet.DistributedStrategy()
-    strategy.without_graph_optimization = paddle.fluid.core.globals()['FLAGS_apply_pass_to_program']
 
     strategy.amp = True
     strategy.amp_configs = {
@@ -91,6 +90,7 @@ def train_resnet():
         "custom_white_list": [],
         "custom_black_list": [],
     }
+    update_strategy(strategy)
     fleet.init(is_collective=True, strategy=strategy)
     optimizer = optimizer_setting()
     optimizer = fleet.distributed_optimizer(optimizer)

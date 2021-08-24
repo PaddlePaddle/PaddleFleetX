@@ -18,6 +18,7 @@ import ast
 import paddle
 from paddle.distributed import fleet
 import resnet_static as resnet
+from enable_ir_pass import update_strategy, fix_seed
 import os
 
 base_lr = 0.1
