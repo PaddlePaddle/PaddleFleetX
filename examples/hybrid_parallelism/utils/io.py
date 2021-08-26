@@ -140,7 +140,7 @@ def save_inference_model(dirname,
             program_input_names = []
             last_idx = -1
             for idx, op in enumerate(ops):
-                if op.type == 'partial_send' and op.attr(op_role_key) == op_role_forward:
+                if (op.type == 'partial_send' or op.type == 'send_v2') and op.attr(op_role_key) == op_role_forward:
                     fetch_var_names += op.input("X")
                     last_idx = max(last_idx, idx)
                 elif op.type == 'read' and op.attr(op_role_key) == op_role_forward:
@@ -158,7 +158,7 @@ def save_inference_model(dirname,
             program_input_names = []
             last_idx = -1
             for idx, op in enumerate(ops):
-                if op.type == 'partial_recv' and op.attr(op_role_key) == op_role_forward:
+                if (op.type == 'partial_recv' or op.type == 'recv_v2') and op.attr(op_role_key) == op_role_forward:
                     feeded_var_names += op.output("Out")
                 elif op.type == 'read' and op.attr(op_role_key) == op_role_forward:
                     program_input_names += op.output("Out")
@@ -180,9 +180,9 @@ def save_inference_model(dirname,
             program_input_names = []
             last_idx = -1
             for idx, op in enumerate(ops):
-                if op.type == 'partial_recv' and op.attr(op_role_key) == op_role_forward:
+                if (op.type == 'partial_recv' or op.type == 'recv_v2') and op.attr(op_role_key) == op_role_forward:
                     feeded_var_names += op.output("Out")
-                elif op.type == 'partial_send' and op.attr(op_role_key) == op_role_forward:
+                elif (op.type == 'partial_send' or op.type == 'send_v2') and op.attr(op_role_key) == op_role_forward:
                     fetch_var_names += op.input("X")
                     last_idx = max(last_idx, idx)
                 elif op.type == 'read' and op.attr(op_role_key) == op_role_forward:
