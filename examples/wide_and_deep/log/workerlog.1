@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "train.py", line 105, in <module>
+    optimizer.minimize(model.cost)
+  File "/opt/conda/envs/optest/lib/python3.7/site-packages/paddle/distributed/fleet/base/fleet_base.py", line 1455, in minimize
+    loss, startup_program, parameter_list, no_grad_set=no_grad_set)
+  File "/opt/conda/envs/optest/lib/python3.7/site-packages/paddle/distributed/fleet/meta_optimizers/meta_optimizer_base.py", line 95, in minimize
+    loss, startup_program, parameter_list, no_grad_set)
+  File "/opt/conda/envs/optest/lib/python3.7/site-packages/paddle/distributed/fleet/meta_optimizers/parameter_server_optimizer.py", line 308, in minimize_impl
+    strategy = self._get_distributed_strategy()
+  File "/opt/conda/envs/optest/lib/python3.7/site-packages/paddle/distributed/fleet/meta_optimizers/parameter_server_optimizer.py", line 61, in _get_distributed_strategy
+    from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler.distributed_strategy import StrategyFactory
+  File "/opt/conda/envs/optest/lib/python3.7/site-packages/paddle/fluid/incubate/fleet/parameter_server/distribute_transpiler/__init__.py", line 39, in <module>
+    from paddle.fluid.incubate.fleet.parameter_server.ir.public import get_sparse_tablenames
+  File "/opt/conda/envs/optest/lib/python3.7/site-packages/paddle/fluid/incubate/fleet/parameter_server/ir/public.py", line 26, in <module>
+    from paddle.fluid.core import CommContext
+ImportError: cannot import name 'CommContext' from 'paddle.fluid.core_avx' (/opt/conda/envs/optest/lib/python3.7/site-packages/paddle/fluid/core_avx.so)
