@@ -1,42 +1,29 @@
-set -x
-export PADDLE_WITH_GLOO=0
-export FLAGS_call_stack_level=2
-export FLAGS_allocator_strategy=naive_best_fit
-unset CUDA_VISIBLE_DEVICES
+#!/bin/bash
+set -eux
 
-rm -rf *.prototxt
-rm -rf core.*
-rm -rf start_sharding*
-rm -rf main_sharding*
+if [[ $# < 2 ]]; then
+    echo "input: job_type (mp|dp|dpmp|auto_mp|auto_dp|auto_dpmp) cards"
+    exit -1
+fi
 
-task_name="gpt-hybrid-ce"
-rm -rf output/$task_name/log
+job_type=$1
+gpu_card=$2
+debug=false
 
-PYTHONPATH=../ python3 -u -m paddle.distributed.fleet.launch \
-    --gpus "0,1,2,3,4,5,6,7" \
-    --log_dir "output/$task_name/log" run_pretrain_static.py \
-    --model_type "gpt" \
-    --model_name_or_path "gpt2-en" \
-    --input_dir "./data" \
-    --output_dir "output/$task_name" \
-    --max_seq_len 1024 \
-    --micro_batch_size 4 \
-    --global_batch_size 16 \
-    --sharding_degree 1\
-    --mp_degree 2 \
-    --dp_degree 4 \
-    --pp_degree 1 \
-    --use_sharding true \
-    --use_amp true \
-    --use_recompute true \
-    --max_lr 0.00015 \
-    --min_lr 0.00001 \
-    --max_steps 500000 \
-    --save_steps 100000 \
-    --decay_steps 320000 \
-    --weight_decay 0.01\
-    --warmup_rate 0.01 \
-    --grad_clip 1.0 \
-    --logging_freq 1\
-    --eval_freq 1000 \
-    --device "gpu"
+if [[ $# == 3 ]]; then
+    debug=true
+fi
+
+echo ${debug}
+
+echo ${gpu_card}
+# echo ${job_type}
+
+if [[ ${job_type} == auto* ]];then
+    job_conf="run_auto_parallel_"${job_type:5}".sh"
+else
+    job_conf="run_hybrid_parallel_"${job_type}".sh"
+fi
+
+# echo ${job_conf}
+sh ${job_conf} ${gpu_card} ${debug}

@@ -24,26 +24,20 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Unsupported value encountered.')
 
 
-def parse_args(MODEL_CLASSES):
+def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--model_type",
         default=None,
         type=str,
         required=True,
-        help="Model type selected in the list: " +
-        ", ".join(MODEL_CLASSES.keys()), )
+        help="Model type selected in the list: " )
     parser.add_argument(
         "--model_name_or_path",
         default=None,
         type=str,
         required=True,
-        help="Path to pre-trained model or shortcut name selected in the list: "
-        + ", ".join(
-            sum([
-                list(classes[-1].pretrained_init_configuration.keys())
-                for classes in MODEL_CLASSES.values()
-            ], [])), )
+        help="Path to pre-trained model or shortcut name selected in the list: ")
 
     # Train I/O config
     parser.add_argument(
@@ -232,6 +226,18 @@ def parse_args(MODEL_CLASSES):
         type=str,
         default=None,
         help="split pipeline layers")
+    parser.add_argument(
+        "--debug",
+        type=str2bool,
+        nargs='?',
+        const=False,
+        help="Whether to enable the debug mode."
+    )
+    parser.add_argument(
+        "--checkpoint_path",
+        type=str,
+        default=None,
+        help="Where to load model checkpoint.")
 
     args = parser.parse_args()
     args.test_iters = args.eval_iters

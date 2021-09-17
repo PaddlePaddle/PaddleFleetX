@@ -30,8 +30,9 @@ mv train.data.json_ids.npz data
 ```
 
 ## 飞桨4D混合并行训练
-飞桨4D混合并行，使用sharding、模型并行、流水线并行和数据并行策略，使得训练千亿参数规模的模型成为可能。在本示例中，我们提供了基于飞桨最新混合并行策略的GPT预训练模型。运行下面脚本，即可进行模型预训练：
+飞桨4D混合并行，使用sharding、模型并行、流水线并行和数据并行策略，使得训练千亿参数规模的模型成为可能。在本示例中，我们提供了基于飞桨最新混合并行策略的GPT预训练模型。运行下面脚本，指定参数(mp|dp|pp|dp_mp|pp_dp|pp_dp_mp|pp_mp)，即可进行模型预训练对应模型：
 ```shell
-sh run_static.sh
+sh run_static.sh mp "0,1"
 ```
 用户可以根据自己的机器资源，灵活调整并行策略，选择最合适的策略来训练模型。更多关于混合并行策略的的例子详见[飞桨4D混合并行训练使用指南](https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/collective/collective_mp/hybrid_parallelism.html)
+
