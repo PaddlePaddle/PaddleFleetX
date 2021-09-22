@@ -180,10 +180,6 @@ def _build_sample_idx(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch):
 
 
 def _build_shuffle_idx(num_samples, total_size, np_rng):
-    print("_build_shuffle_idx: ")
-    print("num_samples: ", num_samples)
-    print("total_size: ", total_size)
-    print("np_rng: ", np_rng)
     dtype_ = np.uint32
     if total_size >= (np.iinfo(np.uint32).max - 1):
         dtype_ = np.int64
@@ -291,10 +287,6 @@ def create_pretrained_dataset(
                 labels = []
                 loss_mask = []
                 for step, data in enumerate(dataset):
-                    # print("=" * 20)
-                    # print("step: ", step)
-                    # print(len(data))
-                    
                     inputs = [np.array(x) for x in data]
                     tokens.append(inputs[0])
                     position_ids.append(inputs[1])
@@ -328,9 +320,6 @@ def create_pretrained_dataset(
     # Note, data should be broardcast to all devices.
     # for train, valid, test, the distinct data num is topo.data_info.size
     # data_worldsize * data_inner_times -> topo.world.size
-    print("args.micro_batch_size: ", args.micro_batch_size)
-    print("args.max_step: ", args.max_steps)
-    print("topo.data_info.size: ", topo.data_info.size)
     train_data_loader = build_dataset(0, "train", args.micro_batch_size *
                                       args.max_steps * topo.data_info.size)
     if pipeline_mode:
@@ -377,7 +366,6 @@ class GPTDataset(paddle.io.Dataset):
         self.doc_idx, self.sample_idx, self.shuffle_idx = \
             construct_samples_and_shuffle_data(self.name, self.file_path, document_ids,\
                 self.sample_lens, num_samples, max_seq_len, seed, topo.world.rank)
-        print("shuffle_idx: ", self.shuffle_idx)
         # The doc cumsum start pos
         self.start_pos = [0] + np.cumsum(self.sample_lens).tolist()
 

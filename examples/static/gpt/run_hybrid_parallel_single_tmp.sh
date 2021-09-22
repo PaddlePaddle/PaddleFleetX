@@ -1,27 +1,29 @@
 export FLAGS_START_PORT=17888
-CUDA_VISIBLE_DEVICES=0,1
+gpu_card=$1
+CUDA_VISIBLE_DEVICES=${gpu_card}
 
-output_dir="./output/hybrid_mp2"
+output_dir="./output/single"
 mkdir "./output/"
 mkdir $output_dir
-rm -rf $output_dir/workerlog.*
+rm -rf $output_dir/*
+rm -rf ./data/*.npy
 
 python3 -m paddle.distributed.fleet.launch \
     --log_dir ${output_dir} \
-    --gpus="0,1" \
+    --gpus=${gpu_card} \
     test_hybrid_parallel.py \
     --model_type "gpt" \
     --model_name_or_path "gpt2-en" \
     --input_dir "./data" \
     --output_dir ${output_dir} \
     --max_seq_len 512 \
-    --micro_batch_size 4 \
-    --global_batch_size 4 \
+    --micro_batch_size 8 \
+    --global_batch_size 8 \
     --sharding_degree 1\
-    --mp_degree 2 \
+    --mp_degree 1 \
     --dp_degree 1 \
     --pp_degree 1 \
-    --use_sharding true \
+    --use_sharding false \
     --use_amp false \
     --use_recompute false \
     --max_lr 0.00015 \

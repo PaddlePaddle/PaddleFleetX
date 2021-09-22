@@ -1,15 +1,16 @@
 export FLAGS_START_PORT=17888
-CUDA_VISIBLE_DEVICES=0,1
+gpu_card=$1
+CUDA_VISIBLE_DEVICES=${gpu_card}
 
-output_dir="./output/hybrid_mp2"
+output_dir="./output/auto_mp2"
 mkdir "./output/"
 mkdir $output_dir
 rm -rf $output_dir/workerlog.*
 
 python3 -m paddle.distributed.fleet.launch \
     --log_dir ${output_dir} \
-    --gpus="0,1" \
-    test_hybrid_parallel.py \
+    --gpus=${gpu_card} \
+    test_auto_parallel.py \
     --model_type "gpt" \
     --model_name_or_path "gpt2-en" \
     --input_dir "./data" \
@@ -34,5 +35,4 @@ python3 -m paddle.distributed.fleet.launch \
     --grad_clip 0 \
     --logging_freq 1\
     --eval_freq 100000 \
-    --device "gpu" \
-    --debug $2
+    --device "gpu"

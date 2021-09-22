@@ -54,16 +54,36 @@ def init_checkpoint(exe, init_checkpoint_path, main_program, train_program=None)
     def existed_persitables(var):
         if not fluid.io.is_persistable(var):
             return False
+        # is_distributed role to rule out mp params
+        # block = paddle.static.default_main_program().global_block()
         if train_program:
             block = train_program.global_block()
-            # pipeline may change the variable name
-            if block.has_var(var.name):
-                var = block.var(var.name)
-                # the grad is not parameter
-                if not fluid.io.is_parameter(var) or var.is_distributed :
+            re_str1 = "_pow_acc_0"
+            re_str2 = "_moment"
+            var_name = var.name
+            print("var_name: ", var_name)
+            if re_str1 in var.name:
+                var_name = "_".join(var.name.split(re_str1)[0].split("_")[:-1])
+                print("original var: ", var.name)
+                print("now var: ", var_name)
+            if re_str2 in var.name:
+                var_name = var.name.split(re_str2)[0]
+                print("original var: ", var.name)
+                print("now var: ", var_name)
+            # pipeline may change the variable name, the variable belongs to grad
+            if block.has_var(var_name):
+                var_master = block.var(var_name)
+                if fluid.io.is_parameter(var_master) and var_master.is_distributed:
+                    print("===============")
                     print("rule out ", var.name)
+                    print("is param ", fluid.io.is_parameter(var_master))
+                    print("is_distributed ", var_master.is_distributed)
+                    print("===============")
                     return False
-            return False
+                else:
+                    return os.path.exists(os.path.join(init_checkpoint_path, var.name))
+            else:
+                return False
         return os.path.exists(os.path.join(init_checkpoint_path, var.name))
 
     fluid.io.load_vars(
@@ -119,8 +139,6 @@ def gpt_pretrain_forward(args, train_program, start_program, topo):
     from modeling import GPTModel, GPTForPretraining, GPTPretrainingCriterion
     with static.program_guard(train_program,
                               start_program), utils.unique_name.guard():
-        # with paddle.static.device_guard("gpu:0"):
-        # batch_size =  args.global_batch_size // args.dp_degree
         sequence_len = 512
         tokens = static.data(
             name="tokens", shape=[-1, sequence_len], dtype='int64')
@@ -176,10 +194,6 @@ def gpt_pretrain_forward(args, train_program, start_program, topo):
                     op._set_attr("op_role", 16)
                     op._set_attr("op_device", f"gpu:%d" % (args.pp_degree-1))
         
-        if topo.dp_info.size > 1 and topo.mp_info.size == 1 and topo.pp_info.size==1:
-            paddle.distributed.all_reduce(loss_vars["total_loss"])
-            loss_vars["total_loss"] /= topo.dp_info.size
-
     return train_program, start_program, loss_vars, train_data_loader
 
 def dist_optimizer(args, topo):
@@ -203,8 +217,6 @@ def dist_optimizer(args, topo):
 
     dist_strategy.recompute = args.use_recompute
     dist_strategy.pipeline = args.pp_degree > 1
-
-    # dist_strategy.without_graph_optimization = True
 
     if args.use_amp:
         dist_strategy.amp = True
@@ -236,6 +248,7 @@ def dist_optimizer(args, topo):
 
 
     if args.pp_degree > 1:
+
         dist_strategy.pipeline_configs = {
             "schedule_mode": "F-then-B",
             "micro_batch_size": micro_batch_size,
@@ -276,7 +289,6 @@ def main(args):
                               start_program), utils.unique_name.guard():
         optimizer = paddle.fluid.optimizer.AdamOptimizer(
             learning_rate=0.00001,
-            # learning_rate=0.1,
             beta1=0.9,
             beta2=0.999,
             epsilon=1e-08,
@@ -304,8 +316,6 @@ def main(args):
     place = paddle.set_device("gpu")
     exe = paddle.static.Executor(place)
     exe.run(start_program)
-    print("args.debug: ", args.debug)
-
     if args.debug and args.pp_degree > 1:
         args.checkpoint_path = "/home/liji09/moe_demo/auto_parallel/final_ce/auto_parallel_model/gpt/checkpoint/0"
         checkpoint_path = args.checkpoint_path
@@ -313,16 +323,20 @@ def main(args):
             with open(args.output_dir + "/section_program.txt.%d" % (paddle.distributed.get_rank()), 'w') as f:
                 f.write(str(train_program._pipeline_opt['section_program']))
             init_checkpoint(exe, checkpoint_path, \
-                            train_program._pipeline_opt['section_program'], train_program)       
+                            train_program._pipeline_opt['section_program'], train_program)
+            
         else:
             init_checkpoint(exe, checkpoint_path, train_program)
+    import time
     if args.pp_degree == 1:
         fetchs = [loss_vars["total_loss"]]
         for eval_step, batch in enumerate(train_data_loader):
-            if eval_step >= 30:
+            start = time.time()
+            if eval_step >= 50:
                 break
             loss = exe.run(train_program, feed=batch, fetch_list=fetchs)
             print("loss: ", np.asarray(loss))
+            print("time: ", time.time() - start)
     else:
         eval_step = 0
         while True:
@@ -339,6 +353,9 @@ def main(args):
                     break
             train_data_loader.reset()
             break
+
+
+
 
 def print_param(program):
     from paddle.fluid.framework import Parameter
@@ -380,10 +397,7 @@ def create_data_loader(args, data_holders, topo):
     train_data_loader, valid_data_loader, test_data_loader = create_pretrained_dataset(
         args,
         data_file,
-        # data_world_size=topo.data_info.size,
-        # data_world_rank=topo.data_info.rank,
         topo,
-        # eos_id=eod_id,
         eod_id=eod_id,
         max_seq_len=args.max_seq_len,
         places=paddle.static.cuda_places(),
