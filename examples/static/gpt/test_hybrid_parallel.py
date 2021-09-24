@@ -61,24 +61,14 @@ def init_checkpoint(exe, init_checkpoint_path, main_program, train_program=None)
             re_str1 = "_pow_acc_0"
             re_str2 = "_moment"
             var_name = var.name
-            print("var_name: ", var_name)
             if re_str1 in var.name:
                 var_name = "_".join(var.name.split(re_str1)[0].split("_")[:-1])
-                print("original var: ", var.name)
-                print("now var: ", var_name)
             if re_str2 in var.name:
                 var_name = var.name.split(re_str2)[0]
-                print("original var: ", var.name)
-                print("now var: ", var_name)
             # pipeline may change the variable name, the variable belongs to grad
             if block.has_var(var_name):
                 var_master = block.var(var_name)
                 if fluid.io.is_parameter(var_master) and var_master.is_distributed:
-                    print("===============")
-                    print("rule out ", var.name)
-                    print("is param ", fluid.io.is_parameter(var_master))
-                    print("is_distributed ", var_master.is_distributed)
-                    print("===============")
                     return False
                 else:
                     return os.path.exists(os.path.join(init_checkpoint_path, var.name))
@@ -213,7 +203,6 @@ def dist_optimizer(args, topo):
     dist_strategy = fleet.DistributedStrategy()
     dist_strategy.execution_strategy = exec_strategy
     dist_strategy.nccl_comm_num = 3
-    print("dist_strategy.a_sync", dist_strategy.a_sync)
 
     dist_strategy.recompute = args.use_recompute
     dist_strategy.pipeline = args.pp_degree > 1
@@ -226,7 +215,7 @@ def dist_optimizer(args, topo):
             "use_dynamic_loss_scaling": True,
         }
 
-    if args.use_sharding:
+    if args.mp_degree > 1 or args.pp_degree > 1:
         if args.mp_degree > 1 and \
                 args.pp_degree == 1 and args.sharding_degree == 1:
             dist_strategy.tensor_parallel = True
@@ -245,7 +234,6 @@ def dist_optimizer(args, topo):
     else:
         if args.dp_degree > 1:
             dist_strategy.without_graph_optimization = True
-
 
     if args.pp_degree > 1:
 
@@ -316,7 +304,8 @@ def main(args):
     place = paddle.set_device("gpu")
     exe = paddle.static.Executor(place)
     exe.run(start_program)
-    if args.debug and args.pp_degree > 1:
+    is_single = (args.dp_degree == 1 and args.mp_degree == 1 and args.pp_degree == 1)
+    if args.debug and (args.pp_degree > 1 or is_single):
         args.checkpoint_path = "/home/liji09/moe_demo/auto_parallel/final_ce/auto_parallel_model/gpt/checkpoint/0"
         checkpoint_path = args.checkpoint_path
         if train_program._pipeline_opt:
@@ -330,15 +319,14 @@ def main(args):
     import time
     if args.pp_degree == 1:
         fetchs = [loss_vars["total_loss"]]
-        for eval_step, batch in enumerate(train_data_loader):
+        for step, batch in enumerate(train_data_loader):
             start = time.time()
-            if eval_step >= 50:
+            if step >= 30:
                 break
             loss = exe.run(train_program, feed=batch, fetch_list=fetchs)
-            print("loss: ", np.asarray(loss))
-            print("time: ", time.time() - start)
+            print("step: ", step, "loss: ", np.asarray(loss))
     else:
-        eval_step = 0
+        step = 0
         while True:
             train_data_loader.start()
             while True:
@@ -347,9 +335,9 @@ def main(args):
                 else:
                     fetchs = [loss_vars["pp_total_loss"]]
                 ret = exe.run(train_program, fetch_list=fetchs)
-                print("eval_step: ", eval_step, "loss_print: ", ret)
-                eval_step += 1
-                if eval_step >= 30:
+                print("step: ", step, "loss_print: ", ret)
+                step += 1
+                if step >= 30:
                     break
             train_data_loader.reset()
             break

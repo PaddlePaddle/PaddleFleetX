@@ -1,11 +1,10 @@
-export FLAGS_START_PORT=17888
 gpu_card=$1
 CUDA_VISIBLE_DEVICES=${gpu_card}
-
-output_dir="./output/hybrid_dp2mp2"
+output_dir=$2
 mkdir "./output/"
 mkdir $output_dir
-rm -rf $output_dir/workerlog.*
+rm -rf $output_dir/*
+rm -rf ./data/*.npy
 
 python3 -m paddle.distributed.fleet.launch \
     --log_dir ${output_dir} \
@@ -16,13 +15,6 @@ python3 -m paddle.distributed.fleet.launch \
     --input_dir "./data" \
     --output_dir ${output_dir} \
     --max_seq_len 512 \
-    --micro_batch_size 2 \
-    --global_batch_size 4 \
-    --sharding_degree 1\
-    --mp_degree 2 \
-    --dp_degree 2 \
-    --pp_degree 1 \
-    --use_sharding true \
     --use_amp false \
     --use_recompute false \
     --max_lr 0.00015 \
@@ -36,4 +28,4 @@ python3 -m paddle.distributed.fleet.launch \
     --logging_freq 1\
     --eval_freq 100000 \
     --device "gpu" \
-    --debug $2
+    ${@:3}
