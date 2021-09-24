@@ -19,8 +19,8 @@ import os
 import numpy as np
 import paddle
 from paddle.io import DataLoader, Dataset
-from paddlenlp.data import Stack, Tuple, Pad
-from paddlenlp.utils.log import logger
+from modeling_utils.data import Stack, Tuple, Pad
+from modeling_utils.utils.log import logger
 
 
 def construct_samples_and_shuffle_data(name, data_prefix, documents, sizes,
@@ -248,7 +248,6 @@ def create_pretrained_dataset(
     # The len(sample_lens) num of docs
     # The sum(sample_lens) should equal len(sample_ids)
     sample_lens = process_datas["lens"]
-    print("sample_lens: ", sample_lens)
 
     splits = get_train_valid_test_split_(args.split, len(sample_lens))
     assert len(sample_lens) >= splits[

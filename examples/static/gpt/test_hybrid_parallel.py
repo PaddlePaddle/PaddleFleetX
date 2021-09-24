@@ -33,7 +33,8 @@ from paddle.distributed.fleet import fleet
 import paddle.static as static
 from paddle.distributed import fleet
 from args import parse_args
-import paddlenlp
+# import paddlenlp
+import modeling_utils
 import global_setting
 import re
 
@@ -148,7 +149,7 @@ def gpt_pretrain_forward(args, train_program, start_program, topo):
             data_holders = [tokens, loss_mask, attention_mask, position_ids, labels] 
             train_data_loader, valid_data_loader, test_data_loader = create_data_loader(args, data_holders, topo)
     
-        gpt = paddlenlp.ops.guard(f'gpu:0')(GPTModel)(
+        gpt = modeling_utils.ops.guard(f'gpu:0')(GPTModel)(
             vocab_size=50304,
             hidden_size=768,
             num_hidden_layers=2,
@@ -167,12 +168,12 @@ def gpt_pretrain_forward(args, train_program, start_program, topo):
             topo=topo,
             debug=args.debug)
 
-        model = paddlenlp.ops.guard(f'gpu:{args.pp_degree-1}')(GPTForPretraining)(
+        model = modeling_utils.ops.guard(f'gpu:{args.pp_degree-1}')(GPTForPretraining)(
             gpt, vocab_size=50304, hidden_size=768, initializer_range=0.02)
 
         preds = model(tokens, position_ids, attention_mask)
 
-        criterion = paddlenlp.ops.guard(f'gpu:{args.pp_degree-1}')(GPTPretrainingCriterion)(args, topo)
+        criterion = modeling_utils.ops.guard(f'gpu:{args.pp_degree-1}')(GPTPretrainingCriterion)(args, topo)
 
         loss_vars = criterion(preds, labels, loss_mask)
 
@@ -250,7 +251,7 @@ def dist_optimizer(args, topo):
 
 def main(args):
 
-    from paddlenlp.ops import Topology
+    from modeling_utils.ops import Topology
     worker_num = paddle.distributed.get_world_size()
     worker_index = paddle.distributed.get_rank()
 
@@ -374,7 +375,7 @@ def get_train_data_file(path):
 def create_data_loader(args, data_holders, topo):
 
     from dataset import create_pretrained_dataset
-    from paddlenlp.transformers import GPTTokenizer, GPTChineseTokenizer
+    from modeling_utils.transformers import GPTTokenizer, GPTChineseTokenizer
 
     data_file = get_train_data_file("./data")
 

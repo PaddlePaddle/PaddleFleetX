@@ -34,7 +34,7 @@ import paddle.distributed.auto_parallel as auto
 from paddle.distributed.auto_parallel.context import get_default_distributed_context
 from paddle.distributed import fleet
 from args import parse_args
-import paddlenlp
+import modeling_utils
 import global_setting
 
 paddle.enable_static()
@@ -108,7 +108,7 @@ class MultiHeadAttention(nn.Layer):
             if self.fuse:
                 assert self.kdim == embed_dim
                 assert self.vdim == embed_dim
-                self.qkv_proj = paddlenlp.ops.ColumnParallelLiner(
+                self.qkv_proj = modeling_utils.ops.ColumnParallelLiner(
                     (embed_dim, 3 * embed_dim),
                     topo.mp_info.size,
                     gather_out=False,
@@ -131,26 +131,26 @@ class MultiHeadAttention(nn.Layer):
                     weight_attr2 = weight_attr
 
 
-                self.q_proj = paddlenlp.ops.ColumnParallelLiner(
+                self.q_proj = modeling_utils.ops.ColumnParallelLiner(
                     (embed_dim, embed_dim),
                     topo.mp_info.size,
                     gather_out=False,
                     param_attr=weight_attr1,
                     bias_attr=bias_attr)
-                self.k_proj = paddlenlp.ops.ColumnParallelLiner(
+                self.k_proj = modeling_utils.ops.ColumnParallelLiner(
                     (self.kdim, embed_dim),
                     topo.mp_info.size,
                     gather_out=False,
                     param_attr=weight_attr1,
                     bias_attr=bias_attr)
-                self.v_proj = paddlenlp.ops.ColumnParallelLiner(
+                self.v_proj = modeling_utils.ops.ColumnParallelLiner(
                     (self.vdim, embed_dim),
                     topo.mp_info.size,
                     gather_out=False,
                     param_attr=weight_attr1,
                     bias_attr=bias_attr)
 
-            self.out_proj = paddlenlp.ops.RowParallelLiner(
+            self.out_proj = modeling_utils.ops.RowParallelLiner(
                 (embed_dim, embed_dim),
                 topo.mp_info.size,
                 input_is_parallel=True,
@@ -343,7 +343,6 @@ class TransformerDecoder(nn.Layer):
             self.norm = nn.LayerNorm(hidden_size)
         elif norm is not None:
             raise ValueError("Only support LayerNorm")
-        self.block = paddle.static.default_main_program().global_block()
         self.checkpoints = []
         self.debug = debug
 
@@ -429,8 +428,6 @@ class TransformerDecoderLayer(nn.Layer):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
-        self.block = paddle.static.default_main_program().global_block()
-
 
         super(TransformerDecoderLayer, self).__init__()
         attn_dropout = dropout if attn_dropout is None else attn_dropout
@@ -487,13 +484,13 @@ class TransformerDecoderLayer(nn.Layer):
             else:
                 weight_attr1 = weight_attrs[2]
                 weight_attr2 = weight_attrs[2]
-            self.linear1 = paddlenlp.ops.ColumnParallelLiner(
+            self.linear1 = modeling_utils.ops.ColumnParallelLiner(
                 (d_model, dim_feedforward),
                 topo.mp_info.size,
                 gather_out=False,
                 param_attr=weight_attr1,
                 bias_attr=bias_attrs[2])
-            self.linear2 = paddlenlp.ops.RowParallelLiner(
+            self.linear2 = modeling_utils.ops.RowParallelLiner(
                 (dim_feedforward, d_model),
                 topo.mp_info.size,
                 input_is_parallel=True,
@@ -604,7 +601,7 @@ class GPTEmbeddings(nn.Layer):
                     mean=0.0, std=initializer_range))
 
 
-            self.word_embeddings = paddlenlp.ops.ParallelEmbedding(
+            self.word_embeddings = modeling_utils.ops.ParallelEmbedding(
                 vocab_size,
                 hidden_size,
                 topo,
@@ -675,8 +672,6 @@ class GPTModel(nn.Layer):
         self.topo = topo
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
-        self.block = paddle.static.default_main_program().global_block()
-
 
         self.pipline_mode = topo is not None and topo.pp_info.size > 1
         if self.pipline_mode:
@@ -691,7 +686,7 @@ class GPTModel(nn.Layer):
         for i in range(num_hidden_layers):
             DecoderLayer = TransformerDecoderLayer
             if self.pipline_mode:
-                DecoderLayer = paddlenlp.ops.guard('gpu:{}'.format(
+                DecoderLayer = modeling_utils.ops.guard('gpu:{}'.format(
                     i // self.layer_per_stage))(TransformerDecoderLayer)
             decoder_layers.append(
                 DecoderLayer(
@@ -709,7 +704,7 @@ class GPTModel(nn.Layer):
                     topo=topo, debug=debug))
 
         if self.pipline_mode:
-            Decoder = paddlenlp.ops.guard('gpu:{}'.format(
+            Decoder = modeling_utils.ops.guard('gpu:{}'.format(
                 self.topo.pp_info.size - 1))(TransformerDecoder)
         else:
             Decoder = TransformerDecoder
@@ -743,8 +738,7 @@ class GPTModel(nn.Layer):
             # .expand_as(input_ids)
             position_ids = paddle.fluid.layers.expand_as(position_ids,
                                                          input_ids)
-        print("input_ids.name", input_ids.name)
-        print("has var: ", self.block.has_var(input_ids.name))
+
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
 
@@ -832,7 +826,6 @@ class GPTPretrainingCriterion(nn.Layer):
 
     def __init__(self, args=None, topo=None):
         super(GPTPretrainingCriterion, self).__init__()
-        self.block = paddle.static.default_main_program().global_block()
         self.topo = topo
         self.args = args
         self.loss_func = paddle.nn.CrossEntropyLoss(reduction="none")
