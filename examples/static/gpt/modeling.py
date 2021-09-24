@@ -35,7 +35,6 @@ from paddle.distributed.auto_parallel.context import get_default_distributed_con
 from paddle.distributed import fleet
 from args import parse_args
 import modeling_utils
-import global_setting
 
 paddle.enable_static()
 
@@ -173,13 +172,6 @@ class MultiHeadAttention(nn.Layer):
         """
         q = self.q_proj(query)
 
-        if global_setting._global_parallel_stratergy == "mp":
-            auto.shard_tensor(
-                self.q_proj.weight, global_setting._global_process_mesh, dim_mapping=[-1, 0])
-        elif global_setting._global_parallel_stratergy == "dp_mp":
-            auto.shard_tensor(
-                self.q_proj.weight, global_setting._global_process_mesh, dim_mapping=[-1, 1])
-
         q = tensor.reshape(x=q, shape=[0, 0, self.num_heads, self.head_dim])
         q = tensor.transpose(x=q, perm=[0, 2, 1, 3])
 
@@ -210,21 +202,7 @@ class MultiHeadAttention(nn.Layer):
         """
         k = self.k_proj(key)
 
-        if global_setting._global_parallel_stratergy == "mp":
-            auto.shard_tensor(
-                self.k_proj.weight, global_setting._global_process_mesh, dim_mapping=[-1, 0])
-        elif global_setting._global_parallel_stratergy == "dp_mp":
-            auto.shard_tensor(
-                self.k_proj.weight, global_setting._global_process_mesh, dim_mapping=[-1, 1])
-
         v = self.v_proj(value)
-
-        if global_setting._global_parallel_stratergy == "mp":
-            auto.shard_tensor(
-                self.v_proj.weight, global_setting._global_process_mesh, dim_mapping=[-1, 0])
-        elif global_setting._global_parallel_stratergy == "dp_mp":
-            auto.shard_tensor(
-                self.v_proj.weight, global_setting._global_process_mesh, dim_mapping=[-1, 1])
 
         k = tensor.reshape(x=k, shape=[0, 0, self.num_heads, self.head_dim])
         k = tensor.transpose(x=k, perm=[0, 2, 1, 3])
@@ -302,17 +280,6 @@ class MultiHeadAttention(nn.Layer):
         
         # project to output
         out = self.out_proj(out)
-        if global_setting._global_parallel_stratergy == "mp":
-            auto.shard_tensor(
-                self.out_proj.weight,
-                global_setting._global_process_mesh,
-                dim_mapping=[0, -1])
-        elif global_setting._global_parallel_stratergy == "dp_mp":
-            auto.shard_tensor(
-                self.out_proj.weight,
-                global_setting._global_process_mesh,
-                dim_mapping=[1, -1])
-
         outs = [out]
         if self.need_weights:
             outs.append(weights)
@@ -523,24 +490,6 @@ class TransformerDecoderLayer(nn.Layer):
         if self.normalize_before:
             tgt = self.norm2(tgt)
 
-        if global_setting._global_parallel_stratergy == "mp":
-            auto.shard_tensor(
-                self.linear1.weight, global_setting._global_process_mesh,
-                dim_mapping=[-1, 0])
-        elif global_setting._global_parallel_stratergy == "dp_mp":
-            auto.shard_tensor(
-                self.linear1.weight, global_setting._global_process_mesh,
-                dim_mapping=[-1, 1])
-
-        if global_setting._global_parallel_stratergy == "mp":
-            auto.shard_tensor(
-                self.linear2.weight, global_setting._global_process_mesh,
-                dim_mapping=[0, -1])
-        elif global_setting._global_parallel_stratergy == "dp_mp":
-            auto.shard_tensor(
-                self.linear2.weight, global_setting._global_process_mesh,
-                dim_mapping=[1, -1])
-
         tgt = self.dropout2(
             self.linear2(F.gelu(
                 self.linear1(tgt), approximate=True)))
@@ -624,17 +573,6 @@ class GPTEmbeddings(nn.Layer):
             position_ids = seq_length - ones
 
         input_embedings = self.word_embeddings(input_ids)
-
-        if global_setting._global_parallel_stratergy == "mp":
-            auto.shard_tensor(
-                self.word_embeddings.weight,
-                global_setting._global_process_mesh,
-                dim_mapping=[0, -1])
-        elif global_setting._global_parallel_stratergy == "dp_mp":
-            auto.shard_tensor(
-                self.word_embeddings.weight,
-                global_setting._global_process_mesh,
-                dim_mapping=[1, -1])
 
         position_embeddings = self.position_embeddings(position_ids)
         embeddings = input_embedings + position_embeddings
