@@ -1,2 +1,2 @@
-from .modeling import *
+# from .modeling import *
 from .tokenizer import GPTChineseTokenizer
