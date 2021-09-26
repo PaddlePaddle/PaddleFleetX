@@ -5,6 +5,7 @@ GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupe
 
 本项目是语言模型 GPT 的 PaddlePaddle 实现。
 
+
 ## 快速开始
 
 ### 环境依赖
@@ -34,6 +35,7 @@ mv train.data.json_ids.npz data
 ```shell
 sh run.sh "0,1" "./output/dp" --micro_batch_size 4 --global_batch_size 8 --mp_degree 1 --dp_degree 2 --pp_degree 1 --debug true
 ```
+
 参数解释：
 "0,1": 指定对应的gpu卡
 "./output/dp": 指定日志输出路径

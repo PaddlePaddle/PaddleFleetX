@@ -35,10 +35,9 @@ import paddle
 import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
 import paddle.fluid.profiler as profiler
-from paddle.distributed.fleet.meta_optimizers.sharding.utils import add_sync_comm, save_persistables
 
 from pretraining_args import define_args
-from utils.init import init_checkpoint, init_pretraining_params, checkpoint_rearrange
+from utils.io import init_checkpoint, checkpoint_rearrange, save_checkpoint, save_inference_model
 from utils.topo import Topology
 from utils.random import get_rng_state_tracker
 from propeller import log
@@ -175,6 +174,7 @@ def create_model(args, phase, micro_bsz, dp_sharding_rank, dp_sharding_worldsize
             )
 
     graph_vars = {
+        'feeded_vars': inputs,
         'data_loader': data_loader,
         'mask_lm_loss': mask_lm_loss,
         'mean_mask_lm_loss': mean_mask_lm_loss,
@@ -185,33 +185,55 @@ def create_model(args, phase, micro_bsz, dp_sharding_rank, dp_sharding_worldsize
     return graph_vars
 
 
-def create_broadcast_program(ref_program, ring_id=0, root_rank=0):
+def create_broadcast_program(ref_program, main_program=None, ring_id=0, root_rank=0):
     broadcast_program = fluid.Program()
     from paddle.fluid.framework import Parameter
+    from paddle.fluid import core
+    
     def is_parameter(var):
         return isinstance(var, Parameter)
+    
+    def is_persistable(var):
+        if var.desc.type() == core.VarDesc.VarType.FEED_MINIBATCH or \
+            var.desc.type() == core.VarDesc.VarType.FETCH_LIST or \
+            var.desc.type() == core.VarDesc.VarType.READER:
+            return False
+        return var.persistable
 
-    parameter_list = list(filter(is_parameter, ref_program.list_vars()))
+    persistable_list = list(filter(is_persistable, ref_program.list_vars()))
+    
+    if main_program is not None:
+        main_parameter_list = list(filter(is_parameter, main_program.list_vars()))
+        main_parameter_dict = {p.name : p for p in main_parameter_list}
 
     # create vars
     broadcast_main_block = broadcast_program.global_block()
-    broadcast_params = []
-    for param in parameter_list:
-        if not param.is_distributed:
-            print("[broadcast program] create var: {}".format(param.name))
-            gradient_merge_var = broadcast_main_block.create_parameter(
-                name=param.name,
-                shape=param.shape,
-                dtype=param.dtype,
-                type=param.type,
-                stop_gradient=param.stop_gradient)
-            broadcast_params.append(param)
+    broadcast_vars = []
+    for var in persistable_list:
+        if var.name in main_parameter_dict and not main_parameter_dict[var.name].is_distributed:
+            print("[broadcast program] create var: {}".format(var.name))
+            if is_parameter(var):
+                gradient_merge_var = broadcast_main_block.create_parameter(
+                    name=var.name,
+                    shape=var.shape,
+                    dtype=var.dtype,
+                    type=var.type,
+                    stop_gradient=var.stop_gradient)                
+            else:
+                gradient_merge_var = broadcast_main_block.create_var(
+                    name=var.name,
+                    shape=var.shape,
+                    dtype=var.dtype,
+                    type=var.type,
+                    stop_gradient=var.stop_gradient,
+                    persistable=var.persistable)
+            broadcast_vars.append(var)
 
     # append ops
     with fluid.program_guard(broadcast_program, None):
         with fluid.unique_name.guard():
-            for param in broadcast_params:
-                fluid.layers.collective._c_broadcast(param, root=root_rank, ring_id=ring_id, use_calc_stream=True)
+            for var in broadcast_vars:
+                fluid.layers.collective._c_broadcast(var, root=root_rank, ring_id=ring_id, use_calc_stream=True)
 
     return broadcast_program
 
@@ -251,9 +273,13 @@ def train(args):
                     sharding=args.num_sharding,
                     mp=args.num_mp)
 
+    is_first = False
     is_last = False
+    if topo.pp.rank == 0:
+        is_first = True
     if topo.pp.rank == (topo.pp.size - 1):
         is_last = True
+
 
     dp_sharding_rank = topo.dp.rank * topo.sharding.size + topo.sharding.rank
     # dp and sharding are both data parallelism and need to take an unique partition of global batch size
@@ -372,9 +398,9 @@ def train(args):
                 log.info("applied_meta_list: {}".format(applied_meta_list))
 
     if args.num_mp > 1 and args.num_pp == 1:
-        broadcast_program = create_broadcast_program(train_program)
+        broadcast_program = create_broadcast_program(train_program, train_program)
     elif args.num_mp > 1 and args.num_pp > 1:
-        broadcast_program = create_broadcast_program(train_program._pipeline_opt['section_program'])
+        broadcast_program = create_broadcast_program(train_program._pipeline_opt['section_program'], train_program)
 
     if args.use_quantize:
         from paddle.fluid.contrib.slim.quantization.quantize_transpiler_v2 import QuantizeTranspilerV2
@@ -411,6 +437,7 @@ def train(args):
         optimizer.amp_init(place)
 
     save_model_dir = os.path.join(args.output_dir, 'saved_model_pp%dmp%d'%(args.num_pp, args.num_mp))
+    inference_model_dir = os.path.join(args.output_dir, 'inference_model_pp%dmp%d'%(args.num_pp, args.num_mp))
     save_steps = args.save_steps
     total_time = 0
     cost_vals, lm_losses, sop_accs = [], [], []
@@ -510,23 +537,17 @@ def train(args):
                         continue
                     save_path = os.path.join(save_model_dir, 'rank_' + str(fleet.worker_index()), 'step_' + str(steps))
                     log.debug("saving models to {}".format(save_path))
-                    if args.num_sharding > 1:
-                        save_persistables(exe, save_path, train_program)
-                    elif args.num_pp > 1:
-                        paddle.fluid.io.save_persistables(exe, save_path, train_program._pipeline_opt['section_program'])
-                    else: 
-                        paddle.fluid.io.save_persistables(exe, save_path, train_program)
+                    save_checkpoint(exe, save_path, train_program, args.num_sharding, args.num_pp)
 
                 if steps == num_train_steps:
                     if topo.dp.rank > 0:
                         break
                     save_path = os.path.join(save_model_dir, 'rank_' + str(fleet.worker_index()), 'final_step_' + str(steps))
-                    if args.num_sharding > 1:
-                        save_persistables(exe, save_path, train_program)
-                    elif args.num_pp > 1:
-                        paddle.fluid.io.save_persistables(exe, save_path, train_program._pipeline_opt['section_program'])
-                    else: 
-                        paddle.fluid.io.save_persistables(exe, save_path, train_program)
+                    save_checkpoint(exe, save_path, train_program, args.num_sharding, args.num_pp)
+
+                    inference_model_save_path = os.path.join(inference_model_dir, 'rank_' + str(fleet.worker_index()), 'final_step_' + str(steps))
+                    save_inference_model(inference_model_save_path, args.exported_feeded_var_names, args.exported_fetch_var_names, exe, train_program, args.num_sharding, args.num_pp, is_first, is_last)
+
                     log.debug("saving final models to {}".format(save_path))
                     log.debug("end of training, total steps: {}".format(steps))
                     break
@@ -605,23 +626,13 @@ def train(args):
                     continue
                 save_path = os.path.join(save_model_dir, 'rank_' + str(fleet.worker_index()), 'step_' + str(steps))
                 log.debug("saving models to {}".format(save_path))
-                if args.num_sharding > 1:
-                    save_persistables(exe, save_path, train_program)
-                elif args.num_pp > 1:
-                    paddle.fluid.io.save_persistables(exe, save_path, train_program._pipeline_opt['section_program'])
-                else: 
-                    paddle.fluid.io.save_persistables(exe, save_path, train_program)
+                save_checkpoint(exe, save_path, train_program, args.num_sharding, args.num_pp)
 
             if steps == num_train_steps:
                 if topo.dp.rank > 0:
                     break
                 save_path = os.path.join(save_model_dir, 'rank_' + str(fleet.worker_index()), 'final_step_' + str(steps))
-                if args.num_sharding > 1:
-                    save_persistables(exe, save_path, train_program)
-                elif args.num_pp > 1:
-                    paddle.fluid.io.save_persistables(exe, save_path, train_program._pipeline_opt['section_program'])
-                else: 
-                    paddle.fluid.io.save_persistables(exe, save_path, train_program)
+                save_checkpoint(exe, save_path, train_program, args.num_sharding, args.num_pp)
                 log.debug("saving final models to {}".format(save_path))
                 log.debug("end of training, total steps: {}".format(steps))
                 break

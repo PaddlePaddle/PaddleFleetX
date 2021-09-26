@@ -323,6 +323,7 @@ def create_pretrained_dataset(
     #                                   args.max_steps * topo.data_info.size)
     train_data_loader = build_dataset(0, "train", 
                                       args.max_steps * args.global_batch_size)
+
     if pipeline_mode:
         valid_data_loader, test_data_loader = None, None
     else:
@@ -368,6 +369,7 @@ class GPTDataset(paddle.io.Dataset):
         self.doc_idx, self.sample_idx, self.shuffle_idx = \
             construct_samples_and_shuffle_data(self.name, self.file_path, document_ids,\
                 self.sample_lens, num_samples, max_seq_len, seed, device_world_rank)
+
         # The doc cumsum start pos
         self.start_pos = [0] + np.cumsum(self.sample_lens).tolist()
 
