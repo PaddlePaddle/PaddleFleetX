@@ -23,7 +23,7 @@ from datasets import load_dataset
 import paddle.static as static
 import paddle.distributed.fleet as fleet
 
-from model import BoWModel, BiLSTMAttentionModel, CNNModel, LSTMModel, GRUModel, RNNModel, SelfInteractiveAttention
+from model import RNNModel
 from utils import convert_example
 
 paddle.enable_static()
@@ -93,7 +93,9 @@ def rnn_pretrain_forward(args, train_program, start_program, topo=None):
         tokens = static.data(name="tokens", shape=[batch_size, -1], dtype="int64")
         seq_len = static.data(name="ids", shape=[batch_size], dtype="int64")
         labels = static.data(name="labels", shape=[batch_size], dtype="int64")
-        
+        # paddle.fluid.layers.Print(tokens, message="tokens")
+        # paddle.fluid.layers.Print(seq_len, message="seq_len")
+        # paddle.fluid.layers.Print(labels, message="labels")
         data_holders = [tokens, seq_len, labels]
         # Loads vocab.
         if not os.path.exists(args.vocab_path):
@@ -117,6 +119,7 @@ def rnn_pretrain_forward(args, train_program, start_program, topo=None):
             direction='forward',
             padding_idx=pad_token_id,
             pooling_type='max')
+        
 
         # Reads data and generates mini-batches.
         tokenizer = JiebaTokenizer(vocab)
@@ -152,7 +155,7 @@ def rnn_pretrain_forward(args, train_program, start_program, topo=None):
         preds = model(tokens, seq_len)
         loss = criterion(preds, labels)
 
-    return train_program, start_program, loss, train_loader, optimizer
+    return train_program, start_program, loss, train_loader, optimizer, data_holders
 
 
 
@@ -163,12 +166,12 @@ if __name__ == "__main__":
     # place = paddle.set_device("gpu")
     train_program = static.Program()
     start_program = static.Program()
-    train_program, start_program, loss, train_loader, optimizer = \
+    train_program, start_program, loss, train_loader, optimizer, data_holders = \
         rnn_pretrain_forward(args, train_program, start_program)
     with paddle.static.program_guard(train_program, start_program), paddle.utils.unique_name.guard():
         strategy = fleet.DistributedStrategy()
         strategy.without_graph_optimization = False
-        strategy.fuse_all_reduce_ops = False
+        strategy.fuse_all_reduce_ops = False # rnn 内部会做一次fuse操作
         fleet.init(is_collective=True, strategy=strategy)
         optimizer = fleet.distributed_optimizer(optimizer)
         optimizer.minimize(loss)
@@ -180,6 +183,9 @@ if __name__ == "__main__":
         f.write(str(train_program))
     for i in range(10):
         for eval_step, batch in enumerate(train_loader):
+            # if eval_step == 0:
+            #     fetch.extend(list(batch[0].values()))
+            # print("batch: ", batch)
             loss = exe.run(train_program, feed=batch, fetch_list=fetch)
             print("epoch: ", i, "step: ", eval_step, " loss: ", loss[0])
 
