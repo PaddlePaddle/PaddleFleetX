@@ -3,7 +3,8 @@
 ## 模型介绍
 GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)/[3](https://arxiv.org/pdf/2005.14165.pdf) 是以[Transformer](https://arxiv.org/abs/1706.03762) 解码器为网络基本组件，使用自回归的方式在大规模无标注文本语料上进行预训练得到的语言生成模型。
 
-本项目是语言模型 GPT 的 PaddlePaddle 实现，FOR CE。
+本项目是语言模型 GPT 的 PaddlePaddle 实现。
+
 
 ## 快速开始
 
@@ -34,5 +35,16 @@ mv train.data.json_ids.npz data
 ```shell
 sh run.sh "0,1" "./output/dp" --micro_batch_size 4 --global_batch_size 8 --mp_degree 1 --dp_degree 2 --pp_degree 1 --debug true
 ```
+
+参数解释：
+"0,1": 指定对应的gpu卡
+"./output/dp": 指定日志输出路径
+--micro_batch_size: 指定dp或者pp的batch size
+--global_batch_size: 指定总的batch size
+--mp_degree: 指定mp对应的卡数
+--dp_degree: 指定dp对应的卡数
+--pp_degree: 指定pp对应的卡数
+--debug: 开启debug模式，可以和单卡对齐的模式
+
 用户可以根据自己的机器资源，灵活调整并行策略，选择最合适的策略来训练模型。更多关于混合并行策略的的例子详见[飞桨4D混合并行训练使用指南](https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/collective/collective_mp/hybrid_parallelism.html)
 

@@ -31,13 +31,16 @@ def parse_args():
         default=None,
         type=str,
         required=True,
-        help="Model type selected in the list: " )
+        help="Model type selected in the list: ['gpt', 'gpt-cn']" )
+    
+
     parser.add_argument(
         "--model_name_or_path",
         default=None,
         type=str,
         required=True,
-        help="Path to pre-trained model or shortcut name selected in the list: ")
+        help="Path to pre-trained model or shortcut name selected in the list: ['gpt', 'gpt-cn']")
+
 
     # Train I/O config
     parser.add_argument(
@@ -169,7 +172,7 @@ def parse_args():
         "--sharding_degree",
         type=int,
         default=1,
-        help="Sharding degree. Share the parameters to many cards.")
+        help="Sharding degree. Shard the parameters to many cards.")
     parser.add_argument(
         "--dp_degree", type=int, default=1, help="Data Parallelism degree.")
     parser.add_argument(

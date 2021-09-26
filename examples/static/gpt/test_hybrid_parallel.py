@@ -35,7 +35,6 @@ from paddle.distributed import fleet
 from args import parse_args
 # import paddlenlp
 import modeling_utils
-import global_setting
 import re
 
 paddle.enable_static()
@@ -254,10 +253,6 @@ def main(args):
     from modeling_utils.ops import Topology
     worker_num = paddle.distributed.get_world_size()
     worker_index = paddle.distributed.get_rank()
-
-    global_setting.init_global()
-    global_setting._global_parallel_stratergy = None 
-    global_setting._global_process_mesh = None
 
     topo = Topology(
     device_rank=worker_index,
