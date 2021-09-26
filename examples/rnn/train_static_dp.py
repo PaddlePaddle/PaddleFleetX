@@ -93,9 +93,6 @@ def rnn_pretrain_forward(args, train_program, start_program, topo=None):
         tokens = static.data(name="tokens", shape=[batch_size, -1], dtype="int64")
         seq_len = static.data(name="ids", shape=[batch_size], dtype="int64")
         labels = static.data(name="labels", shape=[batch_size], dtype="int64")
-        # paddle.fluid.layers.Print(tokens, message="tokens")
-        # paddle.fluid.layers.Print(seq_len, message="seq_len")
-        # paddle.fluid.layers.Print(labels, message="labels")
         data_holders = [tokens, seq_len, labels]
         # Loads vocab.
         if not os.path.exists(args.vocab_path):
@@ -135,19 +132,6 @@ def rnn_pretrain_forward(args, train_program, start_program, topo=None):
             batch_size=args.batch_size,
             mode='train',
             batchify_fn=batchify_fn, data_holders=data_holders, dp_degree=args.dp_degree)
-        # dev_loader = create_dataloader(
-        #     dev_ds,
-        #     trans_fn=trans_fn,
-        #     batch_size=args.batch_size,
-        #     mode='validation',
-        #     batchify_fn=batchify_fn)
-        # test_loader = create_dataloader(
-        #     test_ds,
-        #     trans_fn=trans_fn,
-        #     batch_size=args.batch_size,
-        #     mode='test',
-        #     batchify_fn=batchify_fn)
-                # Defines loss and metric.
 
         optimizer = paddle.optimizer.Adam(
             parameters=model.parameters(), learning_rate=args.lr)
@@ -163,7 +147,6 @@ if __name__ == "__main__":
     paddle.set_device(args.device)
     set_seed()
     place = paddle.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
-    # place = paddle.set_device("gpu")
     train_program = static.Program()
     start_program = static.Program()
     train_program, start_program, loss, train_loader, optimizer, data_holders = \
@@ -171,7 +154,7 @@ if __name__ == "__main__":
     with paddle.static.program_guard(train_program, start_program), paddle.utils.unique_name.guard():
         strategy = fleet.DistributedStrategy()
         strategy.without_graph_optimization = False
-        strategy.fuse_all_reduce_ops = False # rnn 内部会做一次fuse操作
+        strategy.fuse_all_reduce_ops = False
         fleet.init(is_collective=True, strategy=strategy)
         optimizer = fleet.distributed_optimizer(optimizer)
         optimizer.minimize(loss)
@@ -183,9 +166,6 @@ if __name__ == "__main__":
         f.write(str(train_program))
     for i in range(10):
         for eval_step, batch in enumerate(train_loader):
-            # if eval_step == 0:
-            #     fetch.extend(list(batch[0].values()))
-            # print("batch: ", batch)
             loss = exe.run(train_program, feed=batch, fetch_list=fetch)
             print("epoch: ", i, "step: ", eval_step, " loss: ", loss[0])
 
