@@ -12,10 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# from .model_utils import PretrainedModel, register_base_model
 from .tokenizer_utils import PretrainedTokenizer
-# from .attention_utils import create_bigbird_rand_mask_idx_list
-
-# from .gpt.modeling import *
 from .gpt.tokenizer import *
-from .transformer.modeling import *

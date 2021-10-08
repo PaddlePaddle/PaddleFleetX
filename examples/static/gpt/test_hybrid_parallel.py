@@ -302,7 +302,6 @@ def main(args):
     exe.run(start_program)
     is_single = (args.dp_degree == 1 and args.mp_degree == 1 and args.pp_degree == 1)
     if args.debug and (args.pp_degree > 1 or is_single):
-        args.checkpoint_path = "/home/liji09/moe_demo/auto_parallel/final_ce/auto_parallel_model/gpt/checkpoint/0"
         checkpoint_path = args.checkpoint_path
         if train_program._pipeline_opt:
             with open(args.output_dir + "/section_program.txt.%d" % (paddle.distributed.get_rank()), 'w') as f:
@@ -312,31 +311,22 @@ def main(args):
             
         else:
             init_checkpoint(exe, checkpoint_path, train_program)
-    import time
-    if args.pp_degree == 1:
-        fetchs = [loss_vars["total_loss"]]
-        for step, batch in enumerate(train_data_loader):
-            start = time.time()
-            if step >= 30:
-                break
-            loss = exe.run(train_program, feed=batch, fetch_list=fetchs)
-            print("step: ", step, "loss: ", np.asarray(loss))
-    else:
-        step = 0
+
+    step = 0
+    while True:
+        train_data_loader.start()
         while True:
-            train_data_loader.start()
-            while True:
-                if args.pp_degree == 1:
-                    fetchs = [loss_vars["total_loss"]]
-                else:
-                    fetchs = [loss_vars["pp_total_loss"]]
-                ret = exe.run(train_program, fetch_list=fetchs)
-                print("step: ", step, "loss_print: ", ret)
-                step += 1
-                if step >= 30:
-                    break
-            train_data_loader.reset()
-            break
+            if args.pp_degree == 1:
+                fetchs = [loss_vars["total_loss"]]
+            else:
+                fetchs = [loss_vars["pp_total_loss"]]
+            ret = exe.run(train_program, fetch_list=fetchs)
+            print("step: ", step, "loss_print: ", ret)
+            step += 1
+            if step >= 20000:
+                break
+        train_data_loader.reset()
+        break
 
 
 
@@ -386,7 +376,7 @@ def create_data_loader(args, data_holders, topo):
         max_seq_len=args.max_seq_len,
         places=paddle.static.cuda_places(),
         data_holders=data_holders,
-        pipeline_mode=args.pp_degree > 1)
+        pipeline_mode=True)
     return train_data_loader, valid_data_loader, test_data_loader 
 
 
