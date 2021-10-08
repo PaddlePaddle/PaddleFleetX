@@ -23,9 +23,9 @@ import inspect
 import paddle
 from paddle.nn import Layer
 # TODO(fangzeyang) Temporary fix and replace by paddle framework downloader later
-from paddlenlp.utils.downloader import get_path_from_url
-from paddlenlp.utils.env import MODEL_HOME
-from paddlenlp.utils.log import logger
+from model_utils.utils.downloader import get_path_from_url
+from model_utils.utils.env import MODEL_HOME
+from model_utils.utils.log import logger
 
 from .generation_utils import GenerationMixin
 from .utils import InitTrackerMeta, fn_args_to_dict

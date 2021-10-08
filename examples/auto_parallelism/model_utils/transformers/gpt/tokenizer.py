@@ -20,8 +20,8 @@ import json
 import jieba
 import shutil
 from paddle.utils import try_import
-from paddlenlp.data import Vocab
-from paddlenlp.utils.log import logger
+from model_utils.data import Vocab
+from model_utils.utils.log import logger
 
 from .. import PretrainedTokenizer
 from ..tokenizer_utils import convert_to_unicode, whitespace_tokenize,\

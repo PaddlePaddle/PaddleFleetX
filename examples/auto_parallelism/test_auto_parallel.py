@@ -185,7 +185,7 @@ def main(args):
 
     train_program = static.Program()
     start_program = static.Program()
-    train_program, start_program, loss, valid_data_loader = gpt_pretrain_forward(args, train_program, start_program, topo)
+    train_program, start_program, loss, train_data_loader = gpt_pretrain_forward(args, train_program, start_program, topo)
 
 
     # different from hybrid parallel
@@ -222,7 +222,7 @@ def main(args):
 
     if args.pp_degree < 2:
         fetchs = [loss]
-        for eval_step, batch in enumerate(valid_data_loader):
+        for eval_step, batch in enumerate(train_data_loader):
             if eval_step >= 30:
                 break
             loss = exe.run(distributed_main_program, feed=batch, fetch_list=fetchs)
@@ -230,7 +230,7 @@ def main(args):
     
     if args.pp_degree > 1 and args.dp_degree >= 1 and args.mp_degree == 1:
         while True:
-            valid_data_loader.start()
+            train_data_loader.start()
             eval_step = 0
             while True:
                 fetchs = [loss]
@@ -247,7 +247,7 @@ def main(args):
 
     if args.pp_degree > 1 and args.mp_degree > 1 and args.dp_degree == 1:
         while True:
-            valid_data_loader.start()
+            train_data_loader.start()
             eval_step = 0
             while True:
                 fetchs = [loss]
@@ -264,14 +264,14 @@ def main(args):
 
     if args.pp_degree > 1 and args.mp_degree > 1 and args.dp_degree > 1:
         while True:
-            valid_data_loader.start()
+            train_data_loader.start()
+            eval_step = 0
             while True:
-                fetchs = ["tokens"]
                 if paddle.distributed.get_rank() in [0, 1, 4, 5]:
                     exe.run(distributed_main_program)
                 else:
-                    fetchs = [loss.name]
-                    loss_print, = exe.run(distributed_main_program, fetch_list=fetchs)
+                    fetchs = [loss]
+                    loss_print = exe.run(distributed_main_program, fetch_list=fetchs)
                     print("eval_step: %d, loss: %f" % (eval_step, loss_print[0]))
                 eval_step += 1
                 if eval_step >= 30:

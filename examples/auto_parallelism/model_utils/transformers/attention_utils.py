@@ -22,7 +22,7 @@ import paddle.nn.functional as F
 
 from paddle.nn import Linear, Dropout, LayerNorm, LayerList, Layer
 from paddle import ParamAttr
-import paddlenlp
+import model_utils
 
 
 class Registry(object):
@@ -277,12 +277,12 @@ class BigBirdSparseAttention(Attention):
                                          [B, L - G, bs, 1])
         temp_key_mask_front = paddle.reshape(blocked_key_mask[:, :GF],
                                              [B, 1, 1, GF * bs])
-        global_block_mask_front = paddlenlp.ops.einsum(
+        global_block_mask_front = model_utils.ops.einsum(
             "blqd,bmdk->blqk", temp_query_mask, temp_key_mask_front)
 
         temp_key_mask_back = paddle.reshape(blocked_key_mask[:, -GB:],
                                             [B, 1, 1, GB * bs])
-        global_block_mask_back = paddlenlp.ops.einsum(
+        global_block_mask_back = model_utils.ops.einsum(
             "blqd,bmdk->blqk", temp_query_mask, temp_key_mask_back)
         # create window block mask
         key_mask_list = []
@@ -326,7 +326,7 @@ class BigBirdSparseAttention(Attention):
             [roll_key_mask1, window_key_mask, roll_key_mask2], axis=1)
         window_key_mask = paddle.unsqueeze(window_key_mask, axis=2)
         # [B, L-G, bs, 1] * [B, L-G, 1, W*bs] -> [B, L-G, bs, W*bs]
-        window_block_mask = paddlenlp.ops.einsum(
+        window_block_mask = model_utils.ops.einsum(
             "blkd,bldq->blkq", temp_query_mask, window_key_mask)
         band_mask = paddle.concat(
             [
@@ -439,7 +439,7 @@ class BigBirdSparseAttention(Attention):
             B, temp_block_key_mask.shape[0] // B // (L - GF - GB) // R,
             L - GF - GB, -1
         ])
-        rand_mask = paddlenlp.ops.einsum("blq,bhlk->bhlqk",
+        rand_mask = model_utils.ops.einsum("blq,bhlk->bhlqk",
                                          blocked_query_mask[:, GF:-GB],
                                          temp_block_key_mask)
         return rand_mask
@@ -571,7 +571,7 @@ class BigBirdSparseAttention(Attention):
             [band_value_matrix, random_values], axis=3)
         second_top_value_matrix, second_middle_value_matrix, second_bottom_value_matrix = \
             self._get_splited_matrix(second_value_matrix)
-        second_product = paddlenlp.ops.einsum(
+        second_product = model_utils.ops.einsum(
             "bhlqd,bhlkd->bhlqk", second_query_matrix, second_key_matrix)
         second_product = second_product * (d_head**-0.5)
         second_product += (1 - second_mask) * -1e6
@@ -579,27 +579,27 @@ class BigBirdSparseAttention(Attention):
 
         second_top_weights, second_middle_weights, second_bottom_weights = \
             self._get_splited_matrix(second_weights)
-        second_top_out = paddlenlp.ops.einsum(
+        second_top_out = model_utils.ops.einsum(
             "bhlqk,bhlkd->bhlqd", second_top_weights, second_top_value_matrix)
 
-        second_middle_out = paddlenlp.ops.einsum(
+        second_middle_out = model_utils.ops.einsum(
             "bhlqk,bhlkd->bhlqd",
             second_middle_weights[:, :, :, :, GF * bs:-(GB + R) * bs],
             second_middle_value_matrix[:, :, :, GF * bs:-(GB + R) * bs])
         # add global block attention
-        second_middle_out += paddlenlp.ops.einsum(
+        second_middle_out += model_utils.ops.einsum(
             "bhlqk,bhkd->bhlqd", second_middle_weights[:, :, :, :, :GF * bs],
             blocked_value_matrix[:, :, 0])
-        second_middle_out += paddlenlp.ops.einsum(
+        second_middle_out += model_utils.ops.einsum(
             "bhlqk,bhkd->bhlqd",
             second_middle_weights[:, :, :, :, -(GB + R) * bs:-R * bs],
             blocked_value_matrix[:, :, -GB])
         # add random block attention
-        second_middle_out += paddlenlp.ops.einsum(
+        second_middle_out += model_utils.ops.einsum(
             "...qk,...kd->...qd", second_middle_weights[:, :, :, :, -R * bs:],
             random_values[:, :, GF:-GB])
 
-        second_bottom_out = paddlenlp.ops.einsum("bhlqk,bhlkd->bhlqd",
+        second_bottom_out = model_utils.ops.einsum("bhlqk,bhlkd->bhlqd",
                                                  second_bottom_weights,
                                                  second_bottom_value_matrix)
 

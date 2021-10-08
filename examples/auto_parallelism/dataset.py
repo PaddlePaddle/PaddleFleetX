@@ -19,8 +19,8 @@ import os
 import numpy as np
 import paddle
 from paddle.io import DataLoader, Dataset
-from modeling_utils.data import Stack, Tuple, Pad
-from modeling_utils.utils.log import logger
+from model_utils.data import Stack, Tuple, Pad
+from model_utils.utils.log import logger
 
 
 def construct_samples_and_shuffle_data(name, data_prefix, documents, sizes,
@@ -436,16 +436,3 @@ class GPTDataset(paddle.io.Dataset):
 
     def __len__(self):
         return self._length
-© 2021 GitHub, Inc.
-Terms
-Privacy
-Security
-Status
-Docs
-Contact GitHub
-Pricing
-API
-Training
-Blog
-About
-Loading complete
