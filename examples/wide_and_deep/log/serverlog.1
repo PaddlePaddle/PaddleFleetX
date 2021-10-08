@@ -1,0 +1,16 @@
+I0913 15:08:29.048667 21522 brpc_ps_server.cc:65] running server with rank id: 1, endpoint: 127.0.0.1:10084
+
+
+--------------------------------------
+C++ Traceback (most recent call last):
+--------------------------------------
+0   paddle::distributed::FleetWrapper::RunServer(std::string const&, unsigned int)
+1   paddle::distributed::BrpcPsServer::start(std::string const&, unsigned int)
+
+----------------------
+Error Message Summary:
+----------------------
+FatalError: `Termination signal` is detected by the operating system.
+  [TimeInfo: *** Aborted at 1631516909 (unix time) try "date -d @1631516909" if you are using GNU date ***]
+  [SignalInfo: *** SIGTERM (@0x5372) received by PID 21522 (TID 0x7f24f190d700) from PID 21362 ***]
+
