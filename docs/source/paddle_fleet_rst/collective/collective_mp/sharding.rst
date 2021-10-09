@@ -83,6 +83,9 @@ Sharding 结合 amp + recompute，可以在 128 张 32GB V100 并行的情况下
 使用方法
 ~~~~~~~~~
 
+静态图
+^^^^^^^^
+
 sharding 可以设置以下参数：
 
 **sharding_segment_strategy(float, optional):** 选择sharding 中用来将前向反向program 切segments 的策略。目前可选策略有："segment_broadcast_MB" 和 "segment_anchors"。 segment 是sharding中引入的一个内部概念，目的是用来让通信和计算相互重叠掩盖（overlap）。默认值是 segment_broadcast_MB. 
@@ -214,6 +217,12 @@ sharding 可以设置以下参数：
 
 
 完整4卡的日志信息也可在\ ``./log/``\ 目录下查看。了解更多\ ``fleetrun``\ 的用法可参考左侧文档\ ``fleetrun 启动分布式任务``\ 。
+
+
+动态图
+^^^^^^^
+
+完整代码存放在：\ `Dygraph Sharding <https://github.com/PaddlePaddle/Paddle/pull/33633>`_\ 下面。
 
 
 进阶用法
