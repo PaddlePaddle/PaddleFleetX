@@ -33,14 +33,12 @@ def parse_args():
         required=True,
         help="Model type selected in the list: ['gpt', 'gpt-cn']" )
     
-
     parser.add_argument(
         "--model_name_or_path",
         default=None,
         type=str,
         required=True,
         help="Path to pre-trained model or shortcut name selected in the list: ['gpt', 'gpt-cn']")
-
 
     # Train I/O config
     parser.add_argument(

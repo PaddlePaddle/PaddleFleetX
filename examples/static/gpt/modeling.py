@@ -36,7 +36,6 @@ from paddle.distributed import fleet
 from args import parse_args
 import modeling_utils
 
-
 paddle.enable_static()
 
 
@@ -202,7 +201,9 @@ class MultiHeadAttention(nn.Layer):
         to construct cache for inference.
         """
         k = self.k_proj(key)
+
         v = self.v_proj(value)
+
         k = tensor.reshape(x=k, shape=[0, 0, self.num_heads, self.head_dim])
         k = tensor.transpose(x=k, perm=[0, 2, 1, 3])
         v = tensor.reshape(x=v, shape=[0, 0, self.num_heads, self.head_dim])
@@ -572,6 +573,7 @@ class GPTEmbeddings(nn.Layer):
             position_ids = seq_length - ones
 
         input_embedings = self.word_embeddings(input_ids)
+
         position_embeddings = self.position_embeddings(position_ids)
         embeddings = input_embedings + position_embeddings
         embeddings = self.dropout(embeddings)
