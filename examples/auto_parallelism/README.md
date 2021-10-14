@@ -42,4 +42,4 @@ sh run.sh "0,1" "./output/dp" --micro_batch_size 4 --global_batch_size 8 --mp_de
 --mp_degree: 指定mp对应的卡数
 --dp_degree: 指定dp对应的卡数
 --pp_degree: 指定pp对应的卡数
-
+需要注意的是，本示例支持的mp_degree、dp_degree和pp_degree的值为1或者2。
