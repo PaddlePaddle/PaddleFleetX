@@ -293,7 +293,7 @@ def create_pretrained_dataset(
                     labels.append(inputs[3])
                     loss_mask.append(inputs[4])
                     if step != 0 and (step + 1) % args.global_batch_size == 0:
-                        yield tokens[start:end], position_ids[start:end], attention_mask[start:end], labels[start:end], loss_mask[start:end]
+                        yield tokens, position_ids, attention_mask, labels, loss_mask
                         tokens = []
                         position_ids = []
                         attention_mask = []
