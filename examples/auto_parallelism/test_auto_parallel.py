@@ -31,6 +31,7 @@ from paddle.nn.layer.transformer import _convert_param_attr_to_list
 from paddle.fluid.initializer import Normal, Constant, NumpyArrayInitializer
 from paddle.distributed.fleet import fleet
 import paddle.distributed.auto_parallel as auto
+from paddle.distributed.auto_parallel.utils import save_static_checkpoint, load_static_checkpoint
 import paddle.static as static
 from paddle.distributed import fleet
 from args import parse_args
@@ -216,6 +217,11 @@ def main(args):
    
     exe.run(distributed_startup_program)
 
+    # load model and distributed attribute
+    ckpt_dir = ['./output/dp2_save/step_10/model_state_rank0.pdmodel', 
+                './output/dp2_save/step_10/model_state_rank1.pdmodel']
+    load_static_checkpoint(ckpt_dir, distributed_main_program)
+
     # for dp or mp, in this demo, dp_degree or mp_degree is 2
     if args.pp_degree < 2:
         while True:
@@ -226,7 +232,13 @@ def main(args):
                 loss_print = exe.run(distributed_main_program, fetch_list=fetchs)
                 print("step: %d, loss_print: %f" % (eval_step, loss_print[0]))
                 eval_step += 1
-                if eval_step >= 20000:
+                # save model param
+                if eval_step % args.save_steps == 0 or eval_step >= args.max_steps:
+                    output_dir = os.path.join(args.output_dir, "step_%d" % eval_step)
+                    os.makedirs(output_dir, exist_ok=True)
+                    save_static_checkpoint(distributed_main_program, output_dir)
+
+                if eval_step >= args.max_steps:
                     break
             train_data_loader.reset()
             break
@@ -245,7 +257,13 @@ def main(args):
                     loss_print = exe.run(distributed_main_program, fetch_list=fetchs)
                     print("step: %d, loss_print: %f" % (eval_step, loss_print[0]))
                 eval_step += 1
-                if eval_step >= 20000:
+                # save model param
+                if eval_step % args.save_steps == 0 or eval_step >= args.max_steps:
+                    output_dir = os.path.join(args.output_dir, "step_%d" % eval_step)
+                    os.makedirs(output_dir, exist_ok=True)
+                    save_static_checkpoint(distributed_main_program, output_dir)
+
+                if eval_step >= args.max_steps:
                     break
             train_data_loader.reset()
             break
@@ -264,7 +282,13 @@ def main(args):
                     loss_print = exe.run(distributed_main_program, fetch_list=fetchs)
                     print("step: %d, loss_print: %f" % (eval_step, loss_print[0]))
                 eval_step += 1
-                if eval_step >= 20000:
+                # save model param
+                if eval_step % args.save_steps == 0 or eval_step >= args.max_steps:
+                    output_dir = os.path.join(args.output_dir, "step_%d" % eval_step)
+                    os.makedirs(output_dir, exist_ok=True)
+                    save_static_checkpoint(distributed_main_program, output_dir)
+
+                if eval_step >= args.max_steps:
                     break
             train_data_loader.reset()
             break
@@ -283,7 +307,13 @@ def main(args):
                     loss_print = exe.run(distributed_main_program, fetch_list=fetchs)
                     print("step: %d, loss_print: %f" % (eval_step, loss_print[0]))
                 eval_step += 1
-                if eval_step >= 20000:
+                # save model param
+                if eval_step % args.save_steps == 0 or eval_step >= args.max_steps:
+                    output_dir = os.path.join(args.output_dir, "step_%d" % eval_step)
+                    os.makedirs(output_dir, exist_ok=True)
+                    save_static_checkpoint(distributed_main_program, output_dir)
+
+                if eval_step >= args.max_steps:
                     break
             train_data_loader.reset()
             break
@@ -302,7 +332,13 @@ def main(args):
                     loss_print = exe.run(distributed_main_program, fetch_list=fetchs)
                     print("step: %d, loss_print: %f" % (eval_step, loss_print[0]))
                 eval_step += 1
-                if eval_step >= 20000:
+                # save model param
+                if eval_step % args.save_steps == 0 or eval_step >= args.max_steps:
+                    output_dir = os.path.join(args.output_dir, "step_%d" % eval_step)
+                    os.makedirs(output_dir, exist_ok=True)
+                    save_static_checkpoint(distributed_main_program, output_dir)
+
+                if eval_step >= args.max_steps:
                     break
             train_data_loader.reset()
             break
@@ -339,7 +375,8 @@ def create_data_loader(args, data_holders, topo):
         max_seq_len=args.max_seq_len,
         places=paddle.static.cuda_places(),
         data_holders=data_holders,
-        pipeline_mode=True)
+        pipeline_mode=True,
+        start_index=args.start_index*args.global_batch_size)
     return train_data_loader, valid_data_loader, test_data_loader 
 
 
