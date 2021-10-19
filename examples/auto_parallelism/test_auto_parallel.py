@@ -251,7 +251,7 @@ def main(args):
             break
 
     # for dp+pp, in this demo, dp_degree is 2 and pp_degree is 2
-    if args.pp_degree > 1 and args.dp_degree >= 1 and args.mp_degree == 1:
+    if args.pp_degree > 1 and args.dp_degree > 1 and args.mp_degree == 1:
         while True:
             train_data_loader.start()
             eval_step = 0
