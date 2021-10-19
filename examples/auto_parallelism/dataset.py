@@ -234,7 +234,8 @@ def create_pretrained_dataset(
         max_seq_len=1024,
         places=None,
         data_holders=None,
-        pipeline_mode=False, ):
+        pipeline_mode=False, 
+        start_index=0):
     logger.info("The distributed run, total device num:{}".format(
         topo.world.size))
     logger.info("The distributed run, distinct dataflow num:{}".format(
@@ -266,7 +267,8 @@ def create_pretrained_dataset(
             sample_ids=sample_ids,
             sample_lens=sample_lens,
             eod_id=eod_id,
-            seed=args.seed)
+            seed=args.seed,
+            start_index=start_index)
         batch_sampler = paddle.io.DistributedBatchSampler(
             dataset,
             batch_size=args.micro_batch_size,
@@ -349,7 +351,8 @@ class GPTDataset(paddle.io.Dataset):
                  name="gpt",
                  max_seq_len=1024,
                  mode="train",
-                 seed=1234):
+                 seed=1234,
+                 start_index=0):
         self.file_path = file_path
         self.max_seq_len = max_seq_len
         self.name = name
@@ -368,6 +371,7 @@ class GPTDataset(paddle.io.Dataset):
         self.doc_idx, self.sample_idx, self.shuffle_idx = \
             construct_samples_and_shuffle_data(self.name, self.file_path, document_ids,\
                 self.sample_lens, num_samples, max_seq_len, seed, device_world_rank)
+        self.shuffle_idx = self.shuffle_idx[start_index:]
         # The doc cumsum start pos
         self.start_pos = [0] + np.cumsum(self.sample_lens).tolist()
 

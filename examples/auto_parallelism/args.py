@@ -73,6 +73,12 @@ def parse_args():
         type=int,
         help="Global batch size for all training process. None for not check the size is valid. If we only use data parallelism, it should be device_num * micro_batch_size."
     )
+    parser.add_argument(
+        "--start_index",
+        default=0,
+        type=int,
+        help="Start index of dataset."
+    )
 
     # Default training config
     parser.add_argument(
