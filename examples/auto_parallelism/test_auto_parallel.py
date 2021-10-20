@@ -217,7 +217,7 @@ def main(args):
    
     exe.run(distributed_startup_program)
 
-    # load model and distributed attribute
+    # load model param
     ckpt_dir = ['./output/dp2_save/step_10/model_state_rank0.pdmodel', 
                 './output/dp2_save/step_10/model_state_rank1.pdmodel']
     load_static_checkpoint(ckpt_dir, distributed_main_program)
