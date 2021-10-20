@@ -5,11 +5,11 @@
 Collective训练快速开始
 ^^^^^^^^^^^^^^^^^^^^^^
 
-本节将采用CV领域非常经典的模型ResNet50为例，介绍如何使用Fleet API（paddle.distributed.fleet）完成Collective训练任务。
-数据方面我们采用Paddle内置的flowers数据集，优化器使用Momentum方法。循环迭代多个epoch，每轮打印当前网络具体的损失值和acc值。
-具体代码保存在\ `FleetX/examples/resnet <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet>`_\ 下面，
+本节将以CV领域经典模型ResNet50为例，介绍如何使用Fleet API（paddle.distributed.fleet）完成Collective训练。
+我们采用Paddle内置的flowers数据集和Momentum优化器方法，循环迭代多个epoch，并在每个step打印当前模型的损失值和精度值。
+具体代码请参考\ `FleetX/examples/resnet <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet>`_\ ，
 其中包含动态图和静态图两种执行方式。resnet_dygraph.py为动态图模型相关代码，train_fleet_dygraph.py为动态图训练脚本。
-resnet_static.py为静态图模型相关代码，而train_fleet_static.py为静态图训练脚本。
+resnet_static.py为静态图模型相关代码，train_fleet_static.py为静态图训练脚本。
 
 版本要求
 ^^^^^^^^
@@ -25,7 +25,8 @@ resnet_static.py为静态图模型相关代码，而train_fleet_static.py为静�
 #. 导入分布式训练需要的依赖包。
 #. 初始化Fleet环境。
 #. 设置分布式训练需要的优化器。
-   下面将逐一进行讲解。
+
+下面将逐一进行讲解。
 
 导入依赖
 ~~~~~~~~
@@ -256,7 +257,7 @@ train_fleet_static.py的完整训练代码如下所示。
 
 .. code-block::
 
-   fleetrun --gpus=0,1 train_fleet_dygraph.py
+   python -m paddle.distributed.launch --gpus=0,1 train_fleet_dygraph.py
 
 您将看到显示如下日志信息：
 
@@ -295,7 +296,7 @@ train_fleet_static.py的完整训练代码如下所示。
 
 .. code-block::
 
-   fleetrun --gpus=0,1 train_fleet_static.py
+   python -m paddle.distributed.launch --gpus=0,1 train_fleet_static.py
 
 您将看到显示如下日志信息：
 
@@ -331,24 +332,24 @@ train_fleet_static.py的完整训练代码如下所示。
    [Epoch 0, batch 5] loss: 1.01921, acc1: 0.00000, acc5: 0.00000
    ...
 
-完整2卡的日志信息也可在\ ``./log/``\ 目录下查看。了解更多\ ``fleetrun``\ 的用法可参考左侧文档\ ``fleetrun 启动分布式任务``\ 。
+了解更多启动分布式训练任务信息，请参考\ `分布式训练启动方法 <../launch.html>`_\ 。
 
 单机八卡训练启动命令类似，只需正确指定\ ``gpus``\ 参数即可，如下所示：
 
 .. code-block::
    # 动态图
-   fleetrun --gpus 0,1,2,3,4,5,6,7 train_fleet_dygraph.py
+   python -m paddle.distributed.launch --gpus 0,1,2,3,4,5,6,7 train_fleet_dygraph.py
    
    # 静态图
-   fleetrun --gpus 0,1,2,3,4,5,6,7 train_fleet_static.py
+   python -m paddle.distributed.launch --gpus 0,1,2,3,4,5,6,7 train_fleet_static.py
 
 
-从单机多卡到多机多卡训练，在代码上不需要做任何改动，只需再额外指定ips参数即可。其内容为多机的ip列表，命令如下所示：
+从单机多卡到多机多卡训练，在代码上不需要做任何改动，只需再额外指定ips参数即可。其内容为多机的ip列表，命令如下所示（假设两台机器的ip地址分别为192.168.0.1和192.168.0.2）：
 
 .. code-block::
 
    # 动态图
-   fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" --gpus 0,1,2,3,4,5,6,7 train_fleet_dygraph.py
+   python -m paddle.distributed.launch --ips="192.168.0.1,192.168.0.2" --gpus 0,1,2,3,4,5,6,7 train_fleet_dygraph.py
 
     # 静态图
-   fleetrun --ips="xx.xx.xx.xx,yy.yy.yy.yy" --gpus 0,1,2,3,4,5,6,7 train_fleet_static.py
+   python -m paddle.distributed.launch --ips="192.168.0.1,192.168.0.2" --gpus 0,1,2,3,4,5,6,7 train_fleet_static.py
