@@ -199,8 +199,9 @@ def main(args):
 
     with open(args.output_dir + "/serial_main_program.txt.%d" % (paddle.distributed.get_rank()), 'w') as f:
         f.write(str(train_program))
-    with open(args.output_dir + "/serial_startup_program.txt.%d" % (paddle.distributed.get_rank()), 'w') as f:
-        f.write(str(start_program))
+    if "pp" not in global_setting._global_parallel_stratergy:   
+        with open(args.output_dir + "/serial_startup_program.txt.%d" % (paddle.distributed.get_rank()), 'w') as f:
+            f.write(str(start_program))
 
     with open(args.output_dir + "/auto_main_program.txt.%d" % (paddle.distributed.get_rank()), 'w') as f:
         f.write(str(distributed_main_program))
