@@ -101,52 +101,32 @@ Dropout。直观理解，模型并行下，所有卡上的Dropout算子构成一
 静态图使用方法
 ~~~~~~~~~~~~~~~
 
-在使用流水线并行的训练策略时，我们通过\ ``device_guard``\ 接口将不同的计算层放置在不同的设备上，如\ ``device_guard("gpu:0")``\ 。需要注意的是，当前流水线并行仅支持GPU设备。并且，模型中每个层都需要指定放置设备。
+静态图中，我们提供了 `paddle.distributed.split <https://www.paddlepaddle.org.cn/documentation/docs/zh/api/paddle/distributed/split_cn.html#split>`_ 实现
+Embedding和矩阵乘法算子的切分。我们需要对该API的 ``gather_out`` 参数做一些特殊说明：对于Embedding切分操作，该参数始终设置
+为True。对于矩阵切分操作，如果该参数设置为True，则会在算子操作后使用通信操作获取最终结果。参照上文，对于连续的两个切分的矩阵
+乘法操作，我们通常对第一个矩阵乘法采用按列切分方法，对第二个矩阵乘法采用按行切分方法；并且，对于按列切分的矩阵乘法，我们
+将 ``gather_out`` 参数设置为False，从而省略掉一次通信操作。
+
+下面的例子给出在两张卡上实现Embedding算子模型并行的示例。
 
 .. code-block:: python
    
-   # device_guard 使用示例
-   def build_network():
-       with paddle.fluid.device_guard("gpu:0"):
-           data = paddle.static.data(name='sequence', shape=[1], dtype='int64')
-           data_loader = paddle.io.DataLoader.from_generator(
-               feed_list=[data],
-               capacity=64,
-               use_double_buffer=True,
-               iterable=False)
-           emb = nn.embedding(input=data, size=[128, 64])
-       with paddle.fluid.device_guard("gpu:1"):
-           fc = nn.fc(emb, size=10)
-           loss = paddle.mean(fc)
-       return data_loader, loss
+   emb_out = padle.distributed.split(
+    in,
+    (8, 8),
+    operation="embedding",
+    num_partitions=2)   
 
-通过设定\ ``dist_strategy.pipeline`` 为True，将流水线并行的策略激活。
+此外，我们还需要配置Fleet的选项，以使用模型并行功能。
 
 .. code-block:: python
 
    fleet.init(is_collective=True)
    dist_strategy = paddle.distributed.fleet.DistributedStrategy()
-   dist_strategy.pipeline = True
+   dist_strategy.tensor_parallel = True
+   strategy.tensor_parallel_configs = {"tensor_parallel_degree": 4}
 
-进一步地，可以通过\ ``dist_strategy.pipeline_configs`` 配置流水线并行中mini-batch的切分粒度。假设mini-batch的大小为128，可以通过下述代码将mini-batch切为4份更小粒度的micro-batch，每个micro-batch的大小为32。需要注意地是，用户需要保证mini-batch大小是micro-batch大小的整数倍。
-
-.. code-block:: python
-
-   fleet.init(is_collective=True)
-   dist_strategy = paddle.distributed.fleet.DistributedStrategy()
-   strategy.pipeline_configs = {"accumulate_steps": 4,
-                                "micro_batch_size": 32}
-
-
-基于ResNet50网络的流水线并行代码：`example/resnet <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/pipeline>`_。
-
-使用下述命令行运行示例代码：
-
-.. code-block:: python
-
-   python -m paddle.distributed.launch \
-          --gpus="0,1,2,3,4" \
-          train_fleet_pipeline.py
+其中， ``tensor_parallel_degree`` 指定模型并行的并行度。
 
 控制台输出信息如下：
 
