@@ -45,6 +45,54 @@ Embedding的参数被均匀切分到多个卡上。假设Embedding参数的维�
 对于矩阵乘操作，是按行或者列将矩阵切分K份。假设原始矩阵的维度为M*N，则按行切分后，各个
 卡上的矩阵维度为M/K*N；若按列切分，则各个卡上矩阵的维度值为M*N/K。
 
+下图给出按列切分矩阵乘法的示例图。其中，图（a）给出单卡上的矩阵乘法。图（b）给出模型并行
+模式下的矩阵乘法，其中第二个矩阵按列切分到2张卡上；两张卡分别得到结果矩阵的一部分。最后，通过
+AllGather通信操作汇聚最终的结果。
+
+.. image:: ../img/col_parallel_matrix.png
+  :width: 800
+  :alt: column parallel matrix
+  :align: center
+
+下图给出按行切分矩阵乘法的示例图。其中，图（a）给出单卡上的矩阵乘法。图（b）给出模型并行
+模式下的矩阵乘法，其中第二个矩阵按行切分到2张卡上；第一个矩阵需要按列切分，以满足矩阵乘法
+的维度要求；两张卡分别得到结果矩阵的一部分。最后，通过
+AllReduce通信操作按元素累加结果矩阵得到最终的结果。
+
+.. image:: ../img/row_parallel_matrix.png
+  :width: 800
+  :alt: row parallel matrix
+  :align: center
+
+我们观察到，可以把上述按列切分矩阵乘法和按行切分矩阵乘法串联起来，从而省略掉一次AllGather通信
+操作，如下图所示。同时，我们注意到Transformer的Attention和MLP组件中各种两次矩阵乘法操作。因此，我们
+可以按照这种串联方式分别把Attention和MLP组件中的两次矩阵乘法串联起来，从而进一步优化性能。
+
+.. image:: ../img/parallel_matrix.png
+  :width: 800
+  :alt: parallel matrix
+  :align: center
+
+我们观察到，在模型并行模式下，Transformer的Attention组件中存在两种类型的Dropout操作，如下图
+所示。第一类是softmax算子后的Dropout算子；其输入是按列切分矩阵乘法的部分结果，我们称为局部
+Dropout。直观理解，模型并行下，所有卡上的Dropout算子构成一个完整的Dropout算子，因此我们需要
+确保不同卡上该类Dropout算子的丢弃位置是不同。第二类是图中g操作之后的Dropout操作，对于此类Dropout，其
+输入均为完整且相同的输出，我们需要确保Dropout算子的输出也相同，即各个卡上该类Dropout算子选择
+的丢弃位置是相同的。我们称此类Dropout为全局Dropout。我们通常通过设置种子来控制两类Dropout的输出。
+具体地讲，对于局部Dropout，我们在不同的卡上为他们设置不同的种子，从而确保它们选择的丢弃位置是
+不同的。而对于全局Dropout算子，我们在不同的卡上为它们设置相同的种子，从而确它们在不同卡上选择的
+丢弃位置是相同的。
+
+.. image:: ../img/global_local_dropout.png
+  :width: 800
+  :alt: dropout details from the paper Megatron-LM
+  :align: center
+
+我们需要注意一下几点：
+
+- 模型并行下，需要确保模型并行组中各个卡读取相同的数据；
+- 模型并行下，除了被切分的算子对应的输出外，其它所有算子的输出在各个卡上是一致的。
+
 使用方法
 =======
 
