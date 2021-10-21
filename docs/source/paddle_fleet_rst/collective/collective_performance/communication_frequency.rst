@@ -38,8 +38,10 @@ DGC稀疏通信在低带宽通信瓶颈时会有较大的性能提升，但\ **�
 -  取300-700步耗时/400step。
 -  精度无损。
 
+实验结果如下表所示：
+
 +--------+------------------------------+---------------------------------+---------+
-| 带宽   | 训练耗时-Momentum(step /s)   | 训练耗时-DGCMomentum(step /s)   | 加速比   |
+| 带宽   | 训练耗时-Momentum(step /s)   | 训练耗时-DGCMomentum(step /s)   | 加速比  |
 +========+==============================+=================================+=========+
 | 100G   | 0.3725                       | 0.375                           | 0.993   |
 +--------+------------------------------+---------------------------------+---------+
@@ -61,7 +63,8 @@ DGC的基本思路是通过只传送重要梯度，即只发送大于给定阈�
 size，（DGC相当于每一个梯度有自己的batch size）。
 
 假设 N是训练节点个数, b为单卡batch size，局部梯度累加可以被认为batch
-size从\ :math:`Nb`\ 增大为\ :math:`NbT`\ ，其中T是两次更新的稀疏通信间隔。详细的公式推导请参阅 `[1] <https://arxiv.org/abs/1712.01887>`__
+size从\ :math:`Nb`\ 增大为\ :math:`NbT`\ ，其中T是两次更新的稀疏通信间隔。详细的公式推导请参阅 `[1] <https://arxiv.org/abs/1712.01887>`_\ 。
+
 预热调参
 ^^^^^^^^
 
@@ -184,6 +187,11 @@ DGC 相关策略
 
 基于ResNet50网络的DGC代码：`example/resnet/train_fleet_static_dgc.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_dgc.py>`_。
 
+假设要运行2卡的任务，那么只需在命令行中执行:
+
+.. code-block:: sh
+
+   python -m paddle.distributed.launch --gpus=0,1 train_fleet_static_dgc.py
 
 
 使用Local SGD 优化低带宽下分布式训练
@@ -224,12 +232,10 @@ SGD过程如下图所示。黄绿两条路径表示两个 trainers 各自的 Loc
   :alt: Local SGD
   :align: center
 
-Local
-SGD中的一个关键问题是如何确定参数同步的间隔(频率)，以达到训练吞吐和训练精度间更好的平衡：
+Local SGD中的一个关键问题是如何确定参数同步的间隔(频率)，以达到训练吞吐和训练精度间更好的平衡 `[1] <https://arxiv.org/abs/1708.01012>`__\ ：
 
 -  增大参数同步的间隔可以减少 trainers 间通信延迟的影响提高训练吞吐，
 -  但增大同步间隔可能会造成最终训练精度的损失。
-   `[1] <https://arxiv.org/abs/1708.01012>`__
 
 以下两个策略从不同角度试图达到更好的平衡：
 
@@ -239,7 +245,7 @@ SGD中的一个关键问题是如何确定参数同步的间隔(频率)，以达
    H，来提升训练吞吐。
 -  `Adaptive Communication Local
    SGD <https://arxiv.org/abs/1808.07217>`__
-   通过动态的调整参数同步的间隔来尝试达到训练吞吐和精度间的更好的平衡。在训练初始或者上一段参数同步完成后，根据如下公式计算一下次参数同步的间隔（iteration）。详细的公式推导和参数定义请参考原论文。
+   通过动态的调整参数同步的间隔来尝试达到训练吞吐和精度间的更好的平衡。
 
 Fleet 中实现了 ``post Local SGD`` 和
 ``Adaptive Communication Local SGD`` 两种策略。
@@ -311,11 +317,11 @@ SGD和自适应步长 local SGD都仅支持SGD和Momentum两种优化器。
 -  在 **自适应步长 local SGD** 中，有两个参数 ``begin_step`` 和
    ``init_k_steps``\ 。begin\_step 指定从第几个step之后进行自适应local
    SGD算法，取值为大于0的整数；用户需要设置init\_k\_steps作为第一次参数同步的间隔，
-   之后的同步间隔将由上文中的公式动态确定，在学习率较大时，参数变化大，减小step，
+   之后的同步间隔将由动态确定：在学习率较大时，参数变化大，减小step，
    多进行通信从而保证快速收敛；在学习率较小时，参数变化小，
    增大step，减少通信次数，从而提升训练速度。
    需要注意的是在自适应步长策略中，系统会默认限制最大的同步间隔为 16
-   step，当公式计算出的间隔大于16 时，按16 steps 进行参数同步。
+   step，当计算出的间隔大于16 时，按16 steps 进行参数同步。
 
 .. code:: python
 
@@ -332,7 +338,7 @@ SGD和自适应步长 local SGD都仅支持SGD和Momentum两种优化器。
 
 .. code-block:: sh
 
-   fleetrun --gpus=0,1 train_fleet_static_overlap.py
+   python -m paddle.distributed.launch --gpus=0,1 train_fleet_static_localsgd.py
 
 您将看到显示如下日志信息：
 

@@ -3,7 +3,7 @@
 
 简介
 ----
-在使用数据并行分布式训练的同时, 我们还可以引入自动混合精度(Auto Mixed Precision) 来进一步提升训练的速度.
+在使用数据并行分布式训练的同时, 我们还可以引入自动混合精度(Auto Mixed Precision, AMP) 来进一步提升训练的速度.
 
 主流的神经网络模型通常使用单精度 ``single-precision`` ``(FP32)``
 数据格式来存储模型参数、进行训练和预测. 在上述环节中使用半精度
@@ -32,9 +32,7 @@ Paddle 支持自动混合精度计算, 并实现了 ``自动维护FP32 、FP16�
 操作实践
 ----
 
-Fleet 将AMP 实现为 meta optimizer, 用户需要指定其的
-``inner-optimizer``. Fleet AMP支持所有 paddle optimziers 和 FLeet meta
-otpimizers 作为其 inner-optimizer。只需要在reset网络基础上打开相应的开关和配置相应的选项。
+为了使用AMP，只需要打开相应的配置选项：
 
 .. code:: python
 
@@ -56,7 +54,7 @@ otpimizers 作为其 inner-optimizer。只需要在reset网络基础上打开相
 
 .. code-block:: sh
 
-   fleetrun --gpus=0,1,2,3,4,5,6,7 train_fleet_static_amp.py
+   python -m paddle.distributed.launch --gpus=0,1,2,3,4,5,6,7 train_fleet_static_amp.py
 
 您将看到显示如下日志信息：
 

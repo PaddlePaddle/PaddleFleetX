@@ -24,7 +24,7 @@ Fleet 实现了底层通过改变通信拓扑，实现分层 allreduce。用户�
 
 .. code-block:: sh
 
-   fleetrun --gpus=0,1,2,3,4,5,6,7 train_fleet_static_communication_topology.py
+   python -m paddle.distributed.launch --gpus=0,1,2,3,4,5,6,7 train_fleet_static_communication_topology.py
 
 您将看到显示如下日志信息：
 

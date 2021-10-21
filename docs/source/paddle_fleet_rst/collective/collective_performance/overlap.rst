@@ -32,7 +32,7 @@ Fleet已经实现通信流overlap，只需设置通信器数量 nccl_comm_num �
 
 .. code-block:: sh
 
-   fleetrun --gpus=0,1 train_fleet_static_overlap.py
+   python -m paddle.distributed.launch --gpus=0,1 train_fleet_static_overlap.py
 
 您将看到显示如下日志信息：
 
