@@ -7,6 +7,7 @@
    :caption: 性能优化
    :name: performance
 
+   data_parallel
    op_fusion
    overlap
    communication_topology

@@ -39,6 +39,7 @@
    :caption: 配置分布式训练
    :name: distributed_training
 
+   paddle_fleet_rst/launch
    paddle_fleet_rst/collective/index
    paddle_fleet_rst/parameter_server/index
 
