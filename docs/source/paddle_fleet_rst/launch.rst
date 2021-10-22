@@ -67,3 +67,9 @@ Collective分布式任务场景下， ``paddle.distributed.launch`` 组件支持
 -  training_script：训练脚本，如 ``train.py``\ 。
 -  training_script_args：训练脚本的参数。
 -  ips：所有训练节点的IP地址列表，以逗号间隔。例如， ``--ips="192.168.0.1,192.168.0.2``\ 。需要注意的是，该列表在所有节点上需要保持一致，即各节点IP地址出现的顺序在所有节点的任务脚本中需要保持一致。
+
+PaddleCloud平台
+===================
+
+当在百度内部PaddleCloud平台使用飞桨分布式时，可以省略 ``ips`` 参数。更多关于如何通过
+在PaddleCloud上启动分布式任务，请参考PaddleCloud官方文档。
