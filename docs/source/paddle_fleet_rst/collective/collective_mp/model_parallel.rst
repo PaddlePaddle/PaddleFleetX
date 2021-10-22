@@ -128,60 +128,39 @@ Embedding和矩阵乘法算子的切分。我们需要对该API的 ``gather_out`
 
 其中， ``tensor_parallel_degree`` 指定模型并行的并行度。
 
-控制台输出信息如下：
-
-.. code-block:: python
-   
-   WARNING 2021-01-08 15:53:27,677 launch.py:314] Not found distinct arguments and compiled with cuda. Default use collective mode
-   launch train in GPU mode
-   INFO 2021-01-08 15:53:27,679 launch_utils.py:471] Local start 5 processes. First process distributed environment info (Only For Debug):
-    +=======================================================================================+
-    |                        Distributed Envs                      Value                    |
-    +---------------------------------------------------------------------------------------+
-    |                       PADDLE_TRAINER_ID                        0                      |
-    |                 PADDLE_CURRENT_ENDPOINT                 127.0.0.1:52033               |
-    |                     PADDLE_TRAINERS_NUM                        5                      |
-    |                PADDLE_TRAINER_ENDPOINTS  ... 0.1:12178,127.0.0.1:28915,127.0.0.1:32114|
-    |                     FLAGS_selected_gpus                        0                      |
-    +=======================================================================================+
-    INFO 2021-01-08 15:53:27,679 launch_utils.py:475] details abouts PADDLE_TRAINER_ENDPOINTS can be found in log/endpoints.log.
-    grep: warning: GREP_OPTIONS is deprecated; please use an alias or script
-    server not ready, wait 3 sec to retry...
-    not ready endpoints:['127.0.0.1:40388', '127.0.0.1:12178', '127.0.0.1:28915', '127.0.0.1:32114']
-    server not ready, wait 3 sec to retry...
-    not ready endpoints:['127.0.0.1:12178']
-    W0108 15:53:37.673019 103703 device_context.cc:342] Please NOTE: device: 0, GPU Compute Capability: 7.0, Driver API Version: 11.0, Runtime API Version: 10.1
-    W0108 15:53:37.678391 103703 device_context.cc:352] device: 0, cuDNN Version: 7.6.
-
-日志信息位于log目录下，log/workerlog.4日志文件的内容如下：
+如上文所述，对于Transformer模型，存在两种类型的Dropout：全局Dropout和局部Dropout；对于
+全局Dropout，需要在模型并行的所有卡上设置相同的种子，对于局部Dropout，则需要设置不同的
+种子。我们通过如下代码分别设置全局和局部种子：
 
 .. code-block:: python
 
-   grep: warning: GREP_OPTIONS is deprecated; please use an alias or script
-   W0108 15:52:27.723405 103188 device_context.cc:342] Please NOTE: device: 4, GPU Compute Capability: 7.0, Driver API Version: 11.0, Runtime API Version: 10.1
-   W0108 15:52:27.728278 103188 device_context.cc:352] device: 4, cuDNN Version: 7.6.
-   I0108 15:52:32.665313 103188 gen_nccl_id_op_helper.cc:176] Server listening on: 127.0.0.1:32347 successful.
-   W0108 15:52:36.874132 103188 operator.cc:1194] Device index is only supported under pipeline parallelism, so it will be ignored.
-   grep: warning: GREP_OPTIONS is deprecated; please use an alias or script
-   W0108 15:53:31.393914 103723 device_context.cc:342] Please NOTE: device: 4, GPU Compute Capability: 7.0, Driver API Version: 11.0, Runtime API Version: 10.1
-   W0108 15:53:31.398906 103723 device_context.cc:352] device: 4, cuDNN Version: 7.6.
-   I0108 15:53:34.465754 103723 gen_nccl_id_op_helper.cc:176] Server listening on: 127.0.0.1:32114 successful.
-   W0108 15:53:40.784844 103723 operator.cc:1194] Device index is only supported under pipeline parallelism, so it will be ignored.
-   [Epoch 0, batch 5] loss: 0.37770, acc1: 0.03125, acc5: 0.03125
-   [Epoch 0, batch 10] loss: 0.06200, acc1: 0.00000, acc5: 0.03125
-   [Epoch 0, batch 15] loss: 0.26105, acc1: 0.00000, acc5: 0.00000
-   [Epoch 0, batch 20] loss: 0.00000, acc1: 0.00000, acc5: 0.00000
-   [Epoch 0, batch 25] loss: 0.37330, acc1: 0.00000, acc5: 0.06250
-   [Epoch 0, batch 30] loss: 0.00000, acc1: 0.00000, acc5: 0.00000
-   [Epoch 0, batch 35] loss: 0.07487, acc1: 0.00000, acc5: 0.00000
-   [Epoch 0, batch 40] loss: 0.12932, acc1: 0.03125, acc5: 0.06250
-   [Epoch 0, batch 45] loss: 0.19604, acc1: 0.00000, acc5: 0.03125
-   [Epoch 0, batch 50] loss: 0.07977, acc1: 0.00000, acc5: 0.00000
-   [Epoch 0, batch 55] loss: 0.00000, acc1: 0.00000, acc5: 0.00000
-   [Epoch 0, batch 60] loss: 0.13464, acc1: 0.00000, acc5: 0.06250
-   [Epoch 0, batch 65] loss: 0.13940, acc1: 0.00000, acc5: 0.03125
-   [Epoch 0, batch 70] loss: 0.00000, acc1: 0.00000, acc5: 0.00000
-   [Epoch 0, batch 75] loss: 0.00000, acc1: 0.00000, acc5: 0.00000
+   mp_local_seed = basic_seed + mp_rank * 11
+   mp_global_seed = basic_seed
+   paddle.framework.random.set_random_seed_generator('mp_local_seed', mp_local_seed)
+   paddle.framework.random.set_random_seed_generator('mp_global_seed', mp_global_seed)
+
+上例只是一种示例实现，用户可以根据自己的需要实现不同的种子设置方式，但需要确保同一模型并行
+组内，全局Dropout的种子是一致的，而局部Dropout的种子是不同的。
+
+在使用 ``dropout`` 接口时，我们还需要根据其类型设置其种子参数，如下例所示：
+
+.. code-block:: python
+
+   # For local dropout
+   weights = dropout(
+                     weights,
+                     p=dropout_rate,
+                     rng_name='mp_local_seed',
+                     training=True,
+                     mode='upscale_in_train')
+
+   # For global dropout
+   weights = dropout(
+                     weights,
+                     p=dropout_rate,
+                     rng_name='mp_global_seed',
+                     training=True,
+                     mode='upscale_in_train')
 
 动态图使用方法
 ~~~~~~~~~~~~~~~
