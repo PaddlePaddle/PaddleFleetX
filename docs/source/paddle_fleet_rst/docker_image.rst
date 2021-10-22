@@ -211,4 +211,4 @@ Dockerfile 内容，
 飞桨官方镜像
 ^^^^^^^^^^^^^^^^^^^^^^
 
-除了依据上述方法制作自定义开发镜像，用户也可以在 `DockerHub <https://hub.docker.com/r/paddlepaddle/paddle/tags/>`_ 中找到飞桨各个发行的版本的官方docker镜像。
+除了依据上述方法制作自定义开发镜像，用户也可以在 `DockerHub <https://hub.docker.com/r/paddlepaddle/paddle/tags/>`_ 中找到飞桨各个发行版本的官方docker镜像。
