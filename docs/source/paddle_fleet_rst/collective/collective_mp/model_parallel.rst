@@ -162,5 +162,111 @@ Embedding和矩阵乘法算子的切分。我们需要对该API的 ``gather_out`
                      training=True,
                      mode='upscale_in_train')
 
+当结合使用模型并行和数据并行时，无需指定额外的参数。但需要确保，训练卡总数是模型并行并行度的整数倍。
+
 动态图使用方法
 ~~~~~~~~~~~~~~~
+
+动态图中，我们提供了以下接口实现Embeeding和矩阵切分：
+
+- paddle.distributed.fleet.meta_parallel.VocabParallelEmbedding
+- paddle.distributed.fleet.meta_parallel.ColumnParallelLinear
+- paddle.distributed.fleet.meta_parallel.RowParallelLinear
+
+定义如下：
+
+.. code-block:: python
+   
+   class VocabParallelEmbedding(Layer):
+       def __init__(self,
+                    num_embeddings,  # Embedding参数的行数
+                    embedding_dim,   # Embedding参数的列数
+                    weight_attr=None,
+                    name=None):
+           super(VocabParallelEmbedding, self).__init__()
+
+   class RowParallelLinear(Layer):
+       def __init__(self,
+                    in_features,
+                    out_features,
+                    weight_attr=None,
+                    has_bias=True,
+                    input_is_parallel=False, #输入是否是并行输入，为否的话需要按列切分输入参数
+                    name=None):
+           super(RowParallelLinear, self).__init__()
+
+   class ColumnParallelLinear(Layer):
+       def __init__(self,
+                    in_features,
+                    out_features,
+                    weight_attr=None,
+                    has_bias=None,
+                    gather_output=True, # 是否在该算子后汇聚所有卡的输出
+                    name=None):
+
+下面的例子给出在两张卡上实现Embedding算子模型并行的示例。
+
+.. code-block:: python
+   
+   import paddle.distributed.fleet as fleet
+   word_embeddings = fleet.meta_parallel.VocabParallelEmbedding(   
+       vocab_size,
+       hidden_size,
+       weight_attr=paddle.ParamAttr(initializer=nn.initializer.Normal(
+                     mean=0.0, std=initializer_range)))
+
+此外，我们还需要配置Fleet的选项，以使用模型并行功能。
+
+.. code-block:: python
+
+   dist_strategy = paddle.distributed.fleet.DistributedStrategy()
+   strategy.hybrid_configs = {
+       "mp_degree": 2,
+       "dp_degree": 1,
+   }
+   fleet.init(is_collective=True, strategy=strategy)
+   hcg = fleet.get_hybrid_communicate_group()
+   global_rank = hcg.get_global_rank() # 全局rank
+   mp_rank = hcg.get_model_parallel_rank() # 模型并行组rank
+   
+
+当结合使用模型并行和数据并行时，我们需要指定 ``dp_dgree`` 参数，设置数据并行的并行度。
+   
+
+如上文所述，对于Transformer模型，存在两种类型的Dropout：全局Dropout和局部Dropout；对于
+全局Dropout，需要在模型并行的所有卡上设置相同的种子，对于局部Dropout，则需要设置不同的
+种子。我们通过如下代码分别设置全局和局部种子：
+
+.. code-block:: python
+
+   from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
+   local_seed = basic_seed + mp_rank * 11
+   global_seed = basic_seed
+   tracker.add('global_seed', global_seed)
+   tracker.add('local_seed', local_seed)
+
+上例只是一种示例实现，用户可以根据自己的需要实现不同的种子设置方式，但需要确保同一模型并行
+组内，全局Dropout的种子是一致的，而局部Dropout的种子是不同的。
+
+在使用 ``Dropout`` 接口时，我们还需要根据其类型设置其种子，如下例所示：
+
+.. code-block:: python
+
+   # For local dropout
+   import paddle.nn.functional as F
+   from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
+   with get_rng_state_tracker().rng_state('local_seed'):
+       weights = F.dropout(
+                         weights,
+                         dropout_rate,
+                         training=True,
+                         mode='upscale_in_train')
+
+   # For global dropout
+   with get_rng_state_tracker().rng_state('global_seed'):
+       weights = F.dropout(
+                         weights,
+                         dropout_rate,
+                         training=True,
+                         mode='upscale_in_train')
+
