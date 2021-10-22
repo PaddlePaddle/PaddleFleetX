@@ -129,7 +129,7 @@ meta optimizer, 在使用时需要设置以下几点:
 
 .. code-block:: sh
 
-   fleetrun --gpus=0,1 train_fleet_lars.py
+   python -m paddle.distributed.launch --gpus=0,1 train_fleet_lars.py
 
 您将看到显示如下日志信息：
 
@@ -180,7 +180,7 @@ meta optimizer, 在使用时需要设置以下几点:
     ...
 
 
-完整 2卡的日志信息也可在\ ``./log/``\ 目录下查看。了解更多\ ``fleetrun``\ 的用法可参考左侧文档\ ``fleetrun 启动分布式任务``\ 。
+完整 2卡的日志信息也可在\ ``./log/``\ 目录下查看。
 
 
 LAMB
@@ -215,7 +215,7 @@ meta optimizer, 在使用时需要设置以下几点:
 
 .. code-block:: sh
 
-   fleetrun --gpus=0,1 train_fleet_lamb.py
+   python -m paddle.distributed.launch --gpus=0,1 train_fleet_lamb.py
 
 您将看到显示如下日志信息：
 
@@ -263,4 +263,4 @@ meta optimizer, 在使用时需要设置以下几点:
     ...
 
 
-完整2 卡的日志信息也可在\ ``./log/``\ 目录下查看。了解更多\ ``fleetrun``\ 的用法可参考左侧文档\ ``fleetrun 启动分布式任务``\ 。
+完整2 卡的日志信息也可在\ ``./log/``\ 目录下查看。
