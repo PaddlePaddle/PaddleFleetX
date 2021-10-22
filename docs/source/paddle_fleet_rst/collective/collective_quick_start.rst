@@ -14,7 +14,7 @@ resnet_static.py为静态图模型相关代码，train_fleet_static.py为静态�
 版本要求
 ^^^^^^^^
 
-在编写分布式训练程序之前，用户需要确保已经安装paddlepaddle-2.0.0-rc-cpu或paddlepaddle-2.0.0-rc-gpu及以上版本的飞桨开源框架。
+在编写分布式训练程序之前，用户需要确保已经安装paddlepaddle-2.0.0-cpu或paddlepaddle-2.0.0-gpu及以上版本的飞桨开源框架。
 
 操作方法
 ^^^^^^^^
@@ -248,6 +248,9 @@ train_fleet_static.py的完整训练代码如下所示。
    if __name__ == '__main__':
        train_resnet()
 
+当使用 ``paddle.distributed.launch`` 组件启动飞桨分布式任务时，在静态图模式下，可以
+通过 ``FLAGS_selected_gpus`` 环境变量获取当前进程绑定的GPU卡，如上面的例子所示。
+
 运行示例
 ^^^^^^^^
 
@@ -332,11 +335,12 @@ train_fleet_static.py的完整训练代码如下所示。
    [Epoch 0, batch 5] loss: 1.01921, acc1: 0.00000, acc5: 0.00000
    ...
 
-了解更多启动分布式训练任务信息，请参考\ `分布式训练启动方法 <../launch.html>`_\ 。
+了解更多启动分布式训练任务信息，请参考\ `分布式任务启动方法 <../launch.html>`_\ 。
 
 单机八卡训练启动命令类似，只需正确指定\ ``gpus``\ 参数即可，如下所示：
 
 .. code-block::
+   
    # 动态图
    python -m paddle.distributed.launch --gpus 0,1,2,3,4,5,6,7 train_fleet_dygraph.py
    
@@ -344,7 +348,7 @@ train_fleet_static.py的完整训练代码如下所示。
    python -m paddle.distributed.launch --gpus 0,1,2,3,4,5,6,7 train_fleet_static.py
 
 
-从单机多卡到多机多卡训练，在代码上不需要做任何改动，只需再额外指定ips参数即可。其内容为多机的ip列表，命令如下所示（假设两台机器的ip地址分别为192.168.0.1和192.168.0.2）：
+从单机多卡到多机多卡训练，在代码上不需要做任何改动，只需再额外指定 ``ips`` 参数即可。其内容为多机的IP列表，命令如下所示（假设两台机器的ip地址分别为192.168.0.1和192.168.0.2）：
 
 .. code-block::
 
