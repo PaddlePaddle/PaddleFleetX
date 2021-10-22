@@ -31,7 +31,7 @@ Sharding-hybrid-dp
 ^^^^^^^^^^^^^^^^^^^^
 
 Sharding hybrid数据并行策略，在sharding 并行的基础上再增加一层数据并行逻辑。
-该策略的目的是通过 \ ``限制sharding 通信的节点数``和 \ ``增加多路数据并行``来提高训练吞吐。 如果一个模型在普通Sharding 训练时需要M 张GPU，则则开启hybrid-dp 至少需要 N*M GPU （N>= 2）。
+该策略的目的是通过 ``限制sharding 通信的节点数`` 和 ``增加多路数据并行`` 来提高训练吞吐。 如果一个模型在普通Sharding 训练时需要M 张GPU，则则开启hybrid-dp 至少需要 N*M GPU （N>= 2）。
 
 Sharding-hybrid-dp 适用的场景如下： 
 
@@ -44,7 +44,7 @@ Sharding-hybrid-dp 适用的场景如下：
   * Sharding 中的broadcast 通信 会涉及全部的32 张卡，且为跨节点通信。
   * Sharding 中的 allreduce 通信 会涉及全部的32 张卡，且为跨节点通信。
 
-开启 hybrid-dp 并设置 \ ``sharding_group_size = 8``后， 每个节点内的 8 张卡组成一个完整的 Sharding parallelism，4 个节点构成 4路 hybrid data parallelism：
+开启 hybrid-dp 并设置 ``sharding_group_size = 8`` 后， 每个节点内的 8 张卡组成一个完整的 Sharding parallelism，4 个节点构成4路hybrid data parallelism：
 
   * Sharding 中的broadcast 通信被限制在每个节点内的 8 张GPU 之间， 没有跨节点通信。
   * Sharding 中的 allreduce 为跨节点通信，但每个allreduce 通信只涉及 对应 sharding_group 上 rank 相同的 4 张GPUs， 且每张GPU仅需要 allreduce通信 1/8 的模型参数。
@@ -130,7 +130,7 @@ sharding 可以设置以下参数：
 
 .. code-block:: sh
 
-   fleetrun --gpus=4,5,6,7 train_fleet_sharding.py
+   python -m paddle.distributed.launch --gpus=4,5,6,7 train_fleet_sharding.py
 
 
 您将看到显示如下日志信息：
@@ -216,7 +216,7 @@ sharding 可以设置以下参数：
     ...
 
 
-完整4卡的日志信息也可在\ ``./log/``\ 目录下查看。了解更多\ ``fleetrun``\ 的用法可参考左侧文档\ ``fleetrun 启动分布式任务``\ 。
+完整4卡的日志信息也可在\ ``./log/``\ 目录下查看。
 
 
 动态图
