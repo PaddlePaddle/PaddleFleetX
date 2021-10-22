@@ -29,7 +29,7 @@ PaddlePaddle 使用“线程池”模型调度并执行Op，Op在启动GPU计算
 
 .. code-block:: sh
 
-   fleetrun --gpus=0,1,2,3,4,5,6,7 train_fleet_static_others.py
+   python -m paddle.distributed.launch --gpus=0,1,2,3,4,5,6,7 train_fleet_static_others.py
 
 您将看到显示如下日志信息：
 

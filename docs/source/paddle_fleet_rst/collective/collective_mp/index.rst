@@ -13,7 +13,7 @@
    plsc
    sharding
    pipeline
-   hybrid_parallelism.rst
+   hybrid_parallelism
    gpt
    moe
 

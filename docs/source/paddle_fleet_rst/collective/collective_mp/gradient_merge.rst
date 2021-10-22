@@ -14,7 +14,7 @@ Gradient Merge
 size 以降低模型训练中的所需要的存储空间，这将导致很多模型无法通过提高训练时的batch
 size 来提高模型的精度。
 
-Gradient Merge 策略的主要思想是将连续多个batch 数据训练得到的参数梯度合并做一次更新。
+Gradient Merge (GM) 策略的主要思想是将连续多个batch 数据训练得到的参数梯度合并做一次更新。
 在该训练策略下，虽然从形式上看依然是小batch 规模的数据在训练，但是效果上可以达到多个小batch 数据合并成大batch 后训练的效果。
 
 
@@ -30,6 +30,9 @@ size 训练效果的目的。具体来说，就是使用若干原有大小的bat
 
 使用方法
 ~~~~~~~~~
+
+静态图
+========
 
 Gradient Merge
 策略在使用方面也很简单，用户只需要定义将多少batch 的数据计算出的梯度叠加更新模型参数，便可以实现大batch 训练的目的。
@@ -56,7 +59,7 @@ True
 
 .. code-block:: sh
 
-   fleetrun --gpus=0,1 train_fleet_gradient_merge.py
+   python -m paddle.distributed.launch --gpus=0,1 train_fleet_gradient_merge.py
 
 
 您将看到显示如下日志信息：
@@ -102,4 +105,20 @@ True
     ...
 
 
-完整2卡的日志信息也可在\ ``./log/``\ 目录下查看。了解更多\ ``fleetrun``\ 的用法可参考左侧文档\ ``fleetrun 启动分布式任务``\ 。
+完整2卡的日志信息也可在\ ``./log/``\ 目录下查看。
+
+动态图
+========
+
+需要说明的是，动态图是天然支持Gradient Merge。即，只要不调用 ``clear_gradient`` 方法，动态图的梯度会一直累积。
+动态图下使用Gradient Merge的代码片段如下：
+
+.. code-block::
+
+   for batch_id, data in enumerate(train_loader()):
+       ... ...
+       avg_loss.backward()
+       if batch_id % k == 0:
+           optimizer.minimize(avg_loss)
+           model.clear_gradients()
+

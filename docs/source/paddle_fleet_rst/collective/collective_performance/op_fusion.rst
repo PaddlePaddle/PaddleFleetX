@@ -7,7 +7,7 @@ OP融合（计算，通信）
 
 将模型网络中顺序执行的多个OPs进行融合能够减少OP 调度的开销，提升训练速度。目前Fleet 中支持如下3种的OP 融合：
 
-- fuse_all_optimizer_ops：表明是否融合(fuse) 是否融合 optimizer_op，仅对部分 optimizer 可用（SGD、Adam和Momentum）。
+- fuse_all_optimizer_ops：表明是否融合(fuse)  optimizer_op，仅对部分 optimizer 可用（SGD、Adam和Momentum）。
 
 - fuse_elewise_add_act_ops：表明是否融合(fuse) elementwise_add_op和activation_op。
 
@@ -56,7 +56,7 @@ AllReduce 融合默认情况下会将同一layer中参数的梯度的多个AllRe
 
 .. code-block:: sh
 
-   fleetrun --gpus=0,1 train_fleet_static_op_fusion.py
+   python -m paddle.distributed.launch --gpus=0,1 train_fleet_static_op_fusion.py
 
 您将看到显示如下日志信息：
 
