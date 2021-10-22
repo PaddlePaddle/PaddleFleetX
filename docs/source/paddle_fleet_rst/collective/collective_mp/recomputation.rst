@@ -23,20 +23,20 @@ Recomputation
 
 我们知道，深度学习网络的一次训练迭代包含三个步骤：
 
--  **前向计算：** 运行前向算子(Operator) 来计算中间隐层(Variable) 的值 。
+-  **前向计算：** 运行前向算子(Operator) 来计算中间隐层(张量) 的值 。
 -  **反向计算：** 运行反向算子来计算参数(Parameter)的梯度。
 -  **优化：** 应用优化算法以更新参数值 。
 
 在前向计算过程中，前向算子会计算出大量的中间结果，由于这些中间结果是训练数据和算子计算得到的，所以训练数据的batch
 bize 越大，中间结果占用的内存也就越大。飞桨核心框架会使用
-Variable来存储这些隐层的中间结果。当模型层数加深时，其中间结果的数量可达数千甚至数万，
+张量来存储这些隐层的中间结果。当模型层数加深时，其中间结果的数量可达数千甚至数万，
 占据大量的内存。飞桨核心框架的显存回收机制会及时清除无用的中间结果以节省显存，
 但是有些中间结果是反向计算过程中算子的输入，这些中间结果必须存储在内存中，直到相应的反向算子计算完毕。
 
 对于大小固定的内存来说，如果用户希望使用大batch
 bize 的数据进行训练，则将导致单个中间结果占用内存增大，那么就需要减少中间结果的存储数量，FRB就是基于这种思想设计的。
 
-FRB是将深度学习网络切分为k个部分（segments）。对每个segment 而言：前向计算时，除了小部分必须存储在内存中的Variable 外，其他中间结果都将被删除；在反向计算中，首先重新计算一遍前向算子，以获得中间结果，再运行反向算子。简而言之，FRB 和普通的网络迭代相比，多计算了一遍前向算子。
+FRB是将深度学习网络切分为k个部分（segments）。对每个segment 而言：前向计算时，除了小部分必须存储在内存中的张量外，其他中间结果都将被删除；在反向计算中，首先重新计算一遍前向算子，以获得中间结果，再运行反向算子。简而言之，FRB 和普通的网络迭代相比，多计算了一遍前向算子。
 具体过程如下图所示：
 
 
@@ -51,7 +51,7 @@ FRB是将深度学习网络切分为k个部分（segments）。对每个segment 
 我们知道深度学习网络通常是由一个个模块串联得到的，比如ResNet-50由16个block串联而成，
 Bert-Large由24个Encoder layers 串联而成，以两个子模块中间的变量作为切分点就是一个很好的选择。
 对于非串联的网络（比如含有大量shortcut结构的网络），FRB也支持对其做切分，
-只是可能多耗费一点内存（用于存储shortcut的Variable）。
+只是可能多耗费一点内存（用于存储shortcut的输出张量）。
 
 Recompute-Offload 
 ^^^^^^^^^^^^^^^^^^^^
@@ -93,7 +93,7 @@ batch size = #seq * seq_max_len
 ~~~~~~~~~
 
 静态图
-^^^^^^^^
+======
 
 为了使用Recompute策略，我们将\ ``dist_strategy.recompute``\ 设置为True
 并设置我们事先定义好的checkpoints。 checkpoint 的选取可以参考论文 `《Training Deep Nets with Sublinear Memory Cost》 <https://arxiv.org/abs/1604.06174>`__ 。
@@ -101,7 +101,7 @@ batch size = #seq * seq_max_len
 示例中使用的ResNet50 模型的 checkpoint 不是固定的，不符合 Offload 的要求，固该功能暂无法开启。 
 当使用 Transformer 时，可以选取每一layer 的FC output 作为checkpoint， 这时各个layer 的checkpoints shapes 一致，可以使用Offload。
 
-res2a.add.output.5.tmp_0 等是用户组网时定义的 \ `variable name  <https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/api_guides/low_level/program.html#name>`_\ 
+res2a.add.output.5.tmp_0 等是用户组网时定义的张量名称。
 
 .. code:: python
 
@@ -121,7 +121,7 @@ res2a.add.output.5.tmp_0 等是用户组网时定义的 \ `variable name  <https
 
 .. code-block:: sh
 
-   fleetrun --gpus=0,1 train_fleet_recompute.py
+   python -m paddle.distributed.launch --gpus=0,1 train_fleet_recompute.py
 
 
 您将看到显示如下日志信息：
@@ -191,10 +191,49 @@ res2a.add.output.5.tmp_0 等是用户组网时定义的 \ `variable name  <https
     ...
 
 
-完整2卡的日志信息也可在\ ``./log/``\ 目录下查看。了解更多\ ``fleetrun``\ 的用法可参考左侧文档\ ``fleetrun 启动分布式任务``\ 。
+完整2卡的日志信息也可在\ ``./log/``\ 目录下查看。
 
 
 动态图
-^^^^^^^
+======
 
-完整代码存放在：\ `Dygraph Recompute <https://github.com/PaddlePaddle/Paddle/pull/32516>`_\ 下面。
+动态图模式下，使用Recompute功能的示例代码如下：
+
+.. code:: python
+   from paddle.distributed.fleet.utils import recompute
+
+   class TransformerEncoder(Layer):
+       def __init__(self, encoder_layer, num_layers, norm=None, enable_recompute = True, preserve_rng_state = True):
+           super(TransformerEncoder, self).__init__()
+           self.layers = LayerList([(encoder_layer if i == 0 else
+                                     type(encoder_layer)(**encoder_layer._config))
+                                    for i in range(num_layers)])
+           self.num_layers = num_layers
+           self.norm = norm
+           self.enable_recompute = enable_recompute
+           self.preserve_rng_state = preserve_rng_state
+           if preserve_rng_state:
+               assert self.enable_recompute, "preserve_rng_state is True, but enable_recompute is False."
+   
+       def forward(self, src, src_mask=None, cache=None):
+           src_mask = _convert_attention_mask(src_mask, src.dtype)
+   
+           output = src
+           new_caches = []
+           for i, mod in enumerate(self.layers):
+               if cache is None:
+                   # NOTE recompute modification
+                   if self.enable_recompute:
+                       output = recompute(mod, output, src_mask, preserve_rng_state = self.preserve_rng_state)
+                   else:   
+                       output = mod(output, src_mask=src_mask)
+               else:
+                   output, new_cache = mod(output,
+                                           src_mask=src_mask,
+                                           cache=cache[i])
+                   new_caches.append(new_cache)
+   
+           if self.norm is not None:
+               output = self.norm(output)
+   
+           return output if cache is None else (output, new_caches)
