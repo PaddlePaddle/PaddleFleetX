@@ -66,24 +66,18 @@ def gpt_pretrain_forward(args, train_program, start_program, topo):
         train_data_loader, valid_data_loader, test_data_loader = create_data_loader(args, data_holders, topo)
 
         if global_setting._global_parallel_stratergy == "dp":
-            auto.shard_tensor(
-                tokens, global_setting._global_process_mesh, dim_mapping=[0, -1])
+            auto.shard_tensor(tokens, dist_attr={"process_mesh":global_setting._global_process_mesh, "dims_mapping":[0, -1]})
         elif global_setting._global_parallel_stratergy == "dp_mp":
-            auto.shard_tensor(
-                tokens, global_setting._global_process_mesh, dim_mapping=[0, -1])
+            auto.shard_tensor(tokens, dist_attr={"process_mesh":global_setting._global_process_mesh, "dims_mapping":[0, -1]})
         elif global_setting._global_parallel_stratergy == "pp":
-            auto.shard_tensor(
-                tokens, global_setting.PP_MESH_LIST[0], dim_mapping=[-1, -1])
-            auto.shard_tensor(
-                attention_mask, global_setting.PP_MESH_LIST[0], dim_mapping=[-1, -1, -1, -1])
+            auto.shard_tensor(tokens, dist_attr={"process_mesh":global_setting.PP_MESH_LIST[0], "dims_mapping":[-1, -1]})
+            auto.shard_tensor(attention_mask, dist_attr={"process_mesh":global_setting.PP_MESH_LIST[0], "dims_mapping":[-1, -1, -1, -1]})
         elif global_setting._global_parallel_stratergy == "dp_pp":
-            auto.shard_tensor(
-                tokens, global_setting.DPPP_MESH_LIST[0], dim_mapping=[0, -1])
+            auto.shard_tensor(tokens, dist_attr={"process_mesh":global_setting.DPPP_MESH_LIST[0], "dims_mapping":[0, -1]})
         elif global_setting._global_parallel_stratergy == "mp_pp":
-            auto.shard_tensor(tokens, global_setting.MPPP_MESH_LIST[0], dim_mapping=[-1, -1])
+            auto.shard_tensor(tokens, dist_attr={"process_mesh":global_setting.MPPP_MESH_LIST[0], "dims_mapping":[-1, -1]})
         elif global_setting._global_parallel_stratergy == "dp_mp_pp":
-            auto.shard_tensor(
-                tokens, global_setting.DPMPPP_MESH_LIST[0], dim_mapping=[0, -1])
+            auto.shard_tensor(tokens, dist_attr={"process_mesh":global_setting.DPMPPP_MESH_LIST[0], "dims_mapping":[0, -1]})
 
         gpt = GPTModel(
             vocab_size=50304,
@@ -126,43 +120,35 @@ def main(args):
 
     global_setting.init_global()
     if args.dp_degree == 1 and args.mp_degree == 1 and args.pp_degree == 1:
-        set_global_parallel_strategy("None")
-        set_global_process_mesh("None")
+        pass
     elif args.dp_degree > 1 and args.mp_degree == 1 and args.pp_degree == 1:
         global_setting._global_parallel_stratergy = "dp"
-        ROOT_MESH = auto.ProcessMesh([0, 1])
         global_setting._global_process_mesh = auto.ProcessMesh(
-            mesh=[0, 1], parent=ROOT_MESH)
+            mesh=[0, 1])
     elif args.dp_degree == 1 and args.mp_degree > 1 and args.pp_degree == 1:
         global_setting._global_parallel_stratergy = "mp"
-        ROOT_MESH = auto.ProcessMesh([0, 1])
         global_setting._global_process_mesh = auto.ProcessMesh(
-            mesh=[0, 1], parent=ROOT_MESH)
+            mesh=[0, 1])
     elif args.dp_degree > 1 and args.mp_degree > 1 and args.pp_degree == 1:
         global_setting._global_parallel_stratergy = "dp_mp"
-        ROOT_MESH = auto.ProcessMesh([[0, 1], [2, 3]])
         global_setting._global_process_mesh = auto.ProcessMesh(
-            mesh=[[0, 1], [2, 3]], parent=ROOT_MESH)
+            mesh=[[0, 1], [2, 3]])
     elif args.dp_degree == 1 and args.mp_degree == 1 and args.pp_degree > 1:
         global_setting._global_parallel_stratergy = "pp"
-        ROOT_MESH = auto.ProcessMesh([0, 1])
-        global_setting._global_process_mesh = auto.ProcessMesh(mesh=[0, 1], parent=ROOT_MESH)
-        global_setting.PP_MESH_LIST = [auto.ProcessMesh(mesh=[0], parent=ROOT_MESH), auto.ProcessMesh(mesh=[1], parent=ROOT_MESH)]
+        global_setting._global_process_mesh = auto.ProcessMesh(mesh=[0, 1])
+        global_setting.PP_MESH_LIST = [auto.ProcessMesh(mesh=[0]), auto.ProcessMesh(mesh=[1])]
     elif args.pp_degree > 1 and args.dp_degree > 1 and args.mp_degree == 1:
         global_setting._global_parallel_stratergy = "dp_pp"
-        ROOT_MESH = auto.ProcessMesh([[0, 1], [2, 3]])
-        global_setting._global_process_mesh = auto.ProcessMesh(mesh=[[0, 2], [1, 3]], parent=ROOT_MESH)
-        global_setting.DPPP_MESH_LIST = [auto.ProcessMesh(mesh=[0, 2], parent=ROOT_MESH), auto.ProcessMesh(mesh=[1, 3], parent=ROOT_MESH)]
+        global_setting._global_process_mesh = auto.ProcessMesh(mesh=[[0, 2], [1, 3]])
+        global_setting.DPPP_MESH_LIST = [auto.ProcessMesh(mesh=[0, 2]), auto.ProcessMesh(mesh=[1, 3])]
     elif args.mp_degree > 1 and args.pp_degree > 1 and args.dp_degree == 1:
         global_setting._global_parallel_stratergy = "mp_pp"
-        ROOT_MESH = auto.ProcessMesh([[0, 1], [2, 3]])
-        global_setting._global_process_mesh = auto.ProcessMesh(mesh=[[0, 1], [2, 3]], parent=ROOT_MESH)
-        global_setting.MPPP_MESH_LIST = [auto.ProcessMesh(mesh=[0, 1], parent=ROOT_MESH), auto.ProcessMesh(mesh=[2, 3], parent=ROOT_MESH)]
+        global_setting._global_process_mesh = auto.ProcessMesh(mesh=[[0, 1], [2, 3]])
+        global_setting.MPPP_MESH_LIST = [auto.ProcessMesh(mesh=[0, 1]), auto.ProcessMesh(mesh=[2, 3])]
     elif args.mp_degree > 1 and args.pp_degree > 1 and args.dp_degree > 1:
         global_setting._global_parallel_stratergy = "dp_mp_pp"
-        ROOT_MESH = auto.ProcessMesh([[[0, 1], [4, 5]], [[2, 3], [6, 7]]])
-        global_setting._global_process_mesh = auto.ProcessMesh(mesh=[[[0, 1], [4, 5]], [[2, 3], [6, 7]]], parent=ROOT_MESH)
-        global_setting.DPMPPP_MESH_LIST = [auto.ProcessMesh(mesh=[[0, 1], [4, 5]], parent=ROOT_MESH), auto.ProcessMesh(mesh=[[2, 3], [6, 7]], parent=ROOT_MESH)]
+        global_setting._global_process_mesh = auto.ProcessMesh(mesh=[[[0, 1], [4, 5]], [[2, 3], [6, 7]]])
+        global_setting.DPMPPP_MESH_LIST = [auto.ProcessMesh(mesh=[[0, 1], [4, 5]]), auto.ProcessMesh(mesh=[[2, 3], [6, 7]])]
         
     topo = Topology(
     device_rank=worker_index,
