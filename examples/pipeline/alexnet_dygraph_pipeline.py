@@ -176,7 +176,7 @@ if __name__ == "__main__":
         
         loss_b = model_b.train_batch([img, label], optimizer_b, scheduler_b)
 
-        print("loss_a: ", loss_a.numpy(), "loss_b: ", loss_b.numpy())
+        print("single_loss: ", loss_a.numpy(), "pp_loss: ", loss_b.numpy())
 
 
 
