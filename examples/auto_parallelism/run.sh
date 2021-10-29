@@ -1,8 +1,8 @@
 gpu_card=$1
 CUDA_VISIBLE_DEVICES=${gpu_card}
 output_dir=$2
-mkdir "./output/"
-mkdir $output_dir
+mkdir -p "./output/"
+mkdir -p $output_dir
 rm -rf $output_dir/*
 rm -rf ./data/*.npy
 
