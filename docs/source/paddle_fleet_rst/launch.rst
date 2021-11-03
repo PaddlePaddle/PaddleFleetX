@@ -108,7 +108,7 @@ PaddleCloud平台
 
 我们以下图为例说明如何在物理机环境或者docker环境中启动飞桨分布式任务。我们有两台机器，每台机器包含4张GPU卡。两台机器的IP地址分别为192.168.0.1和192.168.0.2。该IP地址可以为两台物理机的IP地址，也可以为两台机器内部Docker容器的IP地址。
 
-.. image:: collective/img/dp_exam1.png
+.. image:: ../collective/img/dp_exam1.png
   :width: 400
   :alt: launch
   :align: center
