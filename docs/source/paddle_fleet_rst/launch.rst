@@ -215,4 +215,4 @@ PaddleCloud平台
       File "/usr/local/lib/python3.7/site-packages/paddle/fluid/dataloader/dataloader_iter.py", line 779, in __next__
          data = self._reader.read_next_var_list()
    SystemError: (Fatal) Blocking queue is killed because the data reader raises an exception.
-   [Hint: Expected killed_ != true, but received killed_:1 == true:1.] (at /paddle/paddle/fluid/operators/reader/blocking_queue.h:158)  
+   [Hint: Expected killed_ != true, but received killed_:1 == true:1.] (at /paddle/paddle/fluid/operators/reader/blocking_queue.h:158)
