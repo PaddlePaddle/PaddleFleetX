@@ -171,87 +171,87 @@
 
 .. code-block:: python
 
-  class ReshapeHelp(Layer):
-    def __init__(self, shape):
-        super(ReshapeHelp, self).__init__()
-        self.shape = shape
- 
-    def forward(self, x):
-        return x.reshape(shape=self.shape)
- 
- 
-  class AlexNet(Layer):
-    def __init__(self, num_classes=10):
-        super(AlexNet, self).__init__()
-        self.features = Sequential(
-            nn.Conv2D(
-                1, 64, kernel_size=11, stride=4, padding=5),
-            nn.ReLU(),
-            nn.MaxPool2D(
-                kernel_size=2, stride=2),
-            nn.Conv2D(
-                64, 192, kernel_size=5, padding=2),
-            nn.ReLU(),
-            nn.MaxPool2D(
-                kernel_size=2, stride=2),
-            nn.Conv2D(
-                192, 384, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2D(
-                384, 256, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2D(
-                256, 256, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2D(
-                kernel_size=2, stride=2), )
- 
- 
-        self.reshape_layer = ReshapeHelp(shape=[-1, 256])
-        self.classifier = nn.Linear(256, num_classes)
-        self.loss_fn = nn.loss.CrossEntropyLoss()
- 
-    def forward(self, x, y):
-        x = self.features(x)
-        x = self.reshape_layer(x)
-        x = self.classifier(x)
-        return self.loss_fn(x, y)
+    class ReshapeHelp(Layer):
+        def __init__(self, shape):
+            super(ReshapeHelp, self).__init__()
+            self.shape = shape
 
-然后构建一个可以运行流水线的模型，模型的layer需要被LayerDesc或者继承了LayerDesc的SharedLayerDesc，这里因为不需要共享参数，所以就使用LayerDesc
+        def forward(self, x):
+            return x.reshape(shape=self.shape)
+
+
+    class AlexNet(Layer):
+        def __init__(self, num_classes=10):
+            super(AlexNet, self).__init__()
+            self.features = Sequential(
+                nn.Conv2D(
+                    1, 64, kernel_size=11, stride=4, padding=5),
+                nn.ReLU(),
+                nn.MaxPool2D(
+                    kernel_size=2, stride=2),
+                nn.Conv2D(
+                    64, 192, kernel_size=5, padding=2),
+                nn.ReLU(),
+                nn.MaxPool2D(
+                    kernel_size=2, stride=2),
+                nn.Conv2D(
+                    192, 384, kernel_size=3, padding=1),
+                nn.ReLU(),
+                nn.Conv2D(
+                    384, 256, kernel_size=3, padding=1),
+                nn.ReLU(),
+                nn.Conv2D(
+                    256, 256, kernel_size=3, padding=1),
+                nn.ReLU(),
+                nn.MaxPool2D(
+                    kernel_size=2, stride=2), )
+
+
+            self.reshape_layer = ReshapeHelp(shape=[-1, 256])
+            self.classifier = nn.Linear(256, num_classes)
+            self.loss_fn = nn.loss.CrossEntropyLoss()
+
+        def forward(self, x, y):
+            x = self.features(x)
+            x = self.reshape_layer(x)
+            x = self.classifier(x)
+            return self.loss_fn(x, y)
+
+然后构建一个可以运行流水线的模型，模型的layer需要被LayerDesc或者继承了LayerDesc的SharedLayerDesc包裹，这里因为不需要共享参数，所以就使用LayerDesc
 
 .. code-block:: python
 
-  class AlexNetPipeDesc(PipelineLayer):
-    def __init__(self, num_classes=10, **kwargs):
-        self.num_classes = num_classes
-        decs = [
-            LayerDesc(
-                nn.Conv2D, 1, 64, kernel_size=11, stride=4, padding=5),
-            LayerDesc(nn.ReLU),
-            LayerDesc(
-                nn.MaxPool2D, kernel_size=2, stride=2),
-            LayerDesc(
-                nn.Conv2D, 64, 192, kernel_size=5, padding=2),
-            F.relu,
-            LayerDesc(
-                nn.MaxPool2D, kernel_size=2, stride=2),
-            LayerDesc(
-                nn.Conv2D, 192, 384, kernel_size=3, padding=1),
-            F.relu,
-            LayerDesc(
-                nn.Conv2D, 384, 256, kernel_size=3, padding=1),
-            F.relu,
-            LayerDesc(
-                nn.Conv2D, 256, 256, kernel_size=3, padding=1),
-            F.relu,
-            LayerDesc(
-                nn.MaxPool2D, kernel_size=2, stride=2),
-            LayerDesc(
-                ReshapeHelp, shape=[-1, 256]),
-            LayerDesc(nn.Linear, 256, self.num_classes),  # classifier
-        ]
-        super(AlexNetPipeDesc, self).__init__(
-            layers=decs, loss_fn=nn.CrossEntropyLoss(), **kwargs)
+    class AlexNetPipeDesc(PipelineLayer):
+        def __init__(self, num_classes=10, **kwargs):
+            self.num_classes = num_classes
+            decs = [
+                LayerDesc(
+                    nn.Conv2D, 1, 64, kernel_size=11, stride=4, padding=5),
+                LayerDesc(nn.ReLU),
+                LayerDesc(
+                    nn.MaxPool2D, kernel_size=2, stride=2),
+                LayerDesc(
+                    nn.Conv2D, 64, 192, kernel_size=5, padding=2),
+                F.relu,
+                LayerDesc(
+                    nn.MaxPool2D, kernel_size=2, stride=2),
+                LayerDesc(
+                    nn.Conv2D, 192, 384, kernel_size=3, padding=1),
+                F.relu,
+                LayerDesc(
+                    nn.Conv2D, 384, 256, kernel_size=3, padding=1),
+                F.relu,
+                LayerDesc(
+                    nn.Conv2D, 256, 256, kernel_size=3, padding=1),
+                F.relu,
+                LayerDesc(
+                    nn.MaxPool2D, kernel_size=2, stride=2),
+                LayerDesc(
+                    ReshapeHelp, shape=[-1, 256]),
+                LayerDesc(nn.Linear, 256, self.num_classes),  # classifier
+            ]
+            super(AlexNetPipeDesc, self).__init__(
+                layers=decs, loss_fn=nn.CrossEntropyLoss(), **kwargs)
 
 然后初始化分布式环境，这一步主要是构建流水线通信组的拓扑
 
@@ -375,7 +375,7 @@ model_b.train_batch(...)：这一步主要就是执行1F1B的流水线并行方�
      
     loss_b = model_b.train_batch([img, label], optimizer_b, scheduler_b)
  
-    print("loss_a: ", loss_a.numpy(), "loss_b: ", loss_b.numpy())
+    print("single_loss: ", loss_a.numpy(), "pp_loss: ", loss_b.numpy())
 
 运行方式（需要保证当前机器有两张gpu）：
 
@@ -384,8 +384,7 @@ model_b.train_batch(...)：这一步主要就是执行1F1B的流水线并行方�
   export CUDA_VISIBLE_DEVICES=0,1
   python -m paddle.distributed.launch alexnet_dygraph_pipeline.py # alexnet_dygraph_pipeline.py是用户运行动态图流水线的python文件
 
-基于AlexNet的流水线并行动态图代码：`example/alex
- <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/pipeline>`。
+基于AlexNet的流水线并行动态图代码：`example/alex <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/pipeline>`_。
 
 控制台输出信息如下：
 
@@ -412,12 +411,12 @@ model_b.train_batch(...)：这一步主要就是执行1F1B的流水线并行方�
 
 .. code-block:: bash
 
-  loss_a:  [2.299683] loss_b:  [2.2996738]
-  loss_a:  [2.287039] loss_b:  [2.2870412]
-  loss_a:  [2.3449192] loss_b:  [2.3449283]
-  loss_a:  [2.3162398] loss_b:  [2.3162327]
-  loss_a:  [2.3100636] loss_b:  [2.310072]
+    single_loss:  [2.299683] pp_loss:  [2.2996738]
+    single_loss:  [2.287039] pp_loss:  [2.2870412]
+    single_loss:  [2.3449194] pp_loss:  [2.3449283]
+    single_loss:  [2.3162396] pp_loss:  [2.3162327]
+    single_loss:  [2.3100634] pp_loss:  [2.310072]
 
 注意事项
 =======
-与静态图的流水线不一样的是每张卡都会输出loss，并且流水线loss的值是相等的，与普通模型的loss之间应该是基本对齐的。
+与静态图的流水线不一样的是每张卡都会输出loss，并且流水线loss的值是相等的，与普通模型的loss在小数点后三位应该是相等的。

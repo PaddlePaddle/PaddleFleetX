@@ -12,18 +12,13 @@ the Knowledge in a Neural
 Network》 <https://arxiv.org/abs/1503.02531>`__
 在2015年第一次提出，是将知识从一个复杂模型(Teacher)迁移到另一个轻量级模型(Student)上的方式来实现模型压缩。
 
-如下图所示，训练步骤可以分为两步：
+训练步骤可以分为两步：
 
 -  训练好一个Teacher模型。
 -  使用Teacher模型的知识来训练Student模型。
    所谓Teacher模型的知识是指Teacher模型的推理结果，我们称之为soft
    label，这个soft
    label将作为Student网络的训练目标，Student的推理结果需要尽可能接近Teacher的推理结果。
-
-.. image:: ../_images/distill/distillation_1.png
-  :width: 600
-  :alt: distillation
-  :align: center
 
 服务型蒸馏训练
 ^^^^^^^^^^^^^^

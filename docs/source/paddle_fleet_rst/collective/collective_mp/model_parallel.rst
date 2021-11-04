@@ -164,6 +164,254 @@ Embedding和矩阵乘法算子的切分。我们需要对该API的 ``gather_out`
 
 当结合使用模型并行和数据并行时，无需指定额外的参数。但需要确保，训练卡总数是模型并行并行度的整数倍。
 
+在Paddle里面，模型并行主要体现为三种方式，切分Embedding层，列切分Linear层和行切分Linear层。
+
+下面代码在Paddle2.0以上可以运行，建议将Paddle版本升级到最新版
+
+首先导入需要的包
+
+.. code-block:: python
+
+   import paddle
+   import numpy as np
+   import random
+   import paddle.distributed as dist
+   import paddle.fluid as fluid
+   import paddle.distributed.fleet as fleet
+   import os
+   import paddle.nn as nn
+
+因为是使用静态图方式，所以需要在程序一开始的地方就声明使用静态图方式
+
+.. code-block:: python
+
+   paddle.enable_static()
+   
+   # 声明一些需要使用的全局变量
+   vocab_size = 20
+   hidden_size = 10
+   inner_size = 8
+   output_size = 10
+   seq_length = 2
+   batch_size = 4
+
+为了验证模型并行的正确性，需要定义一个单卡模型作比较
+
+.. code-block:: python
+
+   class SimpleNet(nn.Layer):
+      def __init__(self, vocab_size, hidden_size, inner_size, output_size, np_fc1, np_fc2):
+         super(SimpleNet, self).__init__()
+         self.linear1 = paddle.nn.Linear(
+            hidden_size,
+            inner_size,
+            weight_attr=paddle.framework.ParamAttr(
+                  initializer=paddle.nn.initializer.Assign(np_fc1)
+            ),
+            bias_attr=None
+         )
+
+         self.linear2 = paddle.nn.Linear(
+            inner_size,
+            hidden_size,
+            weight_attr=paddle.framework.ParamAttr(
+                  initializer=paddle.nn.initializer.Assign(np_fc2)
+            ),
+            bias_attr=None
+         )
+         self.linear3 = paddle.nn.Linear(
+            hidden_size,
+            output_size,
+            weight_attr=paddle.framework.ParamAttr(
+                  initializer=paddle.nn.initializer.Constant(0.1)
+            )
+         )
+
+         self.embedding = paddle.nn.Embedding(
+            vocab_size,
+            hidden_size,
+            weight_attr=paddle.nn.initializer.Constant(value=0.5)
+         )
+      
+      def forward(self, x):
+         x = self.embedding(x)
+         x = self.linear1(x)
+         x = self.linear2(x)
+         x = self.linear3(x)
+         return x.mean()
+
+然后使用paddle.distributed.split函数进行三种切分方式的演示，
+
+首先
+
+- paddle.distributed.split(...., operation="embedding", axis=0, gather_out=True, ....): 切分embedding层，需要指定operation参数为"embedding"， 然后切分的维度axis只支持0，无论gather_out指定为什么，都会在切分embedding做完相应的计算后进行all reduce通信
+- paddle.distributed.split(...., operation="linear", axis=1, gather_out=False, ...): 列切分linear层，需要指定operation参数为"linear", axis的值为1，gather_out为True时会在linear后添加all gather通信
+- paddle.distributed.split(...., operation="linear", axis=0, gather_out=True, ....): 行切分linear层，需要指定operation参数为"linear", axis的值为0，gather_out为True时会在linear后添加all reduce通信
+
+.. code-block:: python
+
+   class SimpleMPNet(nn.Layer):
+      def __init__(self, vocab_size, hidden_size, inner_size, output_size, np_fc1,
+                  np_fc2, mp_id):
+         super(SimpleMPNet, self).__init__()
+         if mp_id == 0:
+            init_fc1_data = np_fc1[:, :(inner_size // 2)]
+            init_fc2_data = np_fc2[:(inner_size // 2), :]
+         else:
+            init_fc1_data = np_fc1[:, (inner_size // 2):]
+            init_fc2_data = np_fc2[(inner_size // 2):, :]
+         self.weight_attr1 = paddle.framework.ParamAttr(
+            initializer=paddle.nn.initializer.Assign(init_fc1_data)
+         )
+         self.weight_attr2 = paddle.framework.ParamAttr(
+            initializer=paddle.nn.initializer.Assign(init_fc2_data)
+         )
+
+
+         self.linear3 = paddle.nn.Linear(
+            hidden_size,
+            output_size,
+            weight_attr=paddle.framework.ParamAttr(
+                  initializer=paddle.nn.initializer.Constant(0.1)
+            )
+         )
+
+         self.embedding_weight = paddle.nn.initializer.Constant(value=0.5)
+
+      def forward(self, x):
+         x = paddle.distributed.split(
+            x, size=(vocab_size, hidden_size), operation="embedding", axis=0, num_partitions=2,
+            gather_out=True, weight_attr=self.embedding_weight
+         )
+         x = paddle.distributed.split(
+            x, size=(hidden_size, inner_size), operation="linear", axis=1, num_partitions=2,
+            gather_out=False, weight_attr=self.weight_attr1
+         )
+         x = paddle.distributed.split(
+            x, size=(inner_size, hidden_size), operation="linear", axis=0, num_partitions=2,
+            gather_out=True, weight_attr=self.weight_attr2
+         )
+         x = self.linear3(x)
+         return x.mean()
+
+定义生成数据的方式
+
+.. code-block:: python
+
+   def gen_data():
+      np.random.seed(2021)
+      while True:
+         data = [np.random.randint(0, vocab_size, [seq_length])]
+         yield data
+
+分布式环境初始化，生成对应program
+
+.. code-block:: python
+
+   train_mp_col_program = fluid.Program()
+   mp_startup_program = fluid.Program()
+   strategy = fleet.DistributedStrategy()
+   strategy.tensor_parallel = True
+   strategy.tensor_parallel_configs = {'tensor_parallel_degree': 2}
+   fleet.init(is_collective=True)
+
+因为要和单卡比对，所以要固定住seed，同时因为模型并行切分了linear层，导致对于切分linear的参数即使固定seed也不会和单卡对应，需要手动创建numpy矩阵作为linear的weight参数
+
+.. code-block:: python
+
+   def set_random_seed(seed, rank_id):
+      """Set random seed for reproducability."""
+      random.seed(seed)
+      np.random.seed(seed)
+      paddle.seed(seed + rank_id)
+   device_id = int(os.getenv("FLAGS_selected_gpus", "0"))
+   set_random_seed(1024, device_id)
+   np_fc1 = np.random.random_sample((hidden_size, inner_size))
+   np_fc2 = np.random.random_sample((inner_size, hidden_size))
+
+然后构建program,创建出单卡模型和数据并行模型的实体，dataloader
+
+.. code-block:: python
+
+   with fluid.program_guard(main_program=train_mp_col_program, startup_program=mp_startup_program):
+      data_in = fluid.data(
+         name="data_in", shape=[batch_size, seq_length], dtype="int32"
+      )
+      train_reader = paddle.batch(gen_data, batch_size=batch_size)
+      data_loader = fluid.io.DataLoader.from_generator(
+         feed_list=[data_in],
+         capacity=64,
+         use_double_buffer=False,
+         iterable=False
+      )
+      rank = fleet.worker_index()
+      model_mp = SimpleMPNet(vocab_size, hidden_size, inner_size, output_size,
+                        np_fc1, np_fc2, mp_id=rank)
+      model_single = SimpleNet(vocab_size, hidden_size, inner_size, output_size, np_fc1, np_fc2)       
+      avg_cost_mp = model_mp(data_in)
+      avg_cost_single = model_single(data_in)
+      mp_opt = fluid.optimizer.SGD(0.1)
+      dist_opt = fleet.distributed_optimizer(mp_opt, strategy=strategy)
+      dist_opt.minimize(avg_cost_mp)
+      single_opt = fluid.optimizer.SGD(0.1)
+      single_opt.minimize(avg_cost_single)
+
+然后运行startup program和mp program
+
+.. code-block:: python
+
+   place = paddle.CUDAPlace(device_id)
+   exe = paddle.static.Executor(place)
+   exe.run(mp_startup_program)
+   data_loader.set_sample_list_generator(train_reader, place)
+   data_loader.start()
+   fetch_lists = []
+   fetch_lists.extend([avg_cost_mp, avg_cost_single])
+   for i in range(5):
+      vars = exe.run(train_mp_col_program, fetch_list=fetch_lists)
+      print("mp_loss: ", vars[0], "single_loss: ", vars[1])
+   data_loader.reset()
+
+运行方式（需要保证当前机器有两张gpu）：
+
+.. code-block:: bash
+  
+  export CUDA_VISIBLE_DEVICES=0,1
+  python -m paddle.distributed.launch mp_static.py
+
+模型并行的静态图代码：`example/model_parallelism/mp_static.py <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/model_parallelism>`_。
+
+控制台输出信息如下：
+
+.. code-block:: bash
+
+   WARNING 2021-10-27 08:51:49,126 launch.py:381] Not found distinct arguments and compiled with cuda or xpu. Default use collective mode
+   launch train in GPU mode!
+   INFO 2021-10-27 08:51:49,128 launch_utils.py:525] Local start 2 processes. First process distributed environment info (Only For Debug): 
+    +=======================================================================================+
+    |                        Distributed Envs                      Value                    |
+    +---------------------------------------------------------------------------------------+
+    |                       PADDLE_TRAINER_ID                        0                      |
+    |                 PADDLE_CURRENT_ENDPOINT                 127.0.0.1:10129               |
+    |                     PADDLE_TRAINERS_NUM                        2                      |
+    |                PADDLE_TRAINER_ENDPOINTS         127.0.0.1:10129,127.0.0.1:34811       |
+    |                     PADDLE_RANK_IN_NODE                        0                      |
+    |                 PADDLE_LOCAL_DEVICE_IDS                        0                      |
+    |                 PADDLE_WORLD_DEVICE_IDS                       0,1                     |
+    |                     FLAGS_selected_gpus                        0                      |
+    |             FLAGS_selected_accelerators                        0                      |
+    +=======================================================================================+
+
+日志信息位于log目录下, 需要注意的是模型并行的loss与单卡模型的loss在小数点后三位是能够精确对齐的，然后两张卡上对应的loss应该是一样的:
+
+.. code-block:: bash
+
+   mp_loss:  [11.943981] single_loss:  [11.943981]
+   mp_loss:  [-2.2283082] single_loss:  [-2.2283082]
+   mp_loss:  [-13.341571] single_loss:  [-13.341571]
+   mp_loss:  [-29.284101] single_loss:  [-29.284101]
+   mp_loss:  [-63.219418] single_loss:  [-63.21941]
+
 动态图使用方法
 ~~~~~~~~~~~~~~~
 
@@ -270,3 +518,244 @@ Embedding和矩阵乘法算子的切分。我们需要对该API的 ``gather_out`
                          training=True,
                          mode='upscale_in_train')
 
+动态图的例子代码主要使用上面提到的三种类
+
+下面代码在Paddle2.0以上可以运行，建议将Paddle版本升级到最新版
+
+首先导入需要的包
+
+.. code-block:: python
+
+   import paddle
+   import numpy as np
+   import random
+   import paddle.distributed as dist
+   import paddle.fluid as fluid
+   import paddle.distributed.fleet as fleet
+
+声明一些需要使用的全局变量
+
+.. code-block:: python
+
+   vocab_size = 20
+   hidden_size = 10
+   inner_size = 8
+   output_size = 10
+   seq_length = 2
+   batch_size = 4
+
+定义单卡模型
+
+.. code-block:: python
+
+   class SimpleNet(fluid.dygraph.Layer):
+      def __init__(self, vocab_size, hidden_size, inner_size, output_size, np_fc1, np_fc2):
+         super(SimpleNet, self).__init__()
+         self.linear1 = paddle.nn.Linear(
+            hidden_size,
+            inner_size,
+            weight_attr=paddle.framework.ParamAttr(
+                  initializer=paddle.nn.initializer.Assign(np_fc1)
+            ),
+            bias_attr=paddle.framework.ParamAttr(
+                  initializer=paddle.nn.initializer.Constant(0.0)
+            )
+         )
+         self.linear2 = paddle.nn.Linear(
+            inner_size,
+            hidden_size,
+            weight_attr=paddle.framework.ParamAttr(
+                  initializer=paddle.nn.initializer.Assign(np_fc2)
+            ),
+            bias_attr=paddle.framework.ParamAttr(
+                  initializer=paddle.nn.initializer.Constant(0.0)
+            )
+         )
+
+         self.linear3 = paddle.nn.Linear(
+            hidden_size,
+            output_size,
+            weight_attr=paddle.framework.ParamAttr(
+                  initializer=paddle.nn.initializer.Constant(0.0)
+            ),
+            bias_attr=paddle.framework.ParamAttr(
+                  initializer=paddle.nn.initializer.Constant(0.0)
+            )
+         )
+
+         self.embedding = paddle.nn.Embedding(
+            vocab_size,
+            hidden_size,
+            weight_attr=paddle.nn.initializer.Constant(value=0.5)
+         )
+      
+      def forward(self, x):
+         x = self.embedding(x)
+         x = self.linear1(x)
+         x = self.linear2(x)
+         x = self.linear3(x)
+         return x
+
+定义模型并行的模型
+
+.. code-block:: python
+
+   class SimpleMPNet(fluid.dygraph.Layer):
+      def __init__(self, vocab_size, hidden_size, inner_size, output_size, np_fc1,
+                  np_fc2, mp_id):
+         super(SimpleMPNet, self).__init__()
+         if mp_id == 0:
+               init_fc1_data = np_fc1[:, :(inner_size // 2)]
+               init_fc2_data = np_fc2[:(inner_size // 2), :]
+         else:
+               init_fc1_data = np_fc1[:, (inner_size // 2):]
+               init_fc2_data = np_fc2[(inner_size // 2):, :]
+
+         self.linear1 = fleet.meta_parallel.ColumnParallelLinear(
+               hidden_size,
+               inner_size,
+               weight_attr=paddle.framework.ParamAttr(
+                  initializer=paddle.nn.initializer.Assign(init_fc1_data)
+               ),
+               gather_output=False,
+               has_bias=True
+         )       
+
+         self.linear2 = fleet.meta_parallel.RowParallelLinear(
+               inner_size,
+               hidden_size,
+               weight_attr=paddle.framework.ParamAttr(
+                  initializer=paddle.nn.initializer.Assign(init_fc2_data)
+               ),
+               input_is_parallel=True,
+               has_bias=True
+         )
+
+         self.linear3 = paddle.nn.Linear(
+               hidden_size,
+               output_size,
+               weight_attr=paddle.framework.ParamAttr(
+                  initializer=paddle.nn.initializer.Constant(0.0)
+               ),
+               bias_attr=paddle.framework.ParamAttr(
+                  initializer=paddle.nn.initializer.Constant(0.0)
+               )
+         )
+
+         self.embedding = fleet.meta_parallel.VocabParallelEmbedding(
+               vocab_size,
+               hidden_size,
+               weight_attr=paddle.nn.initializer.Constant(value=0.5)
+         )
+
+      def forward(self, x):
+         x = self.embedding(x)
+         x = self.linear1(x)
+         x = self.linear2(x)
+         x = self.linear3(x)
+         return x
+
+定义训练过程
+
+.. code-block:: python
+
+   def train_batch(batch, model, optimizer):
+      output = model(batch)
+      loss = output.mean()
+      loss.backward()
+      optimizer.step()
+      optimizer.clear_grad()
+      return loss
+
+定义固定种子的函数
+
+.. code-block:: python
+
+   def set_random_seed(seed, rank_id):
+      """Set random seed for reproducability."""
+      random.seed(seed)
+      np.random.seed(seed)
+      paddle.seed(seed + rank_id)
+
+初始化分布式环境，创建模型，训练
+
+.. code-block:: python
+
+   paddle.distributed.init_parallel_env()
+   strategy = fleet.DistributedStrategy()
+   model_parallel_size = 2
+   data_parallel_size = 1
+   strategy.hybrid_configs = {
+      "dp_degree": data_parallel_size,
+      "mp_degree": model_parallel_size,
+      "pp_degree": 1
+   }
+   # 注意strategy是这里传递的，动态图只能这里，静态图还可以在distributed_optimizer里传
+   fleet.init(is_collective=True, strategy=strategy)
+   
+   
+   hcg = fleet.get_hybrid_communicate_group()
+   mp_id = hcg.get_model_parallel_rank()
+   rank_id = dist.get_rank()
+   set_random_seed(1024, rank_id)
+   np_fc1 = np.random.random_sample((hidden_size, inner_size))
+   np_fc2 = np.random.random_sample((inner_size, hidden_size))
+   
+   model_b = SimpleNet(vocab_size, hidden_size, inner_size, output_size, np_fc1, np_fc2)
+   optimizer_b = paddle.optimizer.SGD(learning_rate=0.001, parameters=model_b.parameters())
+   
+   model_a = SimpleMPNet(vocab_size, hidden_size, inner_size, output_size,
+                        np_fc1, np_fc2, mp_id)
+   optimizer_a = paddle.optimizer.SGD(learning_rate=0.001, parameters=model_a.parameters())
+   model_a = fleet.distributed_model(model_a)
+   optimizer_a = fleet.distributed_optimizer(optimizer_a)
+   
+   
+   for _ in range(5):
+      np_data = np.random.randint(0, vocab_size, (batch_size, seq_length, ))
+      batch = paddle.to_tensor(np_data)
+      loss_a = train_batch(batch, model_a, optimizer_a)
+      loss_b = train_batch(batch, model_b, optimizer_b)
+   
+      print("mp_loss: ", loss_a.numpy()[0], " single_loss: ", loss_b.numpy()[0])
+
+模型并行的动态图代码：`example/model_parallelism/mp_dygraph.py <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/model_parallelism>`_。
+
+
+运行方式（需要保证当前机器有两张gpu）：
+
+.. code-block:: bash
+
+   export CUDA_VISIBLE_DEVICES=0,1
+   python -m paddle.distributed.launch mp_dygraph.py
+
+控制台输出信息如下：
+
+.. code-block:: bash
+
+   WARNING 2021-10-27 09:19:24,072 launch.py:381] Not found distinct arguments and compiled with cuda or xpu. Default use collective mode
+   launch train in GPU mode!
+   INFO 2021-10-27 09:19:24,074 launch_utils.py:525] Local start 2 processes. First process distributed environment info (Only For Debug): 
+    +=======================================================================================+
+    |                        Distributed Envs                      Value                    |
+    +---------------------------------------------------------------------------------------+
+    |                       PADDLE_TRAINER_ID                        0                      |
+    |                 PADDLE_CURRENT_ENDPOINT                 127.0.0.1:10129               |
+    |                     PADDLE_TRAINERS_NUM                        2                      |
+    |                PADDLE_TRAINER_ENDPOINTS         127.0.0.1:10129,127.0.0.1:13182       |
+    |                     PADDLE_RANK_IN_NODE                        0                      |
+    |                 PADDLE_LOCAL_DEVICE_IDS                        0                      |
+    |                 PADDLE_WORLD_DEVICE_IDS                       0,1                     |
+    |                     FLAGS_selected_gpus                        0                      |
+    |             FLAGS_selected_accelerators                        0                      |
+    +=======================================================================================+
+
+日志信息位于log目录下, 需要注意的是模型并行的loss与单卡模型的loss在小数点后三位是能够精确对齐的，然后两张卡上对应的loss应该是一样的:
+
+.. code-block:: bash
+
+   mp_loss:  0.0  single_loss:  0.0
+   mp_loss:  -0.14513375  single_loss:  -0.14513376
+   mp_loss:  -0.2902736  single_loss:  -0.2902736
+   mp_loss:  -0.43542737  single_loss:  -0.43542737
+   mp_loss:  -0.5806184  single_loss:  -0.5806184
