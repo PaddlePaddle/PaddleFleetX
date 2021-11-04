@@ -159,12 +159,60 @@ PaddleCloud平台
 日志信息说明
 ===========
 
-首先，我们介绍一些基本概念。我们使用\ ``world_size``\ 或\ ``nranks``\ (number of ranks)表示分布式任务使用的卡的总数，使用\ ``N``\ 表示每台机器上使用的卡数，使用\ ``M``\ 表示分布式任务使用的总机器数；那么，\ :math:`world_size=N*M`\ 。按照机器在\ ``ips``\ 参数中出现的顺序，每台机器被赋予一个节点id：\ ``M_id``\ ，这里\ :math:`0<=M_id<M`\ 。例如，上例中，以192.168.0.1为IP地址的机器在\ ``ips``\ 参数列表的索引为0，故其\ ``M_id``\ 为0。同理，以192.168.0.2为IP地址的机器在\ ``ips``\ 参数列表的索引为1，故其\ ``M_id``\ 为1。同样的，我们根据每台机器上训练卡在\ ``gpus``\ 参数列表出现的顺序为其赋予一个卡id：\ ``N_id``\ ，这里\ :math:`0<=N_id<N`\ 。例如，假设\ ``gpus``\ 参数为"2,3"，那么卡2的\ ``N_id``\ 为0，卡3的\ ``N_id``\ 为1。我们也可以将\ ``N_id``\ 称为\ ``local_rank``\ 。我们为每张训练卡赋予唯一的标识：\ ``rank``\ 。一般来讲，我们可以通过如下的公式计算每张卡的\ ``rank``\ 值。
+首先，我们介绍一些基本概念。我们使用\ ``world_size``\ 或\ ``nranks``\ (number of ranks)表示分布式任务使用的卡的总数，使用\ ``N``\ 表示每台机器上使用的卡数，使用\ ``M``\ 表示分布式任务使用的总机器数；那么，\ :math:`world\_size=N*M`\ 。按照机器在\ ``ips``\ 参数中出现的顺序，每台机器被赋予一个节点id：\ ``M_id``\ ，这里\ :math:`0<=M\_id<M`\ 。例如，假设，\ ``ips``\ 参数为"192.168.0.1,192.168.0.2"，那么以192.168.0.1为IP地址的机器在\ ``ips``\ 参数列表的索引为0，故其\ ``M_id``\ 为0。同理，以192.168.0.2为IP地址的机器在\ ``ips``\ 参数列表的索引为1，故其\ ``M_id``\ 为1。同样的，我们根据每台机器上训练卡在\ ``gpus``\ 参数列表出现的顺序为其赋予一个卡id：\ ``N_id``\ ，这里\ :math:`0<=N\_id<N`\ 。例如，假设\ ``gpus``\ 参数为"2,3"，那么卡2的\ ``N_id``\ 为0，卡3的\ ``N_id``\ 为1。我们也可以将\ ``N_id``\ 称为\ ``local_rank``\ 。我们为每张训练卡赋予唯一的标识：\ ``rank``\ ，这里\ :math:`0<=rank<world\_size`\。一般来讲，我们可以通过如下的公式计算每张卡的\ ``rank``\ 值。
 
 .. math::
 
-   rank = M_id * N + N_id
+   rank = M\_id * N + N\_id
 
 这里，需要注意\ ``local_rank``\ 和\ ``rank``\ 的区别：\ ``local_rank``\ 是局部的，在同一机器内部是唯一的，但是不同机器上的卡可以具有相同的\ ``local_rank``\ ；而\ ``rank``\ 是全局唯一的，同一任务中所有的卡具有不同的\ ``rank``\ 值。
 
-通过\ ``paddle.distributed.launch``\ 组件启动分布式任务时，
+通过\ ``paddle.distributed.launch``\ 组件启动分布式任务时，将在终端打印\ ``rank``\ 值为0的卡对应的训练日志信息，而其余所有卡对应的训练日志信息保存在\ ``log_dir``\ 指定的目录中。该目录下存在两类文件：endpoints.log和workerlog.id，这里id表示卡的\ ``rank``\ 值，如\ ``workerlog.0``\ 、\ ``workerlog.1`` \等。需要注意的是，日志目录中只会保存该机器上所有卡的训练日志，而不会保存其它机器上卡的训练日志。因此，需要登录到对应机器上，以查看相应卡的训练日志。
+
+其中，endpoints.log中记录所有训练进程的网络地址，示例如下：
+
+.. code-block::
+   
+   PADDLE_TRAINER_ENDPOINTS:
+   192.168.0.1:3128
+   192.168.0.1:5762
+   192.168.0.1:6213
+   192.168.0.1:6170
+   192.168.0.2:4215
+   192.168.0.2:2213
+   192.168.0.2:3211
+   192.168.0.2:5231
+
+需要说明的是，当多次启动分布式任务时，训练是以追加的方式追加到日志文件中的。因此，在查看日志信息时，请注意查看相应任务对应的日志信息。一般情况下，可以直接跳转到文件末尾，以查看最近任务的日志信息。在调试时，为了避免信息干扰，一种方法是在每次启动分布式任务前清空日志目录。 
+
+报错信息说明
+===========
+
+这里，我们对分布式任务中常见的一类报错信息进行说明，方便用户快速定位错误信息。
+
+一般在用户分布式任务出错时，控制台会输出如下信息：
+
+.. code-block::
+   
+   "ABORT!!! Out of all 8 trainers, the trainer process with rank=[2,3] was aborted. Please check its log.".
+
+上述信息给出分布式任务的\ ``world_size``\ 为8，其中\ ``rank``\ 值为2和3的进程终止。因此，通过上述信息，用户可以快速判断出错的进程，并查看相应的训练日志获取更多错误信息。例如，可以直接查看\ ``workerlog.2``\ 和\ ``workerlog.3``\ 两个进程的错误日志，获取更多错误信息。
+
+当训练日志包含如下信息时，通常表明其它训练进程出错，导致当前训练进程被中断。也就是说，用户需要查看其它训练进程的日志信息获取更多任务失败原因。
+
+.. code-block::
+   
+   [SignalInfo: *** SIGTERM (@0x3fe) received by PID 1164 (TID 0x7f6cf1fc6700) from PID 1022 ***]
+
+例如，某用户在排查报错信息时，发现\ ``workerlog.0``\ 日志中存在上述信息。进一步查看其它进程的日志信息，最终在\ ``workerlog.4``\ 中发现如下报错信息，进而定位出错原因是数据读取出错。
+
+.. code-block::
+   2021-11-03 05:08:55,091 - ERROR - DataLoader reader thread raised an exception!                                  
+   Error: [Errno 5] Input/output error                                                                  
+   Traceback (most recent call last):
+      File "/root/paddlejob/workspace/env_run/reader.py", line 218, in __next__ 
+         data = next(self, loader)
+      File "/usr/local/lib/python3.7/site-packages/paddle/fluid/dataloader/dataloader_iter.py", line 779, in __next__
+         data = self._reader.read_next_var_list()
+   SystemError: (Fatal) Blocking queue is killed because the data reader raises an exception.
+   [Hint: Expected killed_ != true, but received killed_:1 == true:1.] (at /paddle/paddle/fluid/operators/reader/blocking_queue.h:158)  
