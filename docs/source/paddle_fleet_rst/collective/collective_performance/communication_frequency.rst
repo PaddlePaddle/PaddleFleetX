@@ -214,23 +214,11 @@ Local SGD通过延长节点间同步的间隔(局部异步训练)来减轻慢节
 Local SGD减轻慢节点的影响和减少通信频率，提升训练的吞吐。为了减小相对于本地训练（小batch
 size）的精度损失，\ `[1] <https://arxiv.org/abs/1808.07217>`__ 和 `[2] <https://arxiv.org/abs/1810.08313>`__
 分别提出了：\ ``post-Local SGD`` 和 ``自适应步长 (Adaptive Communication) Local SGD``
-策略，来减少参数同步频率降低带来的精度损失。同步SGD和Local SGD在通信同步上的差异如下图所示。
-
-.. image:: ../img/localSGD_1.png
-  :width: 600
-  :alt: Synchronous SGD 和 Local SGD
-  :align: center
+策略，来减少参数同步频率降低带来的精度损失。
 
 在Local SGD 训练中，集群中的每个 trainer 各自会独立的进行 H 个连续的 SGD
 更新，然后集群中的所有 trainer 会进行通信，同步（averaging）所有 trainers
-上的参数。一个双 trainers，同步间隙为3 步长（iterations）的Local
-SGD过程如下图所示。黄绿两条路径表示两个 trainers 各自的 Local SGD
-更新过程，中间的蓝色路径表示同步后的模型所在的位置。
-
-.. image:: ../img/localSGD_2.png
-  :width: 300
-  :alt: Local SGD
-  :align: center
+上的参数。
 
 Local SGD中的一个关键问题是如何确定参数同步的间隔(频率)，以达到训练吞吐和训练精度间更好的平衡 `[1] <https://arxiv.org/abs/1708.01012>`__\ ：
 
