@@ -79,7 +79,7 @@ Collective分布式任务场景下，\ ``paddle.distributed.launch``\ 组件支�
    
 各个参数的含义如下：
 
--  log_dir：训练日志储存目录。该目录下包含\ ``endpoints.log``\ 文件和各个卡的训练日志 \ ``workerlog.x``\ （如workerlog.0，wokerlog.1等），其中\ ``endpoints.log``\ 文件记录各个训练进程的IP地址和端口号。
+-  log_dir：训练日志储存目录，默认为\ ``./log``\ 目录。该目录下包含\ ``endpoints.log``\ 文件和各个卡的训练日志 \ ``workerlog.x``\ （如workerlog.0，wokerlog.1等），其中\ ``endpoints.log``\ 文件记录各个训练进程的IP地址和端口号。
 -  run_mode：运行模式，如collecitve，ps（parameter-server）或者ps-heter。
 -  gpus：每个节点上使用的gpu卡的列表，以逗号间隔。例如\ ``--gpus="0,1,2,3"``\ 。需要注意：这里的指定的卡号为物理卡号，而不是逻辑卡号。
 -  training_script：训练脚本，如\ ``train.py``\ 。
@@ -108,7 +108,7 @@ PaddleCloud平台
 
 我们以下面的场景为例说明如何在物理机环境或者docker环境中启动飞桨分布式任务。假设我们有两台机器，每台机器包含4张GPU卡。两台机器的IP地址分别为192.168.0.1和192.168.0.2。该IP地址可以为两台物理机的IP地址，也可以为两台机器内部Docker容器的IP地址。
 
-.. image:: ../collective/img/dp_exam1.png
+.. image:: https://github.com/PaddlePaddle/FleetX/blob/develop/docs/source/paddle_fleet_rst/collective/img/dp_exam1.png?raw=true
   :width: 400
   :alt: launch
   :align: center
