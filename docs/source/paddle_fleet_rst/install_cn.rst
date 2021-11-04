@@ -13,6 +13,6 @@
 
 更多whl包下载
 ~~~~~~~~~~~~~~~~~~
--  官方正式版， 可以从 \ `多版本whl包列表-Release <https://www.paddlepaddle.org.cn/documentation/docs/zh/install/Tables.html#whl-release>`__\ 下载。
--  官方开发版， 可以从 \ `多版本whl包列表-develop <https://www.paddlepaddle.org.cn/documentation/docs/zh/install/Tables.html#whl-dev>`__\ 下载。
+-  官方正式版， 可以从\ `多版本whl包列表-Release <https://www.paddlepaddle.org.cn/documentation/docs/zh/install/Tables.html#whl-release>`__\ 下载。
+-  官方开发版， 可以从\ `多版本whl包列表-develop <https://www.paddlepaddle.org.cn/documentation/docs/zh/install/Tables.html#whl-dev>`__\ 下载。
 

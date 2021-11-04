@@ -25,17 +25,17 @@ Docker 镜像
 本示例采用 PS 模式，使用 cpu 进行训练。
 
 代码准备
-~~~~~~~~~~~~~~~~~~~~~~~~
+============
 
-示例源码可在此获得，`wide_and_deep <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/wide_and_deep>`_ ，train.py 作为程序的入口点。
+示例源码可在此获得: `wide_and_deep <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/wide_and_deep>`_ ，其中 train.py 为程序的入口点。
 
 本示例会在任务镜像中包含训练数据，实际应用过程中一般不会也不建议这样使用，常见用法分为以下两种：
 
-* 任务运行时，程序通过网络拉取数据到本地进行训练，该情形数据由程序维护，这里不需要额外配置；
+* 任务运行时，程序通过网络拉取数据到本地进行训练。该情形数据由程序维护，不需要额外配置；
 * 任务运行时，程序读取本地目录进行训练，该情形需要使用用户配置 kubernetes 支持的挂载存储，一般建议使用 pvc 抽象，详细示例见 kubernetes 部署章节。 
 
 制作任务镜像
-~~~~~~~~~~~~~~~~~~~~~~~~
+============
 
 用于生成镜像的 Dockerfile 和代码目录，
 
@@ -88,15 +88,15 @@ Dockerfile 内容，
 注意：
 
 * 使用 gpu 训练时需要在集群中安装好对应 `驱动 <https://github.com/NVIDIA/nvidia-docker/wiki/Frequently-Asked-Questions#how-do-i-install-the-nvidia-driver>`_ 和  `工具包 <https://github.com/NVIDIA/nvidia-docker/blob/master/README.md#quickstart>`_ 支持;
-* 封装镜像所选用的 cuda 版本需要和运行环境所安装的 cuda 版本对应，可通过 *nvidia-smi* 命令查看。
+* 封装镜像所选用的 cuda 版本需要和运行环境所安装的 cuda 版本对应。可通过 *nvidia-smi* 命令查看驱动和 cuda 版本。
 
 代码准备
-~~~~~~~~~~~~~~~~~~~~~~~~
+============
 
-示例源码可在此获得，`resnet <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/resnet>`_  ，train_fleet.py 作为程序的入口点。
+示例源码可在此获得: `resnet <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/resnet>`_  ，其中 train_fleet.py 为程序的入口点。
 
 制作任务镜像
-~~~~~~~~~~~~~~~~~~~~~~~~
+============
 
 用于生成镜像的 Dockerfile 和代码目录，
 
@@ -125,7 +125,7 @@ Dockerfile 内容，
 
 * 这里选用的 base 镜像为预装 paddle 的 gpu 镜像，制作过程见下一节，用户可根据 cuda 和所需版本选用；
 * 用户可根据实际情况更改内容和安装额外依赖；
-* 启动命令需要使用 fleetrun 或调用 paddle.distributed.launch 模块，具体信息参考对应章节。
+* 启动命令需要调用 paddle.distributed.launch 模块，具体信息参考对应章节。
 
 制作镜像
 
@@ -146,7 +146,7 @@ Dockerfile 内容，
 本小节介绍使用 docker 环境镜像代码开发和调试环境的镜像构建，
 以及上述例子中使用的发布环境的镜像构建。
 
-使用 docker 环境作为开发环境的好处，
+使用 docker 环境作为开发环境的好处：
 
 * 对环境进行封装，在不同机器上开发时保持环境一致，同时方便合作共享；
 * 降低从开发到发布的 gap，降低发布成本。
@@ -206,5 +206,9 @@ Dockerfile 内容，
 .. code-block::
 
     docker run -it --entrypoint bash registry.baidubce.com/paddle-operator/demo-wide-and-deep:v1
-    fleetrun --server_num=1 --worker_num=2 train.py
+    python -m paddle.distributed.launch --server_num=1 --worker_num=2 train.py
 
+飞桨官方镜像
+^^^^^^^^^^^^^^^^^^^^^^
+
+除了依据上述方法制作自定义开发镜像，用户也可以在 `DockerHub <https://hub.docker.com/r/paddlepaddle/paddle/tags/>`_ 中找到飞桨各个发行版本的官方docker镜像。
