@@ -207,6 +207,7 @@ PaddleCloud平台
 例如，某用户在排查报错信息时，发现\ ``workerlog.0``\ 日志中存在上述信息。进一步查看其它进程的日志信息，最终在\ ``workerlog.4``\ 中发现如下报错信息，进而定位出错原因是数据读取出错。
 
 .. code-block::
+
    2021-11-03 05:08:55,091 - ERROR - DataLoader reader thread raised an exception!                                  
    Error: [Errno 5] Input/output error                                                                  
    Traceback (most recent call last):
