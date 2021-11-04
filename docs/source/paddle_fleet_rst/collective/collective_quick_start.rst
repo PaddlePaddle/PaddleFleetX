@@ -241,8 +241,7 @@ train_fleet_static.py的完整训练代码如下所示。
    if __name__ == '__main__':
        train_resnet()
 
-当使用\ ``paddle.distributed.launch``\ 组件启动飞桨分布式任务时，在静态图模式下，可以
-通过\ ``FLAGS_selected_gpus``\ 环境变量获取当前进程绑定的GPU卡，如上面的例子所示。
+当使用\ ``paddle.distributed.launch``\ 组件启动飞桨分布式任务时，在静态图模式下，可以通过\ ``FLAGS_selected_gpus``\ 环境变量获取当前进程绑定的GPU卡，如上面的例子所示。
 
 运行示例
 ^^^^^^^^
