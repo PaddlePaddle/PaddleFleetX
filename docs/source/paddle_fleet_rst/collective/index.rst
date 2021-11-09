@@ -11,6 +11,7 @@ Collective训练
    collective_quick_start
    collective_benchmark
    collective_summarize
+   data_parallel
    collective_performance/index
    collective_mp/index
    collective_sdk

@@ -13,11 +13,10 @@
 # limitations under the License.
 
 import numpy as np
-import argparse
-import ast
 import paddle
 from paddle.distributed import fleet
-from resnet_dygraph import ResNet
+from paddle.vision.models import ResNet
+from paddle.vision.models.resnet import BottleneckBlock
 
 base_lr = 0.1
 momentum_rate = 0.9
@@ -47,12 +46,9 @@ def optimizer_setting(parameter_list=None):
 
 
 def train_resnet():
-    #paddle.set_device('cpu')
-    # paddle.set_device('gpu:0')
     fleet.init(is_collective=True)
 
-    resnet = ResNet(class_dim=class_dim, layers=50)
-
+    resnet = ResNet(BottleneckBlock, 50, num_classes=class_dim)
     optimizer = optimizer_setting(parameter_list=resnet.parameters())
     optimizer = fleet.distributed_optimizer(optimizer)
     resnet = fleet.distributed_model(resnet)
@@ -63,7 +59,7 @@ def train_resnet():
             drop_last=True)
 
     train_loader = paddle.io.DataLoader.from_generator(
-        capacity=32,
+        capacity=16,
         use_double_buffer=True,
         iterable=True,
         return_list=True,
@@ -83,14 +79,12 @@ def train_resnet():
             acc_top1 = paddle.metric.accuracy(input=out, label=label, k=1)
             acc_top5 = paddle.metric.accuracy(input=out, label=label, k=5)
 
-            dy_out = avg_loss.numpy()
-            
             avg_loss.backward()
-
-            optimizer.minimize(avg_loss)
+            optimizer.step()
             resnet.clear_gradients()
+
             if batch_id % 5 == 0:
-                print("[Epoch %d, batch %d] loss: %.5f, acc1: %.5f, acc5: %.5f" % (eop, batch_id, dy_out, acc_top1, acc_top5))
+                print("[Epoch %d, batch %d] loss: %.5f, acc1: %.5f, acc5: %.5f" % (eop, batch_id, avg_loss, acc_top1, acc_top5))
 
 if __name__ == '__main__':
     train_resnet()
