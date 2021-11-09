@@ -12,6 +12,7 @@
    optimizer
    plsc
    sharding
+   model_parallel
    pipeline
    hybrid_parallelism
    gpt
