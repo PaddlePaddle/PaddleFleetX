@@ -222,7 +222,42 @@ sharding 可以设置以下参数：
 动态图
 ^^^^^^^
 
-完整代码存放在：\ `Dygraph Sharding <https://github.com/PaddlePaddle/Paddle/pull/33633>`_\ 下面。
+.. code-block::
+   
+   import paddle
+   # init fleet and setting sharding degree
+   import paddle.distributed.fleet as fleet
+   form paddle.distributed.fleet.meta_optimizers.dygraph_optimizer.dygraph_sharding_optimizer import DygraphShardingOptimizer
+   strategy = fleet.DistributedStrategy()
+   strategy.hybrid_configs = {
+      "dp_degree": args.dp_degree,
+      "mp_degree": 1,
+      "pp_degree": 1,
+      "sharding_degree": args.sharding_degree,
+   }
+   fleet.init(is_collective=True, strategy=strategy)
+
+   # wrap model & optimizer
+   model = model_class(...)
+   model = fleet.distributed_model(model)
+   optimizer = DygraphShardingOptimizer(
+      hcg = fleet.get_hybrid_communicate_group(),
+      user_defined_strategy = strategy,
+      params = model.parameters(),
+      inner_optimizer_class = paddle.optimizer.AdamW,
+      learning_rate = lr_scheduler,
+      epsilon = args.adam_epsilon,
+      weight_decay = args.weight_decay,
+      apply_decay_param_fun = lambda x: x in decay_params,
+   )
+   optimizer = fleet.distributed_optimizer(optimizer)
+
+   # use optimizer as normal
+   out = model(input=data)
+   loss = criterion(out)
+   loss.backward()
+   optimizer.step()
+   optimizer.clear_grad()
 
 
 进阶用法
