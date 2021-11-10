@@ -259,7 +259,6 @@ def create_pretrained_dataset(
         dataset = GPTDataset(
             file_path=input_path,
             topo=topo,
-            micro_batch_size=args.micro_batch_size,
             name="gpt" + name,
             max_seq_len=max_seq_len,
             num_samples=num_samples,
@@ -271,7 +270,7 @@ def create_pretrained_dataset(
             start_index=start_index)
         batch_sampler = paddle.io.DistributedBatchSampler(
             dataset,
-            batch_size=args.micro_batch_size,
+            batch_size=args.local_batch_size,
             num_replicas=topo.data_info.size,
             rank=topo.data_info.rank,
             shuffle=False,
@@ -328,11 +327,10 @@ def create_pretrained_dataset(
     if pipeline_mode:
         valid_data_loader, test_data_loader = None, None
     else:
-        valid_data_loader = build_dataset(
-            1, "valid",
-            args.micro_batch_size * (args.max_steps // args.eval_freq + 1) *
-            args.eval_iters * topo.data_info.size)
-        test_data_loader = build_dataset(2, "test", args.micro_batch_size *
+        valid_data_loader = build_dataset(1, "valid", args.local_batch_size * 
+                                          (args.max_steps // args.eval_freq + 1) *
+                                          args.eval_iters * topo.data_info.size)
+        test_data_loader = build_dataset(2, "test", args.local_batch_size *
                                          args.test_iters * topo.data_info.size)
 
     return train_data_loader, valid_data_loader, test_data_loader
@@ -342,7 +340,6 @@ class GPTDataset(paddle.io.Dataset):
     def __init__(self,
                  file_path,
                  topo,
-                 micro_batch_size,
                  num_samples,
                  eod_id,
                  sample_ids,
@@ -360,7 +357,6 @@ class GPTDataset(paddle.io.Dataset):
         self.sample_ids = sample_ids
         self.sample_lens = sample_lens
         self.topo = topo
-        self.micro_batch_size = micro_batch_size
 
         if documents is None:
             document_ids = np.arange(0, self.sample_lens.shape[0])

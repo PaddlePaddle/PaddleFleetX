@@ -32,7 +32,7 @@ mv train.data.json_ids.npz data
 ## 飞桨自动并行训练
 飞桨自动并行训练，支持模型并行、流水线并行和数据并行策略，使得训练千亿参数规模的模型成为可能。在本示例中，我们提供了基于飞桨最新自动并行的GPT预训练模型。运行下面脚本，即可进行模型预训练对应模型：
 ```shell
-sh run.sh "0,1" "./output/dp" --micro_batch_size 4 --global_batch_size 8 --mp_degree 1 --dp_degree 2 --pp_degree 1
+sh run.sh "0,1" "./output/dp" --global_batch_size 4 --mp_degree 1 --dp_degree 2 --pp_degree 1
 ```
 参数解释：
 "0,1": 指定对应的gpu卡

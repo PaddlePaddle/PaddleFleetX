@@ -15,6 +15,25 @@
 import argparse
 
 
+def process_batch_size(args):
+    if args.global_batch_size is None and args.local_batch_size is None:
+        raise ValueError("global_batch_size or local_batch_size should be set.")
+    elif args.global_batch_size is not None and args.local_batch_size is not None:
+        assert args.global_batch_size // args.local_batch_size == (args.dp_degree *
+            args.sharding_degree), "global_batch_size[{}] should be divided by local_batch_size[{}] "\
+            "when dp_degree is [{}] and sharding_degree is [{}]".format(args.global_batch_size,
+            args.local_batch_size, args.dp_degree, args.sharding_degree)
+    elif args.global_batch_size is not None and args.local_batch_size is None:
+        assert args.global_batch_size % (args.dp_degree * args.sharding_degree) == 0, \
+            "global_batch_size[{}] should be divided by dp_degree[{}] times sharding_degree[{}]"\
+            .format(args.global_batch_size, args.dp_degree, args.sharding_degree)
+        args.local_batch_size = args.global_batch_size // (args.dp_degree *
+                                                           args.sharding_degree)
+    else:
+        args.global_batch_size = args.local_batch_size * args.dp_degree * args.sharding_degree
+    assert args.local_batch_size % args.micro_batch_size == 0
+
+
 def str2bool(v):
     if v.lower() in ('yes', 'true', 't', 'y', '1'):
         return True
@@ -64,9 +83,14 @@ def parse_args():
         "--max_seq_len", type=int, default=1024, help="Max sequence length.")
     parser.add_argument(
         "--micro_batch_size",
-        default=8,
+        default=2,
         type=int,
         help="Batch size per device for one step training.", )
+    parser.add_argument(
+        "--local_batch_size",
+        default=None,
+        type=int,
+        help="Global batch size for all training process. None for not check the size is valid. If we only use data parallelism, it should be device_num * micro_batch_size.", )
     parser.add_argument(
         "--global_batch_size",
         default=None,
@@ -248,4 +272,6 @@ def parse_args():
 
     args = parser.parse_args()
     args.test_iters = args.eval_iters
+    # process batch size
+    process_batch_size(args)
     return args

@@ -916,7 +916,7 @@ class GPTPretrainingCriterion(nn.Layer):
             pp_total_loss = paddle.fluid.layers.fill_constant([1, ], "float32", 0.0)
             pp_total_loss.persistable = True
             block = paddle.static.default_main_program().global_block()
-            acc_steps = self.args.global_batch_size // self.topo.data_info.size // self.args.micro_batch_size
+            acc_steps = self.args.global_batch_size // self.topo.data_info.size // self.args.local_batch_size
             tmp = total_loss / acc_steps
             block.append_op(
                 type="elementwise_add",
