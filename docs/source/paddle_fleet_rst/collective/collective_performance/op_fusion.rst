@@ -6,15 +6,29 @@ OP融合（计算，通信）
 计算融合
 ----
 
-将模型网络中顺序执行的多个OPs进行融合能够减少OP 调度的开销，提升训练速度。目前Fleet 中支持如下3种的OP 融合：
+计算融合指的是由单个"大"算子替换多个"小"算子，完成同样的功能，以优化训练速度和显存消耗。我们以计算a、b、c三个张量的和为例说明计算融合的原理，如下图所示。
 
-- fuse_all_optimizer_ops：表明是否融合(fuse)  optimizer_op，仅对部分 optimizer 可用（SGD、Adam和Momentum）。
+.. image:: ./img/op_fusion.png
+  :width: 600
+  :alt: OP fusion
+  :align: center
 
-- fuse_elewise_add_act_ops：表明是否融合(fuse) elementwise_add_op和activation_op。
+假设，我们当前有一个\ ``add2``\ 算子，该算子接受两个输入，计算这两个张量的和，并输出结果。那么，为了完成上述计算，需要以下步骤：
 
-- fuse_bn_act_ops：表明是否融合(fuse) batch_norm_op 和 activation_op。
+- 启动算子，访问显存读取两个输入值\ ``a``\ 和\ ``b``\ ，计算\ ``e=a+b``\ 并将结果\ ``e``\ 写入显存；
+- 再次启动算子，访问显存读取两个输入值\ ``c``\ 和\ ``e``\ ，计算\ ``d=e+c``\ 并将结果\ ``d``\ 写入显存。
 
-通常使用这些策略都会使整体执行过程更快。
+可见，通过这种常规方式计算\ ``d=a+b+c``\ ，需要启动两次算子和4次访存操作：两次读取算子的输入和两次写入结果。我们知道，每次启动算子都是有时间开销的，且每次访存会带来额外的开销。尤其对于相对简单的计算，访存开销占比更高。使用算子融合时，我们可以开发一个接受三个输入的算子\ ``add3``\ 。使用该算子，可以一次读取全部的三个输入，计算输入张量的和，并将结果写会显存。使用算子融合，仅需要启动一次算子和两次访存操作，因此可以加速训练速度。同时，我们注意到，使用算子融合，我们还可以节省掉中间结果\ ``e``\ ，因此算子融合还可以一定程度上降低显存消耗。
+
+目前Fleet中支持如下3种的OP融合：
+
+- fuse_all_optimizer_ops：表明是否融合(fuse) 优化器算子，目前仅对部分优化器有效：SGD、Adam和Momentum。
+
+- fuse_elewise_add_act_ops：表明是否融合(fuse) elementwise_add算子和activation算子。
+
+- fuse_bn_act_ops：表明是否融合(fuse) batch_norm算子和 activation算子。
+
+通常使用这些策略会加速整体执行速度。
 
 
 通信融合
