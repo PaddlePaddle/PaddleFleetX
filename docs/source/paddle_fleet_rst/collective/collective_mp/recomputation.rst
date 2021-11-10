@@ -197,43 +197,131 @@ res2a.add.output.5.tmp_0 等是用户组网时定义的张量名称。
 动态图
 ======
 
-动态图模式下，使用Recompute功能的示例代码如下：
+深度学习过程主要是前向传播，反向传播，更新。其中反向传播过程因为会用到前向传播的变量，所以会在对应的反向传播节点结束前一直保留着对应前向节点。recompute主要就是只保留部分前向节点，称为checkpoint，在反向传播的时候，从最近的checkpoint重新开始前向，拿到对应变量做反向。recompute是一种时间换空间的操作。
+
+下面代码在Paddle2.1以上可以运行，建议将Paddle版本升级到最新版
+
+首先导入需要的包
+
 
 .. code:: python
-   from paddle.distributed.fleet.utils import recompute
 
-   class TransformerEncoder(Layer):
-       def __init__(self, encoder_layer, num_layers, norm=None, enable_recompute = True, preserve_rng_state = True):
-           super(TransformerEncoder, self).__init__()
-           self.layers = LayerList([(encoder_layer if i == 0 else
-                                     type(encoder_layer)(**encoder_layer._config))
-                                    for i in range(num_layers)])
-           self.num_layers = num_layers
-           self.norm = norm
-           self.enable_recompute = enable_recompute
-           self.preserve_rng_state = preserve_rng_state
-           if preserve_rng_state:
-               assert self.enable_recompute, "preserve_rng_state is True, but enable_recompute is False."
-   
-       def forward(self, src, src_mask=None, cache=None):
-           src_mask = _convert_attention_mask(src_mask, src.dtype)
-   
-           output = src
-           new_caches = []
-           for i, mod in enumerate(self.layers):
-               if cache is None:
-                   # NOTE recompute modification
-                   if self.enable_recompute:
-                       output = recompute(mod, output, src_mask, preserve_rng_state = self.preserve_rng_state)
-                   else:   
-                       output = mod(output, src_mask=src_mask)
-               else:
-                   output, new_cache = mod(output,
-                                           src_mask=src_mask,
-                                           cache=cache[i])
-                   new_caches.append(new_cache)
-   
-           if self.norm is not None:
-               output = self.norm(output)
-   
-           return output if cache is None else (output, new_caches)
+    import numpy as np
+    import paddle
+    from paddle.distributed.fleet.utils import recompute
+    import random
+
+定义组网，在需要recompute的地方直接调用recompute(self.total_func[i], inputs)，paddle就会自动进行recompute相关操作。recompute第一个参数是前向函数，第二是checkpoint点，也就是在什么位置进行怎么样的前向操作。
+
+.. code:: python
+
+    def get_fc_block(block_idx, input_size, is_last=False):
+        block_name = "block_" + str(block_idx)
+        block = paddle.nn.Sequential(
+            (block_name + "_fc_0", paddle.nn.Linear(input_size, input_size, bias_attr=False)),
+            (block_name + "_dropout", paddle.nn.Dropout(p=0.5)),
+            (block_name + "_relu_1", paddle.nn.ReLU()),
+            (block_name + "_fc_1", paddle.nn.Linear(input_size, input_size, bias_attr=False)),
+            (block_name + "_relu_2", paddle.nn.ReLU()),
+        )
+        if is_last:
+            block.add_sublayer(
+                block_name + "_fc_2",
+                paddle.nn.Linear(
+                    input_size, 1, bias_attr=False
+                )
+            )
+        else:
+            block.add_sublayer(
+                block_name + "_fc_2",
+                paddle.nn.Linear(input_size, input_size, bias_attr=False)
+            )
+        
+        return block
+    
+    
+    class Naive_fc_net(paddle.nn.Layer):
+        def __init__(self, input_size=10,
+                    recompute_blocks=[1, 3],
+                    recompute_kwargs={}):
+            super(Naive_fc_net, self).__init__()
+            self.recompute_blocks = recompute_blocks
+            self.recompute_kwargs = recompute_kwargs
+            self.runfunc0 = get_fc_block(0, input_size, is_last=False)
+            self.runfunc1 = get_fc_block(1, input_size, is_last=False)
+            self.runfunc2 = get_fc_block(2, input_size, is_last=False)
+            self.runfunc3 = get_fc_block(3, input_size, is_last=False)
+            self.runfunc4 = get_fc_block(4, input_size, is_last=True)
+            self.total_func = [self.runfunc0, self.runfunc1, self.runfunc2, self.runfunc3, self.runfunc4]
+        
+        def forward(self, inputs):
+            nums = len(self.total_func)
+            for i in range(nums):
+                if i in self.recompute_blocks:
+                    inputs = recompute(self.total_func[i], inputs)
+                else:
+                    inputs = self.total_func[i](inputs)
+            return inputs
+
+定义运行程序
+
+.. code:: python
+
+    def run_model(cuda_state, recompute_block=[], recompute_kwargs={}):
+        gen = paddle.seed(10)
+        gen.manual_seed(10)
+        np.random.seed(10)
+        random.seed(10)
+        if cuda_state:
+            paddle.set_cuda_rng_state(cuda_state)
+        
+        batch_size, input_size = 1, 10
+        model = Naive_fc_net(
+            input_size,
+            recompute_blocks=recompute_block,
+            recompute_kwargs=recompute_kwargs)
+        optimizer = paddle.optimizer.SGD(learning_rate=0.01, parameters=model.parameters())
+        loss_ = []
+        param_ = []
+        grad_ = []
+        for _ in range(5):
+            x_data = np.random.randn(batch_size, input_size).astype(np.float32)
+            x = paddle.to_tensor(x_data)
+            y_pred = model(x)
+            loss = y_pred.mean()
+            loss_.append(np.asarray(loss).tolist())
+            loss.backward()
+            optimizer.step()
+            param_.append(np.asarray(model.parameters()[9]).tolist())
+            grad_.append(np.asarray(model.parameters()[3]._grad_ivar()).tolist())
+            optimizer.clear_grad()
+        
+        return loss_, param_, grad_
+
+然后执行运行程序，并打印结果，将正常的没有recompute的loss与recompute的loss进行比较，结果应该是相等的
+
+.. code:: python
+
+    cuda_state = paddle.get_cuda_rng_state()
+    # without recompute
+    loss_ref, param_ref, grad_ref = run_model(
+        cuda_state, recompute_block=[]
+    )
+    
+    loss, param, grad = run_model(cuda_state, recompute_block=[1, 2])
+    print("normal_loss: {},\n recompute_loss: {}".format(loss_ref, loss))
+
+运行方式:
+
+.. code:: bash
+
+    python recompute_dygraph.py
+
+recompute动态图代码：`example/recompute <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/recompute>`_。
+
+输出:
+
+.. code:: bash
+
+    normal_loss: [[0.0], [-0.12574796378612518], [0.6378830075263977], [0.00968710333108902], [0.0]],
+    recompute_loss: [[0.0], [-0.12574796378612518], [0.6378830075263977], [0.00968710333108902], [0.0]]

@@ -30,8 +30,6 @@ from paddle.fluid.framework import in_dygraph_mode
 from paddle.nn.layer.transformer import _convert_param_attr_to_list
 from paddle.fluid.initializer import Normal, Constant, NumpyArrayInitializer
 import paddle.static as static
-import paddle.distributed.auto_parallel as auto
-from paddle.distributed.auto_parallel.context import get_default_distributed_context
 from paddle.distributed import fleet
 from args import parse_args
 import modeling_utils

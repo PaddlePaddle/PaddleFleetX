@@ -5,22 +5,17 @@
 Collective训练快速开始
 ^^^^^^^^^^^^^^^^^^^^^^
 
-本节将以CV领域经典模型ResNet50为例，介绍如何使用Fleet API（paddle.distributed.fleet）完成Collective训练。
-我们采用Paddle内置的flowers数据集和Momentum优化器方法，循环迭代多个epoch，并在每个step打印当前模型的损失值和精度值。
-具体代码请参考\ `FleetX/examples/resnet <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet>`_\ ，
-其中包含动态图和静态图两种执行方式。resnet_dygraph.py为动态图模型相关代码，train_fleet_dygraph.py为动态图训练脚本。
-resnet_static.py为静态图模型相关代码，train_fleet_static.py为静态图训练脚本。
+本节将以CV领域经典模型ResNet50为例，介绍如何使用Fleet API（paddle.distributed.fleet）完成Collective分布式训练。我们采用Paddle内置的flowers数据集和Momentum优化器方法，循环迭代10个epoch，并在每个step打印当前模型的损失值和精度值。具体代码请参考\ `FleetX/examples/resnet <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet>`_\ ，其中包含动态图和静态图两种执行方式。resnet_dygraph.py为动态图模型相关代码，train_fleet_dygraph.py为动态图训练脚本。resnet_static.py为静态图模型相关代码，train_fleet_static.py为静态图训练脚本。
 
 版本要求
 ^^^^^^^^
 
-在编写分布式训练程序之前，用户需要确保已经安装paddlepaddle-2.0.0-rc-cpu或paddlepaddle-2.0.0-rc-gpu及以上版本的飞桨开源框架。
+在编写分布式训练程序之前，用户需要确保已经安装paddlepaddle-2.0.0-cpu或paddlepaddle-2.0.0-gpu及以上版本的飞桨开源框架。关于如何安装paddlepaddle框架，请参考\ `安装指南 <https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/pip/windows-pip.html>`_\ 。
 
 操作方法
 ^^^^^^^^
 
 与单机单卡的普通模型训练相比，无论静态图还是动态图，Collective训练的代码都只需要补充三个部分代码：
-
 
 #. 导入分布式训练需要的依赖包。
 #. 初始化Fleet环境。
@@ -57,7 +52,6 @@ resnet_static.py为静态图模型相关代码，train_fleet_static.py为静态�
    optimizer = fleet.distributed_optimizer(optimizer)
 
 
-
 动态图完整代码
 ~~~~~~~~
 
@@ -67,13 +61,12 @@ train_fleet_dygraph.py的完整训练代码如下所示。
 
     # -*- coding: UTF-8 -*-
     import numpy as np
-    import argparse
-    import ast
     import paddle
     # 导入必要分布式训练的依赖包
     from paddle.distributed import fleet
     # 导入模型文件
-    from resnet_dygraph import ResNet
+    from paddle.vision.models import ResNet
+    from paddle.vision.models.resnet import BottleneckBlock
 
     base_lr = 0.1   # 学习率
     momentum_rate = 0.9 # 冲量
@@ -107,7 +100,7 @@ train_fleet_dygraph.py的完整训练代码如下所示。
         # 初始化Fleet环境
         fleet.init(is_collective=True)
 
-        resnet = ResNet(class_dim=class_dim, layers=50)
+        resnet = ResNet(BottleneckBlock, 50, num_classes=class_dim)
 
         optimizer = optimizer_setting(parameter_list=resnet.parameters())
         optimizer = fleet.distributed_optimizer(optimizer)
@@ -120,7 +113,7 @@ train_fleet_dygraph.py的完整训练代码如下所示。
                 drop_last=True)
 
         train_loader = paddle.io.DataLoader.from_generator(
-            capacity=32,
+            capacity=16,
             use_double_buffer=True,
             iterable=True,
             return_list=True,
@@ -139,15 +132,13 @@ train_fleet_dygraph.py的完整训练代码如下所示。
                 avg_loss = paddle.mean(x=loss)
                 acc_top1 = paddle.metric.accuracy(input=out, label=label, k=1)
                 acc_top5 = paddle.metric.accuracy(input=out, label=label, k=5)
-
-                dy_out = avg_loss.numpy()
                 
                 avg_loss.backward()
-
-                optimizer.minimize(avg_loss)
+                optimizer.step()
                 resnet.clear_gradients()
+
                 if batch_id % 5 == 0:
-                    print("[Epoch %d, batch %d] loss: %.5f, acc1: %.5f, acc5: %.5f" % (eop, batch_id, dy_out, acc_top1, acc_top5))
+                    print("[Epoch %d, batch %d] loss: %.5f, acc1: %.5f, acc5: %.5f" % (eop, batch_id, avg_loss, acc_top1, acc_top5))
     # 启动训练
     if __name__ == '__main__':
         train_resnet()
@@ -162,13 +153,12 @@ train_fleet_static.py的完整训练代码如下所示。
 
    # -*- coding: UTF-8 -*-
    import numpy as np
-   import argparse
-   import ast
    import paddle
    # 导入必要分布式训练的依赖包
    import paddle.distributed.fleet as fleet
    # 导入模型文件
-   import resnet_static as resnet
+   from paddle.vision.models import ResNet
+   from paddle.vision.models.resnet import BottleneckBlock
    import os
 
    base_lr = 0.1   # 学习率
@@ -187,6 +177,7 @@ train_fleet_static.py的完整训练代码如下所示。
            weight_decay=paddle.regularizer.L2Decay(l2_decay),
            parameters=parameter_list)
        return optimizer
+   
    # 设置数据读取器
    def get_train_loader(feed_list, place):
        def reader_decorator(reader):
@@ -197,17 +188,19 @@ train_fleet_static.py的完整训练代码如下所示。
                    yield img, label
 
            return __reader__
+       
        train_reader = paddle.batch(
                reader_decorator(paddle.dataset.flowers.train(use_xmap=True)),
                batch_size=batch_size,
                drop_last=True)
        train_loader = paddle.io.DataLoader.from_generator(
-           capacity=32,
+           capacity=16,
            use_double_buffer=True,
            feed_list=feed_list,
            iterable=True)
        train_loader.set_sample_list_generator(train_reader, place)
        return train_loader
+   
    # 设置训练函数
    def train_resnet():
        paddle.enable_static() # 使能静态图功能
@@ -216,8 +209,8 @@ train_fleet_static.py的完整训练代码如下所示。
        image = paddle.static.data(name="x", shape=[None, 3, 224, 224], dtype='float32')
        label= paddle.static.data(name="y", shape=[None, 1], dtype='int64')
        # 调用ResNet50模型
-       model = resnet.ResNet(layers=50)
-       out = model.net(input=image, class_dim=class_dim)
+       model = ResNet(BottleneckBlock, 50, num_classes=class_dim)
+       out = model(image)
        avg_cost = paddle.nn.functional.cross_entropy(input=out, label=label)
        acc_top1 = paddle.metric.accuracy(input=out, label=label, k=1)
        acc_top5 = paddle.metric.accuracy(input=out, label=label, k=5)
@@ -248,10 +241,12 @@ train_fleet_static.py的完整训练代码如下所示。
    if __name__ == '__main__':
        train_resnet()
 
+当使用\ ``paddle.distributed.launch``\ 组件启动飞桨分布式任务时，在静态图模式下，可以通过\ ``FLAGS_selected_gpus``\ 环境变量获取当前进程绑定的GPU卡，如上面的例子所示。
+
 运行示例
 ^^^^^^^^
 
-假设要运行2卡的任务，那么只需在命令行中执行:
+通过\ ``paddle.distributed.launch``\ 组件启动飞桨分布式任务，假设要运行2卡的任务，那么只需在命令行中执行:
 
 动态图：
 
@@ -332,11 +327,12 @@ train_fleet_static.py的完整训练代码如下所示。
    [Epoch 0, batch 5] loss: 1.01921, acc1: 0.00000, acc5: 0.00000
    ...
 
-了解更多启动分布式训练任务信息，请参考\ `分布式训练启动方法 <../launch.html>`_\ 。
+请注意，不同飞桨版本上述显示信息可能会略有不同。
 
 单机八卡训练启动命令类似，只需正确指定\ ``gpus``\ 参数即可，如下所示：
 
 .. code-block::
+   
    # 动态图
    python -m paddle.distributed.launch --gpus 0,1,2,3,4,5,6,7 train_fleet_dygraph.py
    
@@ -344,7 +340,7 @@ train_fleet_static.py的完整训练代码如下所示。
    python -m paddle.distributed.launch --gpus 0,1,2,3,4,5,6,7 train_fleet_static.py
 
 
-从单机多卡到多机多卡训练，在代码上不需要做任何改动，只需再额外指定ips参数即可。其内容为多机的ip列表，命令如下所示（假设两台机器的ip地址分别为192.168.0.1和192.168.0.2）：
+从单机多卡到多机多卡训练，在代码上不需要做任何改动，只需再额外指定\ ``ips``\ 参数即可。其内容为多机的IP列表，命令如下所示（假设两台机器的ip地址分别为192.168.0.1和192.168.0.2）：
 
 .. code-block::
 
@@ -353,3 +349,5 @@ train_fleet_static.py的完整训练代码如下所示。
 
     # 静态图
    python -m paddle.distributed.launch --ips="192.168.0.1,192.168.0.2" --gpus 0,1,2,3,4,5,6,7 train_fleet_static.py
+
+了解更多启动分布式训练任务信息，请参考\ `分布式任务启动方法 <../launch.html>`_\ 。
