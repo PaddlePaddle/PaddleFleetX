@@ -19,9 +19,9 @@ AllReduce操作将不同机器上的数据整合(Reduce)后将结果发送到各
 
 我们以下图为例说明层次化拓扑的原理。将所有计算设备分为多个组，并在每个组中选择一个计算设备作为\ ``leader``\ 。图中，16个计算设备被划分为4个组，每个组内包含4个计算设备。具体地将，worker0 ~ worker3为一个组，worker4 ~ worker7为一个组，worker8 ~ worker11为一个组，worker12 ~ worker15为最后一个组。各个组的\ ``leader``\ 分别为worker3、worker5、woker10和worker13。通信时，首先在组内做AllReduce，各个节点得到组内汇聚的结果。接着，在各个组的\ ``leader``\ 间做组间AllReduce操作；那么，\ ``leader``\ 设备上等价于获取了所有设备的汇聚结果。最后，各个组间\ ``leader``\ 设备将其结果广播到组内所有其它设备。
 
-.. image:: ../img/allredue_exam1.png
+.. image:: ../img/comm_topo.png
   :width: 600
-  :alt: AllReduce Example One
+  :alt: hierarchical allreduce
   :align: center
 
 操作实践
