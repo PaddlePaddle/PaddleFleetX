@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2021 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,24 +41,25 @@ class CTR(object):
 
     def net(self, inputs, args):
 
-        sparse_inputs = []
-        for sparse_input in inputs[1:-1]:
-            sparse_input = fluid.layers.reshape(sparse_input, [-1, 1])
-            sparse_inputs.append(sparse_input)
+        with fluid.device_guard("cpu"):
+            sparse_inputs = []
+            for sparse_input in inputs[1:-1]:
+                sparse_input = fluid.layers.reshape(sparse_input, [-1, 1])
+                sparse_inputs.append(sparse_input)
 
-        def embedding_layer(input):
-            return fluid.layers.embedding(
-                input=input,
-                is_sparse=True,
-                size=[args.sparse_feature_dim, args.embedding_size],
-                param_attr=fluid.ParamAttr(
-                    name="SparseFeatFactors",
-                    initializer=fluid.initializer.Uniform()),
-            )
-        sparse_embed_seq = list(map(embedding_layer, sparse_inputs))
+            def embedding_layer(input):
+                return fluid.layers.embedding(
+                    input=input,
+                    is_sparse=True,
+                    size=[args.sparse_feature_dim, args.embedding_size],
+                    param_attr=fluid.ParamAttr(
+                        name="SparseFeatFactors",
+                        initializer=fluid.initializer.Uniform()),
+                )
+            sparse_embed_seq = list(map(embedding_layer, sparse_inputs))
 
-        concated = fluid.layers.concat(
-            sparse_embed_seq + inputs[0:1], axis=1)
+            concated = fluid.layers.concat(
+                sparse_embed_seq + inputs[0:1], axis=1)
 
         with fluid.device_guard("gpu"):
             fc1 = fluid.layers.fc(
@@ -75,6 +76,7 @@ class CTR(object):
                 param_attr=fluid.ParamAttr(initializer=fluid.initializer.Normal(
                     scale=1 / math.sqrt(fc1.shape[1]))), name="fc2"
             )
+        with fluid.device_guard("cpu"):
             fc3 = fluid.layers.fc(
                 input=fc2,
                 size=400,
@@ -89,6 +91,7 @@ class CTR(object):
                 param_attr=fluid.ParamAttr(initializer=fluid.initializer.Normal(
                     scale=1 / math.sqrt(fc3.shape[1]))),
             )
+        with fluid.device_guard("gpu"):
             label = fluid.layers.cast(inputs[-1], dtype="int64")
             cost = fluid.layers.cross_entropy(input=predict, label=label)
             avg_cost = fluid.layers.reduce_sum(cost)
