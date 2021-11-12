@@ -1,4 +1,4 @@
-# Heter-ps 示例代码
+# Heter-Pipeline ps 示例代码
 
 ## 数据下载
 
