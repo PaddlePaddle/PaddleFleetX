@@ -102,7 +102,7 @@ Paddle 支持自动混合精度计算, 并实现了 ``自动维护FP32 、FP16�
 ----
 
 使用飞桨框架提供的API，paddle.amp.auto_cast 和 paddle.amp.GradScaler 能够实现自动混合精度训练（Automatic Mixed Precision，AMP），
-即在相关OP的计算中，自动选择FP16或FP32计算。开启AMP模式后，使用FP16与FP32进行计算的OP列表可见该[文档](https://www.paddlepaddle.org.cn/documentation/docs/zh/api/paddle/amp/Overview_cn.html)。
+即在相关OP的计算中，自动选择FP16或FP32计算。开启AMP模式后，使用FP16与FP32进行计算的OP列表可见该 `[3] <https://www.paddlepaddle.org.cn/documentation/docs/zh/api/paddle/amp/Overview_cn.html>`__。
 下面来看一个具体的例子，来了解如果使用飞桨框架实现混合精度训练。
 
 首先定义辅助函数，用来计算训练时间。
