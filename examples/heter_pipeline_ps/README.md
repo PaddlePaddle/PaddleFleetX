@@ -48,5 +48,5 @@ fleetrun --server_num=2 --worker_num=2 heter_train.py
 - ps-heter
 
 ```shell
-fleetrun --server_num=2 --worker_num=2 --heter_worker_num=2 heter_train.py
+fleetrun --server_num=2 --worker_num=2 --heter_worker_num="2" --heter_devices="gpu" heter_train.py
 ```
