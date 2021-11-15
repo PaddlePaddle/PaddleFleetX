@@ -349,7 +349,6 @@ class TransformerDecoder(nn.Layer):
             self.norm = nn.LayerNorm(hidden_size)
         elif norm is not None:
             raise ValueError("Only support LayerNorm")
-        self.block = paddle.static.default_main_program().global_block()
         self.checkpoints = []
         self.debug = debug
 
@@ -479,7 +478,6 @@ class TransformerDecoderLayer(nn.Layer):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
-        self.block = paddle.static.default_main_program().global_block()
         self.mesh_idx = mesh_idx
 
 
@@ -724,7 +722,6 @@ class GPTModel(nn.Layer):
         self.topo = topo
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
-        self.block = paddle.static.default_main_program().global_block()
         self.layer_per_stage = None
         if topo is None and pp_degree is not None:
             pp_degree = pp_degree
@@ -893,10 +890,8 @@ class GPTPretrainingCriterion(nn.Layer):
     It calculates the final loss.
     """
 
-    def __init__(self, args=None, topo=None):
+    def __init__(self, args=None):
         super(GPTPretrainingCriterion, self).__init__()
-        self.block = paddle.static.default_main_program().global_block()
-        self.topo = topo
         self.args = args
         self.loss_func = paddle.nn.CrossEntropyLoss(reduction="none")
 
@@ -908,7 +903,7 @@ class GPTPretrainingCriterion(nn.Layer):
         masked_lm_loss = paddle.sum(masked_lm_loss.reshape([-1]) * loss_mask)
         total_loss = masked_lm_loss / loss_mask.sum()
         pp_total_loss = None
-        if self.topo.pp_info.size > 1:
+        if self.args.pp_degree > 1:
             total_loss = total_loss
             masked_lm_loss.persistable = True
             total_loss.persistable = True
@@ -916,7 +911,7 @@ class GPTPretrainingCriterion(nn.Layer):
             pp_total_loss = paddle.fluid.layers.fill_constant([1, ], "float32", 0.0)
             pp_total_loss.persistable = True
             block = paddle.static.default_main_program().global_block()
-            acc_steps = self.args.global_batch_size // self.topo.data_info.size // self.args.local_batch_size
+            acc_steps = 1
             tmp = total_loss / acc_steps
             block.append_op(
                 type="elementwise_add",

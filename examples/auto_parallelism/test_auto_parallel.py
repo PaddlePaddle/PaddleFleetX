@@ -27,7 +27,9 @@ from paddle.distributed.auto_parallel.utils import load_checkpoint_into_program
 import modeling_utils
 import global_setting
 from args import parse_args
+import logging
 
+logging.getLogger().setLevel(logging.INFO)
 paddle.enable_static()
 
 
@@ -214,10 +216,14 @@ def main(args):
     exe = paddle.static.Executor(place)
     exe.run(distributed_startup_program)
 
+    print("================end of startup program================")
+
     if global_setting._global_parallel_stratergy != "serial":
         cur_dist_attr = get_dist_attr(distributed_main_program)
         sliced_param_dict = merge_and_slice_parameter(param_dict, pre_dist_attr, cur_dist_attr)
         load_parameter_into_program(sliced_param_dict, distributed_main_program)
+
+    print("================end of load parameter================")
 
     # for serial, in this demo, dp_degree is 1 and mp_degree is 1 and pp_degree is 1
     if args.pp_degree == 1 and args.dp_degree == 1 and args.mp_degree == 1:

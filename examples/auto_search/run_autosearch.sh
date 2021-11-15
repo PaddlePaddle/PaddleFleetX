@@ -9,7 +9,7 @@ rm -rf ./data/*.npy
 python3 -m paddle.distributed.fleet.launch \
     --log_dir ${output_dir} \
     --gpus="0,1,2,3" \
-    test_auto_parallel_autosearch.py \
+    test_auto_parallel_gpt.py \
     --model_type "gpt" \
     --model_name_or_path "gpt2-en" \
     --input_dir "./data" \
@@ -31,5 +31,5 @@ python3 -m paddle.distributed.fleet.launch \
     --device "gpu" \
     --global_batch_size 8 \
     --mp_degree 1 \
-    --dp_degree 4 \
+    --dp_degree 1 \
     --pp_degree 1 

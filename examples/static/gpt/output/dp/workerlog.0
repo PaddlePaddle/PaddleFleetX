@@ -1,0 +1,153 @@
+grep: warning: GREP_OPTIONS is deprecated; please use an alias or script
+Hint: Your machine support AVX, but the installed paddlepaddle doesn't have avx core. Hence, no-avx core with worse preformance will be imported.
+If you like, you could reinstall paddlepaddle by 'python -m pip install --force-reinstall paddlepaddle-gpu[==version]' to get better performance.
+The original error is: No module named 'paddle.fluid.core_avx'
+/usr/local/lib/python3.7/dist-packages/pkg_resources/_vendor/pyparsing.py:943: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3,and in 3.9 it will stop working
+  collections.MutableMapping.register(ParseResults)
+/usr/local/lib/python3.7/dist-packages/pkg_resources/_vendor/pyparsing.py:3245: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3,and in 3.9 it will stop working
+  elif isinstance( exprs, collections.Iterable ):
+/usr/local/lib/python3.7/dist-packages/setuptools/depends.py:2: DeprecationWarning: the imp module is deprecated in favour of importlib; see the module's documentation for alternative uses
+  import imp
+W1115 11:04:09.202764 17658 init.cc:205] AVX is available, Please re-compile on local machine
+dp_info:
+	 GroupInfo(size=2, rank=0, world=[0, 1]), 
+pp_info:
+	 GroupInfo(size=1, rank=0, world=[0]), 
+sharding_info:
+	 GroupInfo(size=1, rank=0, world=[0]), 
+mp_info:
+	 GroupInfo(size=1, rank=0, world=[0])
+[32m[2021-11-15 11:04:09,788] [    INFO][0m - Found /root/.paddlenlp/models/gpt2-en/gpt-en-vocab.json[0m
+[32m[2021-11-15 11:04:09,789] [    INFO][0m - Found /root/.paddlenlp/models/gpt2-en/gpt-en-merges.txt[0m
+[32m[2021-11-15 11:04:09,920] [    INFO][0m - The distributed run, total device num:2[0m
+[32m[2021-11-15 11:04:09,920] [    INFO][0m - The distributed run, distinct dataflow num:2[0m
+[32m[2021-11-15 11:04:09,921] [    INFO][0m - The distributed run, repeat dataflow times:1[0m
+Init GPTModel on gpu:0
+Init GPTForPretraining on gpu:0
+Forward GPTForPretraining on gpu:0
+Forward GPTModel on gpu:0
+/usr/local/lib/python3.7/dist-packages/paddle/fluid/layers/math_op_patch.py:341: UserWarning: /workspace/FleetX/examples/static/gpt/modeling.py:576
+The behavior of expression A + B has been unified with elementwise_add(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_add(X, Y, axis=0) instead of A + B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/usr/local/lib/python3.7/dist-packages/paddle/fluid/layers/math_op_patch.py:341: UserWarning: /workspace/FleetX/examples/static/gpt/modeling.py:264
+The behavior of expression A + B has been unified with elementwise_add(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_add(X, Y, axis=0) instead of A + B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/usr/local/lib/python3.7/dist-packages/paddle/fluid/layers/math_op_patch.py:341: UserWarning: /workspace/FleetX/examples/static/gpt/modeling.py:482
+The behavior of expression A + B has been unified with elementwise_add(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_add(X, Y, axis=0) instead of A + B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+/usr/local/lib/python3.7/dist-packages/paddle/fluid/layers/math_op_patch.py:341: UserWarning: /workspace/FleetX/examples/static/gpt/modeling.py:494
+The behavior of expression A + B has been unified with elementwise_add(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_add(X, Y, axis=0) instead of A + B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+Init GPTPretrainingCriterion on gpu:0
+Forward GPTPretrainingCriterion on gpu:0
+/usr/local/lib/python3.7/dist-packages/paddle/fluid/layers/math_op_patch.py:341: UserWarning: /workspace/FleetX/examples/static/gpt/modeling.py:773
+The behavior of expression A * B has been unified with elementwise_mul(X, Y, axis=-1) from Paddle 2.0. If your code works well in the older versions but crashes in this version, try to use elementwise_mul(X, Y, axis=0) instead of A * B. This transitional warning will be dropped in the future.
+  op_type, op_type, EXPRESSION_MAP[method_name]))
+user_defined_optimizer =======================
+<paddle.fluid.optimizer.AdamOptimizer object at 0x7f6308081110>
+[<paddle.distributed.fleet.meta_optimizers.amp_optimizer.AMPOptimizer object at 0x7f62f381d1d0>, <paddle.distributed.fleet.meta_optimizers.asp_optimizer.ASPOptimizer object at 0x7f62f381db90>, <paddle.distributed.fleet.meta_optimizers.localsgd_optimizer.AdaptiveLocalSGDOptimizer object at 0x7f62f381d4d0>, <paddle.distributed.fleet.meta_optimizers.dgc_optimizer.DGCOptimizer object at 0x7f62f3823610>, <paddle.distributed.fleet.meta_optimizers.fp16_allreduce_optimizer.FP16AllReduceOptimizer object at 0x7f624e8dccd0>, <paddle.distributed.fleet.meta_optimizers.gradient_merge_optimizer.GradientMergeOptimizer object at 0x7f624e8dcd10>, <paddle.distributed.fleet.meta_optimizers.graph_execution_optimizer.GraphExecutionOptimizer object at 0x7f624e8dc750>, <paddle.distributed.fleet.meta_optimizers.lamb_optimizer.LambOptimizer object at 0x7f624e8dce10>, <paddle.distributed.fleet.meta_optimizers.lars_optimizer.LarsOptimizer object at 0x7f624e8dcf50>, <paddle.distributed.fleet.meta_optimizers.localsgd_optimizer.LocalSGDOptimizer object at 0x7f624e8dcbd0>, <paddle.distributed.fleet.meta_optimizers.parameter_server_graph_optimizer.ParameterServerGraphOptimizer object at 0x7f624e8dcd90>, <paddle.distributed.fleet.meta_optimizers.parameter_server_optimizer.ParameterServerOptimizer object at 0x7f624e8dcdd0>, <paddle.distributed.fleet.meta_optimizers.pipeline_optimizer.PipelineOptimizer object at 0x7f624e8dc810>, <paddle.distributed.fleet.meta_optimizers.raw_program_optimizer.RawProgramOptimizer object at 0x7f624e8dc610>, <paddle.distributed.fleet.meta_optimizers.recompute_optimizer.RecomputeOptimizer object at 0x7f624e8dc7d0>, <paddle.distributed.fleet.meta_optimizers.sharding_optimizer.ShardingOptimizer object at 0x7f624e8dcc50>, <paddle.distributed.fleet.meta_optimizers.tensor_parallel_optimizer.TensorParallelOptimizer object at 0x7f624e8dc550>]
+    +==============================================================================+
+    |                                                                              |
+    |                         DistributedStrategy Overview                         |
+    |                                                                              |
+    +==============================================================================+
+    |                        a_sync=True <-> a_sync_configs                        |
+    +------------------------------------------------------------------------------+
+    |                               k_steps                    -1                  |
+    |                     max_merge_var_num                    1                   |
+    |                       send_queue_size                    16                  |
+    |               independent_recv_thread                  False                 |
+    |         min_send_grad_num_before_recv                    1                   |
+    |                      thread_pool_size                    1                   |
+    |                       send_wait_times                    1                   |
+    |               runtime_split_send_recv                  False                 |
+    |                        launch_barrier                   True                 |
+    |             heter_worker_device_guard                   cpu                  |
+    |                        lr_decay_steps                    10                  |
+    |                            use_ps_gpu                    0                   |
+    +==============================================================================+
+    |                    Environment Flags, Communication Flags                    |
+    +------------------------------------------------------------------------------+
+    |                                  mode                    1                   |
+    |                               elastic                  False                 |
+    |                                  auto                  False                 |
+    |                   sync_nccl_allreduce                   True                 |
+    |                         nccl_comm_num                    3                   |
+    |            use_hierarchical_allreduce                  False                 |
+    |   hierarchical_allreduce_inter_nranks                    1                   |
+    |                       sync_batch_norm                  False                 |
+    |                   fuse_all_reduce_ops                   True                 |
+    |                  fuse_grad_size_in_MB                    32                  |
+    |              fuse_grad_size_in_TFLOPS                   50.0                 |
+    |               cudnn_exhaustive_search                  False                 |
+    |             conv_workspace_size_limit                   512                  |
+    |    cudnn_batchnorm_spatial_persistent                  False                 |
+    |                        fp16_allreduce                  False                 |
+    |               last_comm_group_size_MB                   1.0                  |
+    |                find_unused_parameters                  False                 |
+    |            without_graph_optimization                   True                 |
+    |                 fuse_grad_size_in_num                    8                   |
+    |                 calc_comm_same_stream                  False                 |
+    |                                   asp                  False                 |
+    |                       fuse_grad_merge                  False                 |
+    |                             semi_auto                  False                 |
+    |                            adam_d2sum                   True                 |
+    |                           auto_search                  False                 |
+    |                  downpour_table_param                                        |
+    |                       fs_client_param                                        |
+    +==============================================================================+
+    |                                Build Strategy                                |
+    +------------------------------------------------------------------------------+
+    |           enable_sequential_execution                  False                 |
+    |              fuse_elewise_add_act_ops                  False                 |
+    |                       fuse_bn_act_ops                  False                 |
+    |              fuse_relu_depthwise_conv                  False                 |
+    |                    fuse_broadcast_ops                  False                 |
+    |                fuse_all_optimizer_ops                  False                 |
+    |                        enable_inplace                  False                 |
+    |     enable_backward_optimizer_op_deps                   True                 |
+    |                 cache_runtime_context                  False                 |
+    |                   fuse_bn_add_act_ops                   True                 |
+    |                    enable_auto_fusion                  False                 |
+    |                          enable_addto                  False                 |
+    |                      fix_op_run_order                  False                 |
+    |              allow_cuda_graph_capture                  False                 |
+    +==============================================================================+
+    |                              Execution Strategy                              |
+    +------------------------------------------------------------------------------+
+    |                           num_threads                    2                   |
+    |          num_iteration_per_drop_scope                    1                   |
+    |                 num_iteration_per_run                    1                   |
+    |                    use_thread_barrier                  False                 |
+    +==============================================================================+
+
+server not ready, wait 3 sec to retry...
+not ready endpoints:['127.0.0.1:10167']
+server not ready, wait 3 sec to retry...
+not ready endpoints:['127.0.0.1:10167']
+server not ready, wait 3 sec to retry...
+not ready endpoints:['127.0.0.1:10167']
+server not ready, wait 3 sec to retry...
+not ready endpoints:['127.0.0.1:10167']
+server not ready, wait 3 sec to retry...
+not ready endpoints:['127.0.0.1:10167']
+server not ready, wait 3 sec to retry...
+not ready endpoints:['127.0.0.1:10167']
+server not ready, wait 3 sec to retry...
+not ready endpoints:['127.0.0.1:10167']
+server not ready, wait 3 sec to retry...
+not ready endpoints:['127.0.0.1:10167']
+
+
+--------------------------------------
+C++ Traceback (most recent call last):
+--------------------------------------
+No stack trace in paddle, may be caused by external reasons.
+
+----------------------
+Error Message Summary:
+----------------------
+FatalError: `Termination signal` is detected by the operating system.
+  [TimeInfo: *** Aborted at 1636945516 (unix time) try "date -d @1636945516" if you are using GNU date ***]
+  [SignalInfo: *** SIGTERM (@0x445c) received by PID 17658 (TID 0x7f633271c740) from PID 17500 ***]
+

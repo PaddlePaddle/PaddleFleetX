@@ -278,10 +278,10 @@ class MLPLayer(nn.Layer):
             d_model, dim_feedforward, weight_attr0, bias_attr=bias_attr)
         self.linear1 = nn.Linear(
             dim_feedforward, d_model, weight_attr1, bias_attr=bias_attr)
-        # self.linear2 = nn.Linear(
-        #     d_model, dim_feedforward, weight_attr0, bias_attr=bias_attr)
-        # self.linear3 = nn.Linear(
-        #     dim_feedforward, d_model, weight_attr1, bias_attr=bias_attr)
+        self.linear2 = nn.Linear(
+            d_model, dim_feedforward, weight_attr0, bias_attr=bias_attr)
+        self.linear3 = nn.Linear(
+            dim_feedforward, d_model, weight_attr1, bias_attr=bias_attr)
         # self.linear4 = nn.Linear(
         #     d_model, dim_feedforward, weight_attr0, bias_attr=bias_attr)
         # self.linear5 = nn.Linear(
@@ -321,10 +321,10 @@ class MLPLayer(nn.Layer):
         out = F.gelu(out, approximate=True)
         out = self.linear1(out)
 
-        # # out = self.norm(input)
-        # out = self.linear2(out)
-        # out = F.gelu(out, approximate=True)
-        # out = self.linear3(out)
+        # out = self.norm(input)
+        out = self.linear2(out)
+        out = F.gelu(out, approximate=True)
+        out = self.linear3(out)
 
         # # out = self.norm(input)
         # out = self.linear4(out)
@@ -379,9 +379,9 @@ def get_distributed_program():
     loss, train_program, startup_program = mlp_forward(train_program,
                                                        startup_program)
 
-    with open("./output/auto_search_2" + "/serial_main_program.txt.%d" % (paddle.distributed.get_rank()), 'w') as f:
+    with open("./output/auto_search_4" + "/serial_main_program.txt.%d" % (paddle.distributed.get_rank()), 'w') as f:
         f.write(str(train_program))
-    with open("./output/auto_search_2" + "/serial_startup_program.txt.%d" % (paddle.distributed.get_rank()), 'w') as f:
+    with open("./output/auto_search_4" + "/serial_startup_program.txt.%d" % (paddle.distributed.get_rank()), 'w') as f:
         f.write(str(startup_program))
 
     optimizer = paddle.fluid.optimizer.SGDOptimizer(learning_rate=0.01)
@@ -415,6 +415,8 @@ def main():
     place = paddle.set_device("gpu")
     exe = paddle.static.Executor(place)
     exe.run(dist_start_prog)
+
+    print("========================end of start up prog========================")
 
     for step in range(20):
         # if step == 10:

@@ -1,6 +1,6 @@
 CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-output_dir="./output/dp4"
+output_dir="./output/mp4"
 mkdir "./output/"
 mkdir $output_dir
 rm -rf $output_dir/*
@@ -30,6 +30,6 @@ python3 -m paddle.distributed.fleet.launch \
     --eval_freq 100000 \
     --device "gpu" \
     --global_batch_size 8 \
-    --mp_degree 1 \
-    --dp_degree 4 \
+    --mp_degree 4 \
+    --dp_degree 1 \
     --pp_degree 1 

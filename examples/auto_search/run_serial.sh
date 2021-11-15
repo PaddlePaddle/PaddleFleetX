@@ -1,6 +1,6 @@
-CUDA_VISIBLE_DEVICES="0,1,2,3"
+CUDA_VISIBLE_DEVICES="0"
 
-output_dir="./output/dp4"
+output_dir="./output/serial"
 mkdir "./output/"
 mkdir $output_dir
 rm -rf $output_dir/*
@@ -8,7 +8,7 @@ rm -rf ./data/*.npy
 
 python3 -m paddle.distributed.fleet.launch \
     --log_dir ${output_dir} \
-    --gpus="0,1,2,3" \
+    --gpus="0" \
     test_auto_parallel_gpt.py \
     --model_type "gpt" \
     --model_name_or_path "gpt2-en" \
@@ -20,7 +20,7 @@ python3 -m paddle.distributed.fleet.launch \
     --auto_search false \
     --max_lr 0.00015 \
     --min_lr 0.00001 \
-    --max_steps 100 \
+    --max_steps 30 \
     --save_steps 10 \
     --decay_steps 32000000 \
     --weight_decay 0.01\
@@ -31,5 +31,5 @@ python3 -m paddle.distributed.fleet.launch \
     --device "gpu" \
     --global_batch_size 8 \
     --mp_degree 1 \
-    --dp_degree 4 \
-    --pp_degree 1 
+    --dp_degree 1 \
+    --pp_degree 1
