@@ -138,8 +138,8 @@ def get_dataset(inputs, args):
     # 请确保每一个训练节点都持有不同的训练文件
     # 当我们用本地多进程模拟分布式时，每个进程需要拿到不同的文件
     # 使用 fleet.split_files 可以便捷的以文件为单位根据节点编号分配训练样本
-    #if int(args.is_cloud):
-    #    file_list = fleet.util.get_file_shard(file_list)
+    if int(args.is_cloud):
+        file_list = fleet.util.get_file_shard(file_list)
     logger.info("file list: {}".format(file_list))
 
     return dataset, file_list
@@ -179,27 +179,23 @@ def heter_train(args):
         fleet.run_server()
 
     elif fleet.is_heter_worker():
-        block_size = len(file_list) // fleet.worker_num()
-        data_shard = file_list[0: block_size]
-        dataset.set_filelist(data_shard)
+        # 初始化及运行heter worker节点
         fleet.init_heter_worker()
-        fleet.run_heter_worker(dataset = dataset)
+        fleet.run_heter_worker()
 
     elif fleet.is_worker():
-        block_size = len(file_list) // fleet.worker_num()
-        worker_id = fleet.worker_index()
-        data_shard = file_list[worker_id * block_size: (worker_id  + 1) * block_size] 
-        dataset.set_fileset(data_shared)
         # 初始化工作节点
         place = fluid.CPUPlace()
         exe = fluid.Executor(place)
         print("Run startup program")
         exe.run(fluid.default_startup_program())
         fleet.init_worker()
+        print("Get dataset")
+        dataset, file_list = get_dataset(inputs, args)
         for epoch in range(args.epochs):
             # 以文件为粒度进行shuffle
-            random.shuffle(data_shard)
-            dataset.set_filelist(data_shard)
+            random.shuffle(file_list)
+            dataset.set_filelist(file_list)
             print("Train begin")
             start_time = time.time()
             exe.train_from_dataset(program=fluid.default_main_program(),
