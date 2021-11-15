@@ -10,7 +10,7 @@
 
 AllReduce操作将不同机器上的数据整合(Reduce)后将结果发送到各个机器，常见的整合操作包括\ ``sum``\ 求和、\ ``max``\ 求最大值和\ ``min``\ 求最小值等。以数据并行下的梯度同步为例，则是采用\ ``sum``\ 操作求各个机器上的梯度和。下图给出一种AllReduce求和操作实现方法示例。这种实现中，所有训练进程将数据发送到worker1，worker1进程计算数据的和值，并将结果发送到其它所有训练进程。
 
-.. image:: ../img/allredue_exam1.png
+.. image:: ../img/allreduce_exam1.png
   :width: 600
   :alt: AllReduce Example One
   :align: center
