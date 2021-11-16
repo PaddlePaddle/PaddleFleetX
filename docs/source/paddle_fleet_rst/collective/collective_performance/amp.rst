@@ -4,25 +4,20 @@
 简介
 ----
 
-传统上，深度学习训练通常使用32比特双精度浮点数\ ``FP32`` \ 作为参数、梯度和中间Activation等的数据存储格式。使用\ ``FP32``\ 作为数据存储格式，每个数据需要4个字节的存储空间。为了节约显存消耗，业界提出使用16比特单精度浮点数\ ``FP16``\ 作为数据存储格式。使用\ ``FP16``\ 作为数据存储格式，每个数据仅需要2个字节的存储空间，相比于\ ``FP32``\ 可以节省一般的存储空间。除了降低显存消耗，\ ``FP16``\ 格式下，计算速度通常也更快，因此可以加速训练。
+传统上，深度学习训练通常使用32比特双精度浮点数\ ``FP32`` \ 作为参数、梯度和中间Activation等的数据存储格式。使用\ ``FP32``\ 作为数据存储格式，每个数据需要4个字节的存储空间。为了节约显存消耗，业界提出使用16比特单精度浮点数\ ``FP16``\ 作为数据存储格式。使用\ ``FP16``\ 作为数据存储格式，每个数据仅需要2个字节的存储空间，相比于\ ``FP32``\ 可以节省一半的存储空间。除了降低显存消耗，\ ``FP16``\ 格式下，计算速度通常也更快，因此可以加速训练。
 
 单精度浮点训练可以带来以下好处：
 
 1. 减少对GPU显存的需求，或者在GPU显存保持不变的情况下，可以支持更大模型和更大的batch size；
 2. 降低显存读写的带宽压力；
-3. 加速GPU数学运算速度 (需要GPU支持\ `[1] <https://docs.nvidia.com/deeplearning/performance/mixed-precision-training/index.html#tensorop>`__)；
-4. 按照NVIDA数据，GPU上\ ``FP16``\ 计算吞吐量是\ ``FP32``\ 的2~8倍\ `[2] <https://arxiv.org/abs/1710.03740>`__\ 。
+3. 加速GPU数学运算速度 (需要GPU支持\ `[1] <https://docs.nvidia.com/deeplearning/performance/mixed-precision-training/index.html#tensorop>`__)；按照NVIDA数据，GPU上\ ``FP16``\ 计算吞吐量是\ ``FP32``\ 的2~8倍\ `[2] <https://arxiv.org/abs/1710.03740>`__\ 。
 
 自动混合精度原理
 ----
 
-飞桨中，我们引入自动混合精度(Auto Mixed Precision, AMP)，混合使用\ ``FP32``\ 和\ ``FP16``\ ，在保持训练精度的同时，进一步提升训练的速度。实现了 ``自动维护FP32 、FP16参数副本``,
-``Dynamic loss scaling``, ``op黑白名单`` 等策略来避免
-因 FP16 动态范围较小而带来的模型最终精度损失。 Fleet 作为Paddle通用的分布式训练API提供了简单易用的接口, 用户只需要添加几行代码
-就可将自动混合精度应用到原有的分布式训练中进一步提升训练速度.
+飞桨中，我们引入自动混合精度(Auto Mixed Precision, AMP)，混合使用\ ``FP32``\ 和\ ``FP16``\ ，在保持训练精度的同时，进一步提升训练的速度。实现了 ``自动维护FP32 、FP16参数副本``,\ ``Dynamic loss scaling``, ``op黑白名单`` 等策略来避免因\ ``FP16``\ 动态范围较小而带来的模型最终精度损失。Fleet作为飞桨通用的分布式训练API提供了简单易用的接口, 用户只需要添加几行代码就可将自动混合精度应用到原有的分布式训练中进一步提升训练速度。
 
-首先介绍半精度（FP16）。如下图所示，半精度（FP16）是一种相对较新的浮点类型，在计算机中使用2字节（16位）存储。
-在IEEE 754-2008标准中，它亦被称作binary16。与计算中常用的单精度（FP32）和双精度（FP64）类型相比，FP16更适于在精度要求不高的场景中使用。
+我们首先介绍半精度（FP16）浮点数的表示，如下图所示。半精度浮点数是一种相对较新的浮点类型，在计算机中使用2字节（16比特）存储。在IEEE 754-2008标准中，它亦被称作binary16。与计算中常用的单精度（FP32）和双精度（FP64）浮点类型相比，因为FP16表示范围和表示精度更低，因此FP16更适于在精度要求不高的场景中使用。
 
 .. image:: ../img/amp.png
   :width: 400
@@ -55,7 +50,7 @@
         "custom_black_list": [],
     }
 
-上述例子存放在：`example/resnet/train_fleet_static_amp.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_amp.py>`_。
+上述例子存放在：\ `example/resnet/train_fleet_static_amp.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_amp.py>`_\ 。
 假设要运行8卡的任务，那么只需在命令行中执行:
 
 .. code-block:: sh
@@ -97,8 +92,7 @@
 动态图操作实践
 ----
 
-使用飞桨框架提供的API，paddle.amp.auto_cast 和 paddle.amp.GradScaler 能够实现自动混合精度训练（Automatic Mixed Precision，AMP），
-即在相关OP的计算中，自动选择FP16或FP32计算。开启AMP模式后，使用FP16与FP32进行计算的OP列表可见该 `[3] <https://www.paddlepaddle.org.cn/documentation/docs/zh/api/paddle/amp/Overview_cn.html>`__。
+使用飞桨框架提供的API：paddle.amp.auto_cast 和 paddle.amp.GradScaler能够实现自动混合精度训练（Automatic Mixed Precision，AMP），即在相关OP的计算中，自动选择FP16或FP32计算。开启AMP模式后，使用FP16与FP32进行计算的OP列表可见该\ `[3] <https://www.paddlepaddle.org.cn/documentation/docs/zh/api/paddle/amp/Overview_cn.html>`_\ 。
 
 下面来看一个具体的例子，来了解如果使用飞桨框架实现混合精度训练。
 
