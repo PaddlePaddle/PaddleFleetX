@@ -178,11 +178,6 @@ def heter_train(args):
         fleet.init_server()
         fleet.run_server()
 
-    elif fleet.is_heter_worker():
-        # 初始化及运行heter worker节点
-        fleet.init_heter_worker()
-        fleet.run_heter_worker(dataset=None)
-
     elif fleet.is_worker():
         # 初始化工作节点
         place = fluid.CPUPlace()
@@ -217,6 +212,19 @@ def heter_train(args):
         fleet.stop_worker()
         logger.info("Distribute Train Success!")
 
+    else:
+        # 初始化及运行heter worker节点
+        exe = fluid.Executor(place)
+        exe.run(fluid.default_startup_program())
+        fleet.init_worker()
+        exe.train_from_dataset(program=fluid.default_main_program(),
+                               dataset=None,
+                               fetch_list=[avg_cost],
+                               fetch_info=["Epoch {} auc ".format(epoch)],
+                               print_period=10,
+                               debug=False)
+        exe.close()
+        fleet.stop_worker() 
 
 def train():
     args = parse_args()
