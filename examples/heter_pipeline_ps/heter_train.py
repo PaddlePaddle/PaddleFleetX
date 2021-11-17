@@ -181,7 +181,7 @@ def heter_train(args):
     elif fleet.is_heter_worker():
         # 初始化及运行heter worker节点
         fleet.init_heter_worker()
-        fleet.run_heter_worker()
+        fleet.run_heter_worker(dataset=None)
 
     elif fleet.is_worker():
         # 初始化工作节点
