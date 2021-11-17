@@ -17,7 +17,7 @@
 
 .. toctree::
    :maxdepth: 2 
-   :caption: 分布式训练入门
+   :caption: 使用指南
    :name: distributed_training
    
    paddle_fleet_rst/install_cn
@@ -34,14 +34,6 @@
    paddle_fleet_rst/distill
    paddle_fleet_rst/edl
 
-
-.. toctree::
-   :maxdepth: 1
-   :caption: 分布式训练FAQ
-   :name: faq
-
-   paddle_fleet_rst/faq
-
 .. toctree::
    :maxdepth: 1
    :caption: 分布式训练搭建方案
@@ -49,6 +41,13 @@
 
    paddle_fleet_rst/public_cloud
    paddle_fleet_rst/paddle_on_k8s
+
+.. toctree::
+   :maxdepth: 1
+   :caption: 分布式训练FAQ
+   :name: faq
+
+   paddle_fleet_rst/faq
 
 =======
 
