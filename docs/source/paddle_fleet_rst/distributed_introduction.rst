@@ -62,22 +62,15 @@
 
 更多关于每种并行模式特性和如何根据模型特性选择对应的并行模式，请参考\ `飞桨4D混合并行训练使用指南 <collective/collective_mp/hybrid_parallelism.html>`__\ 。
 
-面向云端场景的并行训练组件
-^^^^^^^^^^^^^^^^^^^^^^
-
--  飞桨针对集群网络环境、硬件设备比较低配的场景提供多种实用的并行策略和优化算法。
--  针对云端算力具有弹性的特点，飞桨也始终在探索弹性深度学习的应用。
-
 开始你的分布式训练之旅
 ----------------------
 
 -  整体内容：我们推荐您直接根据\ `主页 <../index.html>`__\ ，按照章节顺序逐个浏览学习，如果有任何疑问都可以在\ `Paddle <https://github.com/PaddlePaddle/Paddle>`__\ 、\ `FleetX <https://github.com/PaddlePaddle/FleetX/>`__\ 提交issue提问。
--  FAQ：对于高频出现的问题，我们会定期整理相关内容到\ `FAQ <faq.html>`__\ 。
 -  快速上手：如果想最低成本的了解飞桨的分布式训练，我们推荐阅读\ `GPU多机多卡(Collective)训练快速开始 <collective/collective_quick_start.html>`__\ 和\ `参数服务器训练快速开始 <parameter_server/ps_quick_start.html>`__\ 。
--  GPU多机训练：如果您已经开始使用GPU进行多机多卡训练，\ `Collective训练 <collective/index.html>`__\ 包含了诸多飞桨多机多卡的训练能力，建议阅读。
+-  GPU多机训练：如果您已经开始使用GPU进行多机多卡训练，\ `Collective训练 <collective/index.html>`__\ 包含了诸多飞桨多机多卡的训练能力和优化方法，建议阅读。
 -  参数服务器：信息检索、推荐系统领域常用的并行训练方式，\ `参数服务器训练 <parameter_server/index.html>`__\ 包含了飞桨参数服务器的训练能力，建议阅读。
--  公有云环境实践：如果您在公有云上跑自己的GPU多卡任务，性能不佳，\ `优化低配网络的分布式GPU训练(DGC) <collective/collective_performance/communication_frequency.html>`__\ 是调优性能的好方法。
 -  弹性训练：如果对如何利用云端弹性资源进行大规模蒸馏训练有兴趣，可以阅读\ `EDL服务型弹性蒸馏 <edl.html>`__\ 。
+-  FAQ：对于高频出现的问题，我们会定期整理相关内容到\ `FAQ <faq.html>`__\ 。
 
 参考文献
 ---------
