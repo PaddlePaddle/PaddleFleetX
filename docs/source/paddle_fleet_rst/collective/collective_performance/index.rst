@@ -7,6 +7,7 @@
    :caption: 性能优化
    :name: performance
 
+   collective_summarize
    op_fusion
    overlap
    communication_topology
