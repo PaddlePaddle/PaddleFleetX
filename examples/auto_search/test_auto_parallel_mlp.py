@@ -282,11 +282,12 @@ class MLPLayer(nn.Layer):
             d_model, dim_feedforward, weight_attr0, bias_attr=bias_attr)
         self.linear3 = nn.Linear(
             dim_feedforward, d_model, weight_attr1, bias_attr=bias_attr)
-        # self.linear4 = nn.Linear(
-        #     d_model, dim_feedforward, weight_attr0, bias_attr=bias_attr)
-        # self.linear5 = nn.Linear(
-        #     dim_feedforward, d_model, weight_attr1, bias_attr=bias_attr)
-        # self.norm = nn.LayerNorm(d_model, epsilon=1e-5)
+        self.linear4 = nn.Linear(
+            d_model, dim_feedforward, weight_attr0, bias_attr=bias_attr)
+        self.linear5 = nn.Linear(
+            dim_feedforward, d_model, weight_attr1, bias_attr=bias_attr)
+        self.norm0 = nn.LayerNorm(d_model, epsilon=1e-5)
+        # self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
 
     def forward(self, input):
         if _global_parallel_strategy == "dp":
@@ -302,34 +303,45 @@ class MLPLayer(nn.Layer):
                     "process_mesh": _global_process_mesh,
                     "dims_mapping": [-1, -1]
                 })
-        elif _global_parallel_strategy == "mp":
             auto.shard_tensor(
-                self.linear0.weight,
+                self.linear2.weight,
                 dist_attr={
                     "process_mesh": _global_process_mesh,
-                    "dims_mapping": [-1, 0]
+                    "dims_mapping": [-1, -1]
                 })
             auto.shard_tensor(
-                self.linear1.weight,
+                self.linear3.weight,
                 dist_attr={
                     "process_mesh": _global_process_mesh,
-                    "dims_mapping": [0, -1]
+                    "dims_mapping": [-1, -1]
+                })
+            auto.shard_tensor(
+                self.linear4.weight,
+                dist_attr={
+                    "process_mesh": _global_process_mesh,
+                    "dims_mapping": [-1, -1]
+                })
+            auto.shard_tensor(
+                self.linear5.weight,
+                dist_attr={
+                    "process_mesh": _global_process_mesh,
+                    "dims_mapping": [-1, -1]
                 })
 
-        # out = self.norm(input)
-        out = self.linear0(input)
+        out = self.norm0(input)
+        out = self.linear0(out)
         out = F.gelu(out, approximate=True)
         out = self.linear1(out)
 
-        # out = self.norm(input)
+        # out = self.norm1(out)
         out = self.linear2(out)
         out = F.gelu(out, approximate=True)
         out = self.linear3(out)
 
-        # # out = self.norm(input)
-        # out = self.linear4(out)
-        # out = F.gelu(out, approximate=True)
-        # out = self.linear5(out)
+        # out = self.norm2(out)
+        out = self.linear4(out)
+        out = F.gelu(out, approximate=True)
+        out = self.linear5(out)
         return out
 
 
@@ -402,8 +414,8 @@ def main():
     # global _global_process_mesh
     # _global_process_mesh = auto.ProcessMesh([0, 1, 2, 3])
 
-    input = np.random.random(size=(80, 64)).astype('float32')
-    label = np.random.random(size=(80, 1)).astype('float32')
+    input = np.random.random(size=(400, 64)).astype('float32')
+    label = np.random.random(size=(400, 1)).astype('float32')
 
     dist_main_prog, dist_start_prog, loss = get_distributed_program()
 
@@ -418,7 +430,23 @@ def main():
 
     print("========================end of start up prog========================")
 
-    for step in range(20):
+    # ckpt_path = [
+    #         "./model_state_rank0.pdmodel",
+    #         "./model_state_rank1.pdmodel",
+    #         "./model_state_rank2.pdmodel",
+    #         "./model_state_rank3.pdmodel"
+    #     ]
+    # dist_attr_path = [
+    #     "./dist_attr_rank0.pdattr",
+    #     "./dist_attr_rank1.pdattr",
+    #     "./dist_attr_rank2.pdattr",
+    #     "./dist_attr_rank3.pdattr"
+    # ]
+    # load_checkpoint_into_program(ckpt_path, dist_attr_path, dist_main_prog)
+
+    # print("========================end of load parameter========================")
+
+    for step in range(10, 20):
         # if step == 10:
         #     save_distributed_checkpoint(
         #         dist_main_prog, ".", dist_attr_path=".")
