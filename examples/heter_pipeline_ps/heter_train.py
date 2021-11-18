@@ -210,11 +210,11 @@ def heter_train(args):
                 fleet.save_persistables(executor=exe, dirname=model_path)
         exe.close()
         fleet.stop_worker()
-        logger.info("Distribute Train Success!")
+        logger.info("Distribute Trainer Success!")
 
     else:
         # 初始化及运行heter worker节点
-        exe = fluid.Executor(place)
+        exe = fluid.Executor()
         exe.run(fluid.default_startup_program())
         fleet.init_worker()
         exe.train_from_dataset(program=fluid.default_main_program(),
@@ -225,6 +225,7 @@ def heter_train(args):
                                debug=False)
         exe.close()
         fleet.stop_worker() 
+        logger.info("Distribute Heter Trainer Success!")
 
 def train():
     args = parse_args()
