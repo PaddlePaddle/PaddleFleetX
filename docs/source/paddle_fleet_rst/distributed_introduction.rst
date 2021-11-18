@@ -76,13 +76,13 @@
 -  快速上手：如果想最低成本的了解飞桨的分布式训练，我们推荐阅读\ `GPU多机多卡(Collective)训练快速开始 <collective/collective_quick_start.html>`__\ 和\ `参数服务器训练快速开始 <parameter_server/ps_quick_start.html>`__\ 。
 -  GPU多机训练：如果您已经开始使用GPU进行多机多卡训练，\ `Collective训练 <collective/index.html>`__\ 包含了诸多飞桨多机多卡的训练能力和优化方法，建议阅读。
 -  参数服务器：信息检索、推荐系统领域常用的并行训练方式，\ `参数服务器训练 <parameter_server/index.html>`__\ 包含了飞桨参数服务器的训练能力，建议阅读。
--  弹性训练和蒸馏：如果对如何利用云端弹性资源进行大规模蒸馏训练有兴趣，可以阅读\ `EDL服务型弹性蒸馏 <distill.html>`__\ 和\ `弹性训练 <edl.html>`__\ 。
+-  弹性训练和蒸馏：如果对如何利用云端弹性资源进行大规模蒸馏训练有兴趣，可以阅读\ `服务型弹性蒸馏 <distill.html>`__\ 和\ `弹性训练 <edl.html>`__\ 。
 -  FAQ：对于高频出现的问题，我们会定期整理相关内容到\ `FAQ <faq.html>`__\ 。
 
 参考文献
 ---------
 
-\ `[1] Highly Scalable Deep Learning Training System with Mixed-Precision: Training ImageNet in Four Minutes <https://arxiv.org/abs/1807.11205>`__\ 
+`[1] Highly Scalable Deep Learning Training System with Mixed-Precision: Training ImageNet in Four Minutes <https://arxiv.org/abs/1807.11205>`__
 
-\ `[2] Language Models are Few-Shot Learners
- <https://arxiv.org/abs/2005.14165>`__\ 
+`[2] Language Models are Few-Shot Learners
+ <https://arxiv.org/abs/2005.14165>`__
