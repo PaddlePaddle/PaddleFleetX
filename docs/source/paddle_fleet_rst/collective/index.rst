@@ -9,7 +9,6 @@ Collective训练
    :name: collective 
 
    collective_quick_start
-   collective_summarize
    data_parallel
    collective_performance/index
    collective_mp/index
