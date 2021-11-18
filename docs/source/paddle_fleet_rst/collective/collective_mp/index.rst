@@ -16,5 +16,4 @@
    pipeline
    hybrid_parallelism
    gpt
-   moe
 
