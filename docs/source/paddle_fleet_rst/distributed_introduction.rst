@@ -84,5 +84,4 @@
 
 `[1] Highly Scalable Deep Learning Training System with Mixed-Precision: Training ImageNet in Four Minutes <https://arxiv.org/abs/1807.11205>`__
 
-`[2] Language Models are Few-Shot Learners
- <https://arxiv.org/abs/2005.14165>`__
+`[2] Language Models are Few-Shot Learners <https://arxiv.org/abs/2005.14165>`__
