@@ -60,6 +60,13 @@
 - 流水线并行则通过将不同层切分到不同的计算设备的方式降低显存需求。因为，不同切分间通信的数据量仅为切分间的中间状态，通信量较小，因此通常将流水线并行应用到机间。
 - 混合并行综合采用多种并行模式的组合方式，以充分利用不同并行模式的特性。通常来讲，不太建议单独使用张量模型并行和流水线并行，而应该在参数规模较大时（如千亿规模以上）采用张量模型并行、流水线并行和数据并行等组合的混合并行。
 
+综上所述，可以参考如下的流程图选择您需要的并行模式。
+
+.. image:: https://github.com/PaddlePaddle/FleetX/blob/develop/docs/source/paddle_fleet_rst/collective/img/parallel_selection.png?raw=true
+  :width: 600
+  :alt: Parallel Selection
+  :align: center
+
 更多关于每种并行模式特性和如何根据模型特性选择对应的并行模式，请参考\ `飞桨4D混合并行训练使用指南 <collective/collective_mp/hybrid_parallelism.html>`__\ 。
 
 开始你的分布式训练之旅
