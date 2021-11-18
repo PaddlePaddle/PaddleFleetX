@@ -33,7 +33,7 @@
 与参数服务器架构具有两种角色不同，基于规约模式的架构中所有的训练节点通常是对等的，节点间通过Collective集合通信原语通信，因此也称为Collective训练，如下图所示。一种典型的集合通信原语是基于\ `NVIDIA NCCL <https://developer.nvidia.com/nccl>`__\ 通信库的集合通信原语。基于规约模式的架构的典型应用方式是使用多张GPU卡进行协同训练，典型应用场景包括计算机视觉和自然语言处理等。
 
 .. image:: https://github.com/PaddlePaddle/FleetX/blob/develop/docs/source/paddle_fleet_rst/collective/img/collective_arch.png?raw=true
-  :width: 600
+  :width: 200
   :alt: Collective Architecture
   :align: center
 
@@ -63,7 +63,7 @@
 综上所述，可以参考如下的流程图选择您需要的并行模式。
 
 .. image:: https://github.com/PaddlePaddle/FleetX/blob/develop/docs/source/paddle_fleet_rst/collective/img/parallel_selection.png?raw=true
-  :width: 600
+  :width: 400
   :alt: Parallel Selection
   :align: center
 
@@ -76,7 +76,7 @@
 -  快速上手：如果想最低成本的了解飞桨的分布式训练，我们推荐阅读\ `GPU多机多卡(Collective)训练快速开始 <collective/collective_quick_start.html>`__\ 和\ `参数服务器训练快速开始 <parameter_server/ps_quick_start.html>`__\ 。
 -  GPU多机训练：如果您已经开始使用GPU进行多机多卡训练，\ `Collective训练 <collective/index.html>`__\ 包含了诸多飞桨多机多卡的训练能力和优化方法，建议阅读。
 -  参数服务器：信息检索、推荐系统领域常用的并行训练方式，\ `参数服务器训练 <parameter_server/index.html>`__\ 包含了飞桨参数服务器的训练能力，建议阅读。
--  弹性训练：如果对如何利用云端弹性资源进行大规模蒸馏训练有兴趣，可以阅读\ `EDL服务型弹性蒸馏 <edl.html>`__\ 。
+-  弹性训练和蒸馏：如果对如何利用云端弹性资源进行大规模蒸馏训练有兴趣，可以阅读\ `EDL服务型弹性蒸馏 <distill.html>`__\ 和\ `弹性训练 <edl.html>`__\ 。
 -  FAQ：对于高频出现的问题，我们会定期整理相关内容到\ `FAQ <faq.html>`__\ 。
 
 参考文献
