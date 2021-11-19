@@ -61,19 +61,11 @@ def gpt_pretrain_forward(args, train_program, start_program, topo):
             dtype='float32')
 
         data_holders = [tokens, loss_mask, attention_mask, position_ids, labels]
-        if global_setting._global_parallel_stratergy == "serial":
+        if global_setting._global_parallel_stratergy == "serial" or global_setting._global_parallel_stratergy == "auto_search":
             train_data_loader, _, _ = create_data_loader(args, data_holders, topo)
         else:
             ckpt_path = ['./output/serial/step_20/model_state_rank0.pdmodel']
             dist_attr_path = ['./output/serial/step_20/dist_attr_rank0.pdattr']
-            # ckpt_path = ['./output/dp4/step_20/model_state_rank0.pdmodel',
-            #                 './output/dp4/step_20/model_state_rank1.pdmodel',
-            #                 './output/dp4/step_20/model_state_rank2.pdmodel',
-            #                 './output/dp4/step_20/model_state_rank3.pdmodel']
-            # dist_attr_path = ['./output/dp4/step_20/dist_attr_rank0.pdattr',
-            #                     './output/dp4/step_20/dist_attr_rank1.pdattr',
-            #                     './output/dp4/step_20/dist_attr_rank2.pdattr',
-            #                     './output/dp4/step_20/dist_attr_rank3.pdattr']
             param_dict, dist_attr, add_info = load_distributed_checkpoint(ckpt_path, dist_attr_path)
             batch = add_info["batch"]
             batch_size = add_info["batch_size"]
@@ -120,7 +112,7 @@ def gpt_pretrain_forward(args, train_program, start_program, topo):
 
         loss_vars = criterion(preds, labels, loss_mask)
 
-        if global_setting._global_parallel_stratergy == "serial":
+        if global_setting._global_parallel_stratergy == "serial" or global_setting._global_parallel_stratergy == "auto_search":
             return train_program, start_program, loss_vars, train_data_loader
         else:
             return train_program, start_program, loss_vars, train_data_loader, param_dict, dist_attr
@@ -177,7 +169,7 @@ def main(args):
 
     train_program = static.Program()
     start_program = static.Program()
-    if global_setting._global_parallel_stratergy == "serial":
+    if global_setting._global_parallel_stratergy == "serial" or global_setting._global_parallel_stratergy == "auto_search":
         train_program, start_program, loss_vars, train_data_loader = gpt_pretrain_forward(args, train_program, start_program, topo)
     else:
         train_program, start_program, loss_vars, train_data_loader, param_dict, pre_dist_attr = gpt_pretrain_forward(args, train_program, start_program, topo)
@@ -214,7 +206,7 @@ def main(args):
     exe.run(distributed_startup_program)
     print("========================end of start up program========================")
 
-    if global_setting._global_parallel_stratergy != "serial":
+    if global_setting._global_parallel_stratergy != "serial" and global_setting._global_parallel_stratergy != "auto_search":
         cur_dist_attr = get_dist_attr(distributed_main_program)
         sliced_param_dict = merge_and_slice_parameter(param_dict, pre_dist_attr, cur_dist_attr)
         load_parameter_into_program(sliced_param_dict, distributed_main_program)
