@@ -27,7 +27,9 @@ from paddle.distributed.auto_parallel.utils import load_checkpoint_into_program
 import modeling_utils
 import global_setting
 from args import parse_args
+import logging
 
+logging.getLogger().setLevel(logging.INFO)
 paddle.enable_static()
 
 
@@ -116,7 +118,7 @@ def gpt_pretrain_forward(args, train_program, start_program, topo):
     if global_setting._global_parallel_stratergy == "serial":
         return train_program, start_program, loss_vars, train_data_loader
     else:
-        return train_program, start_program, loss_vars, train_data_loader, param_dict, pre_dist_attr
+        return train_program, start_program, loss_vars, train_data_loader, param_dict, pre_dist_attr, batch
 
 
 def main(args):
@@ -181,7 +183,7 @@ def main(args):
     if global_setting._global_parallel_stratergy == "serial":
         train_program, start_program, loss_vars, train_data_loader = gpt_pretrain_forward(args, train_program, start_program, topo)
     else:
-        train_program, start_program, loss_vars, train_data_loader, param_dict, pre_dist_attr = gpt_pretrain_forward(args, train_program, start_program, topo)
+        train_program, start_program, loss_vars, train_data_loader, param_dict, pre_dist_attr, step = gpt_pretrain_forward(args, train_program, start_program, topo)
 
     # different from hybrid parallel
     optimizer = paddle.optimizer.Adam(
@@ -206,7 +208,7 @@ def main(args):
     with open(args.output_dir + "/auto_startup_program.txt.%d" % (paddle.distributed.get_rank()), 'w') as f:
         f.write(str(distributed_startup_program))
 
-    gen = paddle.seed(worker_index + 2021)
+    paddle.seed(worker_index + 2021)
     random.seed(worker_index + 2021)
     np.random.seed(worker_index + 2021)
 
@@ -246,7 +248,7 @@ def main(args):
     if args.pp_degree == 1 and (args.dp_degree > 1 or args.mp_degree > 1):
         while True:
             train_data_loader.start()
-            eval_step = 0
+            eval_step = step
             while True:
                 fetchs = [loss_vars["total_loss"]]
                 loss_print = exe.run(distributed_main_program, fetch_list=fetchs)
@@ -258,7 +260,7 @@ def main(args):
                 print("step: %d, loss_print: %f" % (eval_step, res[0]))
                 eval_step += 1
 
-                if eval_step >= 100:
+                if eval_step >= 120:
                     break
             train_data_loader.reset()
             break
@@ -267,7 +269,7 @@ def main(args):
     if args.pp_degree > 1 and args.dp_degree == 1 and args.mp_degree == 1:
         while True:
             train_data_loader.start()
-            eval_step = 0
+            eval_step = step
             while True:
                 fetchs = [loss_vars["total_loss"]]
                 if paddle.distributed.get_rank() in [0]:
@@ -278,7 +280,7 @@ def main(args):
                     print("step: %d, loss_print: %f" % (eval_step, loss_print[0]))
                 eval_step += 1
 
-                if eval_step >= 100:
+                if eval_step >= 120:
                     break
             train_data_loader.reset()
             break
@@ -288,7 +290,7 @@ def main(args):
         gp = paddle.distributed.new_group([1, 3])
         while True:
             train_data_loader.start()
-            eval_step = 0
+            eval_step = step
             while True:
                 fetchs = [loss_vars["total_loss"]]
                 if paddle.distributed.get_rank() in [0, 2]:
@@ -304,7 +306,7 @@ def main(args):
                     print("step: %d, loss_print: %f" % (eval_step, res[0]))
                 eval_step += 1
 
-                if eval_step >= 100:
+                if eval_step >= 120:
                     break
             train_data_loader.reset()
             break
@@ -313,7 +315,7 @@ def main(args):
     if args.pp_degree > 1 and args.mp_degree > 1 and args.dp_degree == 1:
         while True:
             train_data_loader.start()
-            eval_step = 0
+            eval_step = step
             while True:
                 fetchs = [loss_vars["total_loss"]]
                 if paddle.distributed.get_rank() in [0, 1]:
@@ -324,7 +326,7 @@ def main(args):
                     print("step: %d, loss_print: %f" % (eval_step, loss_print[0]))
                 eval_step += 1
 
-                if eval_step >= 100:
+                if eval_step >= 120:
                     break
             train_data_loader.reset()
             break
@@ -334,7 +336,7 @@ def main(args):
         gp = paddle.distributed.new_group([2, 3, 6, 7])
         while True:
             train_data_loader.start()
-            eval_step = 0
+            eval_step = step
             while True:
                 if paddle.distributed.get_rank() in [0, 1, 4, 5]:
                     exe.run(distributed_main_program)
@@ -350,7 +352,7 @@ def main(args):
                     print("step: %d, loss_print: %f" % (eval_step, res[0]))
                 eval_step += 1
 
-                if eval_step >= 100:
+                if eval_step >= 120:
                     break
             train_data_loader.reset()
             break
