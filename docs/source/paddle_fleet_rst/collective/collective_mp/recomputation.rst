@@ -38,12 +38,11 @@
 
 注意：
 
-* 因为checkpoint 在内存和显存间的拷贝较慢，该策略是通过进一步牺牲速度换取更大的batch size， 需要用户权衡训练吞吐和batch size 。
+* 因为checkpoint 在内存和显存间的拷贝较慢，该策略是通过进一步牺牲速度换取更大的batch size， 需要用户权衡训练吞吐和batch size。
 * Recompute-Offload 支持多卡并行训练， 当多卡并行时开启Offload，训练中同一节点上所有GPU 上的checkpoints 都将卸载到Host 内存中，会存在以下风险：
-    * PCIe 带宽瓶颈： 同一节点上的所有GPU 和Host 内存间共享一根PCIe 带宽，如同一节点上GPU 数量较多（单机八卡）容易因为PCIe 带宽限制让训练速度进一步减慢。
-    * Host 内存溢出： 当同一节点上GPU 数量较多，且每张GPU checkpoints size 较大时，需要注意卸载量是否超出Host 内存大小。
-
-
+  
+    - PCIe 带宽瓶颈： 同一节点上的所有GPU 和Host 内存间共享一根PCIe 带宽，如同一节点上GPU 数量较多（单机八卡）容易因为PCIe 带宽限制让训练速度进一步减慢。
+    - Host 内存溢出： 当同一节点上GPU 数量较多，且每张GPU checkpoints size 较大时，需要注意卸载量是否超出Host 内存大小。
 
 效果
 ~~~~~
