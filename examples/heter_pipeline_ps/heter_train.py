@@ -107,10 +107,15 @@ def parse_args():
         default=0,
         help='Save training model or not')
     parser.add_argument(
-        '--cpu_num',
+        '--thread_num',
         type=int,
         default=8,
         help='threads for ctr training')
+    parser.add_argument(
+        '--micro_num',
+        type=int,
+        default=8,
+        help='micro batch num for each thread')
 
     return parser.parse_args()
 
@@ -130,7 +135,7 @@ def get_dataset(inputs, args):
     dataset.set_use_var(inputs)
     dataset.set_pipe_command("python dataset_generator.py")
     dataset.set_batch_size(args.batch_size)
-    thread_num = int(args.cpu_num)
+    thread_num = int(args.thread_num)
     dataset.set_thread(thread_num)
     file_list = [
         os.path.join(args.train_files_path, x) for x in os.listdir(args.train_files_path)
@@ -158,7 +163,7 @@ def heter_train(args):
     strategy.a_sync = True
 
     strategy.pipeline = True
-    strategy.pipeline_configs = {"accumulate_steps": 8}
+    strategy.pipeline_configs = {"accumulate_steps": args.micro_num}
         
     ctr_model = CTR()
     inputs = ctr_model.input_data(args)
