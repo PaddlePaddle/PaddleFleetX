@@ -251,6 +251,7 @@
    end_timer_and_print("使用AMP模式耗时:")
 
 程序的输出如下：
+
 .. code-block:: bash
 
    Tensor(shape=[1], dtype=float32, place=CUDAPlace(0), stop_gradient=False,
