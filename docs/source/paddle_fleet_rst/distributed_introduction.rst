@@ -21,7 +21,6 @@
 参数服务器架构的典型应用场景是推荐系统。参数服务器是一种编程范式，方便用户分布式编程。参数服务器架构的重点是对模型参数的分布式存储和协同支持。参数服务器架构如下图所示。参数服务器架构下，集群中的节点分为两种角色：计算节点和参数服务器节点。其中，计算节点从参数服务节点拉取参数，根据分配给自己的训练数据进行计算得到参数梯度，并将梯度推送给对应的参数服务器节点；参数服务器节点负责存储参数，并采用分布式存储的方式各自存储全局参数的一部分，同时接受计算节点的请求查询和更新参数。
 
 .. image:: https://github.com/PaddlePaddle/FleetX/blob/develop/docs/source/paddle_fleet_rst/collective/img/ps_arch.png?raw=true
-  :width: 600
   :alt: Parameter-Server Architecture
   :align: center
 
@@ -62,7 +61,7 @@
 
 综上所述，可以参考如下的流程图选择您需要的并行模式。
 
-.. image:: https://github.com/PaddlePaddle/FleetX/blob/develop/docs/source/paddle_fleet_rst/collective/img/parallel_selection.png?raw=true
+.. image:: https://github.com/sandyhouse/FleetX/blob/develop/docs/source/paddle_fleet_rst/collective/img/parallel_selection.png?raw=true
   :width: 400
   :alt: Parallel Selection
   :align: center
