@@ -291,3 +291,49 @@ recompute动态图代码：`example/recompute <https://github.com/PaddlePaddle/F
 
     normal_loss: [[0.0], [-0.12574796378612518], [0.6378830075263977], [0.00968710333108902], [0.0]],
     recompute_loss: [[0.0], [-0.12574796378612518], [0.6378830075263977], [0.00968710333108902], [0.0]]
+
+数据并行下的重计算
+^^^^^^^^^^^^^^^
+
+当结合使用数据并行和重计算时，建议采用如下方式：
+
+.. code:: python
+    from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
+
+    def run_model(cuda_state, recompute_block=[], recompute_kwargs={}):
+        gen = paddle.seed(10)
+        gen.manual_seed(10)
+        np.random.seed(10)
+        random.seed(10)
+        if cuda_state:
+            paddle.set_cuda_rng_state(cuda_state)
+        
+        batch_size, input_size = 1, 10
+        model = Naive_fc_net(
+            input_size,
+            recompute_blocks=recompute_block,
+            recompute_kwargs=recompute_kwargs)
+        optimizer = paddle.optimizer.SGD(learning_rate=0.01, parameters=model.parameters())
+        loss_ = []
+        param_ = []
+        grad_ = []
+        for _ in range(5):
+            x_data = np.random.randn(batch_size, input_size).astype(np.float32)
+            x = paddle.to_tensor(x_data)
+            y_pred = model(x)
+            loss = y_pred.mean()
+
+            # 结合使用重计算和数据并行时，需使用no_sync并手动实现梯度allreduce
+            with model.no_sync():
+                y_pred = model(x)
+                loss = y_pred.mean()
+                loss_.append(np.asarray(loss).tolist())
+                loss.backward()
+            fused_allreduce_gradients(list(model.parameters()), None)
+
+            optimizer.step()
+            param_.append(np.asarray(model.parameters()[9]).tolist())
+            grad_.append(np.asarray(model.parameters()[3]._grad_ivar()).tolist())
+            optimizer.clear_grad()
+        
+        return loss_, param_, grad_
