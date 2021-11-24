@@ -48,6 +48,7 @@
    :name: appendix
 
    paddle_fleet_rst/faq
+   paddle_fleet_rst/benchmark
 
 =======
 
