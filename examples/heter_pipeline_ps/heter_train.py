@@ -197,8 +197,6 @@ def heter_train(args):
             start_time = time.time()
             exe.train_from_dataset(program=fluid.default_main_program(),
                                    dataset=dataset,
-                                   fetch_list=[avg_cost],
-                                   fetch_info=["Epoch {} auc ".format(epoch)],
                                    print_period=10,
                                    debug=False)
             end_time = time.time()
@@ -221,8 +219,6 @@ def heter_train(args):
         fleet.init_worker()
         exe.train_from_dataset(program=fluid.default_main_program(),
                                dataset=None,
-                               fetch_list=[avg_cost],
-                               fetch_info=["Epoch {} auc ".format(epoch)],
                                print_period=10,
                                debug=False)
         exe.close()
