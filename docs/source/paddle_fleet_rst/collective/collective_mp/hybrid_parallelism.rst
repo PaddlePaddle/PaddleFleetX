@@ -1,6 +1,8 @@
 飞桨4D混合并行训练使用指南
 --------------------------
 
+当前飞桨集合通信模式已经可以支持文心ERNIE千亿语言模型的训练，其Sharding-DP策略更是在近期助力文心ERNIE的多项任务分数刷新GLUE榜单。而Sharding-DP策略正是飞桨集合通信模式为了支持训练ERNIE这样的大规模复杂模型所开发的多种并行策略中的一种。那么飞桨是使用哪些策略成功支持文心ERNIE千亿语言模型训练的呢？这些策略是如何工作的呢？接下来将为大家详细介绍。
+
 原理介绍
 =======
 
@@ -20,6 +22,11 @@ ERNIE千亿级模型采用100多层transformer网络结构，计算复杂，训�
 
 其次看显存问题，通过下表分析的显存占用来源可以看出，上述的并行策略同样可以很好的应对不同来源的显存占用，更多的层数可以通过流水线并行和分组参数切分策略来解决；某层参数很大可以通过模型并行来解决；其次飞桨还提供一些其它灵活的优化方式，例如每层输出占用的显存，可以通过重计算和offload来解决。
 
+.. image:: ../img/hybrid_mem.png
+  :width: 400
+  :alt: Memory Analysis
+  :align: center
+
 综上所述，针对性能优化和显存优化，几种并行策略都有用武之地，但是同时也有各自的局限性，所以如果想高效训练千亿模型，需要这几种策略相互组合，取长补短，发挥各自的优势。
 
 那么如何组合呢？具体可以参考下面的示例代码进行不同的策略设置和选择。另外，对于如何选择策略组合，本文也提供了一些组合的理论分析供参考。
@@ -28,22 +35,14 @@ ERNIE千亿级模型采用100多层transformer网络结构，计算复杂，训�
 
 下表给出集中典型策略组合下的通信量。
 
-+------------------------+--------------------------------------+---------------------------------------------------+
-| 策略组合               | 机器间通信量                         | 机器内通信量                                      |
-+========================+======================================+===================================================+
-+------------------------+--------------------------------------+---------------------------------------------------+
-| PP64+Sharding4+MP2     | (hid_size*micro_bsz*seq_len)         | (hid_size*micro_bsz*seq_len*4L/pp_num             |
-|                        | *(2*micro_step)                      |  +3M/pp_num)*micro_step                           |
-+------------------------+--------------------------------------+---------------------------------------------------+
-| DP2+PP32+MP8           | (hid_size*micro_bsz*seq_len)         | (hid_size*micro_bsz*seq_len*4L/pp_num)            |
-|                        | *(2*micro_step)+2M/pp_num            |  *micro_step                                      |
-+------------------------+--------------------------------------+---------------------------------------------------+
-| DP2+PP32+Sharding4+MP2 | (hid_size*micro_bsz*seq_len)         | (hid_size*micro_bsz*seq_len*4L/pp_num             |
-|                        | *(2*micro_step)+2M/pp_num            |  +3M/pp_num)*micro_step                           |
-+------------------------+--------------------------------------+---------------------------------------------------+
+.. image:: ../img/hybrid_comm.png
+  :width: 600
+  :alt: Communication Analysis
+  :align: center
 
+我们在实现Ernie训练时，采用了机内模型并行、机间流水并行，并在外层添加数据并行的策略。
 
-使用方法
+静态图使用方法
 =======
 
 可以通过DistributedStrategy配置使用混合并行训练。
@@ -55,11 +54,12 @@ ERNIE千亿级模型采用100多层transformer网络结构，计算复杂，训�
    dist_strategy.sharding = args.use_sharding
    dist_strategy.pipeline = args.num_pp > 1
    dist_strategy.sharding_configs = {"segment_broadcast_MB": 32,
-                                     "sharding_degree": args.num_sharding,
+                                     "sharding_degree": 1,
                                      "mp_degree": args.num_mp,
                                      "pp_degree": args.num_pp,
                                      "dp_degree":args.num_dp,
-                                     "optimize_offload": True,
+                                     "gradient_merge_acc_step": acc_steps,
+                                     "optimize_offload": False,
                                      }
    dist_strategy.pipeline_configs = {"schedule_mode": "1F1B",
                                      "micro_batch_size": micro_bsz,
@@ -70,3 +70,26 @@ ERNIE千亿级模型采用100多层transformer网络结构，计算复杂，训�
 
 示例代码可参见：`examples/hybrid_parallelism <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/hybrid_parallelism>`_。
 
+动态图使用方法
+=======
+
+.. code-block:: python
+
+   strategy = fleet.DistributedStrategy()
+   strategy.hybrid_configs = {
+        "dp_degree": args.dp_degree,
+        "mp_degree": args.mp_degree,
+        "pp_degree": args.pp_degree,
+        "sharding_degree": args.sharding_degree
+   }
+   accumulate_steps = args.local_batch_size // args.micro_batch_size
+   strategy.pipeline_configs = {
+        "accumulate_steps": accumulate_steps,
+        "micro_batch_size": args.micro_batch_size
+   }
+   strategy.tensor_parallel_configs = {"tensor_init_seed": args.seed}
+   fleet.init(is_collective=True, strategy=strategy)
+
+   
+
+完整示例代码可参见：`GPT-3 <https://github.com/PaddlePaddle/PaddleNLP/tree/develop/examples/language_model/gpt-3/dygraph>`_。

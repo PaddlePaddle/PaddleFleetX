@@ -16,12 +16,12 @@
 自2017年提出以来， `Transformer <https://arxiv.org/abs/1706.03762>`__ 及其
 变种模型成为自然语言类任务的常用模型，并于近年来被应用到图像视觉领域。
 Transformer模型的基础结构是由Attention和MLP组成的Encoder和Decoder，以及
-Embedding，如下图所示。其中Attention和MLP的底层实现均为矩阵乘法运算，而Embedding是一种
+Embedding，如下图所示[1]。其中Attention和MLP的底层实现均为矩阵乘法运算，而Embedding是一种
 查找表实现。
 
 .. image:: ../img/transformer_overview.png
   :width: 200
-  :alt: transformer overview from the paper Megatron-LM
+  :alt: transformer overview
   :align: center
 
 对于Embedding操作，可以将其理解为一种查找表操作。即，将输入看做索引，将Embedding参数
@@ -38,7 +38,7 @@ Embedding的参数被均匀切分到多个卡上。假设Embedding参数的维�
 对应该Embeding操作的输出；整个查表过程如下图（b）所示。
 
 .. image:: ../img/parallel_embedding.png
-  :width: 800
+  :width: 600
   :alt: parallel embedding
   :align: center
 
@@ -60,7 +60,7 @@ AllGather通信操作汇聚最终的结果。
 AllReduce通信操作按元素累加结果矩阵得到最终的结果。
 
 .. image:: ../img/row_parallel_matrix.png
-  :width: 800
+  :width: 600
   :alt: row parallel matrix
   :align: center
 
@@ -69,12 +69,12 @@ AllReduce通信操作按元素累加结果矩阵得到最终的结果。
 可以按照这种串联方式分别把Attention和MLP组件中的两次矩阵乘法串联起来，从而进一步优化性能。
 
 .. image:: ../img/parallel_matrix.png
-  :width: 800
+  :width: 600
   :alt: parallel matrix
   :align: center
 
 我们观察到，在模型并行模式下，Transformer的Attention组件中存在两种类型的Dropout操作，如下图
-所示。第一类是softmax算子后的Dropout算子；其输入是按列切分矩阵乘法的部分结果，我们称为局部
+所示[1]。第一类是softmax算子后的Dropout算子；其输入是按列切分矩阵乘法的部分结果，我们称为局部
 Dropout。直观理解，模型并行下，所有卡上的Dropout算子构成一个完整的Dropout算子，因此我们需要
 确保不同卡上该类Dropout算子的丢弃位置是不同。第二类是图中g操作之后的Dropout操作，对于此类Dropout，其
 输入均为完整且相同的输出，我们需要确保Dropout算子的输出也相同，即各个卡上该类Dropout算子选择
@@ -84,7 +84,7 @@ Dropout。直观理解，模型并行下，所有卡上的Dropout算子构成一
 丢弃位置是相同的。
 
 .. image:: ../img/global_local_dropout.png
-  :width: 800
+  :width: 600
   :alt: dropout details from the paper Megatron-LM
   :align: center
 
@@ -759,3 +759,8 @@ Embedding和矩阵乘法算子的切分。我们需要对该API的 ``gather_out`
    mp_loss:  -0.2902736  single_loss:  -0.2902736
    mp_loss:  -0.43542737  single_loss:  -0.43542737
    mp_loss:  -0.5806184  single_loss:  -0.5806184
+
+参考文献
+=======
+
+[1] `NVIDIA/Megatron-LM: Ongoing research training transformer <https://arxiv.org/abs/1909.08053>`__

@@ -27,7 +27,7 @@
 
 针对这个操作的一种优化方法是，我们开发一个支持三个输入的OP（假设名为add3）。那么我们只需要启动一次Kernel计算，即\ ``out=add3(a, b, c)``\ ，便可以得到最终的结果。该方法的一个附加好处是还节省了一个临时空间的申请。
 
-这种思路就是所谓的计算OP融合（Fusion)，详细内容请参考\ `5.1.1小节 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/collective/collective_performance/op_fusion.html#id1>`_\ 。需要说明的是，OP融合在单卡下就有效果，并不是分布式特有的策略。对分布式训练来讲，如何在计算和通信并重的情况下获得更优秀的性能，是我们关注的重点。
+这种思路就是所谓的计算OP融合（Fusion)，详细内容请参考\ `计算融合 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/collective/collective_performance/op_fusion.html#id1>`_\ 。需要说明的是，OP融合在单卡下就有效果，并不是分布式特有的策略。对分布式训练来讲，如何在计算和通信并重的情况下获得更优秀的性能，是我们关注的重点。
 
 接下来的几个小节会结合一个生动的例子来阐述各种优化策略的思想。我们的主人公是Alice和Bob两位小朋友，他们要在各自的房间里做一沓试卷，每张试卷上有若干题目，覆盖不同的知识点。他们的目标是做完所有的试卷，并学到相应的知识。特别的，他们可以通过交换各自学到的内容来修正或巩固自己的知识。Alice和Bob一开始选定的做法是：每当他们之间有人做完一道题，就拨电话给对方，等对方也做完这道题并接起电话后，同步各自的答案，然后同时开始做下一道题。
 
@@ -38,14 +38,14 @@ Alice和Bob所在的国家电话号码很长，所以他们发现每做完一道
 
 这就是通信OP融合的思想。我们知道每次触发通信都会有一些额外的操作（如先建立连接等），减少这些额外的操作将对性能有很大帮助[1]。顺着这个思路，如果我们能够将多次通信的内容先拼接成连续的数据，然后在一次通信内全部发送/接收，那么将会更充分的利用硬件资源，获得更大的性能提升。
 
-通信OP融合的使用方法请参考\ `5.1.2小节 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/collective/collective_performance/op_fusion.html#id2>`_\ 。
+通信OP融合的使用方法请参考\ `通信融合 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/collective/collective_performance/op_fusion.html#id2>`_\ 。
 
 计算和通信重叠
 ~~~~~~~~~~~~~~
 
 按照之前的约定，做题快的人（比如Alice）拨通电话后，要等待Bob完成对应的题目之后接起电话才能开始这次通信。在等待Bob接听电话的时候，Alice只是闲坐在那里听着听筒里的彩铃音乐。她突然想到，为什么要听这种无聊的声音，而不开始提前做下面的题目呢？
 
-这就是通信和计算重叠的思想。CUDA中有流（stream[2]）的概念，一个流表示一个GPU操作队列，该队列中的操作将以添加到流中的先后顺序而依次执行。那么通过令计算和通信操作加入不同的流中，可以做到二者的执行在时间上重叠。详细内容请参考\ `5.2小节 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/collective/collective_performance/overlap.html>`_\ 。
+这就是通信和计算重叠的思想。CUDA中有流（stream[2]）的概念，一个流表示一个GPU操作队列，该队列中的操作将以添加到流中的先后顺序而依次执行。那么通过令计算和通信操作加入不同的流中，可以做到二者的执行在时间上重叠。详细内容请参考\ `通信重叠 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/collective/collective_performance/overlap.html>`_\ 。
 
 通信拓扑优化
 ~~~~~~~~~~~~
@@ -54,14 +54,14 @@ Alice和Bob所在的国家电话号码很长，所以他们发现每做完一道
 
 不同的信息交换策略，对应到分布式训练中，就是不同的通信拓扑。上述采用的通信策略借鉴了分层（hierarchical）通信的思想。在业界，有ring-allreduce[3],Double binary trees[4]等多种拓扑结构。
 
-通信拓扑优化的更多使用方法，请参考\ `5.3小节 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/collective/collective_performance/communication_topology.html>`_\ 。
+通信拓扑优化的更多使用方法，请参考\ `通信拓扑优化 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/collective/collective_performance/communication_topology.html>`_\ 。
 
 深度梯度压缩
 ~~~~~~~~~~~~
 
 再次回到仅有Alice和Bob两人做题学习的场景来。他们在做题过程中发现，随着学习的进行，对于不同知识点的掌握程度有好有坏。有的知识点已经掌握的很好了，再做题也提供不了太多新的知识。但另外一些，却仍然感到模棱两可。于是两人约定，每做完T张试卷，选出最拿不准的几个知识点来交流答案，而掌握充分的那些知识点，就不在电话中交流了。
 
-上述思路就是深度梯度压缩（Deep Gradient Compression, DGC）的主要思想。DGC通过将梯度稀疏化，在每轮训练时只选择出一部分比较“重要”的梯度进行同步，以达到降低通信量的目的。当然，减少通信量势必会造成精度损失。为了减少损失程度，作者还提出了动量修正(momentum correction)、本地梯度裁剪(local gradient cliping)、动量因子遮蔽(Momentum factor masking) 等几项技巧。详细内容可以参考\ `5.4.1小节 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/collective/collective_performance/communication_frequency.html#dgc-gpu>`_\ 。
+上述思路就是深度梯度压缩（Deep Gradient Compression, DGC）的主要思想。DGC通过将梯度稀疏化，在每轮训练时只选择出一部分比较“重要”的梯度进行同步，以达到降低通信量的目的。当然，减少通信量势必会造成精度损失。为了减少损失程度，作者还提出了动量修正(momentum correction)、本地梯度裁剪(local gradient cliping)、动量因子遮蔽(Momentum factor masking) 等几项技巧。详细内容可以参考\ `DGC优化低配网络的分布式GPU训练 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/collective/collective_performance/communication_frequency.html#dgc-gpu>`_\ 。
 
 Local SGD
 ~~~~~~~~~
@@ -76,7 +76,7 @@ Local SGD就是基于这个思路，最基本的Local SGD属于上例的第一�
 * post Local SGD训练的第一个阶段保持每算出一个参数的梯度，就完成一次同步通信，以保证训练精度；之后到了第二阶段，则增大同步间隔（该间隔是固定的），以提升训练效率。
 * Adaptive Local SGD相对于post Local SGD而言，更加灵活，它会动态调整梯度同步通信的间隔，从而达到训练精度和训练速度之间的平衡。
 
-详细内容可以参考\ `5.4.2小节 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/collective/collective_performance/communication_frequency.html#local-sgd>`_\ 。
+详细内容可以参考\ `使用Local SGD优化低带宽下分布式训练 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/collective/collective_performance/communication_frequency.html#local-sgd>`_\ 。
 
 自动混合精度
 ~~~~~~~~~~~~
@@ -91,7 +91,7 @@ Alice和Bob有一个特殊记忆能力，就是可以把想表述的内容，提
 * Dynamic loss scaling：在AMP训练过程中，为了避免精度下溢，每训练一定数量批次的数据，就将Loss放大指定倍数。如果Loss在放大过程中发生上溢，则可以再缩小一定倍数，确保整个训练过程中，梯度可以正常收敛。
 * op黑白名单：通过使用大量模型在不同应用场景中反复验证后，飞桨团队根据半精度数据类型计算的稳定性和加速效果，梳理出一系列适合转换为半精度计算的算子，并将这些算子定义到了一份白名单文件中。同时对于一些经过验证发现不适合转换的算子，也就是使用半精度计算会导致数值不精确的算子将被记录到黑名单文件中。此外一些对半精度计算没有多少影响的算子归类于灰名单。在使用自动混合精度训练过程中，系统会自动读取黑白名单，从而感知到哪些算子需要被转换为半精度计算。
 
-详细内容请参考\ `5.5小节 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/collective/collective_performance/amp.html>`_\ 。
+详细内容请参考\ `自动混合精度训练 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/collective/collective_performance/amp.html>`_\ 。
 
 参考资料
 ^^^^^^^^

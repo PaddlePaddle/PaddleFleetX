@@ -28,11 +28,8 @@ size 训练效果的目的。具体来说，就是使用若干原有大小的bat
 在较大的粒度上看， GM 是将训练一个step 的过程由原来的 “前向 + 反向 + 更新” 改变成 “（前向 + 反向 + 梯度累加）x k + 更新”， 通过在最终更新前进行 k 次梯度的累加模拟出 batch size 扩大 k 倍的效果。 
 更具体细节可以参考 `《MG-WFBP: Efficient Data Communication for Distributed Synchronous SGD Algorithms》 <https://arxiv.org/abs/1811.11141>`__  。
 
-使用方法
+静态图使用方法
 ~~~~~~~~~
-
-静态图
-========
 
 Gradient Merge
 策略在使用方面也很简单，用户只需要定义将多少batch 的数据计算出的梯度叠加更新模型参数，便可以实现大batch 训练的目的。
@@ -107,8 +104,8 @@ True
 
 完整2卡的日志信息也可在\ ``./log/``\ 目录下查看。
 
-动态图
-========
+动态图使用方法
+~~~~~~~~~
 
 需要说明的是，动态图是天然支持Gradient Merge。即，只要不调用 ``clear_gradient`` 方法，动态图的梯度会一直累积。
 动态图下使用Gradient Merge的代码片段如下：

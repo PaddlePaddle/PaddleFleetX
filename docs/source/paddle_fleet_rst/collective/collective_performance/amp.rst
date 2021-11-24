@@ -15,8 +15,6 @@
 自动混合精度原理
 ----
 
-飞桨中，我们引入自动混合精度(Auto Mixed Precision, AMP)，混合使用\ ``FP32``\ 和\ ``FP16``\ ，在保持训练精度的同时，进一步提升训练的速度。实现了 ``自动维护FP32 、FP16参数副本``,\ ``Dynamic loss scaling``, ``op黑白名单`` 等策略来避免因\ ``FP16``\ 动态范围较小而带来的模型最终精度损失。Fleet作为飞桨通用的分布式训练API提供了简单易用的接口, 用户只需要添加几行代码就可将自动混合精度应用到原有的分布式训练中进一步提升训练速度。
-
 我们首先介绍半精度（FP16）浮点数的表示，如下图所示。半精度浮点数是一种相对较新的浮点类型，在计算机中使用2字节（16比特）存储。在IEEE 754-2008标准中，它亦被称作binary16。与计算中常用的单精度（FP32）和双精度（FP64）浮点类型相比，因为FP16表示范围和表示精度更低，因此FP16更适于在精度要求不高的场景中使用。
 
 .. image:: ../img/amp.png
@@ -29,6 +27,21 @@
 - FP16可降低一半的内存带宽和存储需求，这使得在相同的硬件条件下研究人员可使用更大更复杂的模型以及更大的batch size大小。
 
 - FP16可以充分利用英伟达Volta及Turing架构GPU提供的Tensor Cores技术。在相同的GPU硬件上，Tensor Cores的FP16计算吞吐量是FP32的8倍。
+
+使用自动混合精度训练时，主要训练过程如下：模型参数使用单精度浮点格式存储，在实际计算时，模型参数从单精度浮点数转换为半精度浮点数参与前向计算，并得到半精度浮点数表示中间状态和模型的loss值，然后使用半精度浮点数计算梯度，并将参数对应的梯度转换为单精度浮点数格式后，更新模型参数。计算过程如下图所示。
+
+.. image:: ../img/amp_arch.png
+  :width: 600
+  :alt: AMP Architecture
+  :align: center
+
+如前所述，通常半精度浮点数的表示范围远小于单精度浮点数的表示范围，在深度学习领域，参数、中间状态和梯度的值通常很小，因此以半精度浮点数参与计算时容易出现数值下溢，即接近零的值下溢为零值。为了避免这个问题，通常采用\ ``loss scaling``\ 机制。具体地讲，对loss乘以一个称为\ ``loss_scaling``\ 的值，根据链式法则，在反向传播过程中，梯度也等价于相应的乘以了\ ``loss_scaling``\ 的值，因此在参数更新时需要将梯度值相应地除以\ ``loss_scaling``\ 的值。
+
+然而，在模型训练过程中，选择合适的\ ``loss_scaling``\ 的值是个较大的挑战。因此，需要采用一种称为\ ``动态loss scaling``\ 的机制。用户只需要为\ ``loss_scaling``\ 设置一个初始值：\ ``init_loss_scaling``\ 。在训练过程中，会检查梯度值是否出现nan或inf值，当连续\ ``incr_every_n_steps``\ 次迭代均未出现nan和inf值时，将\ ``init_loss_scaling``\ 的值乘以一个因子：\ ``incr_ratio``\ ；当连续\ ``decr_every_n_steps``\ 次迭代均出现nan和inf值时，将\ ``init_loss_scaling``\ 的值除以一个因子：\ ``decr_ratio``\ 。
+
+同时，我们知道某些算子不适合采用半精度浮点数参与计算，因为这类算子采用半精度浮点数进行计算容易出现nan或者inf值。为了解决这个问题，通常采用黑名单和白名单机制。其中，黑名单中放置不宜采用半精度浮点数进行计算的算子，白名单中放置适合采用半精度浮点数进行计算的算子。
+
+飞桨中，我们引入自动混合精度(Auto Mixed Precision, AMP)，混合使用\ ``FP32``\ 和\ ``FP16``\ ，在保持训练精度的同时，进一步提升训练的速度。实现了 ``自动维护FP32 、FP16参数副本``,\ ``动态loss scaling``, ``op黑白名单`` 等策略来避免因\ ``FP16``\ 动态范围较小而带来的模型最终精度损失。Fleet作为飞桨通用的分布式训练API提供了简单易用的接口, 用户只需要添加几行代码就可将自动混合精度应用到原有的分布式训练中进一步提升训练速度。
 
 静态图操作实践
 ----
@@ -50,8 +63,9 @@
         "custom_black_list": [],
     }
 
-上述例子存放在：\ `example/resnet/train_fleet_static_amp.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_amp.py>`_\ 。
-假设要运行8卡的任务，那么只需在命令行中执行:
+其中，\ ``use_dynamic_loss_scaling``\ 表示是否采用，\ ``动态loss scaling``\ 机制。飞桨中维护了算子黑白名单，用户也可以通过\ ``custom_white_list``\ 和\ ``custom_black_list``\ 参数改变某些算子的默认位置。
+
+上述例子存放在：\ `example/resnet/train_fleet_static_amp.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_amp.py>`_\ 。假设要运行8卡的任务，那么只需在命令行中执行:
 
 .. code-block:: sh
 
@@ -92,9 +106,9 @@
 动态图操作实践
 ----
 
-使用飞桨框架提供的API：paddle.amp.auto_cast 和 paddle.amp.GradScaler能够实现自动混合精度训练（Automatic Mixed Precision，AMP），即在相关OP的计算中，自动选择FP16或FP32计算。开启AMP模式后，使用FP16与FP32进行计算的OP列表可见该\ `[3] <https://www.paddlepaddle.org.cn/documentation/docs/zh/api/paddle/amp/Overview_cn.html>`_\ 。
+使用飞桨框架提供的API：\ ``paddle.amp.auto_cast``\ 和\ ``paddle.amp.GradScaler``\ 能够实现动态图的自动混合精度训练，即在相关OP的计算中，自动选择FP16或FP32格式计算。开启AMP模式后，使用FP16与FP32进行计算的OP列表可以参见\ `AMP概览 <https://www.paddlepaddle.org.cn/documentation/docs/zh/api/paddle/amp/Overview_cn.html>`_\ 。
 
-下面来看一个具体的例子，来了解如果使用飞桨框架实现混合精度训练。
+下面来看一个具体的例子，来了解如果使用飞桨框架实现动态图自动混合精度训练。
 
 首先定义辅助函数，用来计算训练时间。
 
@@ -116,7 +130,7 @@
       print("\n" + msg)
       print("共计耗时 = {:.3f} sec".format(end_time - start_time))
 
-构建一个简单的网络，用于对比使用普通方法进行训练与使用混合精度训练的训练速度。该网络由三层 Linear 组成，其中前两层 Linear 后接 ReLU 激活函数。
+接着构建一个简单的网络，用于对比使用单精度浮点数进行训练与使用自动混合精度训练的速度。该网络由三层Linear组成，其中前两层Linear后接ReLU激活函数。
 
 .. code-block:: python
 
@@ -143,7 +157,7 @@
 
          return x
 
-设置训练的相关参数，这里为了能有效的看出混合精度训练对于训练速度的提升，将 input_size 与 output_size 的值设为较大的值，为了使用GPU 提供的Tensor Core 性能，还需将 batch_size 设置为 8 的倍数。
+这里为了能有效的对比自动混合精度训练在速度方面的提升，我们将input_size与output_size的值设为较大的值，为了充分利用NVIDIA GPU提供的Tensor Core能力，我们将batch_size设置为8的倍数。
 
 .. code-block:: python
 
@@ -158,7 +172,7 @@
 
    mse = paddle.nn.MSELoss()
 
-使用默认的训练方式进行训练
+下面给出单精度浮点数训练的代码：
 
 .. code-block:: python
 
@@ -185,6 +199,8 @@
    print(loss)
    end_timer_and_print("默认耗时:") # 获取结束时间并打印相关信息
 
+下面给出程序运行的输出：
+
 .. code-block:: bash
 
    Tensor(shape=[1], dtype=float32, place=CUDAPlace(0), stop_gradient=False,
@@ -193,15 +209,15 @@
    默认耗时:
    共计耗时 = 2.943 sec
 
-使用AMP训练模型
+下面，我们介绍在动态图中如何使用AMP训练模型。在飞桨框架中，使用自动混合精度训练，需要以下三个步骤：
 
-在飞桨框架中，使用自动混合精度训练，需要进行三个步骤：
+1. 定义 GradScaler，用于缩放loss比例，避免浮点数下溢，即进行\ ``loss scaling``\ 。
 
-- Step1： 定义 GradScaler ，用于缩放 loss 比例，避免浮点数下溢
+2. 使用auto_cast创建AMP上下文环境，该上下文中自动会确定每个OP的输入数据类型（FP16或FP32）。
 
-- Step2： 使用 auto_cast 用于创建AMP上下文环境，该上下文中自动会确定每个OP的输入数据类型（FP16或FP32）
+3. 使用步骤1中定义的GradScaler完成loss的缩放，并用缩放后的loss进行反向传播，完成训练。
 
-- Step3： 使用 Step1中定义的 GradScaler 完成 loss 的缩放，用缩放后的 loss 进行反向传播，完成训练
+实现代码如下所示：
 
 .. code-block:: python
 
@@ -234,6 +250,8 @@
    print(loss)
    end_timer_and_print("使用AMP模式耗时:")
 
+程序的输出如下：
+
 .. code-block:: bash
 
    Tensor(shape=[1], dtype=float32, place=CUDAPlace(0), stop_gradient=False,
@@ -242,4 +260,4 @@
    使用AMP模式耗时:
    共计耗时 = 1.222 sec
 
-上述例子存放在：`example/amp/amp_dygraph.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/amp/amp_dygraph.py>`_。
+上述例子存放在：\ `example/amp/amp_dygraph.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/amp/amp_dygraph.py>`_\ 。
