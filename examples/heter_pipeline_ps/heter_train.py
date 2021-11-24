@@ -202,12 +202,6 @@ def heter_train(args):
             end_time = time.time()
             logger.info("epoch %d finished, use time=%d\n" %
                         ((epoch), end_time - start_time))
-
-            # 默认使用0号节点保存模型
-            if args.save_model and fleet.is_first_worker():
-                model_path = os.path.join(str(args.model_path), "epoch_" +
-                                          str(epoch))
-                fleet.save_persistables(executor=exe, dirname=model_path)
         exe.close()
         fleet.stop_worker()
         logger.info("Distribute Trainer Success!")
@@ -227,8 +221,6 @@ def heter_train(args):
 
 def train():
     args = parse_args()
-    if not os.path.isdir(args.model_path):
-        os.mkdir(args.model_path)
     print_arguments(args)
     logger.info("run local training")
     heter_train(args)
