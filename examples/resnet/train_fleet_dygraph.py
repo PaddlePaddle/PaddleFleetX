@@ -17,24 +17,29 @@ import paddle
 from paddle.distributed import fleet
 from paddle.vision.models import ResNet
 from paddle.vision.models.resnet import BottleneckBlock
+from paddle.io import Dataset, BatchSampler, DataLoader
 
 base_lr = 0.1
 momentum_rate = 0.9
 l2_decay = 1e-4
 
 epoch = 10
+batch_num = 100
 batch_size = 32
 class_dim = 102
 
+# define a random dataset
+class RandomDataset(Dataset):
+    def __init__(self, num_samples):
+        self.num_samples = num_samples
 
-def reader_decorator(reader):
-    def __reader__():
-        for item in reader():
-            img = np.array(item[0]).astype('float32').reshape(3, 224, 224)
-            label = np.array(item[1]).astype('int64').reshape(1)
-            yield img, label
+    def __getitem__(self, idx):
+        image = np.random.random([3, 224, 224]).astype('float32')
+        label = np.random.randint(0, class_dim - 1, (1, )).astype('int64')
+        return image, label
 
-    return __reader__
+    def __len__(self):
+        return self.num_samples
 
 def optimizer_setting(parameter_list=None):
     optimizer = paddle.optimizer.Momentum(
@@ -53,18 +58,12 @@ def train_resnet():
     optimizer = fleet.distributed_optimizer(optimizer)
     resnet = fleet.distributed_model(resnet)
 
-    train_reader = paddle.batch(
-            reader_decorator(paddle.dataset.flowers.train(use_xmap=True)),
-            batch_size=batch_size,
-            drop_last=True)
-
-    train_loader = paddle.io.DataLoader.from_generator(
-        capacity=16,
-        use_double_buffer=True,
-        iterable=True,
-        return_list=True,
-        use_multiprocess=True)
-    train_loader.set_sample_list_generator(train_reader)
+    dataset = RandomDataset(batch_num * batch_size)
+    train_loader = DataLoader(dataset,
+                    batch_size=batch_size,
+                    shuffle=True,
+                    drop_last=True,
+                    num_workers=2)
 
     for eop in range(epoch):
         resnet.train()
