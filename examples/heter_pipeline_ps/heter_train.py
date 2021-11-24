@@ -174,9 +174,6 @@ def heter_train(args):
     optimizer = fleet.distributed_optimizer(optimizer, strategy)
     optimizer.minimize(avg_cost)
 
-    print("Get dataset")
-    dataset, file_list = get_dataset(inputs, args)
-
     # 根据节点角色，分别运行不同的逻辑
     if fleet.is_server():
         # 初始化及运行参数服务器节点
