@@ -67,24 +67,29 @@ train_fleet_dygraph.py的完整训练代码如下所示。
     # 导入模型文件
     from paddle.vision.models import ResNet
     from paddle.vision.models.resnet import BottleneckBlock
+    from paddle.io import Dataset, BatchSampler, DataLoader
 
     base_lr = 0.1   # 学习率
     momentum_rate = 0.9 # 冲量
     l2_decay = 1e-4 # 权重衰减
 
     epoch = 10  #训练迭代次数
+    batch_num = 100 #每次迭代的batch数
     batch_size = 32 #训练批次大小
     class_dim = 102
 
     # 设置数据读取器
-    def reader_decorator(reader):
-        def __reader__():
-            for item in reader():
-                img = np.array(item[0]).astype('float32').reshape(3, 224, 224)
-                label = np.array(item[1]).astype('int64').reshape(1)
-                yield img, label
+    class RandomDataset(Dataset):
+        def __init__(self, num_samples):
+            self.num_samples = num_samples
 
-        return __reader__
+        def __getitem__(self, idx):
+            image = np.random.random([3, 224, 224]).astype('float32')
+            label = np.random.randint(0, class_dim - 1, (1, )).astype('int64')
+            return image, label
+
+        def __len__(self):
+            return self.num_samples
 
     # 设置优化器
     def optimizer_setting(parameter_list=None):
@@ -107,18 +112,12 @@ train_fleet_dygraph.py的完整训练代码如下所示。
         # 通过Fleet API获取分布式model，用于支持分布式训练
         resnet = fleet.distributed_model(resnet)
 
-        train_reader = paddle.batch(
-                reader_decorator(paddle.dataset.flowers.train(use_xmap=True)),
-                batch_size=batch_size,
-                drop_last=True)
-
-        train_loader = paddle.io.DataLoader.from_generator(
-            capacity=16,
-            use_double_buffer=True,
-            iterable=True,
-            return_list=True,
-            use_multiprocess=True)
-        train_loader.set_sample_list_generator(train_reader)
+        dataset = RandomDataset(batch_num * batch_size)
+        train_loader = DataLoader(dataset,
+                    batch_size=batch_size,
+                    shuffle=True,
+                    drop_last=True,
+                    num_workers=2)
 
         for eop in range(epoch):
             resnet.train()
@@ -159,6 +158,7 @@ train_fleet_static.py的完整训练代码如下所示。
    # 导入模型文件
    from paddle.vision.models import ResNet
    from paddle.vision.models.resnet import BottleneckBlock
+   from paddle.io import Dataset, BatchSampler, DataLoader
    import os
 
    base_lr = 0.1   # 学习率
@@ -166,6 +166,7 @@ train_fleet_static.py的完整训练代码如下所示。
    l2_decay = 1e-4 # 权重衰减
 
    epoch = 10  #训练迭代次数
+   batch_num = 100 #每次迭代的batch数
    batch_size = 32 #训练批次大小
    class_dim = 10
 
@@ -179,26 +180,26 @@ train_fleet_static.py的完整训练代码如下所示。
        return optimizer
    
    # 设置数据读取器
-   def get_train_loader(feed_list, place):
-       def reader_decorator(reader):
-           def __reader__():
-               for item in reader():
-                   img = np.array(item[0]).astype('float32').reshape(3, 224, 224)
-                   label = np.array(item[1]).astype('int64').reshape(1)
-                   yield img, label
+   class RandomDataset(Dataset):
+       def __init__(self, num_samples):
+           self.num_samples = num_samples
 
-           return __reader__
-       
-       train_reader = paddle.batch(
-               reader_decorator(paddle.dataset.flowers.train(use_xmap=True)),
-               batch_size=batch_size,
-               drop_last=True)
-       train_loader = paddle.io.DataLoader.from_generator(
-           capacity=16,
-           use_double_buffer=True,
-           feed_list=feed_list,
-           iterable=True)
-       train_loader.set_sample_list_generator(train_reader, place)
+       def __getitem__(self, idx):
+           image = np.random.random([3, 224, 224]).astype('float32')
+           label = np.random.randint(0, class_dim - 1, (1, )).astype('int64')
+           return image, label
+
+       def __len__(self):
+           return self.num_samples
+
+   def get_train_loader(place):
+       dataset = RandomDataset(batch_num * batch_size)
+       train_loader = DataLoader(dataset,
+                    places=place,
+                    batch_size=batch_size,
+                    shuffle=True,
+                    drop_last=True,
+                    num_workers=2)
        return train_loader
    
    # 设置训练函数
@@ -217,7 +218,7 @@ train_fleet_static.py的完整训练代码如下所示。
        # 设置训练资源，本例使用GPU资源
        place = paddle.CUDAPlace(int(os.environ.get('FLAGS_selected_gpus', 0)))
 
-       train_loader = get_train_loader([image, label], place)
+       train_loader = get_train_loader(place)
        #初始化Fleet环境
        strategy = fleet.DistributedStrategy()
        fleet.init(is_collective=True, strategy=strategy)
@@ -233,8 +234,8 @@ train_fleet_static.py的完整训练代码如下所示。
        epoch = 10
        step = 0
        for eop in range(epoch):
-           for batch_id, data in enumerate(train_loader()):
-               loss, acc1, acc5 = exe.run(paddle.static.default_main_program(), feed=data, fetch_list=[avg_cost.name, acc_top1.name, acc_top5.name])             
+           for batch_id, (image, label) in enumerate(train_loader()):
+               loss, acc1, acc5 = exe.run(paddle.static.default_main_program(), feed={'x': image, 'y': label}, fetch_list=[avg_cost.name, acc_top1.name, acc_top5.name])             
                if batch_id % 5 == 0:
                    print("[Epoch %d, batch %d] loss: %.5f, acc1: %.5f, acc5: %.5f" % (eop, batch_id, loss, acc1, acc5))
    # 启动训练
