@@ -218,3 +218,28 @@ PaddleCloud平台
    SystemError: (Fatal) Blocking queue is killed because the data reader raises an exception.
    [Hint: Expected killed_ != true, but received killed_:1 == true:1.] (at /paddle/paddle/fluid/operators/reader/blocking_queue.h:158)
 
+ParameterServer分布式任务
+~~~~~~~~~~~~~~~~~~~~~
+
+ParameterServer相关参数如下：
+
+.. code-block::
+   
+   --servers: 多机分布式任务中，指定参数服务器服务节点的IP和端口，例如 --servers="192.168.0.16:6170,192.168.0.17:6170"。
+   --workers: 多机分布式任务中，指定参数服务器训练节点的IP和端口，也可只指定IP，例如 --workers="192.168.0.16:6171,192.168.0.16:6172,192.168.0.17:6171,192.168.0.17:6172"。
+   --heter_workers: 在异构集群中启动分布式任务，指定参数服务器异构训练节点的IP和端口，例如 --heter_workers="192.168.0.16:6172,192.168.0.17:6172"。
+   --worker_num: 单机模拟分布式任务中，指定参数服务器训练节点的个数。
+   --server_num: 单机模拟分布式任务中，指定参数服务器服务节点的个数。
+   --heter_worker_num: 在异构集群中启动单机模拟分布式任务, 指定参数服务器异构训练节点的个数。
+   --http_port: 参数服务器模式中，用 Gloo 启动时设置的连接端口。
+
+Elastic 参数
+~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block::
+   
+   --elastic_server: etcd 服务地址 host:port，例如 --elastic_server=127.0.0.1:2379。
+   --job_id: 任务唯一 ID，例如 --job_id=job1。
+   --np: 任务 pod/node 编号，例如 --np=2。
+   --host: 绑定的主机，默认等于 POD_IP 环境变量。
+
