@@ -144,9 +144,9 @@ API中，用户可以使用\ ``fleet.DistributedStrategy()``\ 接口定义自己
 运行训练脚本
 ~~~~~~~~~~~~
 
-定义完训练脚本后，我们就可以用\ ``fleetrun``\ 指令运行分布式任务了。其中\ ``server_num``,
+定义完训练脚本后，我们就可以用\ ``paddle.distributed.launch``\ 模块运行分布式任务了。其中\ ``server_num``\ ,
 ``worker_num``\ 分别为服务节点和训练节点的数量。在本例中，服务节点有1个，训练节点有两个。
 
 .. code:: sh
 
-    fleetrun --server_num=1 --worker_num=2 train.py
+    python -m paddle.distributed.launch --server_num=1 --worker_num=2 train.py

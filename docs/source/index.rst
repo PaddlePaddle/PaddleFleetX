@@ -44,9 +44,10 @@
 
 .. toctree::
    :maxdepth: 1
-   :caption: 分布式训练FAQ
-   :name: faq
+   :caption: 附录
+   :name: appendix
 
+   paddle_fleet_rst/benchmark
    paddle_fleet_rst/faq
 
 =======
