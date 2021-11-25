@@ -174,9 +174,6 @@ def heter_train(args):
     optimizer = fleet.distributed_optimizer(optimizer, strategy)
     optimizer.minimize(avg_cost)
 
-    print("Get dataset")
-    dataset, file_list = get_dataset(inputs, args)
-
     # 根据节点角色，分别运行不同的逻辑
     if fleet.is_server():
         # 初始化及运行参数服务器节点
@@ -200,19 +197,11 @@ def heter_train(args):
             start_time = time.time()
             exe.train_from_dataset(program=fluid.default_main_program(),
                                    dataset=dataset,
-                                   fetch_list=[avg_cost],
-                                   fetch_info=["Epoch {} auc ".format(epoch)],
                                    print_period=10,
                                    debug=False)
             end_time = time.time()
             logger.info("epoch %d finished, use time=%d\n" %
                         ((epoch), end_time - start_time))
-
-            # 默认使用0号节点保存模型
-            if args.save_model and fleet.is_first_worker():
-                model_path = os.path.join(str(args.model_path), "epoch_" +
-                                          str(epoch))
-                fleet.save_persistables(executor=exe, dirname=model_path)
         exe.close()
         fleet.stop_worker()
         logger.info("Distribute Trainer Success!")
@@ -224,8 +213,6 @@ def heter_train(args):
         fleet.init_worker()
         exe.train_from_dataset(program=fluid.default_main_program(),
                                dataset=None,
-                               fetch_list=[avg_cost],
-                               fetch_info=["Epoch {} auc ".format(epoch)],
                                print_period=10,
                                debug=False)
         exe.close()
@@ -234,8 +221,6 @@ def heter_train(args):
 
 def train():
     args = parse_args()
-    if not os.path.isdir(args.model_path):
-        os.mkdir(args.model_path)
     print_arguments(args)
     logger.info("run local training")
     heter_train(args)

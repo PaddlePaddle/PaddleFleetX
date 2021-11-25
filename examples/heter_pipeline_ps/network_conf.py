@@ -76,7 +76,6 @@ class CTR(object):
                 param_attr=fluid.ParamAttr(initializer=fluid.initializer.Normal(
                     scale=1 / math.sqrt(fc1.shape[1]))), name="fc2"
             )
-        with fluid.device_guard("cpu"):
             fc3 = fluid.layers.fc(
                 input=fc2,
                 size=400,
@@ -91,7 +90,6 @@ class CTR(object):
                 param_attr=fluid.ParamAttr(initializer=fluid.initializer.Normal(
                     scale=1 / math.sqrt(fc3.shape[1]))),
             )
-        with fluid.device_guard("gpu"):
             label = fluid.layers.cast(inputs[-1], dtype="int64")
             cost = fluid.layers.cross_entropy(input=predict, label=label)
             avg_cost = fluid.layers.reduce_sum(cost)
