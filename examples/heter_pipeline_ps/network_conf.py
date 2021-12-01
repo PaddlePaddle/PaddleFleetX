@@ -39,7 +39,7 @@ class CTR(object):
         inputs = [dense_input] + sparse_input_ids + [label]
         return inputs
 
-    def net(self, inputs, args):
+    def net(self, inputs, args, fc_sizes = None):
 
         with fluid.device_guard("cpu"):
             sparse_inputs = []
