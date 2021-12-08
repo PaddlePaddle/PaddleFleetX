@@ -133,7 +133,7 @@ paddle 目前已支持 Collective 训练模式基于热重启的弹性训练方�
 推荐通过 paddle-operator 使用该功能，首先在提交任务中开启弹性功能，然后任务正常运行中通过 kubectl 或 api 的其他方式修改 paddlejob 中的 replicas 字段即可实现改功能。
 详见 `kubernetes 部署 <https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/paddle_on_k8s.html>`_ .
 
-以下通过 resnet 示例介绍本地使用弹性方法：
+以下通过 resnet 示例介绍使用弹性的方法：
 
 1. 运行任务 (注意需要在 np 个节点上都运行该命令)，
 
@@ -143,7 +143,7 @@ paddle 目前已支持 Collective 训练模式基于热重启的弹性训练方�
 
 2. 执行扩容或缩容
 
-通过k8s进行扩缩容操作，由2个节点扩容到3个节点（缩容也类似）
+通过k8s进行扩缩容操作，下面的命令是执行扩容操作，由2个节点扩容到3个节点（缩容也类似），等待超时时间可由PADDLE_ELASTIC_TIMEOUT（默认值是120秒）环境变量控制
 
 .. code-block::
     
