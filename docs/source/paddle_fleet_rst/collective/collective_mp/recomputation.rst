@@ -298,6 +298,7 @@ recompute动态图代码：`example/recompute <https://github.com/PaddlePaddle/F
 当结合使用数据并行和重计算时，建议采用如下方式：
 
 .. code:: python
+    
     from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 
     def run_model(cuda_state, recompute_block=[], recompute_kwargs={}):
