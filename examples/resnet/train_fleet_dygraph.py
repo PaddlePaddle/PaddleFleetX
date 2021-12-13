@@ -18,6 +18,7 @@ from paddle.distributed import fleet
 from paddle.vision.models import ResNet
 from paddle.vision.models.resnet import BottleneckBlock
 from paddle.io import Dataset, BatchSampler, DataLoader
+import time
 
 base_lr = 0.1
 momentum_rate = 0.9
@@ -32,6 +33,7 @@ class_dim = 102
 class RandomDataset(Dataset):
     def __init__(self, num_samples):
         self.num_samples = num_samples
+        np.random.seed(fleet.worker_index()+1000)
 
     def __getitem__(self, idx):
         image = np.random.random([3, 224, 224]).astype('float32')
@@ -64,7 +66,7 @@ def train_resnet():
                     shuffle=True,
                     drop_last=True,
                     num_workers=2)
-
+    t1 = time.time()
     for eop in range(epoch):
         resnet.train()
         
@@ -82,8 +84,10 @@ def train_resnet():
             optimizer.step()
             resnet.clear_gradients()
 
-            if batch_id % 5 == 0:
-                print("[Epoch %d, batch %d] loss: %.5f, acc1: %.5f, acc5: %.5f" % (eop, batch_id, avg_loss, acc_top1, acc_top5))
+            if (batch_id+1) % 5 == 0:
+                t2 = time.time()
+                print("[Epoch %d, batch %d] loss: %.5f, acc1: %.5f, acc5: %.5f, speed: %.2f samples/s" % (eop, batch_id, avg_loss, acc_top1, acc_top5, (5*32/(t2 - t1))))
+                t1 = time.time()
 
 if __name__ == '__main__':
     train_resnet()
