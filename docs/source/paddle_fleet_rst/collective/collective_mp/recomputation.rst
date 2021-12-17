@@ -321,8 +321,6 @@ recompute动态图代码：`example/recompute <https://github.com/PaddlePaddle/F
         for _ in range(5):
             x_data = np.random.randn(batch_size, input_size).astype(np.float32)
             x = paddle.to_tensor(x_data)
-            y_pred = model(x)
-            loss = y_pred.mean()
 
             # 结合使用重计算和数据并行时，需使用no_sync并手动实现梯度allreduce
             with model.no_sync():
