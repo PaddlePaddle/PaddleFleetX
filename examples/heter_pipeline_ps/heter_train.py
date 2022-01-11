@@ -167,7 +167,9 @@ def heter_train(args):
         
     ctr_model = CTR()
     inputs = ctr_model.input_data(args)
-    avg_cost, _ = ctr_model.net(inputs, args)
+    
+    fc_sizes = [400, 400, 50]
+    avg_cost, _ = ctr_model.net(inputs, args, fc_sizes)
 
     # 配置分布式的optimizer，传入我们指定的strategy，构建program
     optimizer = fluid.optimizer.Adam(args.learning_rate)

@@ -42,11 +42,13 @@ Rapid Verification test data stored in ./test_data
 - ps-cpu 
 
 ```shell
+export FLAGS_START_PORT=12004
 fleetrun --server_num=2 --worker_num=2 heter_train.py
 ```
 
 - ps-heter
 
 ```shell
+export FLAGS_START_PORT=12004
 fleetrun --server_num=2 --worker_num=2 --heter_worker_num="2" --heter_devices="gpu" heter_train.py
 ```
