@@ -28,4 +28,5 @@ python3 -m paddle.distributed.fleet.launch \
     --logging_freq 1\
     --eval_freq 100000 \
     --device "gpu" \
+    --fuse_qkv true \
     ${@:3}

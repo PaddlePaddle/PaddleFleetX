@@ -161,6 +161,16 @@ class MultiHeadAttention(nn.Layer):
 
     def _fuse_prepare_qkv(self, query):
         mix_layer = self.qkv_proj(query)
+
+        if global_setting._global_parallel_stratergy == "mp":
+            auto.shard_tensor(self.qkv_proj.weight, dist_attr={"process_mesh":global_setting._global_process_mesh, "dims_mapping":[-1, 0]})
+        elif global_setting._global_parallel_stratergy == "dp_mp":
+            auto.shard_tensor(self.qkv_proj.weight, dist_attr={"process_mesh":global_setting._global_process_mesh, "dims_mapping":[-1, 1]})
+        elif global_setting._global_parallel_stratergy == "mp_pp":
+            auto.shard_tensor(self.qkv_proj.weight, dist_attr={"process_mesh":global_setting.MPPP_MESH_LIST[self.mesh_idx], "dims_mapping":[-1, 0]})
+        elif global_setting._global_parallel_stratergy == "dp_mp_pp":
+            auto.shard_tensor(self.qkv_proj.weight, dist_attr={"process_mesh":global_setting.DPMPPP_MESH_LIST[self.mesh_idx], "dims_mapping":[-1, 1]})
+            
         mix_layer = paddle.reshape_(mix_layer,
                                     [0, 0, self.num_heads, 3 * self.head_dim])
         mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
@@ -473,6 +483,7 @@ class TransformerDecoderLayer(nn.Layer):
                  normalize_before=True,
                  weight_attr=None,
                  bias_attr=None,
+                 fuse_qkv=False,
                  topo=None,
                  debug=False,
                  mesh_idx=None):
@@ -497,6 +508,7 @@ class TransformerDecoderLayer(nn.Layer):
             dropout=attn_dropout,
             weight_attr=weight_attrs[0],
             bias_attr=bias_attrs[0],
+            fuse=fuse_qkv,
             topo=topo,
             debug=debug,
             mesh_idx=self.mesh_idx)
@@ -714,6 +726,7 @@ class GPTModel(nn.Layer):
                  eos_token_id=7,
                  bos_token_id=0,
                  eol_token_id=3,
+                 fuse_qkv=False,
                  topo=None,
                  debug=False,
                  pp_degree=None):
@@ -760,7 +773,7 @@ class GPTModel(nn.Layer):
                     weight_attr=paddle.ParamAttr(
                         initializer=nn.initializer.Normal(
                             mean=0.0, std=self.initializer_range)),
-                    bias_attr=None,
+                    bias_attr=None, fuse_qkv=fuse_qkv,
                     topo=topo, debug=debug, mesh_idx=mesh_index))
         
         if self.pipline_mode:
