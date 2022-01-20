@@ -239,7 +239,13 @@ def parse_args():
         type=str,
         default=None,
         help="Where to load model checkpoint.")
-
+    parser.add_argument(
+        "--fuse_qkv",
+        type=str2bool,
+        nargs='?',
+        const=False,
+        help="Whether to fuse qkv."
+    )
     args = parser.parse_args()
     args.test_iters = args.eval_iters
     return args

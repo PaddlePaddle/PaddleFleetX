@@ -95,6 +95,7 @@ def gpt_pretrain_forward(args, train_program, start_program, topo):
             eos_token_id=7,
             bos_token_id=0,
             eol_token_id=3,
+            fuse_qkv=args.fuse_qkv,
             # NOTE None topo to got serial program
             topo=None,
             debug=args.debug,
