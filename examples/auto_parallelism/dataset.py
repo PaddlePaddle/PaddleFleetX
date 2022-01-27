@@ -228,20 +228,17 @@ def get_train_valid_test_split_(splits_string, size):
 def create_pretrained_dataset(
         args,
         input_path,
-        topo,
+        local_rank,
         eod_id,
         worker_init=None,
         max_seq_len=1024,
         places=None,
         data_holders=None,
-        pipeline_mode=False, ):
-    logger.info("The distributed run, total device num:{}".format(
-        topo.world.size))
-    logger.info("The distributed run, distinct dataflow num:{}".format(
-        topo.data_info.size))
-    logger.info("The distributed run, repeat dataflow times:{}".format(
-        topo.data_inner_times))
+        pipeline_mode=False, 
+        start_index=0):
 
+    device_world_size = paddle.distributed.get_world_size()
+    logger.info("The distributed run, total device num:{}.".format(device_world_size))
     process_datas = np.load(input_path, mmap_mode="r+", allow_pickle=True)
     # All documment ids, extend as 1-D array.
     sample_ids = process_datas["ids"]
@@ -257,8 +254,7 @@ def create_pretrained_dataset(
     def build_dataset(index, name, num_samples):
         dataset = GPTDataset(
             file_path=input_path,
-            topo=topo,
-            micro_batch_size=args.micro_batch_size,
+            build_data_file=local_rank == 0,
             name="gpt" + name,
             max_seq_len=max_seq_len,
             num_samples=num_samples,
@@ -266,20 +262,11 @@ def create_pretrained_dataset(
             sample_ids=sample_ids,
             sample_lens=sample_lens,
             eod_id=eod_id,
-            seed=args.seed)
-        batch_sampler = paddle.io.DistributedBatchSampler(
-            dataset,
-            batch_size=args.micro_batch_size,
-            num_replicas=topo.data_info.size,
-            rank=topo.data_info.rank,
-            shuffle=False,
-            drop_last=True)
+            seed=args.seed,
+            start_index=start_index)
 
         if pipeline_mode:
             def data_gen():
-                num_replicas = args.global_batch_size // topo.dp_info.size
-                start = topo.dp_info.rank * num_replicas
-                end = start + num_replicas
                 tokens = []
                 position_ids = []
                 attention_mask = []
@@ -303,17 +290,8 @@ def create_pretrained_dataset(
             data_loader = paddle.fluid.io.DataLoader.from_generator(
                 feed_list=data_holders, capacity=70, iterable=False)
             data_loader.set_batch_generator(data_gen, places)
-            # data_loader.set_sample_generator(batch_sampler, batch_size=args.global_batch_size, places=places)
         else:
-            data_loader = DataLoader(
-                dataset=dataset,
-                places=places,
-                feed_list=data_holders,
-                batch_sampler=batch_sampler,
-                num_workers=0,
-                worker_init_fn=worker_init,
-                collate_fn=Tuple(Stack(), Stack(), Stack(), Stack(), Stack()),
-                return_list=False)
+            raise NotImplementedError("we only support pipeline_mode is True.")
         return data_loader
 
     # Note, data should be broardcast to all devices.
@@ -326,12 +304,7 @@ def create_pretrained_dataset(
     if pipeline_mode:
         valid_data_loader, test_data_loader = None, None
     else:
-        valid_data_loader = build_dataset(
-            1, "valid",
-            args.micro_batch_size * (args.max_steps // args.eval_freq + 1) *
-            args.eval_iters * topo.data_info.size)
-        test_data_loader = build_dataset(2, "test", args.micro_batch_size *
-                                         args.test_iters * topo.data_info.size)
+        raise NotImplementedError("we only support pipeline_mode is True.")
 
     return train_data_loader, valid_data_loader, test_data_loader
 
@@ -339,25 +312,23 @@ def create_pretrained_dataset(
 class GPTDataset(paddle.io.Dataset):
     def __init__(self,
                  file_path,
-                 topo,
-                 micro_batch_size,
                  num_samples,
                  eod_id,
                  sample_ids,
                  sample_lens,
                  documents=None,
+                 build_data_file=False,
                  name="gpt",
                  max_seq_len=1024,
                  mode="train",
-                 seed=1234):
+                 seed=1234,
+                 start_index=0):
         self.file_path = file_path
         self.max_seq_len = max_seq_len
         self.name = name
         self.eod_id = eod_id
         self.sample_ids = sample_ids
         self.sample_lens = sample_lens
-        self.topo = topo
-        self.micro_batch_size = micro_batch_size
 
         if documents is None:
             document_ids = np.arange(0, self.sample_lens.shape[0])
