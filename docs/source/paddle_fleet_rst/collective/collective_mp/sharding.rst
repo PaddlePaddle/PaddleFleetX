@@ -221,6 +221,9 @@ sharding 可以设置以下参数：
 
 动态图
 ^^^^^^^
+首先简单总结sharding stage1、stage2、stage3分别实现减小参数规模的原理。stage1、stage2、stage3分别在训练过程中对模型优化器状态、梯度+优化器状态、参数+梯度+优化器状态进行切分，通过减小训练的相关Tensor（参数、梯度、优化器状态）达到同样计算资源下能够训练更大模型的效果。
+
+以下是分别从sharding的三种实现阶段分别介绍下使用方式，stage1的动态图实现方式：
 
 .. code-block::
    
@@ -258,6 +261,59 @@ sharding 可以设置以下参数：
    loss.backward()
    optimizer.step()
    optimizer.clear_grad()
+
+目前stage2、3还不支持混合并行方式，其动态图实现方式：
+  * 注意在使用stage3模型保存前，需要先调用model.get_all_parameters(convert2cpu=False)方法。配合当模型比较大，配合offload使用时需要设置convert2cpu=True
+  * 目前stage2、3已经适配GPT模型，可以参考请参考 `示例代码 <https://github.com/PaddlePaddle/PaddleNLP/tree/develop/examples/language_model/gpt-3/dygraph>`_
+  * 其次解决组网中共享参数训练问题，stage3 需要额外在组网中加入外置参数注册逻辑，在组网中需要注册`self.extra_parameters = [self.gpt.embeddings.word_embeddings.weight]`，这部分可以参考PaddleNLP中gpt-3的组网。
+
+.. code-block::
+
+   import paddle
+   from paddle.distributed.fleet.meta_optimizers.dygraph_optimizer.sharding_optimizer_stage2 import ShardingOptimizerStage2
+   from paddle.distributed.fleet.meta_parallel.sharding.sharding_stage2 import ShardingStage2
+   from paddle.distributed.fleet.meta_parallel.sharding.sharding_stage3 import ShardingStage3
+   from paddle.distributed.fleet.meta_parallel.sharding.sharding_utils import ShardingScaler
+
+   fleet.init(is_collective=True)
+   group = paddle.distributed.new_group([0, 1])
+
+   model = model_class(...)
+
+   # If use prue_fp16
+   if use_fp16:
+     scaler = paddle.amp.GradScaler(init_loss_scaling=scale_loss)
+     scaler = ShardingScaler(scaler)
+     model = paddle.amp.decorate(models=model, level='O2', save_dtype='float32')
+
+   clip = paddle.nn.ClipGradByGlobalNorm(clip_norm=1.0)
+   optimizer = paddle.optimizer.AdamW(learning_rate=0.001, parameters=model.parameters(), weight_decay=0.00001, grad_clip=clip)
+
+   # wrap sharding model, optimizer
+   if sharding_stage == 2:
+     optimizer = ShardingOptimizerStage2(params=model.parameters(), optim=optimizer, group=group)
+     model = ShardingStage2(model, optimizer, group=group)
+   elif sharding_stage == 3:
+     model = ShardingStage3(model, optimizer=optimizer, group=group)
+
+   # use optimizer as normal
+   img, label = data
+   label.stop_gradient = True
+   img.stop_gradient = True
+   with paddle.amp.auto_cast(use_fp16, level='O2'):
+     out = model(img)
+   loss = paddle.nn.functional.cross_entropy(input=out, label=label)
+   if use_fp16:
+       scaler.scale(loss_mbs).backward()
+       scaler.step(optimizer)
+       scaler.update()
+   else:
+       loss.backward()
+       optimizer.step()
+   optimizer.clear_grad()
+
+   # stage3 if parameters need to convert to cpu, please add convert2cpu=True
+   model.get_all_parameters(convert2cpu=True)
 
 
 进阶用法
