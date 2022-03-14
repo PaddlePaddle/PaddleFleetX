@@ -263,57 +263,41 @@ sharding 可以设置以下参数：
    optimizer.clear_grad()
 
 目前stage2、3还不支持混合并行方式，其动态图实现方式：
-  * 注意在使用stage3模型保存前，需要先调用model.get_all_parameters(convert2cpu=False)方法。配合当模型比较大，配合offload使用时需要设置convert2cpu=True
-  * 目前stage2、3已经适配GPT模型，可以参考请参考 `示例代码 <https://github.com/PaddlePaddle/PaddleNLP/tree/develop/examples/language_model/gpt-3/dygraph>`_
-  * 其次解决组网中共享参数训练问题，stage3 需要额外在组网中加入外置参数注册逻辑，在组网中需要注册`self.extra_parameters = [self.gpt.embeddings.word_embeddings.weight]`，这部分可以参考PaddleNLP中gpt-3的组网。
+  * 使用group_sharded_parallel和save_group_sharded_model两个API可以进行训练和保存。使用group_sharded_parallel提供stage1的选项，内部使用stage2完成优化实现。参考`group_sharded_parallel <https://www.paddlepaddle.org.cn/documentation/docs/en/develop/api/paddle/distributed/sharding/group_sharded_parallel_en.html#group-sharded-parallel>`__，`save_group_sharded_model <https://www.paddlepaddle.org.cn/documentation/docs/en/develop/api/paddle/distributed/sharding/save_group_sharded_model_en.html>`__。
+  * 此处需要注意，使用save_group_sharded_model保存模型，再次load时需要在调用group_sharded_parallel前对model和optimizer进行set_state_dict。
+  * 目前stage2、3已经适配GPT模型，可以参考请参考 `示例代码 <https://github.com/PaddlePaddle/PaddleNLP/tree/develop/examples/language_model/gpt-3/dygraph>`__。
+  * 其次解决组网中共享参数训练问题，stage3 需要额外在组网中加入外置参数注册逻辑，在组网中需要注册self.extra_parameters = [self.gpt.embeddings.word_embeddings.weight]，这部分可以参考PaddleNLP中gpt-3的组网。
 
 .. code-block::
 
-   import paddle
-   from paddle.distributed.fleet.meta_optimizers.dygraph_optimizer.sharding_optimizer_stage2 import ShardingOptimizerStage2
-   from paddle.distributed.fleet.meta_parallel.sharding.sharding_stage2 import ShardingStage2
-   from paddle.distributed.fleet.meta_parallel.sharding.sharding_stage3 import ShardingStage3
-   from paddle.distributed.fleet.meta_parallel.sharding.sharding_utils import ShardingScaler
+    import paddle
+    from paddle.fluid.dygraph.nn import Linear
+    from paddle.distributed import fleet
+    from paddle.distributed.sharding import group_sharded_parallel, save_group_sharded_model
 
-   fleet.init(is_collective=True)
-   group = paddle.distributed.new_group([0, 1])
+    fleet.init(is_collective=True)
+    group = paddle.distributed.new_group([0, 1])
+    model = Linear(1000, 1000)
 
-   model = model_class(...)
+    clip = paddle.nn.ClipGradByGlobalNorm(clip_norm=1.0)
+    optimizer = paddle.optimizer.AdamW(learning_rate=0.001, parameters=model.parameters(), weight_decay=0.00001, grad_clip=clip)
 
-   # If use prue_fp16
-   if use_fp16:
-     scaler = paddle.amp.GradScaler(init_loss_scaling=scale_loss)
-     scaler = ShardingScaler(scaler)
-     model = paddle.amp.decorate(models=model, level='O2', save_dtype='float32')
+    # wrap sharding model, optimizer and scaler
+    model, optimizer, scaler = group_sharded_parallel(model, optimizer, "p_g", scaler=scaler)
 
-   clip = paddle.nn.ClipGradByGlobalNorm(clip_norm=1.0)
-   optimizer = paddle.optimizer.AdamW(learning_rate=0.001, parameters=model.parameters(), weight_decay=0.00001, grad_clip=clip)
+    img, label = data
+    label.stop_gradient = True
+    img.stop_gradient = True
 
-   # wrap sharding model, optimizer
-   if sharding_stage == 2:
-     optimizer = ShardingOptimizerStage2(params=model.parameters(), optim=optimizer, group=group)
-     model = ShardingStage2(model, optimizer, group=group)
-   elif sharding_stage == 3:
-     model = ShardingStage3(model, optimizer=optimizer, group=group)
+    out = model(img)
+    loss = paddle.nn.functional.cross_entropy(input=out, label=label)
 
-   # use optimizer as normal
-   img, label = data
-   label.stop_gradient = True
-   img.stop_gradient = True
-   with paddle.amp.auto_cast(use_fp16, level='O2'):
-     out = model(img)
-   loss = paddle.nn.functional.cross_entropy(input=out, label=label)
-   if use_fp16:
-       scaler.scale(loss_mbs).backward()
-       scaler.step(optimizer)
-       scaler.update()
-   else:
-       loss.backward()
-       optimizer.step()
-   optimizer.clear_grad()
+    loss.backward()
+    optimizer.step()
+    optimizer.clear_grad()
 
-   # stage3 if parameters need to convert to cpu, please add convert2cpu=True
-   model.get_all_parameters(convert2cpu=True)
+    # save model and optimizer state_dict
+    save_group_sharded_model(model, optimizer, output=output_dir)
 
 
 进阶用法
