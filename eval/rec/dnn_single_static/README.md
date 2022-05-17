@@ -3,8 +3,8 @@
 本教程使用Paddle静态图，在单机环境下训练wide&deep模型。
 
 ## 模型简介
-[《Wide & Deep Learning for Recommender Systems》](https://arxiv.org/pdf/1606.07792.pdf)是Google 2016年发布的推荐框架，wide&deep设计了一种融合浅层（wide）模型和深层（deep）模型进行联合训练的框架，综合利用浅层模型的记忆能力和深层模型的泛化能力，实现单模型对推荐系统准确性和扩展性的兼顾。
-具体的模型组网参见model.py脚本。
+CTR(Click Through Rate)，即点击率，是“推荐系统/计算广告”等领域的重要指标，对其进行预估是商品推送/广告投放等决策的基础。简单来说，CTR预估对每次广告的点击情况做出预测，预测用户是点击还是不点击。CTR预估模型综合考虑各种因素、特征，在大量历史数据上训练，最终对商业决策提供帮助。
+CTR-DNN模型的组网比较直观，本质是一个二分类任务，代码参考model.py。模型主要组成是一个Embedding层，四个FC层，以及相应的分类任务的loss计算.
 
 ## 数据准备
 数据集选用[Display Advertising Challenge](https://www.kaggle.com/c/criteo-display-ad-challenge/)所用的Criteo数据集。训练集包含一段时间内Criteo的点击流量。
