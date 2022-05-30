@@ -41,6 +41,7 @@ def main():
     
     # 定义优化器
     optimizer = paddle.optimizer.SGD(learning_rate=0.0001)
+    optimizer.minimize(model._cost)
 
     exe.run(paddle.static.default_startup_program())
 
