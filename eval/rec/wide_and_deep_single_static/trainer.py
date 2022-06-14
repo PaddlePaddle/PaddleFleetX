@@ -30,11 +30,14 @@ def main():
     model.net(is_train=True)
 
     # 数据加载
-    dataset = WideDeepDataset(data_path="./data")
-    loader = paddle.io.DataLoader.from_generator(
-        feed_list=model.inputs, capacity=64, iterable=True)
-    loader.set_sample_generator(
-        dataset, batch_size=8, drop_last=True, places=place)
+    data_dir = './data'
+    file_list = [os.path.join(data_dir, x) for x in os.listdir(data_dir)]
+    dataset = WideDeepDataset(file_list)
+    loader = paddle.io.DataLoader(
+        dataset,
+        batch_size=1,
+        places=place,
+        drop_last=True)
 
     # 定义优化器
     optimizer = paddle.optimizer.SGD(learning_rate=0.0001)
@@ -42,6 +45,7 @@ def main():
 
     exe.run(paddle.static.default_startup_program())
 
+    input_data_names = [var.name for var in model.inputs]
     epochs = 1
     print_interval = 1
     # 开始训练
@@ -49,7 +53,7 @@ def main():
         for batch_id, batch in enumerate(loader()):
             fetch_batch_var = exe.run(
                 program=paddle.static.default_main_program(),
-                feed=batch,
+                feed=dict(zip(input_data_names, batch)),
                 fetch_list=[model.cost.name])
             if batch_id % print_interval == 0:
                 print("[Epoch %d, batch %d] loss: %.5f" % (epoch_id, batch_id, fetch_batch_var[0]))

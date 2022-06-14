@@ -23,25 +23,30 @@ class RecDataset(IterableDataset):
         super(RecDataset, self).__init__()
         self.file_list = file_list
 
+    def line_process(self, line):
+        features = line.rstrip('\n').split('\t')
+        query = [
+            float(feature) for feature in features[0].split(',')
+        ]
+        pos_doc = [
+            float(feature) for feature in features[1].split(',')
+        ]
+        
+        output_list = []
+        output_list.append(np.array(query).astype('float32'))
+        output_list.append(np.array(pos_doc).astype('float32'))
+        for i in range(len(features) - 2):
+            output_list.append(
+                np.array([
+                    float(feature)
+                    for feature in features[i + 2].split(',')
+                ]).astype('float32'))
+        return output_list
+
     def __iter__(self):
         for file in self.file_list:
             with open(file, "r") as rf:
                 for line in rf:
-                    output_list = []
-                    features = line.rstrip('\n').split('\t')
-                    query = [
-                        float(feature) for feature in features[0].split(',')
-                    ]
-                    output_list.append(np.array(query).astype('float32'))
-                    pos_doc = [
-                        float(feature) for feature in features[1].split(',')
-                    ]
-                    output_list.append(np.array(pos_doc).astype('float32'))
-
-                    for i in range(len(features) - 2):
-                        output_list.append(
-                            np.array([
-                                float(feature)
-                                for feature in features[i + 2].split(',')
-                            ]).astype('float32'))
-                    yield output_list
+                    input_data = self.line_process(line)
+                    yield input_data
+                    
