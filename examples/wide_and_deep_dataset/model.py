@@ -55,7 +55,7 @@ class WideDeepLayer(nn.Layer):
         sparse_embs = []
         for s_input in sparse_inputs:
             #emb = self.embedding(s_input)
-            emb = paddle.static.nn.sparse_embedding(s_input, size = [1024, self.sparse_feature_dim])
+            emb = paddle.static.nn.sparse_embedding(s_input, size = [1024, self.sparse_feature_dim], param_attr=paddle.ParamAttr(name="embedding"))
             emb = paddle.reshape(emb, shape=[-1, self.sparse_feature_dim])
             sparse_embs.append(emb)
 
@@ -187,4 +187,4 @@ class WideDeepModel:
         # loss
         cost = paddle.nn.functional.log_loss(input=pred, label=label_float)
         avg_cost = paddle.mean(x=cost)
-        self.cost = avg_cost
+        self.loss = avg_cost

@@ -101,4 +101,4 @@ class WideDeepModel:
         # loss
         cost = paddle.nn.functional.log_loss(input=pred, label=label_float)
         avg_cost = paddle.mean(x=cost)
-        self.cost = avg_cost
+        self.loss = avg_cost

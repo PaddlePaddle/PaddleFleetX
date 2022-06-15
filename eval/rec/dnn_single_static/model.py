@@ -95,4 +95,4 @@ class DnnModel:
         cost = paddle.nn.functional.cross_entropy(
             input=predict_2d, label=label_input)
         avg_cost = paddle.mean(x=cost)
-        self.cost = avg_cost
+        self.loss = avg_cost
