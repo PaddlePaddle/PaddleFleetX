@@ -1,5 +1,7 @@
 import paddle
 import os
+import numpy as np
+from paddle.io import IterableDataset
 
 cont_min_ = [0, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 cont_max_ = [20, 600, 100, 50, 64000, 500, 100, 50, 500, 10, 10, 10, 50]
@@ -9,10 +11,9 @@ continuous_range_ = range(1, 14)
 categorical_range_ = range(14, 40)
 
 
-class WideDeepDataset:
-    def __init__(self, data_path):
-        self.file_list = [os.path.join(data_path, x)
-                          for x in os.listdir(data_path)]
+class WideDeepDataset(IterableDataset):
+    def __init__(self, file_list):
+        self.file_list = file_list
 
     def line_process(self, line):
         features = line.rstrip('\n').split('\t')
@@ -28,9 +29,14 @@ class WideDeepDataset:
             sparse_feature.append(
                 [hash(str(idx) + features[idx]) % hash_dim_])
         label = [int(features[0])]
-        return [dense_feature]+sparse_feature+[label]
+        output_list = []
+        output_list.append(np.array(dense_feature).astype('float32'))
+        for sparse in sparse_feature:
+            output_list.append(np.array(sparse).astype('int64'))
+        output_list.append(np.array(label).astype('int64'))
+        return output_list
 
-    def __call__(self):
+    def __iter__(self):
         for file in self.file_list:
             with open(file, 'r') as f:
                 for line in f:

@@ -41,7 +41,7 @@ def main():
     
     # 定义优化器
     optimizer = paddle.optimizer.SGD(learning_rate=0.0001)
-    optimizer.minimize(model._cost)
+    optimizer.minimize(model.loss)
 
     exe.run(paddle.static.default_startup_program())
 
@@ -54,7 +54,7 @@ def main():
             fetch_batch_var = exe.run(
                 program=paddle.static.default_main_program(),
                 feed=dict(zip(input_data_names, batch)),
-                fetch_list=[model._cost.name])
+                fetch_list=[model.loss.name])
             if batch_id % print_interval == 0:
                 print("[Epoch %d, batch %d] loss: %.5f" % (epoch_id, batch_id, fetch_batch_var[0]))
 

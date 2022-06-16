@@ -130,4 +130,4 @@ class DSSMModel:
 
         loss = -paddle.sum(paddle.log(hit_prob), axis=-1)
         avg_cost = paddle.mean(x=loss)
-        self._cost = avg_cost
+        self.loss = avg_cost
