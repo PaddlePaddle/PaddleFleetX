@@ -1,6 +1,75 @@
-# benchmark of paddle MoE adapted to gpt-3
-```bash 
+# benchmark of MoE for gpt-3 in dygraph mode
+### 代码准备
+```
+# 下载安装最新版本 paddle
+
+# 拉取最新版本PaddleNLP库
 git clone https://github.com/PaddlePaddle/PaddleNLP.git
 cd PaddleNLP/examples/language_model/moe/dygraph/
-bash run.sh
 ```
+
+### 运行命令示例
+##### 1. DP with MoE
+```bash 
+python -m paddle.distributed.launch --log_dir $log_dir --gpus "0,1,2,3,4,5,6,7" run_moe_pretrain.py \
+    --model_type gpt \
+    --model_name_or_path gpt2-small-en \
+    --input_dir "./data"\
+    --output_dir "output"\
+    --weight_decay 0.01\
+    --grad_clip 1.0\
+    --max_steps 50000\
+    --save_steps 100000\
+    --decay_steps 320000\
+    --device gpu\
+    --eval_freq 1000\
+    --warmup_rate 0.01\
+    --local_batch_size 8\
+    --dp_degree 8\
+    --sharding_degree 1\
+    --sharding_offload False\
+    --expert_mode True\
+    --logging_freq 1 \
+    --num_experts 8\
+    --use_pure_fp16 True\
+    --use_recompute True\
+    --recompute_partition False\
+    --recompute_offload False\
+    --resume_dir ""\
+    --scale_loss 32768 \
+    --gate gshard \
+    --balance_loss_weight 1.0
+```
+
+##### 2. Sharding with MoE
+```bash
+python -m paddle.distributed.launch --log_dir $log_dir --gpus "0,1,2,3,4,5,6,7" run_moe_pretrain.py \
+    --model_type gpt \
+    --model_name_or_path gpt2-small-en \
+    --input_dir "./data"\
+    --output_dir "output"\
+    --weight_decay 0.01\
+    --grad_clip 1.0\
+    --max_steps 50000\
+    --save_steps 100000\
+    --decay_steps 320000\
+    --device gpu\
+    --eval_freq 1000\
+    --warmup_rate 0.01\
+    --local_batch_size 8\
+    --dp_degree 1\
+    --sharding_degree 8\
+    --sharding_offload False\
+    --expert_mode True\
+    --logging_freq 1 \
+    --num_experts 8\
+    --use_pure_fp16 True\
+    --use_recompute True\
+    --recompute_partition False\
+    --recompute_offload False\
+    --resume_dir ""\
+    --scale_loss 32768 \
+    --gate gshard \
+    --balance_loss_weight 1.0
+```
+
