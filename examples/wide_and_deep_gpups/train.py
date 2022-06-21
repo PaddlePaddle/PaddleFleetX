@@ -25,7 +25,7 @@ def distributed_training(psgpu, exe, train_model, train_data_path="./data", batc
                                dataset,
                                paddle.static.global_scope(),
                                debug=False,
-                               fetch_list=[train_model.cost],
+                               fetch_list=[train_model.loss],
                                fetch_info=["loss"],
                                print_period=1)
     psgpu.end_pass()
@@ -45,7 +45,7 @@ strategy.a_sync_configs = {"use_ps_gpu": 1}
 optimizer = paddle.optimizer.SGD(learning_rate=0.0001)
 optimizer = fleet.distributed_optimizer(optimizer, strategy=strategy)
 
-optimizer.minimize(model.cost)
+optimizer.minimize(model.loss)
 
 if fleet.is_server():
     print("server run_server..")
