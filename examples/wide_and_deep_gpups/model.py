@@ -170,8 +170,6 @@ class WideDeepModel:
                                dtype="int64") for i in range(1, self.sparse_inputs_slots)
         ]
 
-        self.slots_name = [int(i) for i in range(1, self.sparse_inputs_slots)]
-        self.slots_mf_size = [self.sparse_feature_dim - 1] * (self.sparse_inputs_slots - 1)
 
         label_input = paddle.static.data(
             name="label", shape=[None, 1], dtype="int64")

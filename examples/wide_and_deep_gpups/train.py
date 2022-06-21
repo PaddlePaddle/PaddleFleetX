@@ -19,10 +19,7 @@ def distributed_training(psgpu, exe, train_model, train_data_path="./data", batc
     dataset.set_filelist(train_files_list)
     dataset.load_into_memory()
     
-    print(paddle.static.default_main_program())
-    print(paddle.static.default_startup_program())
     psgpu.begin_pass()
-    print("start train from dataset")
     for epoch_id in range(epoch_num):
         exe.train_from_dataset(paddle.static.default_main_program(),
                                dataset,
@@ -62,12 +59,6 @@ if fleet.is_worker():
 
     fleet.init_worker()
     psgpu = paddle.fluid.core.PSGPU()
-    print("psgpu slot name:", model.slots_name)
-    psgpu.set_slot_vector(model.slots_name)
-    psgpu.set_slot_dim_vector(model.slots_mf_size)
-
-    gpus_env = os.getenv("FLAGS_selected_gpus")
-    psgpu.init_gpu_ps([int(s) for s in gpus_env.split(",")])
 
     distributed_training(psgpu, exe, model)
 
