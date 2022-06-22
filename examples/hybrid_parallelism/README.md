@@ -150,6 +150,7 @@ python -m paddle.distributed.launch --gpus "0,1,2,3,4,5,6,7" run_pretrain.py \
 ```
 
 ## Model Examples
-|Task|Model|Results|
-|-----|-----|-------|
-|NLP  |[gpt-3](https://github.com/PaddlePaddle/PaddleNLP/tree/develop/examples/language_model/gpt-3/dygraph)||
+|Task|Model|
+|-----|-----|
+|NLP  |[gpt-3](benchmark/paddle/dygraph/hybrid_parallelism/gpt-3/README.md)|
+|NLP  |[MoE](benchmark/paddle/dygraph/moe/gpt-3/README.md)|
