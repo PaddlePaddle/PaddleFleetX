@@ -18,7 +18,7 @@
 <h2 align="center">What is it?</h2>
 
 - **FleetX** is an out-of-the-box pre-trained model training toolkit for cloud users. It can be viewed as an extension package for `Paddle's` High-Level Distributed Training API `paddle.distributed.fleet`. 
-- [中文文档](https://fleet-x.readthedocs.io/en/latest/) | [快速开始](https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/distributed_introduction.html)
+- [中文文档](https://fleet-x.readthedocs.io/en/latest/) | [详细介绍](https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/distributed_introduction.html)
 
 <h2 align="center">Key Features</h2>
 
@@ -29,6 +29,11 @@
 - **Distributed Training Best Practices**
     - the most efficient way to do distributed training is provided.
 
+<h2 align="center">Quick start</h2>
+
+- **Collective**
+  - [Hybrid Parallel](examples/hybrid_parallelism/README.md)
+- **PS**
 
 <h2 align="center">Community</h2>
 
