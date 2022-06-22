@@ -25,14 +25,13 @@ def distributed_training(exe, train_model, train_data_path="./data", batch_size=
     train_files_list = [os.path.join(train_data_path, x)
                           for x in os.listdir(train_data_path)]
     
-
     for epoch_id in range(epoch_num):
         dataset.set_filelist(train_files_list)
         exe.train_from_dataset(paddle.static.default_main_program(),
                                dataset,
                                paddle.static.global_scope(), 
                                debug=True, 
-                               fetch_list=[train_model.cost],
+                               fetch_list=[train_model.loss],
                                fetch_info=["loss"],
                                print_period=1)
 
@@ -61,7 +60,7 @@ optimizer = paddle.optimizer.SGD(learning_rate=0.0001)
 
 optimizer = fleet.distributed_optimizer(optimizer, strategy)
 
-optimizer.minimize(model.cost)
+optimizer.minimize(model.loss)
 
 
 if fleet.is_server():

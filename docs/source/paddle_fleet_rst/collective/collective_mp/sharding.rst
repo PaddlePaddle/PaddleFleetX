@@ -221,6 +221,9 @@ sharding 可以设置以下参数：
 
 动态图
 ^^^^^^^
+首先简单总结sharding stage1、stage2、stage3分别实现减小参数规模的原理。stage1、stage2、stage3分别在训练过程中对模型优化器状态、梯度+优化器状态、参数+梯度+优化器状态进行切分，通过减小训练的相关Tensor（参数、梯度、优化器状态）达到同样计算资源下能够训练更大模型的效果。
+
+以下是分别从sharding的三种实现阶段分别介绍下使用方式，stage1的动态图实现方式：
 
 .. code-block::
    
@@ -258,6 +261,43 @@ sharding 可以设置以下参数：
    loss.backward()
    optimizer.step()
    optimizer.clear_grad()
+
+目前stage2、3还不支持混合并行方式，其动态图实现方式：
+  * 使用group_sharded_parallel和save_group_sharded_model两个API可以进行训练和保存。使用group_sharded_parallel提供stage1的选项，内部使用stage2完成优化实现。参考`group_sharded_parallel <https://www.paddlepaddle.org.cn/documentation/docs/en/develop/api/paddle/distributed/sharding/group_sharded_parallel_en.html#group-sharded-parallel>`__，`save_group_sharded_model <https://www.paddlepaddle.org.cn/documentation/docs/en/develop/api/paddle/distributed/sharding/save_group_sharded_model_en.html>`__。
+  * 此处需要注意，使用save_group_sharded_model保存模型，再次load时需要在调用group_sharded_parallel前对model和optimizer进行set_state_dict。
+  * 目前stage2、3已经适配GPT模型，可以参考请参考 `示例代码 <https://github.com/PaddlePaddle/PaddleNLP/tree/develop/examples/language_model/gpt-3/dygraph>`__。
+  * 其次解决组网中共享参数训练问题，stage3 需要额外在组网中加入外置参数注册逻辑，在组网中需要注册self.extra_parameters = [self.gpt.embeddings.word_embeddings.weight]，这部分可以参考PaddleNLP中gpt-3的组网。
+
+.. code-block::
+
+    import paddle
+    from paddle.fluid.dygraph.nn import Linear
+    from paddle.distributed import fleet
+    from paddle.distributed.sharding import group_sharded_parallel, save_group_sharded_model
+
+    fleet.init(is_collective=True)
+    group = paddle.distributed.new_group([0, 1])
+    model = Linear(1000, 1000)
+
+    clip = paddle.nn.ClipGradByGlobalNorm(clip_norm=1.0)
+    optimizer = paddle.optimizer.AdamW(learning_rate=0.001, parameters=model.parameters(), weight_decay=0.00001, grad_clip=clip)
+
+    # wrap sharding model, optimizer and scaler
+    model, optimizer, scaler = group_sharded_parallel(model, optimizer, "p_g", scaler=scaler)
+
+    img, label = data
+    label.stop_gradient = True
+    img.stop_gradient = True
+
+    out = model(img)
+    loss = paddle.nn.functional.cross_entropy(input=out, label=label)
+
+    loss.backward()
+    optimizer.step()
+    optimizer.clear_grad()
+
+    # save model and optimizer state_dict
+    save_group_sharded_model(model, optimizer, output=output_dir)
 
 
 进阶用法

@@ -54,8 +54,7 @@ class WideDeepLayer(nn.Layer):
         # deep part
         sparse_embs = []
         for s_input in sparse_inputs:
-            #emb = self.embedding(s_input)
-            emb = paddle.static.nn.sparse_embedding(s_input, size = [1024, self.sparse_feature_dim], param_attr=paddle.ParamAttr(name="embedding"))
+            emb = self.embedding(s_input)
             emb = paddle.reshape(emb, shape=[-1, self.sparse_feature_dim])
             sparse_embs.append(emb)
 
@@ -75,85 +74,6 @@ class WideDeepModel:
         self.sparse_feature_dim = sparse_feature_dim
         self.dense_input_dim = dense_input_dim
         self.fc_sizes = fc_sizes
-
-        self._metrics = {}
-
-    def acc_metrics(self, pred, label):
-        correct_cnt = paddle.static.create_global_var(
-            name="right_cnt", persistable=True, dtype='float32', shape=[1], value=0)
-        total_cnt = paddle.static.create_global_var(
-            name="total_cnt", persistable=True, dtype='float32', shape=[1], value=0)
-
-        batch_cnt = paddle.sum(
-            paddle.full(shape=[paddle.shape(label)[0], 1], fill_value=1.0))
-        batch_accuracy = paddle.static.accuracy(input=pred, label=label)
-        batch_correct = batch_cnt * batch_accuracy
-
-        paddle.assign(correct_cnt + batch_correct, correct_cnt)
-        paddle.assign(total_cnt + batch_cnt, total_cnt)
-        accuracy = correct_cnt / total_cnt
-
-        self._metrics["acc"] = {}
-        self._metrics["acc"]["result"] = accuracy
-        self._metrics["acc"]["state"] = {
-            "total": (total_cnt, "float32"), "correct": (correct_cnt, "float32")}
-
-    def auc_metrics(self, pred, label):
-        auc, batch_auc, [batch_stat_pos, batch_stat_neg, stat_pos, stat_neg] = paddle.static.auc(input=pred,
-                                                                                                 label=label,
-                                                                                                 num_thresholds=2**12,
-                                                                                                 slide_steps=20)
-
-        self._metrics["auc"] = {}
-        self._metrics["auc"]["result"] = auc
-        self._metrics["auc"]["state"] = {"stat_pos": (
-            stat_pos, "int64"), "stat_neg": (stat_neg, "int64")}
-
-    def mae_metrics(self, pred, label):
-        abserr = paddle.static.create_global_var(
-            name="abserr", persistable=True, dtype='float32', shape=[1], value=0)
-        total_cnt = paddle.static.create_global_var(
-            name="total_cnt", persistable=True, dtype='float32', shape=[1], value=0)
-
-        batch_cnt = paddle.sum(
-            paddle.full(shape=[paddle.shape(label)[0], 1], fill_value=1.0))
-        batch_abserr = paddle.nn.functional.l1_loss(
-            pred, label, reduction='sum')
-
-        paddle.assign(abserr + batch_abserr, abserr)
-        paddle.assign(total_cnt + batch_cnt, total_cnt)
-        mae = abserr / total_cnt
-
-        self._metrics["mae"] = {}
-        self._metrics["mae"]["result"] = mae
-        self._metrics["mae"]["state"] = {
-            "total": (total_cnt, "float32"), "abserr": (abserr, "float32")}
-
-    def mse_metrics(self, pred, label):
-        sqrerr = paddle.static.create_global_var(
-            name="sqrerr", persistable=True, dtype='float32', shape=[1], value=0)
-        total_cnt = paddle.static.create_global_var(
-            name="total_cnt", persistable=True, dtype='float32', shape=[1], value=0)
-
-        batch_cnt = paddle.sum(
-            paddle.full(shape=[paddle.shape(label)[0], 1], fill_value=1.0))
-        batch_sqrerr = paddle.nn.functional.mse_loss(
-            pred, label, reduction='sum')
-
-        paddle.assign(sqrerr + batch_sqrerr, sqrerr)
-        paddle.assign(total_cnt + batch_cnt, total_cnt)
-        mse = sqrerr / total_cnt
-        rmse = paddle.sqrt(mse)
-
-        self._metrics["mse"] = {}
-        self._metrics["mse"]["result"] = mse
-        self._metrics["mse"]["state"] = {
-            "total": (total_cnt, "float32"), "sqrerr": (sqrerr, "float32")}
-
-        self._metrics["rmse"] = {}
-        self._metrics["rmse"]["result"] = rmse
-        self._metrics["rmse"]["state"] = {
-            "total": (total_cnt, "float32"), "sqrerr": (sqrerr, "float32")}
 
     def net(self, is_train=True):
         dense_input = paddle.static.data(name="dense_input", shape=[
@@ -177,12 +97,6 @@ class WideDeepModel:
         pred = wide_deep_model.forward(sparse_inputs, dense_input)
         predict_2d = paddle.concat(x=[1 - pred, pred], axis=1)
         label_float = paddle.cast(label_input, dtype="float32")
-
-        with paddle.utils.unique_name.guard():
-            self.acc_metrics(pred, label_input)
-            self.auc_metrics(predict_2d, label_input)
-            self.mae_metrics(pred, label_float)
-            self.mse_metrics(pred, label_float)
 
         # loss
         cost = paddle.nn.functional.log_loss(input=pred, label=label_float)

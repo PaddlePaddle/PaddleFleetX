@@ -191,6 +191,13 @@ def parse_args():
         nargs='?',
         const=False,
         help="Using the recompute to save the memory.")
+    parser.add_argument(
+        "--auto_search",
+        type=str2bool,
+        nargs='?',
+        const=False,
+        help="Parallel Mode."
+    )
 
     # AMP config
     parser.add_argument(
@@ -238,8 +245,21 @@ def parse_args():
         "--checkpoint_path",
         type=str,
         default=None,
-        help="Where to load model checkpoint.")
-
+        help="Where to save or load model checkpoint.")
+    parser.add_argument(
+        "--fuse_qkv",
+        type=str2bool,
+        nargs='?',
+        const=False,
+        help="Whether to fuse qkv."
+    )
+    parser.add_argument(
+        "--load_params",
+        type=str2bool,
+        nargs='?',
+        const=False,
+        help="Whether to load parameters."
+    )
     args = parser.parse_args()
     args.test_iters = args.eval_iters
     return args

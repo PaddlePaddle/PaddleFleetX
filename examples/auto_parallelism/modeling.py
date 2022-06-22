@@ -161,6 +161,16 @@ class MultiHeadAttention(nn.Layer):
 
     def _fuse_prepare_qkv(self, query):
         mix_layer = self.qkv_proj(query)
+
+        if global_setting._global_parallel_stratergy == "mp":
+            auto.shard_tensor(self.qkv_proj.weight, dist_attr={"process_mesh":global_setting._global_process_mesh, "dims_mapping":[-1, 0]})
+        elif global_setting._global_parallel_stratergy == "dp_mp":
+            auto.shard_tensor(self.qkv_proj.weight, dist_attr={"process_mesh":global_setting._global_process_mesh, "dims_mapping":[-1, 1]})
+        elif global_setting._global_parallel_stratergy == "mp_pp":
+            auto.shard_tensor(self.qkv_proj.weight, dist_attr={"process_mesh":global_setting.MPPP_MESH_LIST[self.mesh_idx], "dims_mapping":[-1, 0]})
+        elif global_setting._global_parallel_stratergy == "dp_mp_pp":
+            auto.shard_tensor(self.qkv_proj.weight, dist_attr={"process_mesh":global_setting.DPMPPP_MESH_LIST[self.mesh_idx], "dims_mapping":[-1, 1]})
+            
         mix_layer = paddle.reshape_(mix_layer,
                                     [0, 0, self.num_heads, 3 * self.head_dim])
         mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
@@ -473,6 +483,7 @@ class TransformerDecoderLayer(nn.Layer):
                  normalize_before=True,
                  weight_attr=None,
                  bias_attr=None,
+                 fuse_qkv=False,
                  topo=None,
                  debug=False,
                  mesh_idx=None):
@@ -497,6 +508,7 @@ class TransformerDecoderLayer(nn.Layer):
             dropout=attn_dropout,
             weight_attr=weight_attrs[0],
             bias_attr=bias_attrs[0],
+            fuse=fuse_qkv,
             topo=topo,
             debug=debug,
             mesh_idx=self.mesh_idx)
@@ -714,6 +726,7 @@ class GPTModel(nn.Layer):
                  eos_token_id=7,
                  bos_token_id=0,
                  eol_token_id=3,
+                 fuse_qkv=False,
                  topo=None,
                  debug=False,
                  pp_degree=None):
@@ -760,7 +773,7 @@ class GPTModel(nn.Layer):
                     weight_attr=paddle.ParamAttr(
                         initializer=nn.initializer.Normal(
                             mean=0.0, std=self.initializer_range)),
-                    bias_attr=None,
+                    bias_attr=None, fuse_qkv=fuse_qkv,
                     topo=topo, debug=debug, mesh_idx=mesh_index))
         
         if self.pipline_mode:
@@ -907,27 +920,4 @@ class GPTPretrainingCriterion(nn.Layer):
         loss_mask = loss_mask.reshape([-1])
         masked_lm_loss = paddle.sum(masked_lm_loss.reshape([-1]) * loss_mask)
         total_loss = masked_lm_loss / loss_mask.sum()
-        pp_total_loss = None
-        if self.topo.pp_info.size > 1:
-            total_loss = total_loss
-            masked_lm_loss.persistable = True
-            total_loss.persistable = True
-            total_loss.persistable = True
-            pp_total_loss = paddle.fluid.layers.fill_constant([1, ], "float32", 0.0)
-            pp_total_loss.persistable = True
-            block = paddle.static.default_main_program().global_block()
-            acc_steps = self.args.global_batch_size // self.topo.data_info.size // self.args.micro_batch_size
-            tmp = total_loss / acc_steps
-            block.append_op(
-                type="elementwise_add",
-                inputs={
-                    "X": [pp_total_loss],
-                    "Y": [tmp]
-                },
-                outputs={"Out": [pp_total_loss]}
-            )
-        loss_vars = {
-            "total_loss": total_loss,
-            "pp_total_loss": pp_total_loss
-        }
-        return loss_vars
+        return total_loss

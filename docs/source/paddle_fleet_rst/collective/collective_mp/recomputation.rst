@@ -166,7 +166,7 @@ res2a.add.output.5.tmp_0 等是用户组网时定义的张量名称。
 动态图使用方法
 ~~~~~~~~~~~~
 
-动态图recompute功能在Paddle2.1以上加入，建议将Paddle版本升级到最新版。动态图使用recompute功能步骤如下：
+动态图recompute功能在Paddle2.1以上加入，建议将Paddle版本升级到最新版。注：当recompute中存在随机性算子比如dropout时，需要在最开始指定paddle.seed，保证反向的重计算随机性。动态图使用recompute功能步骤如下：
 
 一、首先导入需要的包。
 
@@ -298,6 +298,7 @@ recompute动态图代码：`example/recompute <https://github.com/PaddlePaddle/F
 当结合使用数据并行和重计算时，建议采用如下方式：
 
 .. code:: python
+    
     from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 
     def run_model(cuda_state, recompute_block=[], recompute_kwargs={}):
@@ -320,8 +321,6 @@ recompute动态图代码：`example/recompute <https://github.com/PaddlePaddle/F
         for _ in range(5):
             x_data = np.random.randn(batch_size, input_size).astype(np.float32)
             x = paddle.to_tensor(x_data)
-            y_pred = model(x)
-            loss = y_pred.mean()
 
             # 结合使用重计算和数据并行时，需使用no_sync并手动实现梯度allreduce
             with model.no_sync():
