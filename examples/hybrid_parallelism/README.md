@@ -42,9 +42,9 @@ DP=2
 MP=2
 PP=2
 strategy.hybrid_configs = {
-        "dp_degree": 2,
-        "mp_degree": 2,
-        "pp_degree": 2,
+        "dp_degree": DP,
+        "mp_degree": MP,
+        "pp_degree": PP,
          }
 if PP > 1:
     strategy.pipeline_configs = {
@@ -62,11 +62,12 @@ pp_group = hcg.get_pipe_parallel_group()
 ```
 
 ### 5. Splitng Weights if Needed
-If you need to seperate linear's weights or embedding's weights into distributed gpus, you can replace nn.Linear with fleet.meta_parallel.ColumnParallelLinear or fleet.meta_parallel.RowParallelLinear.  
+If you need to seperate linear's weights or embedding's weights into distributed gpus, you can replace `nn.Linear` with `fleet.meta_parallel.ColumnParallelLinear` or `fleet.meta_parallel.RowParallelLinear`, and replace `nn.Embedding` with `fleet.meta_parallel.VocabParallelEmbedding`.
 Folowing are some samples:
 
 - Linear weights
 ```python
+from paddle import nn
 #before spliting:
 otuput = nn.Linear(
     row,
@@ -114,6 +115,7 @@ optimizer = fleet.distributed_optimizer(optimizer)
 ### 7. Distributed Dataset Preparation
 we use DistributedSampler as data sampler if data parallel is used
 ```python
+from paddle.io import DistributedBatchSampler, DataLoader
 batch_sampler = DistributedBatchSampler(
             dataset,
             batch_size=args.local_batch_size,
