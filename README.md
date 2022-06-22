@@ -31,9 +31,8 @@
 
 <h2 align="center">Quick start</h2>
 
-- **Collective**
-  - [Hybrid Parallel](examples/hybrid_parallelism/README.md)
-- **PS**
+
+- **[Hybrid Parallelism](examples/hybrid_parallelism/README.md#quick-start)**
 
 <h2 align="center">Community</h2>
 
