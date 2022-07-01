@@ -9,12 +9,31 @@ from paddle.distributed.fleet.meta_parallel import LayerDesc, PipelineLayer
 import paddle.nn.functional as F
 import paddle.distributed as dist
 import random
+from paddle.io import Dataset, BatchSampler, DataLoader
 
 
+BATCH_NUM = 20
+BATCH_SIZE = 16
+EPOCH_NUM = 4
 
+IMAGE_SIZE = 784
+CLASS_NUM = 10
+MICRO_BATCH_SIZE = 2
 
-batch_size = 4
-micro_batch_size = 2
+class RandomDataset(Dataset):
+    def __init__(self, num_samples):
+        self.num_samples = num_samples
+
+    def __getitem__(self, idx):
+        image = np.random.random([1, 28, 28]).astype('float32')
+        label = np.random.randint(0, CLASS_NUM - 1, (1, )).astype('int64')
+        return image, label
+
+    def __len__(self):
+        return self.num_samples
+
+dataset = RandomDataset(BATCH_NUM * BATCH_SIZE)
+
 
 strategy = fleet.DistributedStrategy()
 model_parallel_size = 1
@@ -26,13 +45,11 @@ strategy.hybrid_configs = {
     "pp_degree": pipeline_parallel_size
 }
 strategy.pipeline_configs = {
-    "accumulate_steps": batch_size // micro_batch_size,
-    "micro_batch_size": micro_batch_size
+    "accumulate_steps": BATCH_SIZE // MICRO_BATCH_SIZE,
+    "micro_batch_size": MICRO_BATCH_SIZE
 }
 
 fleet.init(is_collective=True, strategy=strategy)
-
-
 
 def set_random_seed(seed, dp_id, rank_id):
     random.seed(seed)
@@ -59,7 +76,7 @@ class ReshapeHelp(Layer):
 
 
 class AlexNetPipeDesc(PipelineLayer):
-    def __init__(self, num_classes=10, **kwargs):
+    def __init__(self, num_classes=CLASS_NUM, **kwargs):
         self.num_classes = num_classes
         decs = [
             LayerDesc(
@@ -100,23 +117,14 @@ optimizer = paddle.optimizer.SGD(learning_rate=scheduler,
 model = fleet.distributed_model(model)
 optimizer = fleet.distributed_optimizer(optimizer)
 
-train_reader = paddle.batch(
-        paddle.dataset.mnist.train(), batch_size=batch_size, drop_last=True
-)
+train_reader = DataLoader(dataset,
+                    batch_size=BATCH_SIZE,
+                    shuffle=True,
+                    drop_last=True,
+                    num_workers=2)
 
-for step_id, data in enumerate(train_reader()):
-    x_data = np.array([x[0] for x in data]).astype("float32").reshape(
-        batch_size, 1, 28, 28
-    )
-    y_data = np.array([x[1] for x in data]).astype("int64").reshape(
-        batch_size, 1
-    )
-    img = paddle.to_tensor(x_data)
-    label = paddle.to_tensor(y_data)
-    img.stop_gradient = True
-    label.stop_gradient = True
-    if step_id >= 5:
+for i, (image, label) in enumerate(train_reader()):
+    if i >= 5:
         break
-
-    loss = model.train_batch([img, label], optimizer, scheduler)
+    loss = model.train_batch([image, label], optimizer, scheduler)
     print("pp_loss: ", loss.numpy())
