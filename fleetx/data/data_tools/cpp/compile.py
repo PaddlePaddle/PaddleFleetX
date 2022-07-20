@@ -11,3 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+import os
+import subprocess
+path = os.path.abspath(os.path.dirname(__file__))
+
+
+def compile_helper():
+    """Compile helper function ar runtime. Make sure this
+    is invoked on a single process."""
+    ret = subprocess.run(['make', '-C', path])
+    if ret.returncode != 0:
+        print("Making C++ dataset helpers module failed, exiting.")
+        import sys
+        sys.exit(1)
