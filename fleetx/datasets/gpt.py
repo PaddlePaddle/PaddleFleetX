@@ -25,6 +25,30 @@ from fleetx.data.sampler import DistributedBatchSampler
 from fleetx.data.sampler import Stack, Tuple
 
 
+def get_train_data_file(args):
+    files = [
+        os.path.join(args.input_dir, f) for f in os.listdir(args.input_dir)
+        if (os.path.isfile(os.path.join(args.input_dir, f)) and str(f)
+            .endswith("_idx.npz"))
+    ]
+    files = [x.replace("_idx.npz", "") for x in files]
+    if len(files) == 0:
+        logger.warning(
+            "Not found dataset with name of xxx_ids.npy and xxx_idx.npz! Try to found old compatible xxx_ids.npz file."
+        )
+    else:
+        return files
+
+    files = [
+        os.path.join(args.input_dir, f) for f in os.listdir(args.input_dir)
+        if (os.path.isfile(os.path.join(args.input_dir, f)) and str(f)
+            .endswith("_ids.npz"))
+    ]
+
+    files = [x.replace("_ids.npz", "") for x in files]
+    return files
+
+
 def create_pretrained_dataset(args,
                               input_path,
                               local_rank,
@@ -401,7 +425,6 @@ class GPTDataset(paddle.io.Dataset):
         # Attention mask for the attention calulate
         # attention_mask = np.tri(seq_length, seq_length).reshape((1, seq_length,
         #  seq_length))
-
         # The pad and eos tokens do not contribute the loss
         loss_mask = np.ones(seq_length, dtype="float32")
         loss_mask[np.where(np.array(tokens) == self.eos_id)] = 0.0
