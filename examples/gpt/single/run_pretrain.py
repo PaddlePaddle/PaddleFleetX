@@ -61,17 +61,16 @@ def run_evaluate(args,
     model.train()
 
 
-def do_train(args):
-    paddle.set_device(args.device)
-    accumulate_steps = args.local_batch_size // args.micro_batch_size
-    default_global_tokens_num = args.global_batch_size * args.max_seq_len
-
+def generate_model(args):
     # Create the critrion for the gpt model
     model = GPTForPretraining(GPTModel(args))
     criterion = GPTPretrainingCriterion()
     tokenizer = GPTTokenizer.from_pretrained("gpt2")
     print('>> total parameters: ', len(model.parameters()))
+    return model, criterion, tokenizer
 
+
+def generate_optimizer(model, args):
     if args.decay_steps is None:
         args.decay_steps = args.max_steps
     warmup_step = args.warmup_rate * args.decay_steps
@@ -103,7 +102,10 @@ def do_train(args):
         # TODO: remove 'multi_precision' in definition of optimizer
         # and add it to 'paddle.amp.decorate'
         multi_precision=args.use_pure_fp16)
+    return optimizer, lr_scheduler
 
+
+def model_optimizer_load(model, optimizer, args):
     if args.ckpt_dir:
         logger.info("Try to load checkpoint from %s " % args.ckpt_dir)
         model_path = os.path.join(args.ckpt_dir, "model.pdparams")
@@ -121,6 +123,30 @@ def do_train(args):
         else:
             logger.warning("No optimizer checkpoint file found in %s." %
                            opt_path)
+    return model, optimizer
+
+
+def model_optimizer_save(model, optimizer, global_step, args):
+    # model save
+    if global_step % args.save_steps == 0 or global_step >= args.max_steps:
+        output_dir = os.path.join(args.output_dir, "model_%d" % global_step)
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        logger.info("Save model to %s" % output_dir)
+        paddle.save(model.state_dict(),
+                    os.path.join(output_dir, "model.pdparams"))
+        paddle.save(optimizer.state_dict(),
+                    os.path.join(output_dir, "model_state.pdopt"))
+
+
+def do_train(args):
+    paddle.set_device(args.device)
+    accumulate_steps = args.local_batch_size // args.micro_batch_size
+    default_global_tokens_num = args.global_batch_size * args.max_seq_len
+
+    model, criterion, tokenizer = generate_model(args)
+    optimizer, lr_scheduler = generate_optimizer(model, args)
+    model, optimizer = model_optimizer_load(model, optimizer, args)
 
     if args.use_pure_fp16:
         scaler = paddle.amp.GradScaler(init_loss_scaling=args.scale_loss)
@@ -216,17 +242,7 @@ def do_train(args):
                     run_evaluate(args, valid_data_loader, model, criterion,
                                  args.eval_iters, global_step, epoch, "valid")
 
-                # model save
-                if global_step % args.save_steps == 0 or global_step >= args.max_steps:
-                    output_dir = os.path.join(args.output_dir,
-                                              "model_%d" % global_step)
-                    if not os.path.exists(output_dir):
-                        os.makedirs(output_dir)
-                    logger.info("Save model to %s" % output_dir)
-                    paddle.save(model.state_dict(),
-                                os.path.join(output_dir, "model.pdparams"))
-                    paddle.save(optimizer.state_dict(),
-                                os.path.join(output_dir, "model_state.pdopt"))
+                model_optimizer_save(model, optimizer, global_step, args)
 
                 if global_step >= args.max_steps:
                     run_evaluate(args, test_data_loader, model, criterion,
@@ -234,9 +250,7 @@ def do_train(args):
                     logger.info("The training process is complete.")
                     del train_data_loader
                     return
-
                 reader_start = time.time()
-
             del train_data_loader
 
 
