@@ -20,7 +20,6 @@ import time
 import sys
 sys.path.append("..")
 from args import parse_args
-import lr
 
 import numpy as np
 import paddle
@@ -28,6 +27,7 @@ from fleetx.models.gpt_model import GPTModel, GPTForPretraining, GPTPretrainingC
 from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
 from fleetx.data.tokenizers import GPTTokenizer
 from fleetx.utils import logger
+from fleetx.optim import lr_scheduler as lr
 
 
 @paddle.no_grad()
