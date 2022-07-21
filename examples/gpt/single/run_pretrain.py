@@ -40,6 +40,7 @@ def run_evaluate(args,
                  epoch,
                  task_name="valid"):
     """
+    evaluate for gpt model
     """
     model.eval()
     all_loss = []
