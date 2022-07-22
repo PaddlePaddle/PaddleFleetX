@@ -23,9 +23,6 @@ from paddle.fluid import layers
 from paddle.nn.layer.transformer import _convert_param_attr_to_list
 import paddle.incubate as incubate
 from paddle.distributed.fleet.utils import recompute
-
-# import sys
-# sys.path.append("..") 
 from .config import configurable
 
 

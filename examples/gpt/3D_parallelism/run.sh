@@ -17,6 +17,7 @@ export PYTHONPATH=$PYTHONPATH:../../../
 log_dir=dp2_pp2_mp2
 rm -rf $log_dir
 
+# 345M
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
     --input_dir "./data"\
     --output_dir "output"\
@@ -36,8 +37,8 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
     --scale_loss 32768\
     --global_batch_size 32\
     --micro_batch_size 1\
-    --dp_degree 2\
-    --mp_degree 2\
-    --pp_degree 2\
+    --dp_degree 1\
+    --mp_degree 8\
+    --pp_degree 1\
     --use_recompute True\
     --use_pure_fp16 False

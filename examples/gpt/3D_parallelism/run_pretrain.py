@@ -23,7 +23,7 @@ from args import parse_args
 
 import numpy as np
 import paddle
-from modeling import GPTModel, GPTForPretraining, GPTPretrainingCriterion, GPTForPretrainingPipe
+# from modeling import GPTModel, GPTForPretraining, GPTPretrainingCriterion, GPTForPretrainingPipe
 from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
 from fleetx.data.tokenizers import GPTTokenizer
 from fleetx.utils import logger
@@ -33,6 +33,7 @@ from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 
 from examples.gpt.single.run_pretrain import generate_model, generate_optimizer
 from examples.gpt.single.run_pretrain import model_optimizer_load, model_optimizer_save
+from fleetx.models.gpt_model.modeling_3D import GPTModel, GPTForPretraining, GPTPretrainingCriterion, GPTForPretrainingPipe
 
 
 def set_hyrbid_parallel_seed(basic_seed, data_world_rank, mp_rank, pp_rank):

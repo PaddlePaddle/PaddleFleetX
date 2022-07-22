@@ -20,7 +20,7 @@ python run_pretrain.py \
     --output_dir "output"\
     --vocab_size 50304\
     --hidden_size 1024\
-    --num_layers 24\
+    --num_layers 2\
     --num_attention_heads 16\
     --max_seq_len 1024\
     --weight_decay 0.01\
