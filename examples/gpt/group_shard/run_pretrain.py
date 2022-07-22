@@ -31,7 +31,7 @@ from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
 from fleetx.utils import logger
 from fleetx.optim import lr_scheduler as lr
 from examples.gpt.single.run_pretrain import run_evaluate, generate_model, generate_optimizer
-from examples.gpt.single.run_pretrain import model_optimizer_load, model_optimizer_save
+from examples.gpt.single.run_pretrain import model_optimizer_load, model_forward_backward
 
 
 def set_group_sharded_parallel_seed(basic_seed, sharding_rank):
@@ -78,7 +78,6 @@ def group_sharded_model_optimizer_save(args, model, optimizer, global_step,
 
 def do_train(args):
     paddle.set_device(args.device)
-    nranks = paddle.distributed.get_world_size()
     strategy = fleet.DistributedStrategy()
     strategy.hybrid_configs = {
         "dp_degree": args.dp_degree,
@@ -106,6 +105,8 @@ def do_train(args):
         scaler = paddle.amp.GradScaler(init_loss_scaling=args.scale_loss)
         model = paddle.amp.decorate(
             models=model, level='O2', save_dtype='float32')
+    else:
+        scaler = None
 
     # wrap sharding stage2/3 and add collective group
     if args.sharding_stage in [2, 3]:
@@ -138,33 +139,6 @@ def do_train(args):
             train_run_cost = 0.0
             reader_start = time.time()
 
-            def amp_fw_bw(args, model, criterion, scaler, tokens, ids, labels,
-                          loss_mask):
-                accumulate_steps = args.local_batch_size // args.micro_batch_size
-                loss = 0.0
-                for i in range(accumulate_steps):
-                    start_index = i * args.micro_batch_size
-                    end_index = start_index + args.micro_batch_size
-                    with paddle.amp.auto_cast(
-                            args.use_pure_fp16,
-                            custom_black_list=[
-                                "reduce_sum", "c_softmax_with_cross_entropy",
-                                "elementwise_div"
-                            ],
-                            level='O2'):
-                        preds = model(tokens[start_index:end_index, :],
-                                      position_ids[start_index:end_index, :])
-                        loss_mbs = criterion(
-                            preds, labels[start_index:end_index, :],
-                            loss_mask[start_index:end_index, :])
-                    loss_mbs = loss_mbs / accumulate_steps
-                    if args.use_pure_fp16:
-                        scaler.scale(loss_mbs).backward()
-                    else:
-                        loss_mbs.backward()
-                    loss = loss + loss_mbs
-                return loss
-
             for step, batch in enumerate(train_data_loader()):
                 train_reader_cost += time.time() - reader_start
                 train_start = time.time()
@@ -176,8 +150,9 @@ def do_train(args):
                 labels.stop_gradient = True
                 position_ids.stop_gradient = True
 
-                loss = amp_fw_bw(args, model, criterion, scaler, tokens,
-                                 position_ids, labels, loss_mask)
+                loss = model_forward_backward(args, model, criterion, tokens,
+                                              position_ids, labels, loss_mask,
+                                              scaler)
 
                 if args.use_pure_fp16:
                     if args.sharding_stage in [2, 3]:

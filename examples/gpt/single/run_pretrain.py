@@ -139,9 +139,41 @@ def model_optimizer_save(model, optimizer, global_step, args):
                     os.path.join(output_dir, "model_state.pdopt"))
 
 
+def model_forward_backward(args,
+                           model,
+                           criterion,
+                           tokens,
+                           ids,
+                           labels,
+                           loss_mask,
+                           scaler=None):
+    accumulate_steps = args.local_batch_size // args.micro_batch_size
+    loss = 0.0
+    for i in range(accumulate_steps):
+        start_index = i * args.micro_batch_size
+        end_index = start_index + args.micro_batch_size
+        with paddle.amp.auto_cast(
+                args.use_pure_fp16,
+                custom_black_list=[
+                    "reduce_sum", "c_softmax_with_cross_entropy",
+                    "elementwise_div"
+                ],
+                level='O2'):
+            preds = model(tokens[start_index:end_index, :],
+                          ids[start_index:end_index, :])
+            loss_mbs = criterion(preds, labels[start_index:end_index, :],
+                                 loss_mask[start_index:end_index, :])
+        loss_mbs = loss_mbs / accumulate_steps
+        if args.use_pure_fp16:
+            scaler.scale(loss_mbs).backward()
+        else:
+            loss_mbs.backward()
+        loss = loss + loss_mbs
+    return loss
+
+
 def do_train(args):
     paddle.set_device(args.device)
-    accumulate_steps = args.local_batch_size // args.micro_batch_size
     default_global_tokens_num = args.global_batch_size * args.max_seq_len
 
     model, criterion, tokenizer = generate_model(args)
@@ -152,6 +184,8 @@ def do_train(args):
         scaler = paddle.amp.GradScaler(init_loss_scaling=args.scale_loss)
         model = paddle.amp.decorate(
             models=model, level='O2', save_dtype='float32')
+    else:
+        scaler = None
 
     global_step = 0
     for epoch in range(args.num_train_epochs):
@@ -187,28 +221,10 @@ def do_train(args):
                 loss_mask.stop_gradient = True
                 labels.stop_gradient = True
                 position_ids.stop_gradient = True
-                loss = 0.0
-                for i in range(accumulate_steps):
-                    start_index = i * args.micro_batch_size
-                    end_index = start_index + args.micro_batch_size
-                    with paddle.amp.auto_cast(
-                            args.use_pure_fp16,
-                            custom_black_list=[
-                                "reduce_sum", "c_softmax_with_cross_entropy",
-                                "elementwise_div"
-                            ],
-                            level='O2'):
-                        preds = model(tokens[start_index:end_index, :],
-                                      position_ids[start_index:end_index, :])
-                        loss_mbs = criterion(
-                            preds, labels[start_index:end_index, :],
-                            loss_mask[start_index:end_index, :])
-                    loss_mbs = loss_mbs / accumulate_steps
-                    if args.use_pure_fp16:
-                        scaler.scale(loss_mbs).backward()
-                    else:
-                        loss_mbs.backward()
-                    loss = loss + loss_mbs
+
+                loss = model_forward_backward(args, model, criterion, tokens,
+                                              position_ids, labels, loss_mask,
+                                              scaler)
 
                 if args.use_pure_fp16:
                     scaler.minimize(optimizer, loss)
