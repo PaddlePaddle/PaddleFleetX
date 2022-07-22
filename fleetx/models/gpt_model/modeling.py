@@ -22,6 +22,7 @@ import paddle.tensor as tensor
 from paddle.fluid import layers
 from paddle.nn.layer.transformer import _convert_param_attr_to_list
 import paddle.incubate as incubate
+from paddle.distributed.fleet.utils import recompute
 
 # import sys
 # sys.path.append("..") 
@@ -218,13 +219,18 @@ class TransformerDecoder(nn.Layer):
     TransformerDecoder is a stack of N decoder layers.
     """
 
-    def __init__(self, decoder_layers, num_layers, norm=None,
-                 hidden_size=None):
+    def __init__(self,
+                 decoder_layers,
+                 num_layers,
+                 norm=None,
+                 hidden_size=None,
+                 use_recompute=False):
         super(TransformerDecoder, self).__init__()
 
         self.num_layers = num_layers
         self.layers = decoder_layers
         self.norm = norm
+        self.use_recompute = use_recompute
         if norm == "LayerNorm":
             self.norm = nn.LayerNorm(hidden_size, epsilon=1e-5)
         elif norm is not None:
@@ -255,11 +261,8 @@ class TransformerDecoder(nn.Layer):
                                             cache=cache)
                     new_caches.append(new_cache)
                 else:
-                    output = mod(output,
-                                 memory,
-                                 tgt_mask=tgt_mask,
-                                 use_cache=use_cache,
-                                 cache=cache)
+                    output = recompute(mod, output, memory, tgt_mask, use_cache, cache) if self.use_recompute \
+                        else mod(output, memory, tgt_mask, use_cache, cache)
 
             else:
                 output, new_cache = mod(output,
@@ -420,6 +423,7 @@ class GPTModel(nn.Layer):
                  attention_probs_dropout_prob=0.1,
                  max_position_embeddings=512,
                  type_vocab_size=16,
+                 use_recompute=False,
                  initializer_range=0.02):
 
         super(GPTModel, self).__init__()
@@ -452,7 +456,8 @@ class GPTModel(nn.Layer):
             decoder_layers,
             num_layers,
             norm="LayerNorm",
-            hidden_size=hidden_size)
+            hidden_size=hidden_size,
+            use_recompute=use_recompute)
 
     @classmethod
     def from_config(cls, cfg):
@@ -466,7 +471,8 @@ class GPTModel(nn.Layer):
             "attention_probs_dropout_prob": cfg.attention_probs_dropout_prob,
             "max_position_embeddings": cfg.max_position_embeddings,
             "type_vocab_size": cfg.type_vocab_size,
-            "initializer_range": cfg.initializer_range
+            "initializer_range": cfg.initializer_range,
+            "use_recompute": cfg.use_recompute
         }
 
     def forward(self,

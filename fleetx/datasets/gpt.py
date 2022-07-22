@@ -94,7 +94,7 @@ def create_pretrained_dataset(args,
 
     for suffix in ["_ids.npy", "_idx.npz"]:
         if not os.path.isfile(input_prefix + suffix):
-            raise ValueError("File Not found, %s" % (path + suffix))
+            raise ValueError("File Not found, %s" % (input_prefix + suffix))
 
     sample_ids = np.load(
         input_prefix + "_ids.npy", mmap_mode="r", allow_pickle=True)
