@@ -34,6 +34,8 @@ from .modeling import TransformerDecoder
 
 
 def parallel_matmul(lm_output, logit_weights, parallel_output):
+    """
+    """
     hcg = fleet.get_hybrid_communicate_group()
     model_parallel_group = hcg.get_model_parallel_group()
     world_size = hcg.get_model_parallel_world_size()
@@ -89,7 +91,8 @@ class MultiHeadAttention(nn.Layer):
         self.head_dim = embed_dim // num_heads
         assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
 
-        assert self.num_heads % num_partitions == 0
+        assert self.num_heads % num_partitions == 0, "num_heads {} must be divisible by num_partitions {}".format(
+            self.num_heads, num_partitions)
         self.num_heads = self.num_heads // num_partitions
 
         if self.fuse:
@@ -461,7 +464,8 @@ class GPTModel(nn.Layer):
             decoder_layers,
             num_layers,
             norm="LayerNorm",
-            hidden_size=hidden_size)
+            hidden_size=hidden_size,
+            use_recompute=use_recompute)
 
     @classmethod
     def from_config(cls, cfg):

@@ -15,23 +15,4 @@
 export PYTHONPATH=$PYTHONPATH:../../../
 
 # 345M
-python run_pretrain.py \
-    --input_dir "./data"\
-    --output_dir "output"\
-    --vocab_size 50304\
-    --hidden_size 1024\
-    --num_layers 24\
-    --num_attention_heads 16\
-    --max_seq_len 1024\
-    --weight_decay 0.01\
-    --grad_clip 1.0\
-    --max_steps 500000\
-    --save_steps 100000\
-    --decay_steps 320000\
-    --device gpu\
-    --eval_freq 1000\
-    --warmup_rate 0.01\
-    --scale_loss 32768\
-    --global_batch_size 8\
-    --micro_batch_size 8\
-    --use_pure_fp16 True
+python run_pretrain.py -c ./configs.yaml
