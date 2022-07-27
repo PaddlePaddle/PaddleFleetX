@@ -8,24 +8,23 @@
 
 * Python 环境 3.6+
 
-* GPU 支持，cuda 10.2+ 和 nccl 2.8+，具体支持情况见 [paddle 安装](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/pip/linux-pip.html)
+* GPU 支持，CUDA 10.2+ 和 NCCL 2.8+，具体支持情况见 [安装](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/pip/linux-pip.html)
 
-* 【可选】[docker](https://docs.docker.com/engine/install/) 19.03+，同时需要安装 [nvida-container-runtime](https://github.com/NVIDIA/nvidia-container-runtime) 以使用 GPU
+* 【可选】[Docker](https://docs.docker.com/engine/install/) 19.03+，同时需要安装 [nvida-container-runtime](https://github.com/NVIDIA/nvidia-container-runtime) 以使用 GPU
 
-* 【可选】[kubernetes](https://github.com/kubernetes/kubernetes) 16+，同时需要安装 [k8s-device-plugin](https://github.com/NVIDIA/k8s-device-plugin) 以使用 GPU
+* 【可选】[Kubernetes](https://github.com/kubernetes/kubernetes) 1.16+，同时需要安装 [k8s-device-plugin](https://github.com/NVIDIA/k8s-device-plugin) 以使用 GPU
 
 * 【建议】大模型训练多机间带宽建议 25Gbps 及以上，否则可能有性能问题，可使用 [iperf](https://github.com/esnet/iperf) 工具进行测试
 
-以上配置中 docker 和 kubernetes 的使用为可选配置，一般地
+以上配置中 Docker 和 kubernetes 的使用为可选配置，一般地
 
-* 强烈推荐在系统中安装 docker 或类似工具来配置基础环境，简化配置工作
+* 强烈推荐在系统中安装 Docker 或类似工具来配置基础环境，简化配置工作
 
 * 当机器数量较多（5+）且长期使用时，建议使用 kubernetes 或类似集群管理工具进行集群管理
 
 ### 安装部署流程
 
-#### 安装 Paddle
-
+#### 安装 PaddlePaddle
 **裸机安装**
 
 根据环境在 [安装文档](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/docker/linux-docker.html) 选择对应的版本使用 pip install 安装，执行对应命令，例如
@@ -36,7 +35,7 @@ python -m pip install paddlepaddle-gpu==2.3.1.post112 -f https://www.paddlepaddl
 
 **Docker 安装**
 
-根据环境在 [安装文档](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/docker/linux-docker.html) 选择对应的版本拉取预装 paddle 的 docker 镜像
+根据环境在 [安装文档](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/docker/linux-docker.html) 选择对应的版本拉取预装 PaddlePaddle 的 Docker 镜像
 
 ```shell
 docker pull registry.baidubce.com/paddlepaddle/paddle:2.3.1-gpu-cuda11.2-cudnn8
@@ -44,7 +43,7 @@ docker pull registry.baidubce.com/paddlepaddle/paddle:2.3.1-gpu-cuda11.2-cudnn8
 
 **启动环境**
 
-如果已安装和配置 [nvida-container-runtime](https://github.com/NVIDIA/nvidia-container-runtime)，使用如下命令启动 docker 即进入工作环境
+如果已安装和配置 [nvida-container-runtime](https://github.com/NVIDIA/nvidia-container-runtime)，使用如下命令启动 Docker 即进入工作环境
 
 ```shell
 docker run -it --name paddle --net=host -v /dev/shm:/dev/shm -v $PWD:/paddle registry.baidubce.com/paddlepaddle/paddle:2.3.1-gpu-cuda11.2-cudnn8 bash
@@ -133,15 +132,13 @@ Thu Jul 21 19:32:03 2022
 
 结果中可以看出
 
-* 环境中的 cuda 版本为 11.2，如果此处不显示版本号需要添加相应路径到 LD_LIBRARY_PATH，参考[文档](https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html)
-* 当前的 Memory-Usage 和 GPU-Util 均没有占用，表示当前设备空闲，可以使用
-* 最后的 Processes 信息表示正在使用设备的进程，docker 内可能存在不准确的情况，不影响使用
+* CUDA Version栏显示的是当前环境中的CUDA版本号，此处为11.2。开始使用飞桨前，请先保证此处CUDA Version显示正常。如果CUDA Version栏不显示版本号，则需要添加CUDA相关库的路径到环境变量`LD_LIBRARY_PATH`中，具体请参考[文档](https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html)。
+* Memory-Usage 列显示的是当前的显存占用值，此处为0MiB，表示当前设备的显存未被占用；GPU-Util 列显示的是当前的GPU利用率，此处为0%，表示当前设备空闲，可以使用。开始使用飞桨前，请保证当前设备显存充足，且利用率处于空闲状态。
+* 最后的 Processes 信息表示正在使用设备的进程，Docker 内可能存在不准确的情况，不影响使用
 
-开始使用前，请先检查设备是否空闲。
+**PaddlePaddle 安装验证**
 
-**Paddle 安装验证**
-
-首先运行如下命令确保 paddle 正确安装
+首先运行如下命令确保 PaddlePaddle 正确安装
 
 ```shell
 python -c "import paddle; paddle.utils.run_check()"
@@ -159,24 +156,24 @@ PaddlePaddle works well on 8 GPUs.
 PaddlePaddle is installed successfully! Let's start deep learning with PaddlePaddle now.
 ```
 
-表示 paddle 已经正确安装。
+表示 PaddlePaddle 已经正确安装。
 
 **分布式环境验证**
 
-请先确保**各个机器**的 paddle 环境已经正确安装，然后在等待验证的其中一个节点上运行如下命令
+请先确保**各个机器**的 PaddlePaddle 环境已经正确安装，然后在等待验证的其中一个节点上运行如下命令
 
 ```shell
 python -m paddle.distributed.launch test
 ```
 
-> 默认验证 2 机分布式环境，如果同时验证多个环境（例如4个）请添加节点数参数如命令
+> 默认验证 2 机分布式环境，如果需要验证更多机器（例如4个）环境下飞桨分布式是否运行正常，请添加节点数参数 --nnodes，具体命令如下：
 > 
 > `python -m paddle.distributed.launch --nnodes=4 test`
 
 预期输出如下
 
 ```shell
-LAUNCH INFO 2022-07-20 09:38:33,349 Paddle Distributed Test begin...
+LAUNCH INFO 2022-07-20 09:38:33,349 PaddlePaddle Distributed Test begin...
 LAUNCH INFO 2022-07-20 09:38:33,358 -----------  Configuration  ----------------------
 LAUNCH INFO 2022-07-20 09:38:33,358 devices: None
 LAUNCH INFO 2022-07-20 09:38:33,358 elastic_level: -1
@@ -222,7 +219,7 @@ LAUNCH INFO 2022-07-20 09:46:41,571 Run Pod: xqqbsr, replicas 2, status ready
 LAUNCH INFO 2022-07-20 09:46:41,601 Watching Pod: xqqbsr, replicas 2, status running
 Prepare distributed training with 2 nodes 2 cards
 I0720 09:46:43.583846 13375 tcp_utils.cc:181] The server starts to listen on IP_ANY:14863
-I0720 09:46:43.584153 13375 tcp_utils.cc:130] Successfully connected to 10.127.4.142:14863
+I0720 09:46:43.584153 13375 tcp_utils.cc:130] Successfully connected to 10.10.10.1:14863
 W0720 09:46:47.089151 13375 gpu_resources.cc:61] Please NOTE: device: 0, GPU Compute Capability: 7.0, Driver API Version: 11.2, Runtime API Version: 11.2
 W0720 09:46:47.098454 13375 gpu_resources.cc:91] device: 0, cuDNN Version: 8.1.
 2022-07-20 09:46:51,333-INFO: [topology.py:187:__init__] HybridParallelInfo: rank_id: 0, mp_degree: 1, sharding_degree: 1, pp_degree: 1, dp_degree: 4, mp_group: [0],  sharding_group: [0], pp_group: [0], dp_group: [0, 1, 2, 3], check/clip group: [0]
@@ -234,13 +231,13 @@ LAUNCH INFO 2022-07-20 09:46:56,617 Pod completed
 LAUNCH INFO 2022-07-20 09:46:57,085 Exit code 0
 ```
 
-则表示分布式环境配置正常，分布式训练可以成功运行。
+则表示分布式环境配置正常，多机分布式训练可以成功运行。
 
-> 如果其他节点执行命令后各个节点没有后续输出或输出不符合预期请参考 FAQ 部分解决。
+> 如果其他节点执行命令后各个节点没有后续输出或输出不符合预期请参考 [FAQ](#FAQ) 部分解决。
 
-#### 分布式训练任务
+#### 实际分布式训练任务验证
 
-在启动分布式任务前需要确保各个节点上安装好 paddle 环境，同步好数据和代码。
+在启动分布式任务前需要确保各个节点上安装好 PaddlePaddle 环境，同步好数据和代码。
 
 例如准备好训练代码 `train.py`，同步至每个训练节点的工作目录
 
@@ -320,21 +317,21 @@ if __name__ == '__main__':
     train_resnet()
 ```
 
-分布式启动需要关注两个问题，对应两个参数
-
-- `--nnodes` 为分布式任务的节点个数（一般为参与任务的机器数量），默认为 1 即启动单机任务，也可使用环境变量 PADDLE_NNODES 设置
-
-- `--master` 为分布式信息同步的主节点地址，可以由第一个启动的节点自动打印或者直接由用户设置为参与任务的任意节点 ip 和任意可用端口，也可使用环境变量 PADDLE_MASTER 设置
-
-> master 支持使用 etcd 服务，当使用 etcd 服务时，需要同时指定任务 id，--job_id 或者设置环境变量 PADDLE_JOB_ID 以避免任务间冲突。
-
-准备好上述两个参数即可使用以下命令启动分布式训练
+启动分布式训练的命令如下，
+这个命令需要在每个参与训练的节点上执行（每个节点上的 `--master`都设置为同一个），如节点较多可以考虑使用 `ssh` 脚本或 `mpirun` 进行跨节点命令分发。
 
 ```python
 python -m paddle.distributed.launch --master=10.10.1.1:49178 --nnodes=2 train.py
 ```
 
-> 上述命令需要在每个参与训练的节点上执行（每个节点上的 `--master`都设置为同一个），如节点较多可以考虑使用 `ssh` 脚本或 `mpirun` 进行跨节点命令分发。
+这里用到了分布式启动最重要的两个参数
+
+- `--nnodes` 为分布式任务的节点个数（一般为参与任务的机器数量），默认为 1 即启动单机任务，也可使用环境变量 PADDLE_NNODES 设置
+
+- `--master` 为分布式信息同步的主节点地址，ip:port 格式，可以由第一个启动的节点自动打印或者直接由用户设置为参与任务的任意节点 ip 和任意可用端口，也可使用环境变量 PADDLE_MASTER 设置
+
+> master 支持使用 etcd 服务，当使用 etcd 服务时，需要同时指定任务 id 以避免任务间冲突。具体地，可以通过 --job_id 参数或者设置环境变量 PADDLE_JOB_ID 指定任务id。
+
 
 启动后，将看到如下日志，首先是配置部分
 
@@ -371,12 +368,7 @@ LAUNCH INFO 2022-07-20 12:10:15,864 --------------------------------------------
 python -m paddle.distributed.launch --help
 ```
 
-然后是任务启动的信息，每行对应的具体含义解释如下
-
-* 因为未设置 job_id，使用默认名称 default，启动的是 collective 模式，总共 2 个节点的分布式任务，不支持弹性（即节点数不可变）
-* 节点短暂处于等待其他节点启动的状态，如果其他节点已启动但日志长期处于等待状态，请根据 FAQ 进行排查
-* 任务准备启动，当前节点名为 bpdjev（该名称为随机生成）处于 ready 状态，当前节点包含 2 个进程（1 个进程对应 1 个 GPU）
-* 节点已启动，正在监控进程健康状态
+然后打印的是任务启动相关的信息：
 
 ```shell
 LAUNCH INFO 2022-07-20 12:10:15,864 Job: default, mode collective, replicas 2[2:2], elastic False
@@ -385,11 +377,18 @@ LAUNCH INFO 2022-07-20 12:10:25,860 Run Pod: bpdjev, replicas 2, status ready
 LAUNCH INFO 2022-07-20 12:10:25,883 Watching Pod: bpdjev, replicas 2, status running
 ```
 
+其中，每行对应的具体含义解释如下：
+
+* 因为未设置 job_id，使用默认名称 default，启动的是 collective 模式，总共 2 个节点的分布式任务，不支持弹性（即节点数不可变）
+* 节点短暂处于等待其他节点启动的状态，如果其他节点已启动但日志长期处于等待状态，请根据 [FAQ](#FAQ) 进行排查
+* 任务准备启动，当前节点名为 bpdjev（该名称为随机生成）处于 ready 状态，当前节点包含 2 个进程（1 个进程对应 1 个 GPU）
+* 节点已启动，正在监控进程健康状态
+
 至此分布式启动成功，接下来打印业务日志（即用户代码相关输出日志）
 
 ```shell
 I0720 12:10:27.763713 14071 tcp_utils.cc:181] The server starts to listen on IP_ANY:11061
-I0720 12:10:27.763914 14071 tcp_utils.cc:130] Successfully connected to 10.127.4.142:11061
+I0720 12:10:27.763914 14071 tcp_utils.cc:130] Successfully connected to 10.10.10.1:11061
 W0720 12:10:30.666985 14071 gpu_resources.cc:61] Please NOTE: device: 0, GPU Compute Capability: 7.0, Driver API Version: 11.2, Runtime API Version: 11.2
 W0720 12:10:30.675815 14071 gpu_resources.cc:91] device: 0, cuDNN Version: 8.1.
 2022-07-20 12:10:36,377-INFO: [topology.py:187:**init**] HybridParallelInfo: rank_id: 0, mp_degree: 1, sharding_degree: 1, pp_degree: 1, dp_degree: 4, mp_group: [0], sharding_group: [0], pp_group: [0], dp_group: [0, 1, 2, 3], check/clip group: [0]
@@ -421,20 +420,12 @@ LAUNCH INFO 2022-07-20 12:10:57,388 Exit code 0
 
 当有错误发生时，比如 GPU 卡被占用发生冲突时，会有如下输出
 
-* 错误提示 Pod failed 和 Container failed !!!
-
-* 错误的卡号（Container rank 6），错误命令和错误环境的环境变量
-
-* 具体的错误信息 trace，该部分取决于业务代码错误内容
-
-* 最后打印错误退出码
-
 ```shell
 LAUNCH INFO 2022-07-21 11:58:59,451 Pod failed
 LAUNCH ERROR 2022-07-21 11:58:59,452 Container failed !!!
 Container rank 6 status failed cmd ['/usr/bin/python', '-u', 'train.py'] code 1 log log/default.fxemxd.6.log 
-env {'GREP_COLOR': '1;31', 'CUDNN_VERSION': '8.1.1.33', 'LC_ALL': 'en_US.UTF-8', 'LD_LIBRARY_PATH': '/usr/local/lib/python3.7/dist-packages/cv2/../../lib64:/usr/local/cuda-11.2/targets/x86_64-linux/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64', 'LANG': 'en_US.UTF-8', 'HOSTNAME': 'yq01-sys-hic-k8s-v100-box-a225-0281.yq01.baidu.com', 'OLDPWD': '/home/kuizhiqing', 'WITH_GPU': 'ON', 'NVIDIA_VISIBLE_DEVICES': 'all', 'NCCL_VERSION': '2.8.4', 'GOPATH': '/root/gopath', 'PWD': '/home/kuizhiqing/workspace/Paddle', 'HOME': '/home/kuizhiqing', 'GOROOT': '/usr/local/go', 'CLICOLOR': '1', 'DEBIAN_FRONTEND': 'noninteractive', 'LIBRARY_PATH': '/usr/local/cuda/lib64/stubs', 'TERM': 'xterm', 'WITH_AVX': 'ON', 'CUDA_VERSION': '11.2.1', 'NVIDIA_DRIVER_CAPABILITIES': 'compute,utility', 'SHLVL': '1', 'LANGUAGE': 'en_US.UTF-8', 'NVIDIA_REQUIRE_CUDA': 'cuda>=11.2 brand=tesla,driver>=418,driver<419 brand=tesla,driver>=440,driver<441 driver>=450,driver<451', 'PATH': '/home/cmake-3.16.0-Linux-x86_64/bin:/usr/local/gcc-8.2/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/go/bin:/root/gopath/bin:/home/kuizhiqing/.fzf/bin', 'PS1': '\\[\\033[1;33m\\]kui \\[\\033[1;37m\\]\\h \\[\\033[1;32m\\]\\w\\[\\033[1;33m\\]$(__git_ps1 " \\[\\033[35m\\]{\\[\\033[36m\\]%s\\[\\033[35m\\]}")\\[\\033[0m\\] ', '_': '/usr/bin/python', 'CUSTOM_DEVICE_ROOT': '', 'OMP_NUM_THREADS': '1', 'QT_QPA_PLATFORM_PLUGIN_PATH': '/usr/local/lib/python3.7/dist-packages/cv2/qt/plugins', 'QT_QPA_FONTDIR': '/usr/local/lib/python3.7/dist-packages/cv2/qt/fonts', 'runtime_include_dir': '/usr/local/lib/python3.7/dist-packages/paddle/libs', 'POD_NAME': 'fxemxd', 'PADDLE_MASTER': '10.127.4.142:60216', 'PADDLE_GLOBAL_SIZE': '10', 'PADDLE_LOCAL_SIZE': '8', 'PADDLE_GLOBAL_RANK': '8', 'PADDLE_LOCAL_RANK': '6', 'PADDLE_NNODES': '2', 'PADDLE_TRAINER_ENDPOINTS': '10.127.4.142:49825,10.127.4.142:18781,10.127.4.142:53546,10.127.4.142:30837,10.127.4.142:11249,10.127.4.142:13092,10.127.4.142:11398,10.127.4.142:21309,10.127.4.142:47065,10.127.4.142:14834', 'PADDLE_CURRENT_ENDPOINT': '10.127.4.142:47065', 'PADDLE_TRAINER_ID': '8', 'PADDLE_TRAINERS_NUM': '10', 'PADDLE_RANK_IN_NODE': '6', 'FLAGS_selected_gpus': '6'}
-I0721 11:58:51.079766 29676 tcp_utils.cc:130] Successfully connected to 10.127.4.142:60216
+env {'GREP_COLOR': '1;31', 'CUDNN_VERSION': '8.1.1.33', 'LC_ALL': 'en_US.UTF-8', 'LD_LIBRARY_PATH': '/usr/local/lib/python3.7/dist-packages/cv2/../../lib64:/usr/local/cuda-11.2/targets/x86_64-linux/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64', 'LANG': 'en_US.UTF-8', 'HOSTNAME': 'yq01-sys-hic-k8s-v100-box-a225-0281.yq01.baidu.com', 'OLDPWD': '/home/kuizhiqing', 'WITH_GPU': 'ON', 'NVIDIA_VISIBLE_DEVICES': 'all', 'NCCL_VERSION': '2.8.4', 'GOPATH': '/root/gopath', 'PWD': '/home/kuizhiqing/workspace/Paddle', 'HOME': '/home/kuizhiqing', 'GOROOT': '/usr/local/go', 'CLICOLOR': '1', 'DEBIAN_FRONTEND': 'noninteractive', 'LIBRARY_PATH': '/usr/local/cuda/lib64/stubs', 'TERM': 'xterm', 'WITH_AVX': 'ON', 'CUDA_VERSION': '11.2.1', 'NVIDIA_DRIVER_CAPABILITIES': 'compute,utility', 'SHLVL': '1', 'LANGUAGE': 'en_US.UTF-8', 'NVIDIA_REQUIRE_CUDA': 'cuda>=11.2 brand=tesla,driver>=418,driver<419 brand=tesla,driver>=440,driver<441 driver>=450,driver<451', 'PATH': '/home/cmake-3.16.0-Linux-x86_64/bin:/usr/local/gcc-8.2/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/go/bin:/root/gopath/bin:/home/kuizhiqing/.fzf/bin', 'PS1': '\\[\\033[1;33m\\]kui \\[\\033[1;37m\\]\\h \\[\\033[1;32m\\]\\w\\[\\033[1;33m\\]$(__git_ps1 " \\[\\033[35m\\]{\\[\\033[36m\\]%s\\[\\033[35m\\]}")\\[\\033[0m\\] ', '_': '/usr/bin/python', 'CUSTOM_DEVICE_ROOT': '', 'OMP_NUM_THREADS': '1', 'QT_QPA_PLATFORM_PLUGIN_PATH': '/usr/local/lib/python3.7/dist-packages/cv2/qt/plugins', 'QT_QPA_FONTDIR': '/usr/local/lib/python3.7/dist-packages/cv2/qt/fonts', 'runtime_include_dir': '/usr/local/lib/python3.7/dist-packages/paddle/libs', 'POD_NAME': 'fxemxd', 'PADDLE_MASTER': '10.10.10.1:60216', 'PADDLE_GLOBAL_SIZE': '10', 'PADDLE_LOCAL_SIZE': '8', 'PADDLE_GLOBAL_RANK': '8', 'PADDLE_LOCAL_RANK': '6', 'PADDLE_NNODES': '2', 'PADDLE_TRAINER_ENDPOINTS': '10.10.10.1:49825,10.10.10.1:18781,10.10.10.1:53546,10.10.10.1:30837,10.10.10.1:11249,10.10.10.1:13092,10.10.10.1:11398,10.10.10.1:21309,10.10.10.1:47065,10.10.10.1:14834', 'PADDLE_CURRENT_ENDPOINT': '10.10.10.1:47065', 'PADDLE_TRAINER_ID': '8', 'PADDLE_TRAINERS_NUM': '10', 'PADDLE_RANK_IN_NODE': '6', 'FLAGS_selected_gpus': '6'}
+I0721 11:58:51.079766 29676 tcp_utils.cc:130] Successfully connected to 10.10.10.1:60216
 W0721 11:58:54.582710 29676 gpu_resources.cc:61] Please NOTE: device: 6, GPU Compute Capability: 7.0, Driver API Version: 11.2, Runtime API Version: 11.2
 W0721 11:58:54.590724 29676 gpu_resources.cc:91] device: 6, cuDNN Version: 8.1.
 Traceback (most recent call last):
@@ -454,13 +445,20 @@ OSError: (External) NCCL error(5), invalid usage.
 LAUNCH INFO 2022-07-21 11:59:00,655 Exit code -15
 ```
 
-请根据报错信息进行排查，部分错误请参考 FAQ。
+这当中主要包含以下信息：
+
+* 发生错误的提示 Pod failed 和 Container failed !!!
+* 错误的卡号（Container rank 6），错误命令和错误环境的环境变量
+* 具体的错误信息 trace，该部分取决于业务代码错误内容
+* 最后打印错误退出码 Exit code -15
+
+请根据报错信息进行排查，部分错误请参考 [FAQ](#FAQ)。
 
 #### Kubernetes部署
 
 在 kubernetes 上部署分布式任务需要安装 [paddle-operator](https://github.com/PaddleFlow/paddle-operator) 。
 
-paddle-operator 通过添加自定义资源类型 (paddlejob) 以及部署 controller 和一系列 kubernetes 原生组件的方式实现简单定义即可运行 paddle 任务的需求。
+paddle-operator 通过添加自定义资源类型 (paddlejob) 以及部署 controller 和一系列 kubernetes 原生组件的方式实现简单定义即可运行 PaddlePaddle 任务的需求。
 
 目前支持运行 ParameterServer (PS) 和 Collective 两种分布式任务，当然也支持运行单节点任务。
 
@@ -555,7 +553,7 @@ kubectl -n paddle-system get pods
 
 **paddlejob 任务提交**
 
-本resnet示例为 Collective 模式，使用 gpu 进行训练，只需要配置 worker，worker 配置中需要声明使用的 gpu 信息。
+本resnet示例为 Collective 模式，使用 GPU 进行训练，只需要配置 worker，worker 配置中需要声明使用的 GPU 信息。
 
 准备配置文件，
 
@@ -626,32 +624,157 @@ kubectl delete -f deploy/v1/crd.yaml -f deploy/v1/operator.yaml
 
 ### FAQ
 
-#### 机器端口有限制，需要使用固定端口
+#### 网络问题排查
 
-当集群环境限制通信网卡时需要手动配置所有 ip 和 port 以启动分布式，以机器 `10.10.10.1` 和机器 `10.10.10.2` 必须使用端口 8000-8999 的情况为例，
-假设每台机器有两个卡，使用如下脚本安装一个卡一个进程，依次启动进程
+请按照以下步骤排查网络问题
+
+**获取节点IP**
+
+使用命令 `hostname -i` 查看机器 ip，多网卡环境使用 `ifconfig` 命令查看(见上节)，获得 IP。
 
 ```shell
-# 所有卡 ip port 列表， ip1:port1,ip2:port2
-export PADDLE_TRAINER_ENDPOINTS=10.10.10.1:8000,10.10.10.1:8001,10.10.10.2:8000,10.10.10.2:8001
-# 所有卡数
-export PADDLE_TRAINERS_NUM=4       
-# 当前卡 ip:port
-export PADDLE_CURRENT_ENDPOINT=10.10.10.1:8000
-# 当前卡序号
-export PADDLE_TRAINER_ID=0  
-# 当前卡在节点内序号
-export PADDLE_RANK_IN_NODE=0     
-# 当前卡使用的 GPU 卡号
-export FLAGS_selected_gpus=0
-
-# 注意，这里不再使用 launch 启动，但本脚本需要运行多次
-python train.py
+$ hostname -i
+10.10.10.1
 ```
 
-注意在执行时，需要依次替换后面4个环境变量为对应值启动。
+如果这里得到的IP非预期使用的IP或者和日志中打印的IP不相符时，请根据后面小节排查是否是多网卡环境导致使用的网卡不一致。
+
+
+**确认节点间是否能通过ping连接**
+
+这里举例获得 ip 为 10.10.10.1，在其他节点上使用 `ping 10.10.10.1` 测试机器间是否能连接，有如下输出即为连接成功
+
+```shell
+$ ping 10.10.10.1 
+PING 10.10.10.1 (10.10.10.1) 56(84) bytes of data.
+64 bytes from 10.10.10.1: icmp_seq=1 ttl=61 time=0.089 ms
+64 bytes from 10.10.10.1: icmp_seq=2 ttl=61 time=0.057 ms
+64 bytes from 10.10.10.1: icmp_seq=3 ttl=61 time=0.059 ms
+64 bytes from 10.10.10.1: icmp_seq=4 ttl=61 time=0.078 ms
+64 bytes from 10.10.10.1: icmp_seq=5 ttl=61 time=0.055 ms
+^C
+--- 10.10.10.1 ping statistics ---
+5 packets transmitted, 5 received, 0% packet loss, time 4053ms
+rtt min/avg/max/mdev = 0.055/0.067/0.089/0.016 ms
+```
+
+长时间无输出或其他输出即无法连接，请联系机器网络管理员处理；
+
+**确认节点间是否能通过HTTP/TCP连接**
+
+在机器 `10.10.10.1`上运行命令 `python -m http.server 8090` 启动 http 服务，
+
+```shell
+$ python -m http.server 8090
+Serving HTTP on 0.0.0.0 port 8090 (http://0.0.0.0:8090/) ...
+```
+
+如果提示端口被占用请使用其他可用端口启动服务，然后在其他的机器上运行命令 
+`curl 10.10.10.1:8090`
+
+```shell
+$ curl 10.10.10.1:8090
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Directory listing for /</title>
+</head>
+<body>
+<h1>Directory listing for /</h1>
+<hr>
+<li><a href="train.py">train.py</a></li>
+</ul>
+<hr>
+</body>
+</html>
+```
+
+有类似以上输出则说明连接成功，否则两台机器间网络可能存在问题，尝试其他端口仍有问题需要联系网络管理员处理。
+
+**确认NCCL使用的网卡是否正确**
+
+首先，设置环境变量NCCL_DEBUG，查看NCCL当前使用的IP
+
+```shell
+export NCCL_DEBUG=INFO
+
+python -m paddle.distributed.launch train.py
+```
+
+在输出的信息中查找如下信息
+
+```shell
+[0] NCCL INFO NET/Socket : Using [0]eth0:10.10.10.1<0> [1]
+```
+
+表示 nccl 使用了名为 `eth0` ip 为 10.10.10.1 的网卡，如果需要使用其他网卡，需要在运行命令前添加环境变量
+
+```shell
+export NCCL_SOCKET_IFNAME=docker0
+```
+
+注意这里添加的时网卡名不是 ip，对应关系参照 `ifconfig` 的输出。
+
+**确认NCCL-Test是否运行正常**
+
+首先确认 NCCL 版本，使用如下命令启动分布式任务
+
+```shell
+export NCCL_DEBUG=INFO
+
+python -m paddle.distributed.launch train.py
+```
+
+在输出日志中找到 NCCL 版本信息
+
+```shell
+NCCL version 2.8.4+cuda11.2
+```
+
+确认各个节点的 NCCL 版本相同且高于 2.8。
+
+上述测试均正常但是无法跑通分布式环境测试时
+请使用 [nccl-test](https://github.com/NVIDIA/nccl-tests)  测试 GPU 通信是否正常。
+
+#### 多Python环境问题
+
+当工作环境中存在多个版本的 python 时可能存在不一致导致问题。
+
+检查 python 版本
+
+```shell
+$ python --version
+Python 3.7.12
+```
+
+检查 python 安装目录
+
+```shell
+$ which python
+/usr/bin/python
+```
+
+直接调用绝对路径验证版本
+
+```shell
+$ /usr/bin/python --version
+Python 3.7.12
+```
+
+如果两次打印的版本不匹配，可以通过使用绝对路径的方式解决。
+获取绝对路径需要知道需要安装目录，默认环境中可以通过以下命令查看安装的版本。
+
+```shell
+$ ls /usr/bin/python*
+/usr/bin/python   /usr/bin/python2.7  /usr/bin/python3.6   /usr/bin/python3.7
+```
+
+即当使用 python 时，使用绝对路径 `/usr/bin/python3.7` 替换。
 
 #### 自动获取 IP 错误（多网卡环境问题）
+
+使用 paddle.distributed.launch 会自动识别使用的 IP，在多网卡配置的环境中自动识别的网卡可能不是预期使用的网卡。
 
 首先可以通过 `ifconfig` 命令查看机器的网卡配置情况，例如
 
@@ -684,9 +807,9 @@ eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
         TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
 ```
 
-结果中虽然有3项甚至更多但这里只有一张 ip 为 `10.10.10.1` 网卡（inet值），docker0 为 docker 虚拟网卡 lo 为本地回路都不需要关注。
+结果中虽然有3项甚至更多但这里只有一张 ip 为 `10.10.10.1` 网卡（inet值），docker0 为 Docker 虚拟网卡， lo 为本地回路，都不需要关注。
 
-当启动时自动识别模式识别的网卡 ip 非预期网卡时可以使用 --host 参数手动配置 ip，如
+当启动分布式训练命令时，如果飞桨自动识别出的网卡IP不正确时，可以使用--host参数手动配置IP，如
 
 ```python
 python -m paddle.distributed.launch --master=10.10.10.1:49178 --nnodes=2 --host=10.10.10.1 train.py
@@ -694,125 +817,32 @@ python -m paddle.distributed.launch --master=10.10.10.1:49178 --nnodes=2 --host=
 
 > 当 --master 地址识别错误时，也需要手动替换。
 
-当 nccl 通信使用的 ip 非预期网卡时也需要手动配置，具体步骤如下，首先查看 nccl 当前使用的 ip，
+#### 机器端口有限制，需要使用固定端口
+
+当集群环境限制通信网卡时需要手动配置所有 ip 和 port 以启动分布式，以机器 `10.10.10.1` 和机器 `10.10.10.2` 必须使用端口 8000-8999 的情况为例，
+假设每台机器有两个卡，使用如下脚本设置每个卡对应进程的环境变量，依次启动进程。
 
 ```shell
-export NCCL_DEBUG=INFO
+# 所有卡 ip port 列表， ip1:port1,ip2:port2
+export PADDLE_TRAINER_ENDPOINTS=10.10.10.1:8000,10.10.10.1:8001,10.10.10.2:8000,10.10.10.2:8001
+# 所有卡数
+export PADDLE_TRAINERS_NUM=4       
+# 当前卡 ip:port
+export PADDLE_CURRENT_ENDPOINT=10.10.10.1:8000
+# 当前卡序号
+export PADDLE_TRAINER_ID=0  
+# 当前卡在节点内序号
+export PADDLE_RANK_IN_NODE=0     
+# 当前卡使用的 GPU 卡号
+export FLAGS_selected_gpus=0
 
-python -m paddle.distributed.launch train.py
+# 注意，这里不再使用 launch 启动，但本脚本需要运行多次
+python train.py
 ```
 
-在输出的信息中查找如下信息
+注意在执行时，需要依次替换后面4个环境变量为对应值启动。
 
-```shell
-[0] NCCL INFO NET/Socket : Using [0]eth0:10.10.10.1<0> [1]
-```
-
-表示 nccl 使用了名为 `eth0` ip 为 10.10.10.1 的网卡，如果需要使用其他网卡，需要在运行命令前添加环境变量
-
-```shell
-export NCCL_SOCKET_IFNAME=docker0
-```
-
-注意这里添加的时网卡名不是 ip，对应关系参照 `ifconfig` 的输出。
-
-#### 网络问题排查
-
-请按照以下步骤排查网络问题
-
-1. 使用命令 `hostname -i` 查看机器 ip，多网卡环境使用 `ifconfig` 命令查看(见上节)，获得 ip
-   
-   ```shell
-   $ hostname -i
-   10.10.10.1
-   ```
-
-2. 这里举例获得 ip 为 10.10.10.1，在其他节点上使用 `ping 10.10.10.1` 测试机器间是否能连接，有如下输出即为连接成功
-   
-   ```shell
-   $ ping 10.10.10.1 
-   PING 10.10.10.1 (10.10.10.1) 56(84) bytes of data.
-   64 bytes from 10.10.10.1: icmp_seq=1 ttl=61 time=0.089 ms
-   64 bytes from 10.10.10.1: icmp_seq=2 ttl=61 time=0.057 ms
-   64 bytes from 10.10.10.1: icmp_seq=3 ttl=61 time=0.059 ms
-   64 bytes from 10.10.10.1: icmp_seq=4 ttl=61 time=0.078 ms
-   64 bytes from 10.10.10.1: icmp_seq=5 ttl=61 time=0.055 ms
-   ^C
-   --- 10.10.10.1 ping statistics ---
-   5 packets transmitted, 5 received, 0% packet loss, time 4053ms
-   rtt min/avg/max/mdev = 0.055/0.067/0.089/0.016 ms
-   ```
-   
-    长时间无输出或其他输出即无法连接，请联系机器网络管理员处理；
-
-3. 在机器 `10.10.10.1`上运行命令 `python -m http.server 8090` 启动 http 服务，
-   
-   ```shell
-   $ python -m http.server 8090
-   Serving HTTP on 0.0.0.0 port 8090 (http://0.0.0.0:8090/) ...
-   ```
-   
-    如果提示端口被占用请使用其他可用端口启动服务，然后在其他的机器上运行命令 
-    `curl 10.10.10.1:8090`
-   
-   ```shell
-   $ curl 10.10.10.1:8090
-   <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
-   <html>
-   <head>
-   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-   <title>Directory listing for /</title>
-   </head>
-   <body>
-   <h1>Directory listing for /</h1>
-   <hr>
-   <li><a href="train.py">train.py</a></li>
-   </ul>
-   <hr>
-   </body>
-   </html>
-   ```
-   
-    有类似以上输出则说明连接成功，否则两台机器间网络可能存在问题，尝试其他端口仍有问题需要联系网络管理员处理。
-
-4. 上述测试均正常但是无法跑通分布式环境测试时，请先根据上节排查是否是多网卡环境导致使用的网卡不一致。仍有问题需要
-   使用 [nccl-test](https://github.com/NVIDIA/nccl-tests)  测试 GPU 通信是否正常。
-
-#### 多Python环境问题
-
-当工作环境中存在多个版本的 python 时可能存在不一致导致问题。
-
-检查 python 版本
-
-```shell
-$ python --version
-Python 3.7.12
-```
-
-检查 python 安装目录
-
-```shell
-$ which python
-/usr/bin/python
-```
-
-验证该版本
-
-```shell
-$ /usr/bin/python --version
-Python 3.7.12
-```
-
-如果版本不匹配，可以通过如下命令找到安装的多个版本，直接使用绝对路径
-
-```shell
-$ ls /usr/bin/python*
-/usr/bin/python   /usr/bin/python2.7  /usr/bin/python3.6   /usr/bin/python3.7
-```
-
-当使用 python 时，使用绝对路径 `/usr/bin/python3.7`。
-
-#### GPU/NCCL 问题排查
+#### 常用的通信问题排查
 
 GPU/NCCL 问题请先核对**版本是否匹配**，通过 `nvidia-smi` 查看是否有进程正在占用，仍有问题需要通过 [nccl-test](https://github.com/NVIDIA/nccl-tests)  测试。常见运行时错误和解决方法如下，
 
@@ -831,5 +861,5 @@ OSError: (External) NCCL error(5), invalid usage.
 ExternalError: Nccl error(2), unhandled system error
 ```
 
-原因和解决方法：该错误一般为 shm 设置太小，如果使用docker环境需要在启动docker时做映射和设置如 `--shm-size 32G`.
+原因和解决方法：该错误一般为 shm 设置太小，如果使用 Docker 环境需要在启动 Docker 时做映射和设置如 `--shm-size 32G`.
 
