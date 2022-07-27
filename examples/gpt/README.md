@@ -1,6 +1,6 @@
 # GPT
 
-## 模型介绍
+## 1.模型介绍
 GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)/[3](https://arxiv.org/pdf/2005.14165.pdf) 是以[Transformer](https://arxiv.org/abs/1706.03762) 解码器为网络基本组件，使用自回归的方式在大规模无标注文本语料上进行预训练得到的语言生成模型。
 
 本项目是语言模型 GPT 的 PaddlePaddle 大模型实现。下是本例的简要目录结构及说明：
@@ -26,7 +26,7 @@ GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupe
     ├── run.sh              # 训练启动入口
 ```
 
-## 快速开始
+## 2.快速开始
 
 ### 环境依赖
 
@@ -65,7 +65,7 @@ GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupe
 - [3D混合并行](./3D_parallelism/README.md)
 
 
-## 参考文献
+## 3.参考文献
 - [Language Models are Unsupervised Multitask Learners](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)
 - [Language Models are Few-Shot Learners](https://arxiv.org/pdf/2005.14165.pdf)
 - [CPM: A Large-scale Generative Chinese Pre-trained Language Model](https://arxiv.org/abs/2012.00413)

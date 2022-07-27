@@ -1,4 +1,3 @@
-# 175 B
 PreTraining:
   device: gpu
   max_steps: 500000
