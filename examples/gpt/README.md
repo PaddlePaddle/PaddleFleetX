@@ -58,9 +58,9 @@ GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupe
 
 - [单卡训练](./single/README.md)
 
-- 数据并行
+- [数据并行](./data_parallel/README.md)
 
-- [分组切分并行]
+- [分组切分并行](./group_shard/README.md)
 
 - [3D混合并行](./3D_parallelism/README.md)
 

@@ -19,7 +19,7 @@ import random
 import time
 import sys
 sys.path.append("..")
-from tools import parse_args, parse_yaml
+from examples.gpt.tools import parse_args, parse_yaml
 
 import numpy as np
 import paddle
