@@ -1,7 +1,7 @@
 # GPT 单卡模型训练
 
 
-## 2.模型网络
+## 1.模型网络
 
 网络部分完成了网络的组网操作，GPT在[FleetX/fleetx/models/gpt_model/modeling.py]([../../ppocr/modeling](https://github.com/PaddlePaddle/FleetX/tree/develop/fleetx/models/gpt_model))下。 
 可以使用配置文件配置模型的规模，如：
@@ -34,7 +34,7 @@
 
 
 
-## 3.优化器
+## 2.优化器
 
 
 GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过配置文件配置优化器的参数，如：
@@ -68,7 +68,7 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
 - `min_lr` Adam 的初始最小学习率。
 - `grad_clip` 梯度裁剪范围，使用的是GlobalNorm梯度惨案。
 
-## 4.训练控制
+## 3.训练控制
 
 通过配置文件配置训练相关的超参数，如：
 
@@ -121,7 +121,7 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
 - `ckpt_dir` checkpoint的加载目录
 
 
-## 运行方式
+## 4.运行方式
 
 以单机8卡为例，通过``paddle.distributed.launch``启动多进程训练。
 

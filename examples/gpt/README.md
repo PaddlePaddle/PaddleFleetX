@@ -52,7 +52,7 @@ GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupe
 ### 模型训练
 
 
-根据不同的模型大小，需要选择不同的并行策略。常见的分布式策略有几种：[数据并行](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/guides/06_distributed_training/data_parallel/index_cn.html)，[分组切分并行（group shard）](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/guides/06_distributed_training/group_sharded_parallel_cn.html)，3D混合并行。
+根据不同的模型大小，需要选择不同的并行策略。常见的分布式策略有几种：数据并行，分组切分并行（group shard），3D混合并行。
 
 
 

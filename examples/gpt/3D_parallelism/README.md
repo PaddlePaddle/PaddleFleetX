@@ -9,7 +9,7 @@
 - [数据并行](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/guides/06_distributed_training/data_parallel/index_cn.html)
 
 
-## 3D混合并行
+## 1.3D混合并行
 当前GPT模型已适配3D混合并行，并能够在训练超大模型，用户可以通过配置文件选择并行的维度。
 
 ```yaml
@@ -25,7 +25,7 @@
 - `pp_degree` 流水线并行维度
 
 
-## 运行方式
+## 2.运行方式
 
 
 以单机8卡为例，通过``paddle.distributed.launch``启动多进程训练。
@@ -36,7 +36,7 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
     -c ./configs.yaml
 ```
 
-## 运行日志
+运行日志:
 
 模型切分信息：
 ```
