@@ -56,16 +56,13 @@ GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupe
 
 
 
-#### 单卡训练
+- [单卡训练](./single/README.md)
 
+- 数据并行
 
-#### 数据并行
+- [分组切分并行]
 
-
-#### group shard并行
-
-
-#### 3D混合并行
+- [3D混合并行](./3D_parallelism/README.md)
 
 
 ## 参考文献
