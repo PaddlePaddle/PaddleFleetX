@@ -19,7 +19,7 @@ import random
 import time
 import sys
 sys.path.append("..")
-from args import parse_args
+from tools import parse_args, parse_yaml
 
 import numpy as np
 import paddle
@@ -271,5 +271,5 @@ def do_train(args):
 
 
 if __name__ == "__main__":
-    args = parse_args()
+    args = parse_yaml(parse_args().config)
     do_train(args)
