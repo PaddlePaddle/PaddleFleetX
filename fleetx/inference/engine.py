@@ -34,6 +34,19 @@ class _StaticGuard(object):
 
 
 class TensorRTConfig(object):
+    """
+    Configuration for TensorRT
+
+    Args:
+        max_batch_size (int): the maximum batch size for inference
+        min_subgraph_size (int): the minimum subgraph size for TensorRT
+        precision (string): precision for inference, can be 'fp32', 'fp16', 'int8'
+        use_static (bool): whether to save and use serialized engine
+        use_calib_mode (bool): whether to use calibration mode
+        collect_shape (bool): whether to use collect dynamic shape mode
+        shape_range_info_filename (bool): path of dynmaic shape information file
+    """
+
     def __init_(self,
                 max_batch_size=1,
                 min_subgraph_size=3,
@@ -92,6 +105,15 @@ class TensorRTConfig(object):
 
 
 class InferenceEngine(object):
+    """
+    Model Parallel Inference Engine
+
+    Args:
+        model_dir (string): root directory of inference model
+        mp_size (int): model parallel size
+        tensorrt_config (TensorRTConfig): configuration of TensorRT engine, see `fleetx.inference.TensorRTConfig`
+    """
+
     def __init__(self, model_dir, mp_size=1, tensorrt_config=None):
         self.model_dir = model_dir
         self.mp_size = mp_size
