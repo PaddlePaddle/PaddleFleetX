@@ -40,7 +40,7 @@
 首先下载样例数据：
 ```
 mkdir data && cd data
-wget https://bj.bcebos.com/paddlefleetx/models/transformers/data_tools/baike.txt
+wget https://fleet.bj.bcebos.com/datasets/gpt/wikitext-103-en.txt
 cd ..
 ```
 ### 原始数据转换 jsonl 格式
@@ -96,7 +96,7 @@ optional arguments:
   -h, --help            show this help message and exit
   --model_name MODEL_NAME
                         What model to use.
-                        必须设置，如：ernie-1.0-base-zh, 可以参考已有的模型名称 https://paddlenlp.readthedocs.io/zh/latest/model_zoo/index.html#transformer
+                        必须设置，如：gpt2
   --tokenizer_name {ErnieTokenizer,BertTokenizer,GPTTokenizer,GPTChineseTokenizer}
                         What type of tokenizer to use.
                         模型对应的tokenizer, 目前暂时只支持 Ernie，Bert，GPT
@@ -142,7 +142,7 @@ common config:
                         处理文本id化的进程个数。
 ```
 通过下面脚本转化，我们可以得到处理好的预训练数据，token ids:`wikitext_103_en.npy`, 文章索引信息`wikitext_103_en.npz`.
-在使用 `GPTTokenizer` 时需要用到 `gpt2-vocab.json` 与 `gpt2-merges.txt`，如果没有下载缓存过这两个文件，脚本会自动下载并缓存。当遇到网络问题时，可以自行下载并将这两个文件放置在 `~/.cache/cached_path/` 目录下。
+在使用 `GPTTokenizer` 时需要用到 `gpt2-vocab.json` 与 `gpt2-merges.txt`，如果没有下载缓存过这两个文件，脚本会自动下载并缓存。当遇到网络问题时，可以自行下载并将这两个文件放置在 `~/.cache/fleetx/` 目录下。
 ``` 
 python -u preprocess_data.py \
     --model_name gpt2 \

@@ -1,6 +1,6 @@
 regex
 colorlog
 colorama
-cached_path >= 1.1.5
 inspect
 omegaconf
+tqdm
