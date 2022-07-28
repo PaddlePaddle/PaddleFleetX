@@ -4,23 +4,23 @@
 
 部署环境进行大模型训练，需要满足以下配置要求：
 
-* Linux 操作系统，推荐 Ubuntu 18+ 或 Centos 6/7
+* Linux 操作系统，推荐 Ubuntu 18+ 或 CentOS 6+.
 
-* Python 环境 3.6+
+* Python 环境 3.6+.
 
-* GPU 支持，CUDA 10.2+ 和 NCCL 2.8+，具体支持情况见 [安装](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/pip/linux-pip.html)
+* GPU 支持，CUDA 10.2+ 和 NCCL 2.8+，具体支持情况见 [安装](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/pip/linux-pip.html).
 
-* 【可选】[Docker](https://docs.docker.com/engine/install/) 19.03+，同时需要安装 [nvida-container-runtime](https://github.com/NVIDIA/nvidia-container-runtime) 以使用 GPU
+* 【可选】[Docker](https://docs.docker.com/engine/install/) 19.03+，同时需要安装 [nvida-container-runtime](https://github.com/NVIDIA/nvidia-container-runtime) 以使用 GPU.
 
-* 【可选】[Kubernetes](https://github.com/kubernetes/kubernetes) 1.16+，同时需要安装 [k8s-device-plugin](https://github.com/NVIDIA/k8s-device-plugin) 以使用 GPU
+* 【可选】[Kubernetes](https://github.com/kubernetes/kubernetes) 1.16+，同时需要安装 [k8s-device-plugin](https://github.com/NVIDIA/k8s-device-plugin) 以使用 GPU.
 
-* 【建议】大模型训练多机间带宽建议 25Gbps 及以上，否则可能有性能问题，可使用 [iperf](https://github.com/esnet/iperf) 工具进行测试
+* 【建议】大模型训练多机间带宽建议 25Gbps 及以上，否则可能有性能问题，可使用 [iperf](https://github.com/esnet/iperf) 工具进行测试。
 
-以上配置中 Docker 和 kubernetes 的使用为可选配置，一般地
+以上配置中 Docker 和 Kubernetes 的使用为可选配置，一般地，
 
-* 强烈推荐在系统中安装 Docker 或类似工具来配置基础环境，简化配置工作
+* 强烈推荐在系统中安装 Docker 或类似工具来配置基础环境，简化配置工作。
 
-* 当机器数量较多（5+）且长期使用时，建议使用 kubernetes 或类似集群管理工具进行集群管理
+* 当机器数量较多（5+）且长期使用时，建议使用 Kubernetes 或类似集群管理工具进行集群管理。
 
 ### 安装部署流程
 
@@ -35,7 +35,7 @@ python -m pip install paddlepaddle-gpu==2.3.1.post112 -f https://www.paddlepaddl
 
 **Docker 安装**
 
-根据环境在 [安装文档](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/docker/linux-docker.html) 选择对应的版本拉取预装 PaddlePaddle 的 Docker 镜像
+根据环境在 [安装文档](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/docker/linux-docker.html) 选择对应的版本拉取预装 PaddlePaddle 的 Docker 镜像。
 
 ```shell
 docker pull registry.baidubce.com/paddlepaddle/paddle:2.3.1-gpu-cuda11.2-cudnn8
@@ -43,19 +43,19 @@ docker pull registry.baidubce.com/paddlepaddle/paddle:2.3.1-gpu-cuda11.2-cudnn8
 
 **启动环境**
 
-如果已安装和配置 [nvida-container-runtime](https://github.com/NVIDIA/nvidia-container-runtime)，使用如下命令启动 Docker 即进入工作环境
+如果已安装和配置 [nvida-container-runtime](https://github.com/NVIDIA/nvidia-container-runtime)，使用如下命令启动 Docker 即进入工作环境。
 
 ```shell
 docker run -it --name paddle --net=host -v /dev/shm:/dev/shm -v $PWD:/paddle registry.baidubce.com/paddlepaddle/paddle:2.3.1-gpu-cuda11.2-cudnn8 bash
 ```
 
-如果使用 [nvidia-docker]([https://github.com/NVIDIA/nvidia-docker) 工具则使用如下命令启动工作环境
+如果使用 [nvidia-docker]([https://github.com/NVIDIA/nvidia-docker) 工具则使用如下命令启动工作环境。
 
 ```shell
 nvidia-docker run -it --name paddle --net=host -v /dev/shm:/dev/shm -v $PWD:/paddle registry.baidubce.com/paddlepaddle/paddle:2.3.1-gpu-cuda11.2-cudnn8 bash
 ```
 
-其他情况如 Centos 6 未安装上述工具的情况可以复制以下命令启动工作环境
+其他情况如 Centos 6 未安装上述工具的情况可以复制以下命令启动工作环境。
 
 ```shell
 export CUDA_SO="$(\ls /usr/lib64/libcuda* | grep -v : | xargs -I{} echo '-v {}:{}') $(\ls /usr/lib64/libnvidia* | grep -v : | xargs -I{} echo '-v {}:{}')"
@@ -71,7 +71,7 @@ ${CUDA_SO} ${DEVICES} \
 registry.baidubce.com/paddlepaddle/paddle:2.3.1-gpu-cuda11.2-cudnn8 bash
 ```
 
-> 为保证通信效率和通信正常，添加参数 --net=host 使用主机网络，更多 docker run 参数说明请参考 [docker 文档](https://docs.docker.com/engine/reference/commandline/run/)
+> 为保证通信效率和通信正常，添加参数 --net=host 使用主机网络，更多 docker run 参数说明请参考 [docker 文档](https://docs.docker.com/engine/reference/commandline/run/)。
 
 #### 验证安装
 
@@ -134,7 +134,7 @@ Thu Jul 21 19:32:03 2022
 
 * CUDA Version栏显示的是当前环境中的CUDA版本号，此处为11.2。开始使用飞桨前，请先保证此处CUDA Version显示正常。如果CUDA Version栏不显示版本号，则需要添加CUDA相关库的路径到环境变量`LD_LIBRARY_PATH`中，具体请参考[文档](https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html)。
 * Memory-Usage 列显示的是当前的显存占用值，此处为0MiB，表示当前设备的显存未被占用；GPU-Util 列显示的是当前的GPU利用率，此处为0%，表示当前设备空闲，可以使用。开始使用飞桨前，请保证当前设备显存充足，且利用率处于空闲状态。
-* 最后的 Processes 信息表示正在使用设备的进程，Docker 内可能存在不准确的情况，不影响使用
+* 最后的 Processes 信息表示正在使用设备的进程，Docker 内可能存在不准确的情况，不影响使用。
 
 **PaddlePaddle 安装验证**
 
@@ -163,17 +163,17 @@ PaddlePaddle is installed successfully! Let's start deep learning with PaddlePad
 请先确保**各个机器**的 PaddlePaddle 环境已经正确安装，然后在等待验证的其中一个节点上运行如下命令
 
 ```shell
-python -m paddle.distributed.launch test
+python -m paddle.distributed.launch run_check
 ```
 
 > 默认验证 2 机分布式环境，如果需要验证更多机器（例如4个）环境下飞桨分布式是否运行正常，请添加节点数参数 --nnodes，具体命令如下：
 > 
-> `python -m paddle.distributed.launch --nnodes=4 test`
+> `python -m paddle.distributed.launch --nnodes=4 run_check`
 
 预期输出如下
 
 ```shell
-LAUNCH INFO 2022-07-20 09:38:33,349 PaddlePaddle Distributed Test begin...
+LAUNCH INFO 2022-07-20 09:38:33,349 PaddlePaddle Distributed Check begin...
 LAUNCH INFO 2022-07-20 09:38:33,358 -----------  Configuration  ----------------------
 LAUNCH INFO 2022-07-20 09:38:33,358 devices: None
 LAUNCH INFO 2022-07-20 09:38:33,358 elastic_level: -1
@@ -202,14 +202,14 @@ LAUNCH INFO 2022-07-20 09:38:33,360 Job: default, mode collective, replicas 2[2:
 LAUNCH INFO 2022-07-20 09:38:33,367 Waiting peer start...
 Copy the following command to other nodes to run.
 --------------------------------------------------------------------------------
-python -m paddle.distributed.launch --master 10.10.1.1:49178 test
+python -m paddle.distributed.launch --master 10.10.1.1:49178 run_check
 --------------------------------------------------------------------------------
 ```
 
 根据提示，复制最后的命令，在其他节点上粘贴执行
 
 ```shell
-python -m paddle.distributed.launch --master 10.10.1.1:49178 test
+python -m paddle.distributed.launch --master 10.10.1.1:49178 run_check
 ```
 
 执行后，如果配置正常则每个节点都会有后续输出
@@ -239,7 +239,7 @@ LAUNCH INFO 2022-07-20 09:46:57,085 Exit code 0
 
 在启动分布式任务前需要确保各个节点上安装好 PaddlePaddle 环境，同步好数据和代码。
 
-例如准备好训练代码 `train.py`，同步至每个训练节点的工作目录
+例如准备好训练代码 `train.py`，同步至每个训练节点的工作目录。
 
 ```python
 import numpy as np
@@ -326,9 +326,9 @@ python -m paddle.distributed.launch --master=10.10.1.1:49178 --nnodes=2 train.py
 
 这里用到了分布式启动最重要的两个参数
 
-- `--nnodes` 为分布式任务的节点个数（一般为参与任务的机器数量），默认为 1 即启动单机任务，也可使用环境变量 PADDLE_NNODES 设置
+- `--nnodes` 为分布式任务的节点个数（一般为参与任务的机器数量），默认为 1 即启动单机任务，也可使用环境变量 PADDLE_NNODES 设置。
 
-- `--master` 为分布式信息同步的主节点地址，ip:port 格式，可以由第一个启动的节点自动打印或者直接由用户设置为参与任务的任意节点 ip 和任意可用端口，也可使用环境变量 PADDLE_MASTER 设置
+- `--master` 为分布式信息同步的主节点地址，ip:port 格式，可以由第一个启动的节点自动打印或者直接由用户设置为参与任务的任意节点 ip 和任意可用端口，也可使用环境变量 PADDLE_MASTER 设置。
 
 > master 支持使用 etcd 服务，当使用 etcd 服务时，需要同时指定任务 id 以避免任务间冲突。具体地，可以通过 --job_id 参数或者设置环境变量 PADDLE_JOB_ID 指定任务id。
 
@@ -362,7 +362,7 @@ LAUNCH INFO 2022-07-20 12:10:15,864 with_gloo: 1
 LAUNCH INFO 2022-07-20 12:10:15,864 --------------------------------------------------
 ```
 
-这里打印分布式启动时的配置信息， 更多 launch 启动参数和用法请参考 [API 文档](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/api/paddle/distributed/launch_cn.html) 或通过以下命令获得
+这里打印分布式启动时的配置信息， 更多 launch 启动参数和用法请参考 [API 文档](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/api/paddle/distributed/launch_cn.html) 或通过以下命令获得。
 
 ```shell
 python -m paddle.distributed.launch --help
@@ -379,10 +379,10 @@ LAUNCH INFO 2022-07-20 12:10:25,883 Watching Pod: bpdjev, replicas 2, status run
 
 其中，每行对应的具体含义解释如下：
 
-* 因为未设置 job_id，使用默认名称 default，启动的是 collective 模式，总共 2 个节点的分布式任务，不支持弹性（即节点数不可变）
-* 节点短暂处于等待其他节点启动的状态，如果其他节点已启动但日志长期处于等待状态，请根据 [FAQ](#FAQ) 进行排查
-* 任务准备启动，当前节点名为 bpdjev（该名称为随机生成）处于 ready 状态，当前节点包含 2 个进程（1 个进程对应 1 个 GPU）
-* 节点已启动，正在监控进程健康状态
+* 因为未设置 job_id，使用默认名称 default，启动的是 collective 模式，总共 2 个节点的分布式任务，不支持弹性（即节点数不可变）。
+* 节点短暂处于等待其他节点启动的状态，如果其他节点已启动但日志长期处于等待状态，请根据 [FAQ](#FAQ) 进行排查。
+* 任务准备启动，当前节点名为 bpdjev（该名称为随机生成）处于 ready 状态，当前节点包含 2 个进程（1 个进程对应 1 个 GPU）。
+* 节点已启动，正在监控进程健康状态。
 
 至此分布式启动成功，接下来打印业务日志（即用户代码相关输出日志）
 
@@ -447,24 +447,24 @@ LAUNCH INFO 2022-07-21 11:59:00,655 Exit code -15
 
 这当中主要包含以下信息：
 
-* 发生错误的提示 Pod failed 和 Container failed !!!
-* 错误的卡号（Container rank 6），错误命令和错误环境的环境变量
-* 具体的错误信息 trace，该部分取决于业务代码错误内容
-* 最后打印错误退出码 Exit code -15
+* 发生错误的提示 Pod failed 和 Container failed !!!.
+* 错误的卡号（Container rank 6），错误命令和错误环境的环境变量。
+* 具体的错误信息 trace，该部分取决于业务代码错误内容。
+* 最后打印错误退出码 Exit code -15.
 
 请根据报错信息进行排查，部分错误请参考 [FAQ](#FAQ)。
 
 #### Kubernetes部署
 
-在 kubernetes 上部署分布式任务需要安装 [paddle-operator](https://github.com/PaddleFlow/paddle-operator) 。
+在 Kubernetes 上部署分布式任务需要安装 [paddle-operator](https://github.com/PaddleFlow/paddle-operator) 。
 
-paddle-operator 通过添加自定义资源类型 (paddlejob) 以及部署 controller 和一系列 kubernetes 原生组件的方式实现简单定义即可运行 PaddlePaddle 任务的需求。
+paddle-operator 通过添加自定义资源类型 (paddlejob) 以及部署 controller 和一系列 Kubernetes 原生组件的方式实现简单定义即可运行 PaddlePaddle 任务的需求。
 
 目前支持运行 ParameterServer (PS) 和 Collective 两种分布式任务，当然也支持运行单节点任务。
 
 **paddle-operator 安装**
 
-安装 paddle-operator 需要有已经安装的 kubernetes (v1.16+) 集群和 [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) (v1.16+) 工具。
+安装 paddle-operator 需要有已经安装的 Kubernetes (v1.16+) 集群和 [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) (v1.16+) 工具。
 
 本节所需配置文件和示例可以在 [这里](https://github.com/PaddleFlow/paddle-operator/tree/main/deploy) 找到，
 可以通过 *git clone* 或者复制文件内容保存。
@@ -591,7 +591,7 @@ spec:
 
 注意：
 
-* 这里需要添加 shared memory 挂载以防止缓存出错；
+* 这里需要添加 shared memory 挂载以防止缓存出错。
 * 本示例采用内置 flower 数据集，程序启动后会进行下载，根据网络环境可能等待较长时间。
 
 提交任务: 使用 kubectl 提交 yaml 配置文件以创建任务，
@@ -612,7 +612,7 @@ kubectl delete -f deploy/v1/crd.yaml -f deploy/v1/operator.yaml
 
 #### 公有云和私有云部署
 
-在公有云上运行 PaddlePaddle 分布式建议通过选购容器引擎服务的方式，各大云厂商都推出了基于标准 kubernetes 的云产品，然后根据上节中的教程安装使用即可。
+在公有云上运行 PaddlePaddle 分布式建议通过选购容器引擎服务的方式，各大云厂商都推出了基于标准 Kubernetes 的云产品，然后根据上节中的教程安装使用即可。
 
 | 云厂商 | 容器引擎 | 链接                                           |
 | --- | ---- | -------------------------------------------- |
@@ -658,7 +658,7 @@ PING 10.10.10.1 (10.10.10.1) 56(84) bytes of data.
 rtt min/avg/max/mdev = 0.055/0.067/0.089/0.016 ms
 ```
 
-长时间无输出或其他输出即无法连接，请联系机器网络管理员处理；
+长时间无输出或其他输出即无法连接，请联系机器网络管理员处理。
 
 **确认节点间是否能通过HTTP/TCP连接**
 
@@ -692,33 +692,9 @@ $ curl 10.10.10.1:8090
 
 有类似以上输出则说明连接成功，否则两台机器间网络可能存在问题，尝试其他端口仍有问题需要联系网络管理员处理。
 
-**确认NCCL使用的网卡是否正确**
+**确认NCCL是否运行正常**
 
-首先，设置环境变量NCCL_DEBUG，查看NCCL当前使用的IP
-
-```shell
-export NCCL_DEBUG=INFO
-
-python -m paddle.distributed.launch train.py
-```
-
-在输出的信息中查找如下信息
-
-```shell
-[0] NCCL INFO NET/Socket : Using [0]eth0:10.10.10.1<0> [1]
-```
-
-表示 nccl 使用了名为 `eth0` ip 为 10.10.10.1 的网卡，如果需要使用其他网卡，需要在运行命令前添加环境变量
-
-```shell
-export NCCL_SOCKET_IFNAME=docker0
-```
-
-注意这里添加的时网卡名不是 ip，对应关系参照 `ifconfig` 的输出。
-
-**确认NCCL-Test是否运行正常**
-
-首先确认 NCCL 版本，使用如下命令启动分布式任务
+首先，设置环境变量NCCL_DEBUG，查看NCCL版本和当前使用的IP
 
 ```shell
 export NCCL_DEBUG=INFO
@@ -733,6 +709,20 @@ NCCL version 2.8.4+cuda11.2
 ```
 
 确认各个节点的 NCCL 版本相同且高于 2.8。
+
+以及在输出的信息中查找如下信息
+
+```shell
+[0] NCCL INFO NET/Socket : Using [0]eth0:10.10.10.1<0> [1]
+```
+
+表示 nccl 使用了名为 `eth0` ip 为 10.10.10.1 的网卡，如果需要使用其他网卡，需要在运行命令前添加环境变量
+
+```shell
+export NCCL_SOCKET_IFNAME=eth1
+```
+
+注意这里添加的时网卡名不是 ip，对应关系参照 `ifconfig` 的输出。
 
 上述测试均正常但是无法跑通分布式环境测试时
 请使用 [nccl-test](https://github.com/NVIDIA/nccl-tests)  测试 GPU 通信是否正常。
