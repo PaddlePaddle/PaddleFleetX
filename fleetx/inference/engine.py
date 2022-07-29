@@ -19,7 +19,7 @@ from collections.abc import Sequence, Mapping
 import paddle
 import paddle.distributed.fleet as fleet
 
-__all__ = ['TensorRTConfig', 'InferenceEngine']
+__all__ = ['InferenceEngine']
 
 
 class _StaticGuard(object):
@@ -33,77 +33,6 @@ class _StaticGuard(object):
         paddle.disable_static()
 
 
-class TensorRTConfig(object):
-    """
-    Configuration for TensorRT
-
-    Args:
-        max_batch_size (int): the maximum batch size for inference
-        min_subgraph_size (int): the minimum subgraph size for TensorRT
-        precision (string): precision for inference, can be 'fp32', 'fp16', 'int8'
-        use_static (bool): whether to save and use serialized engine
-        use_calib_mode (bool): whether to use calibration mode
-        collect_shape (bool): whether to use collect dynamic shape mode
-        shape_range_info_filename (bool): path of dynmaic shape information file
-    """
-
-    def __init_(self,
-                max_batch_size=1,
-                min_subgraph_size=3,
-                precision='fp16',
-                use_static=False,
-                use_calib_mode=False,
-                collect_shape=False,
-                shape_range_info_filename=None):
-        self.max_batch_size = max_batch_size
-        self.min_subgraph_size = min_subgraph_size
-        self.precision = precision
-        self.use_static = use_static
-        self.use_calib_mode = use_calib_mode
-
-        self.collect_shape = collect_shape
-        self.shape_range_info_filename = shape_range_info_filename
-        if not collect_shape:
-            assert os.path.isfile(self.shape_range_info_filename), \
-                    "not in collect_shape mode but shape_range_info_filename not found"
-
-    @property
-    def precision(self):
-        precision_map = {
-            "int8": paddle_infer.PrecisionType.Int8,
-            "fp16": paddle_infer.PrecisionType.Half,
-            "fp32": paddle_infer.PrecisionType.Float32
-        }
-        return precision_map[self.precision]
-
-    @precision.setter
-    def precision(self, value):
-        assert value in ['fp32', 'fp16', 'int8'], \
-                "only support tensorrt precision 'fp32', 'fp16', 'int8'"
-        self.precision = value
-
-    @property
-    def collect_shape(self):
-        return self.collect_shape
-
-    @collect_shape.setter
-    def collect_shape(self, value):
-        if not value:
-            assert os.path.isfile(self.shape_range_info_filename), \
-                    "not in collect_shape mode but shape_range_info_filename not found"
-        self.collect_shape = value
-
-    @property
-    def shape_range_info_filename(self):
-        return self.shape_range_info_filename
-
-    @shape_range_info_filename.setter
-    def shape_range_info_filename(self, value):
-        assert os.path.isfile(self.shape_range_info_filename), \
-                "shape_range_info_filename not exists"
-        self.shape_range_info_filename = value
-
-
 class InferenceEngine(object):
     """
     Model Parallel Inference Engine
@@ -111,18 +40,15 @@ class InferenceEngine(object):
     Args:
         model_dir (string): root directory of inference model
         mp_size (int): model parallel size
-        tensorrt_config (TensorRTConfig): configuration of TensorRT engine, see `fleetx.inference.TensorRTConfig`
     """
 
-    def __init__(self, model_dir, mp_size=1, tensorrt_config=None):
+    def __init__(self, model_dir, mp_size=1):
         self.model_dir = model_dir
         self.mp_size = mp_size
 
         self.nranks = fleet.worker_num()
         self.rank = fleet.worker_index()
         self._check_model()
-
-        self.tensorrt_config = tensorrt_config
 
         self._static_guard = _StaticGuard()
         with self._static_guard:
@@ -191,23 +117,6 @@ class InferenceEngine(object):
         dist_config.set_comm_init_config(config_fname)
         config.set_dist_config(dist_config)
 
-        # TensorRT config
-        if self.tensorrt_config:
-            config.enable_tensorrt_engine(
-                max_batch_size=self.tensorrt_config.max_batch_size,
-                workspace_size=self.tensorrt_config.workspace_size,
-                min_subgraph_size=self.tensorrt_config.min_subgraph_size,
-                precision_mode=self.tensorrt_config.precision,
-                use_static=self.tensorrt_config.use_static,
-                use_calib_mode=self.tensorrt_config.use_calib_mode)
-
-            if self.tensorrt_config.collect_shape:
-                config.collect_shape_range_info(
-                    self.tensorrt_config.shape_range_info_filename)
-            else:
-                config.enable_tuned_tensorrt_dynamic_shape(
-                    self.tensorrt_config.shape_range_info_filename, True)
-
         self.predictor = paddle.inference.create_predictor(config)
 
     def input_names(self):
@@ -236,3 +145,46 @@ class InferenceEngine(object):
             self.predictor.run()
             return {name: self.predictor.get_output_handle(name).copy_to_cpu() \
                     for name in self.output_names()}
+
+
+def main():
+    from paddlenlp.transformers import GPTTokenizer
+
+    fleet.init(is_collective=True)
+    infer_engine = InferenceEngine("./inference_model_pp1mp2")
+    tokenizer = GPTTokenizer.from_pretrained("gpt2-en")
+
+    text = [
+        "Question: Who is the CEO of Apple? Answer:",
+        "Question: Who is the CEO of Facebook? Answer:",
+        "Question: How tall is the highest peak in the world? Answer:",
+        "Question: Who is the president of the united states? Answer:",
+        "Question: Where is the capital of France? Answer:",
+        "Question: What is the largest animal in the ocean? Answer:",
+        "Question: Who is the chancellor of Germany? Answer:",
+    ]
+
+    inputs = tokenizer(
+        text,
+        padding=True,
+        return_attention_mask=True,
+        return_position_ids=True)
+    ids = np.array(inputs["input_ids"]).reshape(len(text), -1).astype('int64')
+    attention_mask = np.array(inputs["attention_mask"]).reshape(
+        len(text), -1).astype('float32')
+    position_ids = np.array(inputs["position_ids"]).reshape(len(text),
+                                                            -1).astype('int64')
+
+    data = [ids, attention_mask, position_ids]
+
+    outs = infer_engine.predict(data)
+    for k, v in outs.items():
+        for i in range(v.shape[0]):
+            out_ids = [int(x) for x in v[i]]
+            ret_str = tokenizer.convert_ids_to_string(out_ids)
+            ret_str = text[i] + ret_str
+            print(ret_str)
+
+
+if __name__ == "__main__":
+    main()
