@@ -68,6 +68,7 @@ def run_evaluate(args,
         tokens, loss_mask, position_ids, labels = batch
         if args.pp_degree < 2:
             preds = model(tokens, position_ids)
+            preds = paddle.cast(preds, dtype="float32")
             loss = criterion(preds, labels, loss_mask)
         else:
             data = [(tokens, position_ids), (labels, loss_mask)]
@@ -263,8 +264,6 @@ def do_train(args):
                     os.makedirs(output_dir, exist_ok=True)
                     logger.info("Save model to %s" % output_dir)
                     if args.pp_degree > 1:
-                        if mp_rank == 0 and pp_rank == 0:
-                            tokenizer.save_pretrained(output_dir)
                         model_to_save.save_state_dict(output_dir)
                         paddle.save(
                             optimizer.state_dict(),
@@ -273,8 +272,6 @@ def do_train(args):
                                 "model_state_mp_{:0>2d}_pp_{:0>2d}.pdopt".
                                 format(mp_rank, pp_rank)))
                     else:
-                        if mp_rank == 0:
-                            tokenizer.save_pretrained(output_dir)
                         model_to_save.save_pretrained(output_dir)
                         paddle.save(
                             optimizer.state_dict(),
