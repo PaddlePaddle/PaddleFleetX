@@ -19,5 +19,5 @@ rm -rf $log_dir
 export FLAGS_enable_eager_mode=0
 
 # 175B
-python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
+python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3" run_pretrain.py \
     -c ./configs.yaml
