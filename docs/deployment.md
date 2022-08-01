@@ -55,11 +55,13 @@ docker run -it --name paddle --net=host -v /dev/shm:/dev/shm -v $PWD:/paddle reg
 nvidia-docker run -it --name paddle --net=host -v /dev/shm:/dev/shm -v $PWD:/paddle registry.baidubce.com/paddlepaddle/paddle:2.3.1-gpu-cuda11.2-cudnn8 bash
 ```
 
-其他情况如 Centos 6 未安装上述工具的情况可以复制以下命令启动工作环境。
+其他情况如 Centos 6 未安装上述工具的情况可以复制以下命令启动工作环境，注意以下命令需要 *sudo* 权限执行。
 
 ```shell
 export CUDA_SO="$(\ls /usr/lib64/libcuda* | grep -v : | xargs -I{} echo '-v {}:{}') $(\ls /usr/lib64/libnvidia* | grep -v : | xargs -I{} echo '-v {}:{}')"
 export DEVICES=$(find /dev/nvidia* -maxdepth 1 -not -type d | xargs -I{} echo '--device {}:{}')
+
+nvsmi=`which nvidia-smi`
 
 docker run \
 ${CUDA_SO} ${DEVICES} \
@@ -67,6 +69,7 @@ ${CUDA_SO} ${DEVICES} \
 -v $PWD:/paddle \
 --name paddle \
 --net=host \
+-v $nvsmi:$nvsmi \
 -it \
 registry.baidubce.com/paddlepaddle/paddle:2.3.1-gpu-cuda11.2-cudnn8 bash
 ```
@@ -206,7 +209,7 @@ python -m paddle.distributed.launch --master 10.10.1.1:49178 run_check
 --------------------------------------------------------------------------------
 ```
 
-根据提示，复制最后的命令，在其他节点上粘贴执行
+根据提示，复制最后的命令（复制机器上个命令的执行结果，以下命令为示例），在其他节点上粘贴执行
 
 ```shell
 python -m paddle.distributed.launch --master 10.10.1.1:49178 run_check
