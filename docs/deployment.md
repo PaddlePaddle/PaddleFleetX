@@ -135,7 +135,7 @@ Thu Jul 21 19:32:03 2022
 
 结果中可以看出
 
-* CUDA Version栏显示的是当前环境中的CUDA版本号，此处为11.2。开始使用飞桨前，请先保证此处CUDA Version显示正常。如果CUDA Version栏不显示版本号，则需要添加CUDA相关库的路径到环境变量`LD_LIBRARY_PATH`中，具体请参考[文档](https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html)。
+* CUDA Version栏显示的是当前环境中的CUDA版本号，此处为11.2。开始使用飞桨前，请先保证此处CUDA Version显示正常。如果CUDA Version栏不显示版本号，则需要添加CUDA相关库的路径到环境变量`LD_LIBRARY_PATH`中，例如执行命令添加 `export LD_LIBRARY_PATH=/usr/lib64/:/usr/local/lib/:/usr/local/cuda-11.2/targets/x86_64-linux/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64:${LD_LIBRARY_PATH}` 。具体请参考[文档](https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html)。
 * Memory-Usage 列显示的是当前的显存占用值，此处为0MiB，表示当前设备的显存未被占用；GPU-Util 列显示的是当前的GPU利用率，此处为0%，表示当前设备空闲，可以使用。开始使用飞桨前，请保证当前设备显存充足，且利用率处于空闲状态。
 * 最后的 Processes 信息表示正在使用设备的进程，Docker 内可能存在不准确的情况，不影响使用。
 
@@ -208,6 +208,8 @@ Copy the following command to other nodes to run.
 python -m paddle.distributed.launch --master 10.10.1.1:49178 run_check
 --------------------------------------------------------------------------------
 ```
+
+> 如果当前安装的 PaddlePaddle 中未包含该工具，请根据上节提示安装 develop 版本进行测试。
 
 根据提示，复制最后的命令（复制机器上个命令的执行结果，以下命令为示例），在其他节点上粘贴执行
 
