@@ -29,7 +29,7 @@ from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_
 from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
 from fleetx.utils import logger
 from fleetx.optim import lr_scheduler as lr
-from examples.gpt.single.run_pretrain import run_evaluate, generate_model, generate_optimizer
+from examples.gpt.single.run_pretrain import run_evaluate, generate_model, generate_optimizer, parameters_classify
 from examples.gpt.single.run_pretrain import model_optimizer_load, model_optimizer_save, model_forward_backward
 
 
@@ -39,6 +39,17 @@ def set_data_parallel_seed(basic_seed, dp_rank):
     random.seed(basic_seed + dp_rank)
     np.random.seed(basic_seed + dp_rank)
     paddle.seed(basic_seed + dp_rank)
+
+
+def all_reduce_parameters(params, group):
+    if group.nranks < 2:
+        return
+
+    div_factor = 1.0 / group.nranks
+    with paddle.framework.no_grad():
+        for p in params:
+            grad = p.grad.scale_(div_factor)
+            paddle.distributed.all_reduce(grad, use_calc_stream=True)
 
 
 def do_train(args):
@@ -60,8 +71,6 @@ def do_train(args):
     local_rank = int(os.getenv("PADDLE_RANK_IN_NODE", 0))
 
     model, criterion, tokenizer = generate_model(args)
-    optimizer, lr_scheduler = generate_optimizer(model, args)
-    model, optimizer = model_optimizer_load(model, optimizer, args)
 
     if args.use_pure_fp16:
         scaler = paddle.amp.GradScaler(init_loss_scaling=args.scale_loss)
@@ -69,6 +78,12 @@ def do_train(args):
             models=model, level='O2', save_dtype='float32')
     else:
         scaler = None
+
+    decay_fused_tensors, all_fused_tensors = None, None
+    if args.tensor_fusion:
+        decay_fused_tensors, all_fused_tensors = parameters_classify(model)
+    optimizer, lr_scheduler = generate_optimizer(model, args, decay_fused_tensors, all_fused_tensors)
+    model, optimizer = model_optimizer_load(model, optimizer, args)
 
     model = paddle.DataParallel(model)
 
@@ -108,17 +123,24 @@ def do_train(args):
                 labels.stop_gradient = True
                 position_ids.stop_gradient = True
 
-                if args.use_recompute and isinstance(model,
-                                                     paddle.DataParallel):
+                if args.tensor_fusion:
                     with model.no_sync():
                         loss = model_forward_backward(
                             args, model, criterion, tokens, position_ids,
                             labels, loss_mask, scaler)
-                    fused_allreduce_gradients(list(model.parameters()), None)
+                    all_reduce_parameters(all_fused_tensors, hcg.get_data_parallel_group())
                 else:
-                    loss = model_forward_backward(args, model, criterion,
-                                                  tokens, position_ids, labels,
-                                                  loss_mask, scaler)
+                    if args.use_recompute and isinstance(model,
+                                                         paddle.DataParallel):
+                        with model.no_sync():
+                            loss = model_forward_backward(
+                                args, model, criterion, tokens, position_ids,
+                                labels, loss_mask, scaler)
+                        fused_allreduce_gradients(list(model.parameters()), None)
+                    else:
+                        loss = model_forward_backward(args, model, criterion,
+                                                      tokens, position_ids, labels,
+                                                      loss_mask, scaler)
 
                 if args.use_pure_fp16:
                     scaler.minimize(optimizer, loss)

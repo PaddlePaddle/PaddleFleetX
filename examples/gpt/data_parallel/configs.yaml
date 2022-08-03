@@ -22,7 +22,8 @@ PreTraining:
   save_load:
     save_steps: 1000
     output_dir: ./output
-    ckpt_dir: 
+    ckpt_dir:
+  tensor_fusion:
 
   Model:
     vocab_size: 50304
