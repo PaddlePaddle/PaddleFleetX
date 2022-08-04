@@ -20,17 +20,19 @@
     initializer_range: 0.02
 ```
 
-其中参数释义如下：
-- `vocab_size` 训练词表大小。
-- `hidden_size` 隐藏层大小。
-- `num_layers` transformer层数
-- `num_attention_heads` attention head的数量。
-- `max_seq_len` 输入文本序列的长度。
-- `ffn_hidden_size` ffn层大小，一般为隐藏层的四倍
-- `attention_probs_dropout_prob` attention中的dropout的失活率
-- `max_position_embeddings` position embedding的长度
-- `type_vocab_size` 词表类型
-- `initializer_range` 参数初始化的范围
+其中参数对应的释义如下：
+| **参数名**                      | **参数释义**               |
+|------------------------------|------------------------|
+| vocab_size                   | 训练词表大小                 |
+| hidden_size                  | 隐藏层大小                  |
+| num_layers                   | transformer层数          |
+| num_attention_heads          | attention head的数量      |
+| max_seq_len                  | 输入文本序列的长度              |
+| ffn_hidden_size              | ffn层大小，一般为隐藏层的四倍       |
+| attention_probs_dropout_prob | attention中的dropout的失活率 |
+| max_position_embeddings      | position embedding的长度  |
+| type_vocab_size              | 词表类型                   |
+| initializer_range            | 参数初始化的范围               |
 
 
 
@@ -58,15 +60,17 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
 
 其中参数说明：
 
-- `weight_decay` weight的衰减率。
-- `adam_beta1` 一阶矩估计的指数衰减率。
-- `adam_beta2` 二阶矩估计的指数衰减率。
-- `adam_epsilon` 指定优化器需要优化的参数。
-- `decay_steps` 衰减的步长
-- `warmup_rate` warmup 率。
-- `max_lr` Adam 的初始最大学习率。
-- `min_lr` Adam 的初始最小学习率。
-- `grad_clip` 梯度裁剪范围，使用的是GlobalNorm梯度惨案。
+| **参数名**      | **参数释义**                  |
+|--------------|---------------------------|
+| weight_decay | weight的衰减率                |
+| adam_beta1   | 一阶矩估计的指数衰减率               |
+| adam_beta2   | 二阶矩估计的指数衰减率               |
+| adam_epsilon | 指定优化器需要优化的参数              |
+| decay_steps  | 衰减的步长                     |
+| warmup_rate  | warmup 率                  |
+| max_lr       | Adam 的初始最大学习率             |
+| min_lr       | Adam 的初始最小学习率             |
+| grad_clip    | 梯度裁剪范围，使用的是GlobalNorm梯度裁剪 |
 
 ## 3.训练控制
 
@@ -100,36 +104,49 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
 ```
 
 其中参数说明：
-- `device` 训练设备
-- `max_steps` 最大训练步数
-- `num_train_epochs` 训练的epoch数量
-- `seed` 随机种子，保证训练过程可复现
-- `use_recompute` 是否使用recompute训练
-- `global_batch_size` 全局的batch size大小，即一次参数更新等效的batch size
-- `local_batch_size` 每个进程训练的batch size大小
-- `micro_batch_size` 每次前向计算的batch size大小
-- `use_pure_fp16` 是否使用purefp16精度训练
-- `scale_loss` 使用fp16精度下，loss的放缩比例
-- `logging_freq` 训练日志打印的频率
-- `eval_freq` 模型评估间隔
-- `eval_iters` 模型评估时训练评估测试集的轮数
-- `input_dir` 指定输入文件，可以使用目录，指定目录时将包括目录中的所有文件。
-- `split` 训练集，验证集和测试集的切分比例
-- `max_seq_len` 输入文本序列的长度
-- `save_steps` 保存模型间隔
-- `output_dir` 指定输出文件
-- `ckpt_dir` checkpoint的加载目录
+
+| **参数名**           | **参数释义**                             |
+|-------------------|--------------------------------------|
+| device            | 训练设备                                 |
+| max_steps         | 最大训练步数                               |
+| num_train_epochs  | 训练的epoch数量                           |
+| seed              | 随机种子，保证训练过程可复现                       |
+| use_recompute     | 是否使用recompute训练                      |
+| global_batch_size | 全局的batch size大小，即一次参数更新等效的batch size |
+| local_batch_size  | 每个进程训练的batch size大小                  |
+| micro_batch_size  | 每次前向计算的batch size大小                  |
+| use_pure_fp16     | 是否使用purefp16精度训练                     |
+| scale_loss        | 使用fp16精度下，loss的放缩比例                  |
+| logging_freq      | 训练日志打印的频率                            |
+| eval_freq         | 模型评估间隔                               |
+| eval_iters        | 模型评估时训练评估测试集的轮数                      |
+| input_dir         | 指定输入文件，可以使用目录，指定目录时将包括目录中的所有文件       |
+| split             | 训练集，验证集和测试集的切分比例                     |
+| max_seq_len       | 输入文本序列的长度                            |
+| save_steps        | 保存模型间隔                               |
+| output_dir        | 指定输出文件                               |
+| ckpt_dir          | checkpoint的加载目录                      |
 
 
 ## 4.运行方式
 
-以单机8卡为例，通过``paddle.distributed.launch``启动多进程训练。
+本目录中按照345M和1.3B规模大小，给出32G V100环境下GPT模型单卡训练的策略配置如下：
 
+| 模型规模 | 训练策略       | yaml文件                    | 显存占用 |
+|----------|----------------|-------------------------------|----------|
+| 345M     | fp16           | configs_345m_single_card.yaml | 30.9GB   |
+| 1.3B     | fp16+recompute | configs_1.3B_single_card.yaml | 26.0GB   |
+
+**启动命令**
 ```shell
-python run_pretrain.py -c ./configs.yaml
+# 345M
+python run_pretrain.py -c ./configs_345m_single_card.yaml
+
+# 1.3B
+python run_pretrain.py -c ./configs_1.3B_single_card.yaml
 ```
 
-运行日志
+**运行日志**
 
 ```
 [2022-07-27 12:42:46,601] [    INFO] - global step 1, epoch: 0, batch: 0, loss: 11.052017212, avg_reader_cost: 0.05710 sec, avg_batch_cost: 1.59627 sec, speed: 0.63 step/s, ips_total: 5132 tokens/s, ips: 5132 tokens/s, learning rate: 5.55556e-09

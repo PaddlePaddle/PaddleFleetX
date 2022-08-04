@@ -7,23 +7,18 @@ GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupe
 
 ```text
 .
-├── tools.py                # 训练参数配置处理脚本
-├── single                  # 单卡模型（345M）
-    ├── configs.yaml        # 模型配置文件
-    ├── run_pretrain.py     # 预训练入口
-    ├── run.sh              # 训练启动入口
-├── data_parallel           # 数据并行模型文件（1.3B）
-    ├── configs.yaml        # 模型配置文件
-    ├── run_pretrain.py     # 预训练入口
-    ├── run.sh              # 训练启动入口
-├── group_shard             # group shard模型（6.7B）
-    ├── configs.yaml        # 模型配置文件
-    ├── run_pretrain.py     # 预训练入口
-    ├── run.sh              # 训练启动入口
-├── 3D_parallelism          # 3D混合并行模型（175B）
-    ├── configs.yaml        # 模型配置文件
-    ├── run_pretrain.py     # 预训练入口
-    ├── run.sh              # 训练启动入口
+├── tools.py                               # 训练参数配置处理脚本
+├── single                                 # 单卡模型训练
+    ├── configs_345m_single_card.yaml      # 单卡345M模型配置文件
+    ├── configs_1.3B_single_card.yaml      # 单卡1.3B模型配置文件
+    ├── run_pretrain.py                    # 单卡预训练入口
+    ├── run.sh                             # 单卡训练启动入口
+├── hybrid_parallel                        # 分布式模型训练
+    ├── configs_1.3B_dp8.yaml              # 单机1.3B数据并行模型配置文件
+    ├── configs_6.7B_sharding16.yaml       # 两机6.7B分组切片并行模型配置文件
+    ├── configs_175B_mp8_pp16.yaml         # 16机175B混合并行模型配置文件
+    ├── run_pretrain.py                    # 分布式预训练入口
+    ├── run.sh                             # 分布式训练启动入口
 ```
 
 ## 快速开始
@@ -31,6 +26,10 @@ GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupe
 ### 环境依赖
 
 - regex
+- colorlog
+- colorama
+- cached_path >= 1.1.5
+- omegaconf
 - sentencepiece >= 0.1.94
 - tqdm
 - visualdl
@@ -39,30 +38,39 @@ GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupe
 - lac (可选)
 - zstandard (可选)
 
-安装命令 `pip install regex sentencepiece tqdm visualdl pybind11 lac zstandard`。
+**安装命令**
+```shell
+pip install regex colorlog colorama cached_path omegaconf sentencepiece tqdm visualdl pybind11 lac zstandard
+```
 注：需要PaddlePaddle版本大于等于2.2rc，或者使用最新develop版本，安装方法请参见Paddle[官网](https://www.paddlepaddle.org.cn)。
 
 ### 数据准备
 
-#### 数据获取与制作
-
-
 数据获取和制作详见[GPT 模型预训练数据准备流程](https://github.com/PaddlePaddle/FleetX/tree/develop/fleetx/data/data_tools/gpt)
+
+为了方便用户运行测试本模型，此处提供处理好的300M的训练样本。
+
+**数据下载命令**
+```shell
+cd single # 或者 cd hybrid_parallel
+
+# 下载样例数据
+mkdir data && cd data
+wget https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_ids.npy
+wget https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_idx.npz
+
+cd .. # 回到 single/hybrid_parallel 路径下
+```
 
 ### 模型训练
 
-
-根据不同的模型大小，需要选择不同的并行策略。常见的分布式策略有几种：数据并行，分组切分并行（group shard），3D混合并行。
+除了单卡训练，飞桨还支持数据并行、混合并行、重计算等多种分布式策略，减少显存占用、加速训练，达到大模型可训练且训得快的效果。在模型训练前，需要根据模型规模选择合适的并行策略。下面分别从单卡训练和混合并行训练两方面来介绍GPT模型训练的配置文件和启动方式。
 
 
 
 - [单卡训练](./single/README.md)
 
-- [数据并行](./data_parallel/README.md)
-
-- [分组切分并行](./group_shard/README.md)
-
-- [3D混合并行](./3D_parallelism/README.md)
+- [混合并行训练](./hybrid_parallel/README.md)
 
 
 ## 参考文献
