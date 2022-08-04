@@ -34,7 +34,7 @@ from fleetx.data.tokenizers import GPTTokenizer
 from fleetx.utils import logger
 from fleetx.optim import lr_scheduler as lr
 from examples.gpt.single.run_pretrain import generate_optimizer, model_optimizer_load, model_forward_backward
-from fleetx.models.gpt_model.modeling_3D import GPTModel, GPTForPretraining, GPTPretrainingCriterion, GPTForPretrainingPipe
+from fleetx.models.gpt_model.modeling_hybrid import GPTModel, GPTForPretraining, GPTPretrainingCriterion, GPTForPretrainingPipe
 
 
 def set_hyrbid_parallel_seed(basic_seed, data_world_rank, mp_rank, pp_rank):

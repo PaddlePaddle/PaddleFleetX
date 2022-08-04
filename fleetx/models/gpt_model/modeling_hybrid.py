@@ -30,8 +30,6 @@ from paddle.distributed.fleet.utils import recompute
 import sys
 from .config import configurable
 
-from .modeling import TransformerDecoder
-
 
 def parallel_matmul(lm_output, logit_weights, parallel_output):
     """
@@ -270,6 +268,82 @@ class MultiHeadAttention(nn.Layer):
         if use_cache:
             outs.append(cache)
         return out if len(outs) == 1 else tuple(outs)
+
+
+class TransformerDecoder(nn.Layer):
+    """
+    TransformerDecoder is a stack of N decoder layers.
+    """
+
+    def __init__(self,
+                 decoder_layers,
+                 num_layers,
+                 norm=None,
+                 hidden_size=None,
+                 use_recompute=False):
+        super(TransformerDecoder, self).__init__()
+
+        self.num_layers = num_layers
+        self.layers = decoder_layers
+        self.norm = norm
+        self.use_recompute = use_recompute
+        if norm == "LayerNorm":
+            self.norm = nn.LayerNorm(hidden_size, epsilon=1e-5)
+        elif norm is not None:
+            raise ValueError("Only support LayerNorm")
+
+    def forward(self,
+                tgt,
+                memory,
+                tgt_mask=None,
+                memory_mask=None,
+                use_cache=False,
+                cache=None):
+        r"""
+        Applies a stack of N Transformer decoder layers on inputs. If `norm` is
+        provided, also applies layer normalization on the output of last decoder
+        layer.
+        """
+        output = tgt
+        new_caches = []
+
+        for i, mod in enumerate(self.layers):
+            if cache is None:
+                if use_cache:
+                    output, new_cache = mod(output,
+                                            memory,
+                                            tgt_mask=tgt_mask,
+                                            use_cache=use_cache,
+                                            cache=cache)
+                    new_caches.append(new_cache)
+                else:
+                    output = recompute(mod, output, memory, tgt_mask, use_cache, cache) if self.use_recompute \
+                        else mod(output, memory, tgt_mask, use_cache, cache)
+
+            else:
+                output, new_cache = mod(output,
+                                        memory,
+                                        tgt_mask=tgt_mask,
+                                        use_cache=use_cache,
+                                        cache=cache[i])
+                new_caches.append(new_cache)
+
+        if self.norm is not None:
+            output = self.norm(output)
+        return output if use_cache is False else (output, new_caches)
+
+    def gen_cache(self, memory, do_zip=False):
+        r"""
+        Generates cache for `forward` usage. The generated cache is a list, and
+        each element in it is a tuple( :code:`(incremental_cache, static_cache)` )
+        produced by `TransformerDecoderLayer.gen_cache`. See `TransformerDecoderLayer.gen_cache`
+        for more details. If `do_zip` is True, apply `zip` on these tuples to get
+        a list with two elements.
+       """
+        cache = [layer.gen_cache(memory) for layer in self.layers]
+        if do_zip:
+            cache = list(zip(*cache))
+        return cache
 
 
 class TransformerDecoderLayer(nn.Layer):

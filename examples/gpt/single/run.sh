@@ -15,4 +15,7 @@
 export PYTHONPATH=$PYTHONPATH:../../../
 
 # 345M
-python run_pretrain.py -c ./configs.yaml
+python run_pretrain.py -c ./configs_345m_single_card.yaml
+
+# 1.3B
+# python run_pretrain.py -c ./configs_1.3B_single_card.yaml
