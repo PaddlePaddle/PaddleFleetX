@@ -14,9 +14,9 @@
 
 export PYTHONPATH=$PYTHONPATH:../../../
 
-log_dir=sharding8
+log_dir=dp2_pp2_mp2
 rm -rf $log_dir
 
-# 6.7B
+# 175B
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
-    -c ./configs.yaml
+    -c $1

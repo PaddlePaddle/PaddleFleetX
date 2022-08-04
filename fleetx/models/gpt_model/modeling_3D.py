@@ -530,6 +530,8 @@ class GPTForPretraining(nn.Layer):
     def __init__(self, gpt):
         super(GPTForPretraining, self).__init__()
         self.gpt = gpt
+        # extra_parameters using for sharding stage3 to register extra_parameters
+        self.extra_parameters = [self.gpt.embeddings.word_embeddings.weight]
 
     def forward(self,
                 input_ids,

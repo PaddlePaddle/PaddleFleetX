@@ -1,4 +1,4 @@
-# 6.7 B
+# 175 B
 PreTraining:
   device: gpu
   max_steps: 500000
@@ -6,8 +6,8 @@ PreTraining:
   seed: 1024
   use_recompute: True
   batch_size:
-    global_batch_size: 
-    local_batch_size: 8
+    global_batch_size: 8
+    local_batch_size: 
     micro_batch_size: 1
   mix_precision:
     use_pure_fp16: True
@@ -18,17 +18,17 @@ PreTraining:
   dataset:
     input_dir: ./data
     split: '949,50,1'
-    max_seq_len: 1024
+    max_seq_len: 1024  # 
   save_load:
-    save_steps: 1000
+    save_steps: 100
     output_dir: ./output
     ckpt_dir: 
 
   Model:
-    vocab_size: 50304
-    hidden_size: 4096
-    num_layers: 32
-    num_attention_heads: 32
+    vocab_size: 51200
+    hidden_size: 1024
+    num_layers: 4
+    num_attention_heads: 2
     ffn_hidden_size: 
     hidden_dropout_prob: 0.1
     attention_probs_dropout_prob: 0.1
@@ -37,11 +37,11 @@ PreTraining:
     initializer_range: 0.02
 
   Distributed:
-    dp_degree: 1
+    dp_degree: 2
     mp_degree: 1
     pp_degree: 1
     sharding:
-      sharding_degree: 16
+      sharding_degree: 4
       sharding_stage: 2
       sharding_offload: False
 

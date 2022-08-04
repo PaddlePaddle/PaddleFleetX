@@ -105,7 +105,7 @@ def generate_optimizer(model, args):
     return optimizer, lr_scheduler
 
 
-def model_optimizer_load(model, optimizer, args):
+def model_optimizer_load(args, model, optimizer):
     if args.ckpt_dir:
         logger.info("Try to load checkpoint from %s " % args.ckpt_dir)
         model_path = os.path.join(args.ckpt_dir, "model.pdparams")
@@ -178,7 +178,7 @@ def do_train(args):
 
     model, criterion, tokenizer = generate_model(args)
     optimizer, lr_scheduler = generate_optimizer(model, args)
-    model, optimizer = model_optimizer_load(model, optimizer, args)
+    model, optimizer = model_optimizer_load(args, model, optimizer)
 
     if args.use_pure_fp16:
         scaler = paddle.amp.GradScaler(init_loss_scaling=args.scale_loss)
