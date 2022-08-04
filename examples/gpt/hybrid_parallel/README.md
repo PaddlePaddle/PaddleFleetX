@@ -11,7 +11,9 @@
 - [分组切片并行](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/guides/06_distributed_training/group_sharded_parallel_cn.html)
 
 
-## 1.模型网络
+## 参数释义
+
+### 模型网络
 
 网络部分完成了网络的组网操作和混合并行策略的适配，GPT在[FleetX/fleetx/models/gpt_model/modeling_hybrid.py]([../../ppocr/modeling](https://github.com/PaddlePaddle/FleetX/tree/develop/fleetx/models/gpt_model))下。 
 可以使用配置文件配置模型的规模，如：
@@ -46,7 +48,7 @@
 
 
 
-## 2.优化器
+### 优化器
 
 
 GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过配置文件配置优化器的参数，如：
@@ -82,7 +84,7 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
 | min_lr       | Adam 的初始最小学习率             |
 | grad_clip    | 梯度裁剪范围，使用的是GlobalNorm梯度裁剪 |
 
-## 3.训练控制
+### 训练控制
 
 通过配置文件配置训练相关的超参数，如：
 
@@ -138,7 +140,8 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
 | ckpt_dir          | checkpoint的加载目录                      |
 
 
-## 4.并行维度
+### 并行维度
+
 当前GPT模型已适配3D混合并行，并能够在训练超大模型，用户可以通过配置文件选择并行的维度。
 
 ```yaml
@@ -164,7 +167,7 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
 | sharding_offload | CPU offload策略                        |
 
 
-## 5.运行方式
+## 运行方式
 本目录中按照1.3B、6.7B和175B规模大小，给出32G V100环境下GPT模型混合并行训练的策略配置如下：
 
 | 模型规模 | 训练策略                 | yaml文件                   |
@@ -173,11 +176,23 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
 | 6.7B     | fp16+sharding16+recompute | configs_6.7B_sharding16.yaml |
 | 175B     | fp16+mp8+pp16+recompute   | configs_175B_mp8_pp16.yaml   |
 
+### 策略支持
+
+目前，飞桨混合并行技术提供了多种分布式训练策略组合，详见下表。
+
+|                 | data parallel | tensor parallel | pipeline parallel | pure fp16 | recompute |
+|-----------------|---------------|-----------------|-------------------|-----------|-----------|
+| sharding stage1 | ✓             | ✓               | ✓                 | ✓         | ✓         |
+| sharding stage2 | ✓             | ㄨ               | ㄨ                 | ✓         | ✓         |
+| sharding stage3 | ✓             | ㄨ               | ㄨ                 | ✓         | ✓         |
+
+### 单机训练
+
 以单机1.3B模型数据并行训练为例，通过``paddle.distributed.launch``启动多进程训练。
 
 **启动命令**
 ```shell
-log_dir=dp8
+log_dir=log_dp8
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
     -c ./configs_1.3B_dp8.yaml
 ```
@@ -194,4 +209,22 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
 [2022-07-27 12:40:01,506] [    INFO] - global step 7, epoch: 0, batch: 6, loss: 11.099355698, avg_reader_cost: 0.00013 sec, avg_batch_cost: 0.10319 sec, speed: 9.69 step/s, ips_total: 79385 tokens/s, ips: 9923 tokens/s, learning rate: 2.22222e-08
 [2022-07-27 12:40:01,621] [    INFO] - global step 8, epoch: 0, batch: 7, loss: 11.076607704, avg_reader_cost: 0.00012 sec, avg_batch_cost: 0.11502 sec, speed: 8.69 step/s, ips_total: 71223 tokens/s, ips: 8903 tokens/s, learning rate: 2.50000e-08
 [2022-07-27 12:40:01,726] [    INFO] - global step 9, epoch: 0, batch: 8, loss: 11.076778412, avg_reader_cost: 0.00013 sec, avg_batch_cost: 0.10425 sec, speed: 9.59 step/s, ips_total: 78577 tokens/s, ips: 9822 tokens/s, learning rate: 2.77778e-08
+```
+
+### 多机训练
+
+若需要在更多机器上进行大模型训练，则需要在每个参与训练的节点上执行启动命令。以2机6.7B模型分组切分并行训练为例，启动命令为：
+
+```shell
+log_dir=log_sharding16
+python -m paddle.distributed.launch --log_dir $log_dir --master=10.10.1.1:49178 --nnodes=2 --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
+    -c ./configs_6.7B_sharding16.yaml
+```
+
+若要执行16机175B大模型混合并行训练，由于节点较多，可以考虑使用 `ssh` 脚本或 `mpirun` 进行跨节点命令分发，启动命令为：
+
+```shell
+log_dir=log_mp8_pp16
+mpirun python -m paddle.distributed.launch --log_dir $log_dir --master=10.10.1.1:49178 --nnodes=16 --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
+    -c ./configs_175B_mp8_pp16.yaml
 ```

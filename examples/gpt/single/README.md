@@ -1,7 +1,9 @@
 # GPT 单卡模型训练
 
 
-## 1.模型网络
+## 参数释义
+
+### 模型网络
 
 网络部分完成了网络的组网操作，GPT在[FleetX/fleetx/models/gpt_model/modeling.py]([../../ppocr/modeling](https://github.com/PaddlePaddle/FleetX/tree/develop/fleetx/models/gpt_model))下。 
 可以使用配置文件配置模型的规模，如：
@@ -36,7 +38,7 @@
 
 
 
-## 2.优化器
+### 优化器
 
 
 GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过配置文件配置优化器的参数，如：
@@ -72,7 +74,7 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
 | min_lr       | Adam 的初始最小学习率             |
 | grad_clip    | 梯度裁剪范围，使用的是GlobalNorm梯度裁剪 |
 
-## 3.训练控制
+### 训练控制
 
 通过配置文件配置训练相关的超参数，如：
 
@@ -128,7 +130,7 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
 | ckpt_dir          | checkpoint的加载目录                      |
 
 
-## 4.运行方式
+## 运行方式
 
 本目录中按照345M和1.3B规模大小，给出32G V100环境下GPT模型单卡训练的策略配置如下：
 
