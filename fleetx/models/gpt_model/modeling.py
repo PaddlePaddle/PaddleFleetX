@@ -479,7 +479,8 @@ class GPTModel(nn.Layer):
             "max_position_embeddings": cfg.max_position_embeddings,
             "type_vocab_size": cfg.type_vocab_size,
             "initializer_range": cfg.initializer_range,
-            "use_recompute": cfg.use_recompute
+            "use_recompute": cfg.use_recompute,
+            "fused_linear": cfg.fused_linear
         }
 
     def forward(self,
