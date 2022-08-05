@@ -19,27 +19,27 @@ import random
 import time
 import sys
 sys.path.append("..")
-from tools import parse_args, parse_yaml
+from examples.gpt.tools import parse_args, parse_yaml
 
 import numpy as np
 import paddle
-# from modeling import GPTModel, GPTForPretraining, GPTPretrainingCriterion, GPTForPretrainingPipe
+from paddle.distributed import fleet
+from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
+from paddle.distributed.sharding import group_sharded_parallel
+from paddle.fluid.dygraph.parallel import sync_params_buffers
+from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
+
 from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
 from fleetx.data.tokenizers import GPTTokenizer
 from fleetx.utils import logger
 from fleetx.optim import lr_scheduler as lr
-from paddle.distributed import fleet
-from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
-
-from examples.gpt.single.run_pretrain import generate_model, generate_optimizer
-from examples.gpt.single.run_pretrain import model_optimizer_load, model_optimizer_save
-from fleetx.models.gpt_model.modeling_3D import GPTModel, GPTForPretraining, GPTPretrainingCriterion, GPTForPretrainingPipe
+from examples.gpt.single.run_pretrain import generate_optimizer, model_optimizer_load, model_forward_backward
+from fleetx.models.gpt_model.modeling_hybrid import GPTModel, GPTForPretraining, GPTPretrainingCriterion, GPTForPretrainingPipe
 
 
 def set_hyrbid_parallel_seed(basic_seed, data_world_rank, mp_rank, pp_rank):
-    """
-    """
     assert args.device != "cpu"
+
     random.seed(basic_seed + data_world_rank)
     np.random.seed(basic_seed + data_world_rank)
     paddle.seed(basic_seed + data_world_rank)
@@ -50,6 +50,105 @@ def set_hyrbid_parallel_seed(basic_seed, data_world_rank, mp_rank, pp_rank):
     tracker = get_rng_state_tracker()
     tracker.add('global_seed', global_seed)
     tracker.add('local_seed', local_seed)
+
+
+def generate_model(args):
+    if args.pp_degree == 1:
+        model = GPTForPretraining(GPTModel(args))
+    else:
+        hcg = fleet.get_hybrid_communicate_group()
+        setattr(args, 'topology', hcg.topology())
+        model = GPTForPretrainingPipe(args)
+
+    tokenizer = GPTTokenizer.from_pretrained("gpt2")
+    criterion = GPTPretrainingCriterion()
+    return model, tokenizer, criterion
+
+
+def wrap_sharding_2_3(args, model, optimizer, scaler):
+    hcg = fleet.get_hybrid_communicate_group()
+    dp_group = hcg.get_data_parallel_group()
+    sharding_group = hcg.get_sharding_parallel_group()
+
+    if args.dp_degree > 1:
+        sync_params_buffers(
+            model, comm_group=dp_group, src_rank=dp_group.ranks[0])
+
+    level = "p_g_os" if args.sharding_stage == 3 else "os_g"
+    return group_sharded_parallel(
+        model=model,
+        optimizer=optimizer,
+        level=level,
+        scaler=scaler,
+        group=sharding_group,
+        offload=args.sharding_offload)
+
+
+def wrap_3D_parallel(model, optimizer, scaler):
+    model = fleet.distributed_model(model)
+    optimizer = fleet.distributed_optimizer(optimizer)
+    scaler = fleet.distributed_scaler(scaler) if scaler is not None else scaler
+    return model, optimizer, scaler
+
+
+def optim_update_params(args, model, optimizer, scaler):
+    if args.sharding_stage in [2, 3] and args.dp_degree > 1:
+        hcg = fleet.get_hybrid_communicate_group()
+        dp_group = hcg.get_data_parallel_group()
+        fused_allreduce_gradients(model.parameters(), hcg)
+        if args.sharding_stage == 3:
+            for p in model.parameters():
+                if hasattr(p, "bw_storage"):
+                    assert p.grad is None, "This case shouldn't happen."
+                    p.bw_storage.scale_(1.0 / dp_group.nranks)
+                    paddle.distributed.all_reduce(p.bw_storage, group=dp_group)
+
+    if args.use_pure_fp16:
+        scaler.step(optimizer)
+        scaler.update()
+    else:
+        optimizer.step()
+
+
+def model_optimizer_save(args, model, optimizer, tokenizer, global_step):
+    hcg = fleet.get_hybrid_communicate_group()
+    mp_rank = hcg.get_model_parallel_rank()
+    pp_rank = hcg.get_stage_id()
+    sharding_rank = hcg.get_sharding_parallel_rank()
+
+    # TODO: 1. merge paramters while saving model. 2. ensure that the model is saved and loaded correctly
+    # only dp_rank = 0 save model
+    model_to_save = model._layers if paddle.distributed.get_world_size(
+    ) > 1 and args.sharding_stage not in [2, 3] else model
+    output_dir = os.path.join(args.output_dir, "step_%d" % global_step)
+    os.makedirs(output_dir, exist_ok=True)
+    logger.info("Save model to %s" % output_dir)
+
+    if args.pp_degree > 1:
+        paddle.save(model.state_dict(),
+                    os.path.join(
+                        output_dir,
+                        "model_mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}.pdparams"
+                        .format(mp_rank, sharding_rank, pp_rank)))
+        paddle.save(
+            optimizer.state_dict(),
+            os.path.join(
+                output_dir,
+                "model_state_mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}.pdopt"
+                .format(mp_rank, sharding_rank, pp_rank)))
+    else:
+        if args.sharding_stage == 3:
+            # If parameter need to convert to cpu, please add convert2cpu=True
+            model_to_save.get_all_parameters(convert2cpu=False)
+        paddle.save(model.state_dict(),
+                    os.path.join(output_dir,
+                                 "model_mp_{:0>2d}_sharding_{:0>2d}.pdparams"
+                                 .format(mp_rank, sharding_rank)))
+        paddle.save(
+            optimizer.state_dict(),
+            os.path.join(output_dir,
+                         "model_state_mp_{:0>2d}_sharding_{:0>2d}.pdopt"
+                         .format(mp_rank, sharding_rank)))
 
 
 @paddle.no_grad()
@@ -94,6 +193,7 @@ def do_train(args):
         "dp_degree": args.dp_degree,
         "mp_degree": args.mp_degree,
         "pp_degree": args.pp_degree,
+        "sharding_degree": args.sharding_degree,
     }
 
     accumulate_steps = args.local_batch_size // args.micro_batch_size
@@ -111,35 +211,36 @@ def do_train(args):
     mp_rank = hcg.get_model_parallel_rank()
     pp_rank = hcg.get_stage_id()
     dp_rank = hcg.get_data_parallel_rank()
+    sharding_rank = hcg.get_sharding_parallel_rank()
+    sharding_size = hcg.get_sharding_parallel_world_size()
 
-    data_world_rank = dp_rank
-    data_world_size = args.dp_degree
+    data_world_rank = dp_rank * sharding_size + sharding_rank
+    data_world_size = args.dp_degree * args.sharding_degree
     local_rank = int(os.getenv("PADDLE_RANK_IN_NODE", 0))
 
     # seed control in hybrid parallel
     set_hyrbid_parallel_seed(args.seed, data_world_rank, mp_rank, pp_rank)
     default_global_tokens_num = args.global_batch_size * args.max_seq_len
 
-    if args.pp_degree == 1:
-        model = GPTForPretraining(GPTModel(args))
-    else:
-        setattr(args, 'topology', hcg.topology())
-        model = GPTForPretrainingPipe(args)
-
-    tokenizer = GPTTokenizer.from_pretrained("gpt2")
-
-    # Create the critrion for the gpt model
-    criterion = GPTPretrainingCriterion()
+    model, tokenizer, criterion = generate_model(args)
     optimizer, lr_scheduler = generate_optimizer(model, args)
 
     if args.use_pure_fp16:
         scaler = paddle.amp.GradScaler(init_loss_scaling=args.scale_loss)
-        scaler = fleet.distributed_scaler(scaler)
         model = paddle.amp.decorate(
             models=model, level='O2', save_dtype='float32')
+    else:
+        scaler = None
 
-    model = fleet.distributed_model(model)
-    optimizer = fleet.distributed_optimizer(optimizer)
+    # wrap sharding stage2/3 and add collective group
+    if args.sharding_stage in [2, 3]:
+        assert args.mp_degree == args.pp_degree == 1, "sharding stage2/3 will support hybrid parallel later"
+        model, optimizer, scaler = wrap_sharding_2_3(args, model, optimizer,
+                                                     scaler)
+    else:
+        model, optimizer, scaler = wrap_3D_parallel(model, optimizer, scaler)
+
+    model, optimizer = model_optimizer_load(args, model, optimizer)
 
     global_step = 0
     for epoch in range(args.num_train_epochs):
@@ -176,37 +277,19 @@ def do_train(args):
                 position_ids.stop_gradient = True
 
                 if args.pp_degree == 1:
-                    # In ParallelMode of DataParallel, 'no_sync' can be used for improving
-                    # performance of model by gradient accumulation.
-                    loss = 0.0
-                    for i in range(accumulate_steps):
-                        start_index = i * args.micro_batch_size
-                        end_index = start_index + args.micro_batch_size
-                        with paddle.amp.auto_cast(
-                                args.use_pure_fp16,
-                                custom_black_list=[
-                                    "reduce_sum",
-                                    "c_softmax_with_cross_entropy",
-                                    "elementwise_div"
-                                ],
-                                level='O2'):
-                            preds = model(
-                                tokens[start_index:end_index, :],
-                                position_ids[start_index:end_index, :])
-                            loss_mbs = criterion(
-                                preds, labels[start_index:end_index, :],
-                                loss_mask[start_index:end_index, :])
-                        loss_mbs = loss_mbs / accumulate_steps
-                        if args.use_pure_fp16:
-                            scaler.scale(loss_mbs).backward()
-                        else:
-                            loss_mbs.backward()
-                        loss = loss + loss_mbs
-
-                    if args.use_pure_fp16:
-                        scaler.minimize(optimizer, loss)
+                    if args.use_recompute and isinstance(model,
+                                                         paddle.DataParallel):
+                        with model.no_sync():
+                            loss = model_forward_backward(
+                                args, model, criterion, tokens, position_ids,
+                                labels, loss_mask, scaler)
+                        fused_allreduce_gradients(
+                            list(model.parameters()), None)
                     else:
-                        optimizer.step()
+                        loss = model_forward_backward(
+                            args, model, criterion, tokens, position_ids,
+                            labels, loss_mask, scaler)
+                    optim_update_params(args, model, optimizer, scaler)
 
                     if lr_scheduler is not None:
                         lr_scheduler.step()
@@ -256,31 +339,8 @@ def do_train(args):
                 # only dp_rank = 0 save model
                 if (global_step % args.save_steps == 0 or
                         global_step >= args.max_steps) and dp_rank == 0:
-                    model_to_save = model._layers if paddle.distributed.get_world_size(
-                    ) > 1 else model
-                    output_dir = os.path.join(args.output_dir,
-                                              "step_%d" % global_step)
-                    os.makedirs(output_dir, exist_ok=True)
-                    logger.info("Save model to %s" % output_dir)
-                    if args.pp_degree > 1:
-                        if mp_rank == 0 and pp_rank == 0:
-                            tokenizer.save_pretrained(output_dir)
-                        model_to_save.save_state_dict(output_dir)
-                        paddle.save(
-                            optimizer.state_dict(),
-                            os.path.join(
-                                output_dir,
-                                "model_state_mp_{:0>2d}_pp_{:0>2d}.pdopt".
-                                format(mp_rank, pp_rank)))
-                    else:
-                        if mp_rank == 0:
-                            tokenizer.save_pretrained(output_dir)
-                        model_to_save.save_pretrained(output_dir)
-                        paddle.save(
-                            optimizer.state_dict(),
-                            os.path.join(output_dir,
-                                         "model_state_mp_{:0>2d}.pdopt".format(
-                                             mp_rank)))
+                    model_optimizer_save(args, model, optimizer, tokenizer,
+                                         global_step)
 
                 if global_step >= args.max_steps:
                     run_evaluate(args, test_data_loader, model, criterion,

@@ -53,8 +53,6 @@ def model_size(args):
     """
     get model size for transformer
     """
-    num_gpu = args.pp_degree * args.mp_degree * args.dp_degree * args.sharding_degree
-    global_batch_size = args.global_batch_size
     l = args.num_layers
     h = args.hidden_size
     V = args.vocab_size
