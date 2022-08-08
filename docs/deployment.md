@@ -47,13 +47,13 @@ docker pull registry.baidubce.com/paddlepaddle/paddle:2.3.1-gpu-cuda11.2-cudnn8
 如果已安装和配置 [nvida-container-runtime](https://github.com/NVIDIA/nvidia-container-runtime)，使用如下命令启动 Docker 即进入工作环境。
 
 ```shell
-docker run -it --name paddle --net=host -v /dev/shm:/dev/shm -v $PWD:/paddle registry.baidubce.com/paddlepaddle/paddle:2.3.1-gpu-cuda11.2-cudnn8 bash
+docker run -it --name paddle --net=host -v /dev/shm:/dev/shm --shm-size=32G -v $PWD:/paddle registry.baidubce.com/paddlepaddle/paddle:2.3.1-gpu-cuda11.2-cudnn8 bash
 ```
 
 如果使用 [nvidia-docker]([https://github.com/NVIDIA/nvidia-docker) 工具则使用如下命令启动工作环境。
 
 ```shell
-nvidia-docker run -it --name paddle --net=host -v /dev/shm:/dev/shm -v $PWD:/paddle registry.baidubce.com/paddlepaddle/paddle:2.3.1-gpu-cuda11.2-cudnn8 bash
+nvidia-docker run -it --name paddle --net=host -v /dev/shm:/dev/shm --shm-size=32G -v $PWD:/paddle registry.baidubce.com/paddlepaddle/paddle:2.3.1-gpu-cuda11.2-cudnn8 bash
 ```
 
 其他情况如 Centos 6 未安装上述工具的情况可以复制以下命令启动工作环境，注意以下命令需要 *sudo* 权限执行。
@@ -70,6 +70,7 @@ ${CUDA_SO} ${DEVICES} \
 -v $PWD:/paddle \
 --name paddle \
 --net=host \
+--shm-size=32G \
 -v $nvsmi:$nvsmi \
 -it \
 registry.baidubce.com/paddlepaddle/paddle:2.3.1-gpu-cuda11.2-cudnn8 bash
