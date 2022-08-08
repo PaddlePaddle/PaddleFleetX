@@ -29,6 +29,7 @@ from fleetx.data.tokenizers import GPTTokenizer
 from fleetx.utils import logger
 from fleetx.optim import lr_scheduler as lr
 from fleetx.utils.storage_process import obtain_storage
+from fleetx.utils.version_check import is_fused_matmul_bias_supported
 
 
 @paddle.no_grad()
@@ -197,7 +198,7 @@ def model_forward_backward(args,
 
 
 def do_train(args):
-    if args.fused_linear and float(paddle.version.cuda()) < 11.6:
+    if args.fused_linear and not is_fused_matmul_bias_supported():
         logger.warning("The flag fused_linear only valid for cuda version higher than 11.6, "
                        "but the paddle is compiled with cuda " + paddle.version.cuda())
         args.fused_linear = False
