@@ -1,6 +1,6 @@
 ## 环境部署
 
-### 基础环境依赖
+### 1. 基础环境依赖
 
 部署环境进行大模型训练，需要满足以下配置要求：
 
@@ -22,9 +22,10 @@
 
 * 当机器数量较多（5+）且长期使用时，建议使用 Kubernetes 或类似集群管理工具进行集群管理。
 
-### 安装部署流程
+### 2. 本地安装部署流程
 
-#### 安装 PaddlePaddle
+#### 2.1 安装 PaddlePaddle
+
 **裸机安装**
 
 根据环境在 [安装文档](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/docker/linux-docker.html) 选择对应的版本使用 pip install 安装，执行对应命令，例如
@@ -76,7 +77,7 @@ registry.baidubce.com/paddlepaddle/paddle:2.3.1-gpu-cuda11.2-cudnn8 bash
 
 > 为保证通信效率和通信正常，添加参数 --net=host 使用主机网络，更多 docker run 参数说明请参考 [docker 文档](https://docs.docker.com/engine/reference/commandline/run/)。
 
-#### 验证安装
+#### 2.2 验证安装
 
 **GPU验证**
 
@@ -240,7 +241,7 @@ LAUNCH INFO 2022-07-20 09:46:57,085 Exit code 0
 
 > 如果其他节点执行命令后各个节点没有后续输出或输出不符合预期请参考 [FAQ](#FAQ) 部分解决。
 
-#### 实际分布式训练任务验证
+#### 2.3 实际分布式训练任务验证
 
 在启动分布式任务前需要确保各个节点上安装好 PaddlePaddle 环境，同步好数据和代码。
 
@@ -459,7 +460,7 @@ LAUNCH INFO 2022-07-21 11:59:00,655 Exit code -15
 
 请根据报错信息进行排查，部分错误请参考 [FAQ](#FAQ)。
 
-#### Kubernetes部署
+### 3. Kubernetes部署
 
 在 Kubernetes 上部署分布式任务需要安装 [paddle-operator](https://github.com/PaddleFlow/paddle-operator) 。
 
@@ -615,7 +616,7 @@ kubectl delete -f deploy/v1/crd.yaml -f deploy/v1/operator.yaml
 
 *注意：重新安装时，建议先卸载再安装*
 
-#### 公有云和私有云部署
+### 4. 公有云和私有云部署
 
 在公有云上运行 PaddlePaddle 分布式建议通过选购容器引擎服务的方式，各大云厂商都推出了基于标准 Kubernetes 的云产品，然后根据上节中的教程安装使用即可。
 
@@ -627,9 +628,9 @@ kubectl delete -f deploy/v1/crd.yaml -f deploy/v1/operator.yaml
 
 更为方便的是使用百度提供的全功能AI开发平台 [BML](https://cloud.baidu.com/product/bml) 来使用，详细的使用方式请参考 [BML文档](https://ai.baidu.com/ai-doc/BML/pkhxhgo5v)。
 
-### FAQ
+### 5. FAQ
 
-#### 网络问题排查
+#### 5.1 网络问题排查
 
 请按照以下步骤排查网络问题
 
@@ -732,7 +733,7 @@ export NCCL_SOCKET_IFNAME=eth1
 上述测试均正常但是无法跑通分布式环境测试时
 请使用 [nccl-test](https://github.com/NVIDIA/nccl-tests)  测试 GPU 通信是否正常。
 
-#### 多Python环境问题
+#### 5.2 多Python环境问题
 
 当工作环境中存在多个版本的 python 时可能存在不一致导致问题。
 
@@ -767,7 +768,7 @@ $ ls /usr/bin/python*
 
 即当使用 python 时，使用绝对路径 `/usr/bin/python3.7` 替换。
 
-#### 自动获取 IP 错误（多网卡环境问题）
+#### 5.3 自动获取 IP 错误（多网卡环境问题）
 
 使用 paddle.distributed.launch 会自动识别使用的 IP，在多网卡配置的环境中自动识别的网卡可能不是预期使用的网卡。
 
@@ -812,7 +813,7 @@ python -m paddle.distributed.launch --master=10.10.10.1:49178 --nnodes=2 --host=
 
 > 当 --master 地址识别错误时，也需要手动替换。
 
-#### 机器端口有限制，需要使用固定端口
+#### 5.4 机器端口有限制，需要使用固定端口
 
 当集群环境限制通信网卡时需要手动配置所有 ip 和 port 以启动分布式，以机器 `10.10.10.1` 和机器 `10.10.10.2` 必须使用端口 8000-8999 的情况为例，
 假设每台机器有两个卡，使用如下脚本设置每个卡对应进程的环境变量，依次启动进程。
@@ -837,7 +838,7 @@ python train.py
 
 注意在执行时，需要依次替换后面4个环境变量为对应值启动。
 
-#### 常用的通信问题排查
+#### 5.5 常用的通信问题排查
 
 GPU/NCCL 问题请先核对**版本是否匹配**，通过 `nvidia-smi` 查看是否有进程正在占用，仍有问题需要通过 [nccl-test](https://github.com/NVIDIA/nccl-tests)  测试。常见运行时错误和解决方法如下，
 
