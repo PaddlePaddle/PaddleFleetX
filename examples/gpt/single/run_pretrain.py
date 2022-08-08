@@ -197,6 +197,11 @@ def model_forward_backward(args,
 
 
 def do_train(args):
+    if args.fused_linear and float(paddle.version.cuda()) < 11.6:
+        logger.warning("The flag fused_linear only valid for cuda version higher than 11.6, "
+                       "but the paddle is compiled with cuda " + paddle.version.cuda())
+        args.fused_linear = False
+
     paddle.set_device(args.device)
     default_global_tokens_num = args.global_batch_size * args.max_seq_len
 
