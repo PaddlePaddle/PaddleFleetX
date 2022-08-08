@@ -28,6 +28,7 @@ from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
 from fleetx.data.tokenizers import GPTTokenizer
 from fleetx.utils import logger
 from fleetx.optim import lr_scheduler as lr
+from fleetx.utils.storage_process import obtain_storage
 
 
 @paddle.no_grad()
@@ -61,6 +62,26 @@ def run_evaluate(args,
     model.train()
 
 
+def parameters_classify(model, use_sharding=False, args=None):
+    decay_params = []
+    other_params = []
+
+    for param in model.parameters():
+        if not any(nd in param.name for nd in ["bias", "norm"]):
+            decay_params.append(param)
+        else:
+            other_params.append(param)
+
+    print("all parameters length:", len(model.parameters()))
+    print("decay_params len: {}, params len: {}".format(len(decay_params), len(other_params)))
+
+    decay_fused = decay_params if use_sharding else obtain_storage(decay_params)
+    other_fused = other_params if use_sharding else obtain_storage(other_params)
+    all_fused = decay_fused + other_fused
+
+    return decay_fused, all_fused
+
+
 def generate_model(args):
     # Create the critrion for the gpt model
     model = GPTForPretraining(GPTModel(args))
@@ -70,7 +91,7 @@ def generate_model(args):
     return model, criterion, tokenizer
 
 
-def generate_optimizer(model, args):
+def generate_optimizer(model, args, decay_fused_tensors=None, all_fused_tensors=None):
     if args.decay_steps is None:
         args.decay_steps = args.max_steps
     warmup_step = args.warmup_rate * args.decay_steps
@@ -85,17 +106,20 @@ def generate_optimizer(model, args):
 
     # Generate parameter names needed to perform weight decay.
     # All bias and LayerNorm parameters are excluded.
-    decay_params = [
-        p.name for n, p in model.named_parameters()
-        if not any(nd in n for nd in ["bias", "norm"])
-    ]
+    if args.tensor_fusion:
+        decay_params = [p.name for p in decay_fused_tensors]
+    else:
+        decay_params = [
+            p.name for n, p in model.named_parameters()
+            if not any(nd in n for nd in ["bias", "norm"])
+        ]
     optimizer = paddle.optimizer.AdamW(
         learning_rate=lr_scheduler
         if lr_scheduler is not None else args.max_lr,
         beta1=args.adam_beta1,
         beta2=args.adam_beta2,
         epsilon=args.adam_epsilon,
-        parameters=model.parameters(),
+        parameters=all_fused_tensors if args.tensor_fusion else model.parameters(),
         weight_decay=args.weight_decay,
         grad_clip=clip,
         apply_decay_param_fun=lambda x: x in decay_params,
@@ -177,8 +201,6 @@ def do_train(args):
     default_global_tokens_num = args.global_batch_size * args.max_seq_len
 
     model, criterion, tokenizer = generate_model(args)
-    optimizer, lr_scheduler = generate_optimizer(model, args)
-    model, optimizer = model_optimizer_load(args, model, optimizer)
 
     if args.use_pure_fp16:
         scaler = paddle.amp.GradScaler(init_loss_scaling=args.scale_loss)
@@ -186,6 +208,12 @@ def do_train(args):
             models=model, level='O2', save_dtype='float32')
     else:
         scaler = None
+
+    decay_fused_tensors, all_fused_tensors = None, None
+    if args.tensor_fusion:
+        decay_fused_tensors, all_fused_tensors = parameters_classify(model)
+    optimizer, lr_scheduler = generate_optimizer(model, args, decay_fused_tensors, all_fused_tensors)
+    model, optimizer = model_optimizer_load(model, optimizer, args)
 
     global_step = 0
     for epoch in range(args.num_train_epochs):
