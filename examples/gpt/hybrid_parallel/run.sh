@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-export PYTHONPATH=$PYTHONPATH:../../../
-
 log_dir=log_hybrid
 rm -rf $log_dir
 

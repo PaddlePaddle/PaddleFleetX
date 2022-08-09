@@ -18,10 +18,8 @@ import os
 import random
 import time
 import sys
-sys.path.append("..")
-from examples.gpt.tools import parse_args, parse_yaml
-
 import numpy as np
+
 import paddle
 from paddle.distributed import fleet
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
@@ -29,6 +27,8 @@ from paddle.distributed.sharding import group_sharded_parallel
 from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 
+sys.path.append("../../../")
+from examples.gpt.tools import parse_args, parse_yaml
 from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
 from fleetx.data.tokenizers import GPTTokenizer
 from fleetx.utils import logger

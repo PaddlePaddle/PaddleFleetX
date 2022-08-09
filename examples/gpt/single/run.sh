@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-export PYTHONPATH=$PYTHONPATH:../../../
-
 # 345M
 python run_pretrain.py -c ./configs_345m_single_card.yaml
 
