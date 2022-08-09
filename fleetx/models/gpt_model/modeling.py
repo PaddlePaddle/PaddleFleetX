@@ -264,15 +264,11 @@ class TransformerDecoder(nn.Layer):
                                             cache=cache)
                     new_caches.append(new_cache)
                 else:
-                    recompute_mod = False
                     if self.use_recompute and self.recompute_granularity == "full":
-                        recompute_mod = True
-                    if self.use_recompute and self.recompute_granularity == "only_attn":
-                        if mod.__class__.__name__ == "MultiHeadAttention":
-                            recompute_mod = True
-                    output = recompute(mod, output, memory, tgt_mask, use_cache, cache) if recompute_mod \
-                        else mod(output, memory, tgt_mask, use_cache, cache)
-
+                        output = recompute(mod, output, memory, tgt_mask, use_cache, cache)
+                    else:
+                        recompute_attn = self.use_recompute and self.recompute_granularity == "only_attn"
+                        output = mod(output, memory, tgt_mask, use_cache, cache, recompute_attn)
             else:
                 output, new_cache = mod(output,
                                         memory,
@@ -350,14 +346,17 @@ class TransformerDecoderLayer(nn.Layer):
         self.dropout2 = nn.Dropout(act_dropout, mode="upscale_in_train")
         self.activation = getattr(F, activation)
 
-    def forward(self, tgt, memory, tgt_mask=None, use_cache=False, cache=None):
+    def forward(self, tgt, memory, tgt_mask=None, use_cache=False, cache=None, recompute_attn=False):
         residual = tgt
 
         if self.normalize_before:
             tgt = self.norm1(tgt)
 
         if use_cache is False:
-            tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
+            if recompute_attn:
+                tgt = recompute(self.self_attn, tgt, tgt, tgt, tgt_mask, use_cache, cache)
+            else:
+                tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
         else:
             tgt, incremental_cache = self.self_attn(tgt, tgt, tgt, tgt_mask,
                                                     use_cache, cache)
