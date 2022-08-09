@@ -28,21 +28,18 @@ GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupe
 - regex
 - colorlog
 - colorama
-- cached_path >= 1.1.5
 - omegaconf
 - sentencepiece >= 0.1.94
 - tqdm
 - visualdl
-- paddlepaddle-gpu >= 2.2rc
 - pybind11
 - lac (可选)
 - zstandard (可选)
 
 **安装命令**
 ```shell
-pip install regex colorlog colorama cached_path omegaconf sentencepiece tqdm visualdl pybind11 lac zstandard
+python -m pip install regex colorlog colorama omegaconf sentencepiece tqdm visualdl 
 ```
-注：需要PaddlePaddle版本大于等于2.2rc，或者使用最新develop版本，安装方法请参见Paddle[官网](https://www.paddlepaddle.org.cn)。
 
 ### 数据准备
 

@@ -1,6 +1,6 @@
 regex
 colorlog
 colorama
-inspect
 omegaconf
 tqdm
+pybind11

@@ -215,18 +215,28 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
 
 ### 多机训练
 
-若需要在更多机器上进行大模型训练，则需要在每个参与训练的节点上执行启动命令。以2机6.7B模型分组切分并行训练为例，启动命令为：
+若需要在更多机器上进行大模型训练，则需要在每个参与训练的节点上设置master节点ip/port信息后执行启动命令（master节点ip为训练所用某一台机器的ip即可）。
+
+以2机6.7B模型分组切分并行训练为例，启动命令为：
 
 ```shell
+master_ip=master节点ip
+master_port=可用的空闲端口号
+
 log_dir=log_sharding16
-python -m paddle.distributed.launch --log_dir $log_dir --master=10.10.1.1:49178 --nnodes=2 --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
+python -m paddle.distributed.launch --log_dir $log_dir --master=$master_ip:$master_port --nnodes=2 --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
     -c ./configs_6.7B_sharding16.yaml
 ```
 
-若要执行16机175B大模型混合并行训练，由于节点较多，可以考虑使用 `ssh` 脚本或 `mpirun` 进行跨节点命令分发，启动命令为：
+若要执行16机175B大模型混合并行训练，启动命令为：
 
 ```shell
+master_ip=master节点ip
+master_port=可用的空闲端口号
+
 log_dir=log_mp8_pp16
-mpirun python -m paddle.distributed.launch --log_dir $log_dir --master=10.10.1.1:49178 --nnodes=16 --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
+python -m paddle.distributed.launch --log_dir $log_dir --master=$master_ip:$master_port --nnodes=16 --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
     -c ./configs_175B_mp8_pp16.yaml
 ```
+
+当节点较多时，可以考虑使用 `ssh` 脚本或 `mpirun` 进行跨节点命令分发。

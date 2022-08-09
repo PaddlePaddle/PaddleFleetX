@@ -18,11 +18,11 @@ import os
 import random
 import time
 import sys
-sys.path.append("..")
-from examples.gpt.tools import parse_args, parse_yaml
-
 import numpy as np
+
 import paddle
+sys.path.append("../../../")
+from examples.gpt.tools import parse_args, parse_yaml
 from fleetx.models.gpt_model.modeling import GPTModel, GPTForPretraining, GPTPretrainingCriterion
 from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
 from fleetx.data.tokenizers import GPTTokenizer
