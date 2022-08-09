@@ -37,6 +37,17 @@ from examples.gpt.single.run_pretrain import generate_optimizer, model_optimizer
 from fleetx.models.gpt_model.modeling_hybrid import GPTModel, GPTForPretraining, GPTPretrainingCriterion, GPTForPretrainingPipe
 
 
+def all_reduce_parameters(params, group):
+    if group.nranks < 2:
+        return
+
+    div_factor = 1.0 / group.nranks
+    with paddle.framework.no_grad():
+        for p in params:
+            grad = p.grad.scale_(div_factor)
+            paddle.distributed.all_reduce(grad, use_calc_stream=True)
+
+
 def set_hyrbid_parallel_seed(basic_seed, data_world_rank, mp_rank, pp_rank):
     assert args.device != "cpu"
 
@@ -282,18 +293,25 @@ def do_train(args):
                 position_ids.stop_gradient = True
 
                 if args.pp_degree == 1:
-                    if args.use_recompute and isinstance(model,
-                                                         paddle.DataParallel):
+                    if args.tensor_fusion:
                         with model.no_sync():
                             loss = model_forward_backward(
                                 args, model, criterion, tokens, position_ids,
                                 labels, loss_mask, scaler)
-                        fused_allreduce_gradients(
-                            list(model.parameters()), None)
+                        all_reduce_parameters(all_fused_tensors, hcg.get_data_parallel_group())
                     else:
-                        loss = model_forward_backward(
-                            args, model, criterion, tokens, position_ids,
-                            labels, loss_mask, scaler)
+                        if args.use_recompute and isinstance(model,
+                                                             paddle.DataParallel):
+                            with model.no_sync():
+                                loss = model_forward_backward(
+                                    args, model, criterion, tokens, position_ids,
+                                    labels, loss_mask, scaler)
+                            fused_allreduce_gradients(
+                                list(model.parameters()), None)
+                        else:
+                            loss = model_forward_backward(
+                                args, model, criterion, tokens, position_ids,
+                                labels, loss_mask, scaler)
                     optim_update_params(args, model, optimizer, scaler)
 
                     if lr_scheduler is not None:
