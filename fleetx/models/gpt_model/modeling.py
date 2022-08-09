@@ -354,7 +354,7 @@ class TransformerDecoderLayer(nn.Layer):
 
         if use_cache is False:
             if recompute_attn:
-                tgt = recompute(self.self_attn, tgt, tgt, tgt, tgt_mask, use_cache, cache)
+                tgt = recompute(self.self_attn, tgt, None, None, tgt_mask, use_cache, cache)
             else:
                 tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
         else:
@@ -442,8 +442,8 @@ class GPTModel(nn.Layer):
 
         super(GPTModel, self).__init__()
 
-        assert recompute_granularity in ["full", "only_attn"], \
-            "recompute_granularity can be only chosen from full or only_attn, but received " + recompute_granularity
+        assert recompute_granularity in ["", "full", "only_attn"], \
+            "recompute_granularity can be only chosen from None, full or only_attn, but received " + recompute_granularity
 
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size

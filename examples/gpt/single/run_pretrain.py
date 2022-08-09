@@ -219,7 +219,7 @@ def do_train(args):
     if args.tensor_fusion:
         decay_fused_tensors, all_fused_tensors = parameters_classify(model)
     optimizer, lr_scheduler = generate_optimizer(model, args, decay_fused_tensors, all_fused_tensors)
-    model, optimizer = model_optimizer_load(model, optimizer, args)
+    model, optimizer = model_optimizer_load(args, model, optimizer)
 
     global_step = 0
     for epoch in range(args.num_train_epochs):

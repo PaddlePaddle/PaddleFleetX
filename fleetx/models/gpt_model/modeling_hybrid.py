@@ -280,13 +280,15 @@ class TransformerDecoder(nn.Layer):
                  num_layers,
                  norm=None,
                  hidden_size=None,
-                 use_recompute=False):
+                 use_recompute=False,
+                 recompute_granularity="full"):
         super(TransformerDecoder, self).__init__()
 
         self.num_layers = num_layers
         self.layers = decoder_layers
         self.norm = norm
         self.use_recompute = use_recompute
+        self.recompute_granularity = recompute_granularity
         if norm == "LayerNorm":
             self.norm = nn.LayerNorm(hidden_size, epsilon=1e-5)
         elif norm is not None:
@@ -317,8 +319,11 @@ class TransformerDecoder(nn.Layer):
                                             cache=cache)
                     new_caches.append(new_cache)
                 else:
-                    output = recompute(mod, output, memory, tgt_mask, use_cache, cache) if self.use_recompute \
-                        else mod(output, memory, tgt_mask, use_cache, cache)
+                    if self.use_recompute and self.recompute_granularity == "full":
+                        output = recompute(mod, output, memory, tgt_mask, use_cache, cache)
+                    else:
+                        recompute_attn = self.use_recompute and self.recompute_granularity == "only_attn"
+                        output = mod(output, memory, tgt_mask, use_cache, cache, recompute_attn)
 
             else:
                 output, new_cache = mod(output,
@@ -410,14 +415,18 @@ class TransformerDecoderLayer(nn.Layer):
                 memory=None,
                 tgt_mask=None,
                 use_cache=False,
-                cache=None):
+                cache=None,
+                recompute_attn=False):
         residual = tgt
 
         if self.normalize_before:
             tgt = self.norm1(tgt)
 
         if use_cache is False:
-            tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
+            if recompute_attn:
+                tgt = recompute(self.self_attn, tgt, None, None, tgt_mask, use_cache, cache)
+            else:
+                tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
         else:
             tgt, incremental_cache = self.self_attn(tgt, tgt, tgt, tgt_mask,
                                                     use_cache, cache)
@@ -505,9 +514,13 @@ class GPTModel(nn.Layer):
                  type_vocab_size=16,
                  initializer_range=0.02,
                  num_partitions=1,
-                 use_recompute=False):
+                 use_recompute=False,
+                 recompute_granularity="full"):
 
         super(GPTModel, self).__init__()
+
+        assert recompute_granularity in ["", "full", "only_attn"], \
+            "recompute_granularity can be only chosen from None, full or only_attn, but received " + recompute_granularity
 
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
@@ -539,7 +552,8 @@ class GPTModel(nn.Layer):
             num_layers,
             norm="LayerNorm",
             hidden_size=hidden_size,
-            use_recompute=use_recompute)
+            use_recompute=use_recompute,
+            recompute_granularity=recompute_granularity)
 
     @classmethod
     def from_config(cls, cfg):
@@ -555,7 +569,8 @@ class GPTModel(nn.Layer):
             "type_vocab_size": cfg.type_vocab_size,
             "initializer_range": cfg.initializer_range,
             "num_partitions": cfg.mp_degree,
-            "use_recompute": cfg.use_recompute
+            "use_recompute": cfg.use_recompute,
+            "recompute_granularity": cfg.recompute_granularity
         }
 
     def forward(self,
