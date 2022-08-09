@@ -225,13 +225,15 @@ class TransformerDecoder(nn.Layer):
                  num_layers,
                  norm=None,
                  hidden_size=None,
-                 use_recompute=False):
+                 use_recompute=False,
+                 recompute_granularity="full"):
         super(TransformerDecoder, self).__init__()
 
         self.num_layers = num_layers
         self.layers = decoder_layers
         self.norm = norm
         self.use_recompute = use_recompute
+        self.recompute_granularity = recompute_granularity
         if norm == "LayerNorm":
             self.norm = nn.LayerNorm(hidden_size, epsilon=1e-5)
         elif norm is not None:
@@ -262,7 +264,13 @@ class TransformerDecoder(nn.Layer):
                                             cache=cache)
                     new_caches.append(new_cache)
                 else:
-                    output = recompute(mod, output, memory, tgt_mask, use_cache, cache) if self.use_recompute \
+                    recompute_mod = False
+                    if self.use_recompute and self.recompute_granularity == "full":
+                        recompute_mod = True
+                    if self.use_recompute and self.recompute_granularity == "only_attn":
+                        if mod.__class__.__name__ == "MultiHeadAttention":
+                            recompute_mod = True
+                    output = recompute(mod, output, memory, tgt_mask, use_cache, cache) if recompute_mod \
                         else mod(output, memory, tgt_mask, use_cache, cache)
 
             else:
@@ -430,9 +438,13 @@ class GPTModel(nn.Layer):
                  type_vocab_size=16,
                  use_recompute=False,
                  initializer_range=0.02,
-                 fused_linear=False):
+                 fused_linear=False,
+                 recompute_granularity="full"):
 
         super(GPTModel, self).__init__()
+
+        assert recompute_granularity in ["full", "only_attn"], \
+            "recompute_granularity can be only chosen from full or only_attn, but received " + recompute_granularity
 
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
@@ -464,7 +476,8 @@ class GPTModel(nn.Layer):
             num_layers,
             norm="LayerNorm",
             hidden_size=hidden_size,
-            use_recompute=use_recompute)
+            use_recompute=use_recompute,
+            recompute_granularity=recompute_granularity)
 
     @classmethod
     def from_config(cls, cfg):
@@ -480,7 +493,8 @@ class GPTModel(nn.Layer):
             "type_vocab_size": cfg.type_vocab_size,
             "initializer_range": cfg.initializer_range,
             "use_recompute": cfg.use_recompute,
-            "fused_linear": cfg.fused_linear
+            "fused_linear": cfg.fused_linear,
+            "recompute_granularity": cfg.recompute_granularity
         }
 
     def forward(self,
