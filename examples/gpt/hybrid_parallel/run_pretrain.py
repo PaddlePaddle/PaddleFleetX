@@ -33,7 +33,7 @@ from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
 from fleetx.data.tokenizers import GPTTokenizer
 from fleetx.utils import logger
 from fleetx.optim import lr_scheduler as lr
-from examples.gpt.single.run_pretrain import generate_optimizer, model_optimizer_load, model_forward_backward
+from examples.gpt.single.run_pretrain import generate_optimizer, model_optimizer_load, model_forward_backward, parameters_classify
 from fleetx.models.gpt_model.modeling_hybrid import GPTModel, GPTForPretraining, GPTPretrainingCriterion, GPTForPretrainingPipe
 
 
@@ -223,7 +223,6 @@ def do_train(args):
     default_global_tokens_num = args.global_batch_size * args.max_seq_len
 
     model, tokenizer, criterion = generate_model(args)
-    optimizer, lr_scheduler = generate_optimizer(model, args)
 
     if args.use_pure_fp16:
         scaler = paddle.amp.GradScaler(init_loss_scaling=args.scale_loss)
@@ -231,6 +230,12 @@ def do_train(args):
             models=model, level='O2', save_dtype='float32')
     else:
         scaler = None
+
+    decay_fused_tensors, all_fused_tensors = None, None
+    if args.tensor_fusion:
+        decay_fused_tensors, all_fused_tensors = parameters_classify(model)
+    optimizer, lr_scheduler = generate_optimizer(model, args, decay_fused_tensors, all_fused_tensors)
+    model, optimizer = model_optimizer_load(args, model, optimizer)
 
     # wrap sharding stage2/3 and add collective group
     if args.sharding_stage in [2, 3]:

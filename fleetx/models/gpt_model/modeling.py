@@ -442,8 +442,12 @@ class GPTModel(nn.Layer):
 
         super(GPTModel, self).__init__()
 
-        assert recompute_granularity in ["", "full", "only_attn"], \
-            "recompute_granularity can be only chosen from None, full or only_attn, but received " + recompute_granularity
+        if use_recompute:
+            if recompute_granularity is None:
+                recompute_granularity = "full"
+            assert recompute_granularity in ["full", "only_attn"], \
+                "recompute_granularity can be only chosen from None, " \
+                "full or only_attn, but received " + recompute_granularity
 
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size

@@ -27,6 +27,7 @@ from paddle.distributed import fleet
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 from paddle.distributed.fleet.meta_parallel import LayerDesc, PipelineLayer, SharedLayerDesc
 from paddle.distributed.fleet.utils import recompute
+from paddle.incubate.nn import FusedLinear
 import sys
 from .config import configurable
 
@@ -76,7 +77,8 @@ class MultiHeadAttention(nn.Layer):
                  weight_attr=None,
                  bias_attr=None,
                  fuse=True,
-                 num_partitions=1):
+                 num_partitions=1,
+                 fused_linear=False):
         super(MultiHeadAttention, self).__init__()
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
@@ -102,35 +104,40 @@ class MultiHeadAttention(nn.Layer):
                 3 * embed_dim,
                 weight_attr=weight_attr,
                 has_bias=True,
-                gather_output=False)
+                gather_output=False,
+                fuse_matmul_bias=fused_linear)
         else:
             self.q_proj = fleet.meta_parallel.ColumnParallelLinear(
                 embed_dim,
                 embed_dim,
                 weight_attr=weight_attr,
                 has_bias=True,
-                gather_output=False)
+                gather_output=False,
+                fuse_matmul_bias=fused_linear)
 
             self.k_proj = fleet.meta_parallel.ColumnParallelLinear(
                 self.kdim,
                 embed_dim,
                 weight_attr=weight_attr,
                 has_bias=True,
-                gather_output=False)
+                gather_output=False,
+                fuse_matmul_bias=fused_linear)
 
             self.v_proj = fleet.meta_parallel.ColumnParallelLinear(
                 self.vdim,
                 embed_dim,
                 weight_attr=weight_attr,
                 has_bias=True,
-                gather_output=False)
+                gather_output=False,
+                fuse_matmul_bias=fused_linear)
 
         self.out_proj = fleet.meta_parallel.RowParallelLinear(
             embed_dim,
             embed_dim,
             weight_attr=weight_attr,
             has_bias=True,
-            input_is_parallel=True)
+            input_is_parallel=True,
+            fuse_matmul_bias=fused_linear)
 
     def _fuse_prepare_qkv(self, query):
         mix_layer = self.qkv_proj(query)
@@ -369,7 +376,8 @@ class TransformerDecoderLayer(nn.Layer):
                  normalize_before=True,
                  weight_attr=None,
                  bias_attr=None,
-                 num_partitions=1):
+                 num_partitions=1,
+                 fused_linear=False):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
@@ -388,21 +396,24 @@ class TransformerDecoderLayer(nn.Layer):
             dropout=attn_dropout,
             weight_attr=weight_attrs[0],
             bias_attr=bias_attrs[0],
-            num_partitions=num_partitions)
+            num_partitions=num_partitions,
+            fused_linear=fused_linear)
 
         self.linear1 = fleet.meta_parallel.ColumnParallelLinear(
             d_model,
             dim_feedforward,
             weight_attr=weight_attrs[2],
             gather_output=False,
-            has_bias=True)
+            has_bias=True,
+            fuse_matmul_bias=fused_linear)
 
         self.linear2 = fleet.meta_parallel.RowParallelLinear(
             dim_feedforward,
             d_model,
             weight_attr=weight_attrs[2],
             input_is_parallel=True,
-            has_bias=True)
+            has_bias=True,
+            fuse_matmul_bias=fused_linear)
 
         self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
@@ -515,12 +526,17 @@ class GPTModel(nn.Layer):
                  initializer_range=0.02,
                  num_partitions=1,
                  use_recompute=False,
+                 fused_linear=False,
                  recompute_granularity="full"):
 
         super(GPTModel, self).__init__()
 
-        assert recompute_granularity in ["", "full", "only_attn"], \
-            "recompute_granularity can be only chosen from None, full or only_attn, but received " + recompute_granularity
+        if use_recompute:
+            if recompute_granularity is None:
+                recompute_granularity = "full"
+            assert recompute_granularity in ["full", "only_attn"], \
+                "recompute_granularity can be only chosen from " \
+                "full or only_attn, but received " + recompute_granularity
 
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
@@ -545,7 +561,8 @@ class GPTModel(nn.Layer):
                         initializer=nn.initializer.Normal(
                             mean=0.0, std=self.initializer_range)),
                     bias_attr=None,
-                    num_partitions=num_partitions))
+                    num_partitions=num_partitions,
+                    fused_linear=fused_linear))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
@@ -570,6 +587,7 @@ class GPTModel(nn.Layer):
             "initializer_range": cfg.initializer_range,
             "num_partitions": cfg.mp_degree,
             "use_recompute": cfg.use_recompute,
+            "fused_linear": cfg.fused_linear,
             "recompute_granularity": cfg.recompute_granularity
         }
 
