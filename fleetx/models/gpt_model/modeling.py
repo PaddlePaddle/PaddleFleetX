@@ -22,6 +22,7 @@ import paddle.tensor as tensor
 from paddle.fluid import layers
 from paddle.nn.layer.transformer import _convert_param_attr_to_list
 import paddle.incubate as incubate
+from paddle.distributed.fleet.utils import recompute
 from .config import configurable
 
 
@@ -257,7 +258,8 @@ class TransformerDecoder(nn.Layer):
                                             cache=cache)
                     new_caches.append(new_cache)
                 else:
-                    output = mod(output, memory, tgt_mask, use_cache, cache)
+                    output = recompute(mod, output, memory, tgt_mask, use_cache, cache) if self.use_recompute \
+                        else mod(output, memory, tgt_mask, use_cache, cache)
 
             else:
                 output, new_cache = mod(output,
