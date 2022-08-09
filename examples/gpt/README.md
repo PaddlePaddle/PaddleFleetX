@@ -45,7 +45,7 @@ python -m pip install regex colorlog colorama omegaconf sentencepiece tqdm visua
 
 数据获取和制作详见[GPT 模型预训练数据准备流程](https://github.com/PaddlePaddle/FleetX/tree/develop/fleetx/data/data_tools/gpt)
 
-为了方便用户运行测试本模型，此处提供处理好的300M的训练样本。
+为了方便用户运行测试本模型，此处提供处理好的300M的训练样本，在单卡训练或混合并行训练前都需要通过以下命令获取数据。
 
 **数据下载命令**
 ```shell
