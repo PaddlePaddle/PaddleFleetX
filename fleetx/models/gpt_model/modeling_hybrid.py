@@ -15,6 +15,8 @@
 # limitations under the License.
 
 import collections
+import logging
+
 import paddle
 import paddle.nn as nn
 import paddle.nn.functional as F
@@ -27,7 +29,6 @@ from paddle.distributed import fleet
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 from paddle.distributed.fleet.meta_parallel import LayerDesc, PipelineLayer, SharedLayerDesc
 from paddle.distributed.fleet.utils import recompute
-from paddle.distributed.fleet.meta_parallel.pp_utils.utils import _hp_recompute
 from paddle.incubate.nn import FusedLinear
 import sys
 from .config import configurable
@@ -383,11 +384,6 @@ class TransformerDecoderLayer(nn.Layer):
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
 
-        hcg = fleet.get_hybrid_communicate_group()
-        pp_world_size = hcg.get_pipeline_parallel_world_size()
-        self.recompute_method = recompute
-        if pp_world_size > 1:
-            self.recompute_method = _hp_recompute
         super(TransformerDecoderLayer, self).__init__()
         attn_dropout = dropout if attn_dropout is None else attn_dropout
         act_dropout = dropout if act_dropout is None else act_dropout
@@ -441,7 +437,7 @@ class TransformerDecoderLayer(nn.Layer):
 
         if use_cache is False:
             if self.recompute_attn:
-                tgt = self.recompute_method(self.self_attn, tgt, None, None, tgt_mask, use_cache, cache)
+                tgt = recompute(self.self_attn, tgt, None, None, tgt_mask, use_cache, cache)
             else:
                 tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
         else:
@@ -538,13 +534,15 @@ class GPTModel(nn.Layer):
         super(GPTModel, self).__init__()
 
         if use_recompute:
-            if recompute_granularity is None:
+            if not isinstance(recompute_granularity, str):
+                logging.Logger("You are using recompute but not set recompute granularity, "
+                               "the granularity will be set to full as default.")
                 recompute_granularity = "full"
             assert recompute_granularity in ["full", "only_attn"], \
                 "recompute_granularity can be only chosen from " \
                 "full or only_attn, but received " + recompute_granularity
 
-        recompute_attn = self.use_recompute and self.recompute_granularity == "only_attn"
+        recompute_attn = use_recompute and recompute_granularity == "only_attn"
 
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
@@ -774,13 +772,15 @@ class GPTForPretrainingPipe(PipelineLayer):
                  recompute_granularity="full"):
 
         if use_recompute:
-            if recompute_granularity is None:
+            if not isinstance(recompute_granularity, str):
+                logging.Logger("You are using recompute but not set recompute granularity, "
+                               "the granularity will be set to full as default.")
                 recompute_granularity = "full"
             assert recompute_granularity in ["full", "only_attn"], \
                 "recompute_granularity can be only chosen from " \
                 "full or only_attn, but received " + recompute_granularity
 
-        recompute_attn = self.use_recompute and self.recompute_granularity == "only_attn"
+        recompute_attn = use_recompute and recompute_granularity == "only_attn"
 
         # forward desc
         self.descs = []
