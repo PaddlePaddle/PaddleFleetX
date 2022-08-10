@@ -49,6 +49,79 @@ def get_train_data_file(args):
     return files
 
 
+def create_pretrained_dataset_auto(args, input_path, eos_id):
+
+    local_rank = int(os.getenv("PADDLE_RANK_IN_NODE", 0))
+    if local_rank == 0:
+        try:
+            import fleetx.data.data_tools.cpp.fast_index_map_helpers
+        except Exception as e:
+            start_time = time.time()
+            print('> compiling dataset index builder ...')
+            from fleetx.data.data_tools.cpp.compile import compile_helper
+            compile_helper()
+            print(
+                '>>> done with dataset index builder. Compilation time: {:.3f} '
+                'seconds'.format(time.time() - start_time),
+                flush=True)
+
+    device_world_size = paddle.distributed.get_world_size()
+    if device_world_size > 1 and local_rank != 0:
+        while True:
+            try:
+                import fleetx.data.data_tools.cpp.fast_index_map_helpers
+                break
+            except Exception as e:
+                print("> wait for helpers to be compiled!")
+                time.sleep(1)
+
+    assert len(input_path) == 1, "GPT only support one dataset for now."
+
+    input_prefix = input_path[0]
+    for suffix in ["_ids.npy", "_idx.npz"]:
+        if not os.path.isfile(input_prefix + suffix):
+            raise ValueError("File Not found, %s" % (input_prefix + suffix))
+
+    sample_ids = np.load(
+        input_prefix + "_ids.npy", mmap_mode="r", allow_pickle=True)
+    # All documment ids, extend as 1-D array.
+
+    process_data = np.load(input_prefix + "_idx.npz")
+    # The len(sample_lens) num of docs
+    # The sum(sample_lens) should equal len(sample_ids)
+    sample_lens = process_data["lens"]
+
+    splits = get_train_valid_test_split_(args.split, len(sample_lens))
+    assert len(sample_lens) >= splits[
+        -1], "The document nums should larger than max of splits, but %s < %s" % (
+            len(sample_lens), splits[-1])
+
+    def build_dataset(index, name, num_samples):
+        dataset = GPTDataset(
+            file_path=input_prefix,
+            build_data_file=local_rank == 0,
+            name="gpt_" + name,
+            max_seq_len=args.max_seq_len,
+            num_samples=num_samples,
+            documents=np.arange(splits[index], splits[index + 1]),
+            sample_ids=sample_ids,
+            sample_lens=sample_lens,
+            eos_id=eos_id,
+            seed=args.seed)
+        return dataset
+
+    train_dataset = build_dataset(0, "train",
+                                  args.global_batch_size * args.max_steps)
+
+    valid_dataset = build_dataset(1, "valid", args.global_batch_size *
+                                  (args.max_steps // args.eval_freq + 1) *
+                                  args.eval_iters)
+    test_dataset = build_dataset(2, "test",
+                                 args.global_batch_size * args.test_iters)
+
+    return train_dataset, valid_dataset, test_dataset
+
+
 def create_pretrained_dataset(args,
                               input_path,
                               local_rank,
@@ -421,7 +494,7 @@ class GPTDataset(paddle.io.Dataset):
         self.start_pos = [0] + np.cumsum(self.sample_lens).tolist()
 
     def _construct_sample(self, tokens):
-        tokens = np.array(tokens).astype("int64").tolist()
+        tokens = np.array(tokens).astype("int64")
         labels = tokens[1:]
         tokens = tokens[:-1]
         seq_length = len(tokens)
@@ -436,7 +509,7 @@ class GPTDataset(paddle.io.Dataset):
         # attention_mask = (attention_mask - 1.0) * 1e9
         # attention_mask = attention_mask.astype("float32")
         # return [tokens, loss_mask, attention_mask, position_ids, labels]
-        return [tokens, loss_mask, position_ids, labels]
+        return [tokens, position_ids, labels, loss_mask]
 
     def _get_single_sample_from_idx(self, doc_index_f, doc_index_l, offset_f,
                                     offset_l):

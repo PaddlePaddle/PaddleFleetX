@@ -20,9 +20,11 @@ import os
 import sys
 
 import yaml
+import numpy as np
 import paddle
 import paddle.distributed as dist
 import argparse
+from functools import reduce
 from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
 
 
@@ -86,6 +88,8 @@ def parse_yaml(yaml_file):
 
     # process batch size
     process_batch_size(args)
+    # process process_mesh
+    process_mesh(args)
 
     if args.ffn_hidden_size is None:
         args.ffn_hidden_size = 4 * args.hidden_size
@@ -109,3 +113,74 @@ def _print_args(args):
     print(
         '-------------------- end of arguments ---------------------',
         flush=True)
+
+
+def process_mesh(args):
+    args.mesh = Mesh(args)
+
+
+class Mesh:
+    def __init__(self, args):
+        self.dp_idx = -1
+        self.mp_idx = -1
+        self.process_mesh = None
+        self.args = args
+
+        topology = list(
+            filter(lambda x: x > 1,
+                   [args.dp_degree, args.mp_degree, args.pp_degree]))
+        num_proc = 1 if not topology else reduce(lambda x, y: x * y, topology)
+        processes = [i for i in range(num_proc)]
+
+        if args.pp_degree > 1:
+            if len(topology) > 1:
+                # dpmppp, dppp, mppp
+                process_mesh_shape = topology[:-1]
+                per_process_mesh_group = num_proc // args.pp_degree
+                self.process_mesh = [
+                    np.array(processes[i * per_process_mesh_group:(i + 1) *
+                                       per_process_mesh_group]).reshape(
+                                           process_mesh_shape).tolist()
+                    for i in range(args.pp_degree)
+                ]
+                if len(process_mesh_shape) > 1:
+                    self.dp_idx = 0
+                    self.mp_idx = 1
+                else:
+                    self.dp_idx = 0 if args.dp_degree > 1 else -1
+                    self.mp_idx = 0 if args.mp_degree > 1 else -1
+            elif len(topology) == 1:
+                # pp
+                self.process_mesh = [[i] for i in range(args.pp_degree)]
+        else:
+            if len(topology) > 1:
+                # dpmp
+                self.process_mesh = [
+                    np.array(processes).reshape(topology).tolist()
+                ]
+                self.dp_idx = 0
+                self.mp_idx = 1
+            else:
+                # dp, mp
+                self.process_mesh = [processes]
+                self.dp_idx = 0 if args.dp_degree > 1 else -1
+                self.mp_idx = 0 if args.mp_degree > 1 else -1
+
+    def __getitem__(self, idx):
+        if self.args.pp_degree > 1:
+            assert self.args.pp_degree == len(self.process_mesh)
+
+        assert idx < len(self.process_mesh)
+        return self.process_mesh[idx]
+
+    def stages(self, num_layers):
+        layer_per_stage = num_layers // self.args.pp_degree
+        return [i // layer_per_stage for i in range(num_layers)]
+
+    @property
+    def dp(self):
+        return self.dp_idx
+
+    @property
+    def mp(self):
+        return self.mp_idx
