@@ -244,7 +244,7 @@ def do_train(args):
 
     decay_fused_tensors, all_fused_tensors = None, None
     if args.tensor_fusion:
-        decay_fused_tensors, all_fused_tensors = parameters_classify(model)
+        decay_fused_tensors, all_fused_tensors = parameters_classify(model, use_sharding=args.sharding_degree > 1)
     optimizer, lr_scheduler = generate_optimizer(model, args, decay_fused_tensors, all_fused_tensors)
     model, optimizer = model_optimizer_load(args, model, optimizer)
 
