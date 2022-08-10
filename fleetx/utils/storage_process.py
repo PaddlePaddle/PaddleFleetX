@@ -83,6 +83,7 @@ def flatten_dense_tensors(parameters):
     # param_storage --> grad_storage
     param_storage.buffer._copy_gradient_from(grad_storage.buffer)
     param_storage.buffer.stop_gradient = False
+    setattr(param_storage.buffer, 'trainable', True)
     return param_storage, grad_storage
 
 

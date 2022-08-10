@@ -27,6 +27,7 @@ from paddle.distributed import fleet
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 from paddle.distributed.fleet.meta_parallel import LayerDesc, PipelineLayer, SharedLayerDesc
 from paddle.distributed.fleet.utils import recompute
+from paddle.distributed.fleet.meta_parallel.pp_utils.utils import _hp_recompute
 from paddle.incubate.nn import FusedLinear
 import sys
 from .config import configurable
@@ -329,8 +330,7 @@ class TransformerDecoder(nn.Layer):
                     if self.use_recompute and self.recompute_granularity == "full":
                         output = recompute(mod, output, memory, tgt_mask, use_cache, cache)
                     else:
-                        recompute_attn = self.use_recompute and self.recompute_granularity == "only_attn"
-                        output = mod(output, memory, tgt_mask, use_cache, cache, recompute_attn)
+                        output = mod(output, memory, tgt_mask, use_cache, cache)
 
             else:
                 output, new_cache = mod(output,
@@ -377,15 +377,22 @@ class TransformerDecoderLayer(nn.Layer):
                  weight_attr=None,
                  bias_attr=None,
                  num_partitions=1,
-                 fused_linear=False):
+                 fused_linear=False,
+                 recompute_attn=False):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
 
+        hcg = fleet.get_hybrid_communicate_group()
+        pp_world_size = hcg.get_pipeline_parallel_world_size()
+        self.recompute_method = recompute
+        if pp_world_size > 1:
+            self.recompute_method = _hp_recompute
         super(TransformerDecoderLayer, self).__init__()
         attn_dropout = dropout if attn_dropout is None else attn_dropout
         act_dropout = dropout if act_dropout is None else act_dropout
         self.normalize_before = normalize_before
+        self.recompute_attn = recompute_attn
 
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
@@ -426,16 +433,15 @@ class TransformerDecoderLayer(nn.Layer):
                 memory=None,
                 tgt_mask=None,
                 use_cache=False,
-                cache=None,
-                recompute_attn=False):
+                cache=None):
         residual = tgt
 
         if self.normalize_before:
             tgt = self.norm1(tgt)
 
         if use_cache is False:
-            if recompute_attn:
-                tgt = recompute(self.self_attn, tgt, None, None, tgt_mask, use_cache, cache)
+            if self.recompute_attn:
+                tgt = self.recompute_method(self.self_attn, tgt, None, None, tgt_mask, use_cache, cache)
             else:
                 tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
         else:
@@ -538,6 +544,8 @@ class GPTModel(nn.Layer):
                 "recompute_granularity can be only chosen from " \
                 "full or only_attn, but received " + recompute_granularity
 
+        recompute_attn = self.use_recompute and self.recompute_granularity == "only_attn"
+
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
@@ -562,7 +570,8 @@ class GPTModel(nn.Layer):
                             mean=0.0, std=self.initializer_range)),
                     bias_attr=None,
                     num_partitions=num_partitions,
-                    fused_linear=fused_linear))
+                    fused_linear=fused_linear,
+                    recompute_attn=recompute_attn))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
@@ -760,7 +769,18 @@ class GPTForPretrainingPipe(PipelineLayer):
                  initializer_range=0.02,
                  num_partitions=1,
                  topology=None,
-                 use_recompute=False):
+                 use_recompute=False,
+                 fused_linear=False,
+                 recompute_granularity="full"):
+
+        if use_recompute:
+            if recompute_granularity is None:
+                recompute_granularity = "full"
+            assert recompute_granularity in ["full", "only_attn"], \
+                "recompute_granularity can be only chosen from " \
+                "full or only_attn, but received " + recompute_granularity
+
+        recompute_attn = self.use_recompute and self.recompute_granularity == "only_attn"
 
         # forward desc
         self.descs = []
@@ -792,7 +812,9 @@ class GPTForPretrainingPipe(PipelineLayer):
                         initializer=nn.initializer.Normal(
                             mean=0.0, std=initializer_range)),
                     bias_attr=None,
-                    num_partitions=num_partitions))
+                    num_partitions=num_partitions,
+                    fused_linear=fused_linear,
+                    recompute_attn=recompute_attn))
 
         self.descs.append(
             LayerDesc(
@@ -814,12 +836,16 @@ class GPTForPretrainingPipe(PipelineLayer):
                 type_vocab_size=type_vocab_size,
                 initializer_range=0.02))
 
+        recompute_interval = 0
+        if recompute and not recompute_attn:
+            recompute_interval = 1
+
         super().__init__(
             layers=self.descs,
             loss_fn=GPTPretrainingCriterionPipe(),
             topology=topology,
             seg_method="layer:TransformerDecoderLayer",
-            recompute_interval=1 if use_recompute else 0,
+            recompute_interval=recompute_interval,
             recompute_partition=False,
             recompute_offload=False)
 
@@ -838,5 +864,7 @@ class GPTForPretrainingPipe(PipelineLayer):
             "initializer_range": cfg.initializer_range,
             "num_partitions": cfg.mp_degree,
             "use_recompute": cfg.use_recompute,
-            "topology": cfg.topology
+            "topology": cfg.topology,
+            "fused_linear": cfg.fused_linear,
+            "recompute_granularity": cfg.recompute_granularity
         }
