@@ -20,8 +20,9 @@ path = os.path.abspath(os.path.dirname(__file__))
 def compile_helper():
     """Compile helper function ar runtime. Make sure this
     is invoked on a single process."""
-    ret = subprocess.run(['make', '-C', path])
+    import sys
+    excutable = sys.executable
+    ret = subprocess.run(['make', '-C', path, f'PYTHON_BIN={excutable}'])
     if ret.returncode != 0:
         print("Making C++ dataset helpers module failed, exiting.")
-        import sys
         sys.exit(1)
