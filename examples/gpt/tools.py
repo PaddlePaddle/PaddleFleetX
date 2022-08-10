@@ -161,7 +161,7 @@ class Mesh:
                 self.dp_idx = 0
                 self.mp_idx = 1
             else:
-                # dp, mp
+                # dp, mp, serial
                 self.process_mesh = [processes]
                 self.dp_idx = 0 if args.dp_degree > 1 else -1
                 self.mp_idx = 0 if args.mp_degree > 1 else -1

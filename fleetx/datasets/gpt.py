@@ -494,7 +494,7 @@ class GPTDataset(paddle.io.Dataset):
         self.start_pos = [0] + np.cumsum(self.sample_lens).tolist()
 
     def _construct_sample(self, tokens):
-        tokens = np.array(tokens).astype("int64")
+        tokens = np.array(tokens).astype("int64").tolist()
         labels = tokens[1:]
         tokens = tokens[:-1]
         seq_length = len(tokens)

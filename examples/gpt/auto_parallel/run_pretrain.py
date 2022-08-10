@@ -23,6 +23,7 @@ from tools import parse_args, parse_yaml
 import paddle
 from fleetx.utils import logger
 from fleetx.optim import lr_scheduler as lr
+from fleetx.data.sampler import Stack, Tuple
 from fleetx.data.tokenizers import GPTTokenizer
 from fleetx.datasets.gpt import create_pretrained_dataset_auto, get_train_data_file
 from fleetx.models.gpt_model.modeling_auto import GPTModel, GPTForPretraining, GPTPretrainingCriterion
@@ -133,7 +134,10 @@ def do_train(args):
             data_file = files[f_id]
             train_data, _, _ = create_pretrained_dataset_auto(
                 args, [data_file], tokenizer.eos_token_id)
-            engine.fit(train_data, batch_size=args.global_batch_size)
+            engine.fit(train_data,
+                       batch_size=args.global_batch_size,
+                       collate_fn=Tuple(Stack(), Stack(), Stack(), Stack()),
+                       use_program_cache=True)
 
 
 if __name__ == "__main__":
