@@ -96,9 +96,10 @@ def wrap_sharding_2_3(args, model, optimizer, scaler):
         offload=args.sharding_offload)
 
 
-def wrap_3D_parallel(model, optimizer, scaler):
+def wrap_3D_parallel(model, optimizer, scaler, warp_opt=True):
     model = fleet.distributed_model(model)
-    optimizer = fleet.distributed_optimizer(optimizer)
+    if warp_opt:
+        optimizer = fleet.distributed_optimizer(optimizer)
     scaler = fleet.distributed_scaler(scaler) if scaler is not None else scaler
     return model, optimizer, scaler
 
@@ -197,9 +198,6 @@ def run_evaluate(args,
 
 
 def do_train(args):
-    if args.pp_degree > 1:
-        assert not args.tensor_fusion, "tensor_fusion is not support by pipeline parallel"
-
     if args.fused_linear and not is_fused_matmul_bias_supported():
         logger.warning("The flag fused_linear only valid for cuda version higher than 11.6, "
                        "but the paddle is compiled with cuda " + paddle.version.cuda())
@@ -263,7 +261,7 @@ def do_train(args):
         model, optimizer, scaler = wrap_sharding_2_3(args, model, optimizer,
                                                      scaler)
     else:
-        model, optimizer, scaler = wrap_3D_parallel(model, optimizer, scaler)
+        model, optimizer, scaler = wrap_3D_parallel(model, optimizer, scaler, warp_opt=not (args.pp_degree > 1 and args.tensor_fusion))
 
     model, optimizer = model_optimizer_load(args, model, optimizer)
 
@@ -335,11 +333,25 @@ def do_train(args):
                                 "elementwise_div"
                             ],
                             level='O2'):
-                        loss = model.train_batch(
-                            data,
-                            optimizer=optimizer,
-                            lr_scheduler=lr_scheduler,
-                            scaler=scaler if args.use_pure_fp16 else None)
+                        if not args.tensor_fusion:
+                            loss = model.train_batch(
+                                data,
+                                optimizer=optimizer,
+                                lr_scheduler=lr_scheduler,
+                                scaler=scaler if args.use_pure_fp16 else None)
+                        else:
+                            loss = model.forward_backward_pipeline(data)
+                            all_reduce_parameters(all_fused_tensors, hcg.get_data_parallel_group())
+                            with paddle.amp.auto_cast(enable=False):
+                                if scaler:
+                                    scaler.step(optimizer)
+                                    scaler.update()
+                                else:
+                                    optimizer.step()
+
+                                optimizer.clear_grad()
+                                if lr_scheduler:
+                                    lr_scheduler.step()
 
                 # Sync for profile time, delete it may be a little faster
                 paddle.device.cuda.synchronize()
