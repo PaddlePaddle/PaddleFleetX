@@ -46,7 +46,7 @@ def all_reduce_parameters(params, group):
     with paddle.framework.no_grad():
         for p in params:
             grad = p.grad.scale_(div_factor)
-            paddle.distributed.all_reduce(grad, use_calc_stream=True)
+            paddle.distributed.all_reduce(grad, group=group)
 
 
 def set_hyrbid_parallel_seed(basic_seed, data_world_rank, mp_rank, pp_rank):
