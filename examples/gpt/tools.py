@@ -16,6 +16,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import logging
 import os
 import sys
 
@@ -92,10 +93,10 @@ def parse_yaml(yaml_file):
 
     args.test_iters = args.eval_iters * 10
 
-    if args.fused_linear:
-        assert is_fused_matmul_bias_supported(), \
-            "The flag fused_linear only valid for cuda version higher than 11.6, "\
-            "but the paddle is compiled with cuda " + paddle.version.cuda()
+    if args.fused_linear and not is_fused_matmul_bias_supported():
+        args.fused_linear = False
+        logging.warning("The flag fused_linear only valid for cuda version higher than 11.6, "
+                        "but the paddle is compiled with cuda " + paddle.version.cuda())
 
     if args.recompute:
         assert args.recompute_granularity is None or \
