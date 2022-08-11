@@ -22,6 +22,7 @@ import sys
 import yaml
 import paddle
 import paddle.distributed as dist
+from paddle.fluid import core
 import argparse
 from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
 
@@ -47,6 +48,13 @@ def process_batch_size(args):
     else:
         args.global_batch_size = args.local_batch_size * args.dp_degree * args.sharding_degree
     assert args.local_batch_size % args.micro_batch_size == 0
+
+
+def is_fused_matmul_bias_supported():
+    if paddle.is_compiled_with_cuda() and not paddle.is_compiled_with_rocm():
+        return hasattr(core.ops, 'fused_gemm_epilogue')
+    else:
+        return False
 
 
 def model_size(args):
@@ -83,6 +91,11 @@ def parse_yaml(yaml_file):
     args = argparse.Namespace(**yaml_dict)
 
     args.test_iters = args.eval_iters * 10
+
+    if args.fused_linear:
+        assert is_fused_matmul_bias_supported(), \
+            "The flag fused_linear only valid for cuda version higher than 11.6, "\
+            "but the paddle is compiled with cuda " + paddle.version.cuda()
 
     # process batch size
     process_batch_size(args)
