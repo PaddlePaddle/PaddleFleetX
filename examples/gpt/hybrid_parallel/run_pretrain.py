@@ -196,6 +196,9 @@ def run_evaluate(args,
 
 
 def do_train(args):
+    if args.pp_degree > 1:
+        assert not args.tensor_fusion, "tensor_fusion is not support by pipeline parallel"
+
     paddle.set_device(args.device)
 
     nranks = paddle.distributed.get_world_size()
