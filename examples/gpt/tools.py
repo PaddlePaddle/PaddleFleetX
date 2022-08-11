@@ -97,6 +97,17 @@ def parse_yaml(yaml_file):
             "The flag fused_linear only valid for cuda version higher than 11.6, "\
             "but the paddle is compiled with cuda " + paddle.version.cuda()
 
+    if args.recompute:
+        assert args.recompute_granularity is None or \
+               isinstance(args.recompute_granularity, str), \
+            "recompute_granularity must be a None or a string object"
+        if args.recompute_granularity is None:
+            args.recompute_granularity = "full"
+        else:
+            assert args.recompute_granularity in ["full", "only_attn"], \
+                "recompute_granularity can be only chosen from " \
+                "full or only_attn, but received " + args.recompute_granularity
+
     # process batch size
     process_batch_size(args)
 

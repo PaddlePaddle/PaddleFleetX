@@ -532,15 +532,6 @@ class GPTModel(nn.Layer):
 
         super(GPTModel, self).__init__()
 
-        if use_recompute:
-            if not isinstance(recompute_granularity, str):
-                logging.Logger("You are using recompute but not set recompute granularity, "
-                               "the granularity will be set to full as default.")
-                recompute_granularity = "full"
-            assert recompute_granularity in ["full", "only_attn"], \
-                "recompute_granularity can be only chosen from " \
-                "full or only_attn, but received " + recompute_granularity
-
         recompute_attn = use_recompute and recompute_granularity == "only_attn"
 
         self.initializer_range = initializer_range
@@ -769,15 +760,6 @@ class GPTForPretrainingPipe(PipelineLayer):
                  use_recompute=False,
                  fused_linear=False,
                  recompute_granularity="full"):
-
-        if use_recompute:
-            if not isinstance(recompute_granularity, str):
-                logging.Logger("You are using recompute but not set recompute granularity, "
-                               "the granularity will be set to full as default.")
-                recompute_granularity = "full"
-            assert recompute_granularity in ["full", "only_attn"], \
-                "recompute_granularity can be only chosen from " \
-                "full or only_attn, but received " + recompute_granularity
 
         recompute_attn = use_recompute and recompute_granularity == "only_attn"
 
