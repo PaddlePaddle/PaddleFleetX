@@ -35,6 +35,7 @@ from fleetx.utils import logger
 from fleetx.optim import lr_scheduler as lr
 from examples.gpt.single.run_pretrain import generate_optimizer, model_optimizer_load, model_forward_backward, parameters_classify
 from fleetx.models.gpt_model.modeling_hybrid import GPTModel, GPTForPretraining, GPTPretrainingCriterion, GPTForPretrainingPipe
+from fleetx.utils.version_check import is_fused_matmul_bias_supported
 
 
 def all_reduce_parameters(params, group):
@@ -198,6 +199,11 @@ def run_evaluate(args,
 def do_train(args):
     if args.pp_degree > 1:
         assert not args.tensor_fusion, "tensor_fusion is not support by pipeline parallel"
+
+    if args.fused_linear and not is_fused_matmul_bias_supported():
+        logger.warning("The flag fused_linear only valid for cuda version higher than 11.6, "
+                       "but the paddle is compiled with cuda " + paddle.version.cuda())
+        args.fused_linear = False
 
     paddle.set_device(args.device)
 
