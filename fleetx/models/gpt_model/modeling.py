@@ -15,6 +15,8 @@
 # limitations under the License.
 
 import collections
+import logging
+
 import paddle
 import paddle.nn as nn
 import paddle.nn.functional as F
@@ -267,8 +269,7 @@ class TransformerDecoder(nn.Layer):
                     if self.use_recompute and self.recompute_granularity == "full":
                         output = recompute(mod, output, memory, tgt_mask, use_cache, cache)
                     else:
-                        recompute_attn = self.use_recompute and self.recompute_granularity == "only_attn"
-                        output = mod(output, memory, tgt_mask, use_cache, cache, recompute_attn)
+                        output = mod(output, memory, tgt_mask, use_cache, cache)
             else:
                 output, new_cache = mod(output,
                                         memory,
@@ -313,7 +314,8 @@ class TransformerDecoderLayer(nn.Layer):
                  normalize_before=True,
                  weight_attr=None,
                  bias_attr=None,
-                 fused_linear=False):
+                 fused_linear=False,
+                 recompute_attn=False):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
@@ -322,6 +324,7 @@ class TransformerDecoderLayer(nn.Layer):
         attn_dropout = dropout if attn_dropout is None else attn_dropout
         act_dropout = dropout if act_dropout is None else act_dropout
         self.normalize_before = normalize_before
+        self.recompute_attn = recompute_attn
 
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
@@ -346,14 +349,14 @@ class TransformerDecoderLayer(nn.Layer):
         self.dropout2 = nn.Dropout(act_dropout, mode="upscale_in_train")
         self.activation = getattr(F, activation)
 
-    def forward(self, tgt, memory, tgt_mask=None, use_cache=False, cache=None, recompute_attn=False):
+    def forward(self, tgt, memory, tgt_mask=None, use_cache=False, cache=None):
         residual = tgt
 
         if self.normalize_before:
             tgt = self.norm1(tgt)
 
         if use_cache is False:
-            if recompute_attn:
+            if self.recompute_attn:
                 tgt = recompute(self.self_attn, tgt, None, None, tgt_mask, use_cache, cache)
             else:
                 tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
@@ -443,11 +446,15 @@ class GPTModel(nn.Layer):
         super(GPTModel, self).__init__()
 
         if use_recompute:
-            if recompute_granularity is None:
+            if not isinstance(recompute_granularity, str):
+                logging.Logger("You are using recompute but not set recompute granularity, "
+                               "the granularity will be set to full as default.")
                 recompute_granularity = "full"
             assert recompute_granularity in ["full", "only_attn"], \
-                "recompute_granularity can be only chosen from None, " \
+                "recompute_granularity can be only chosen from " \
                 "full or only_attn, but received " + recompute_granularity
+
+        recompute_attn = use_recompute and recompute_granularity == "only_attn"
 
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
@@ -472,7 +479,8 @@ class GPTModel(nn.Layer):
                         initializer=nn.initializer.Normal(
                             mean=0.0, std=self.initializer_range)),
                     bias_attr=None,
-                    fused_linear=fused_linear))
+                    fused_linear=fused_linear,
+                    recompute_attn=recompute_attn))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
