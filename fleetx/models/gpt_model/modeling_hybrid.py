@@ -15,6 +15,8 @@
 # limitations under the License.
 
 import collections
+import logging
+
 import paddle
 import paddle.nn as nn
 import paddle.nn.functional as F
@@ -76,7 +78,8 @@ class MultiHeadAttention(nn.Layer):
                  weight_attr=None,
                  bias_attr=None,
                  fuse=True,
-                 num_partitions=1):
+                 num_partitions=1,
+                 fused_linear=False):
         super(MultiHeadAttention, self).__init__()
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
@@ -102,35 +105,40 @@ class MultiHeadAttention(nn.Layer):
                 3 * embed_dim,
                 weight_attr=weight_attr,
                 has_bias=True,
-                gather_output=False)
+                gather_output=False,
+                fuse_matmul_bias=fused_linear)
         else:
             self.q_proj = fleet.meta_parallel.ColumnParallelLinear(
                 embed_dim,
                 embed_dim,
                 weight_attr=weight_attr,
                 has_bias=True,
-                gather_output=False)
+                gather_output=False,
+                fuse_matmul_bias=fused_linear)
 
             self.k_proj = fleet.meta_parallel.ColumnParallelLinear(
                 self.kdim,
                 embed_dim,
                 weight_attr=weight_attr,
                 has_bias=True,
-                gather_output=False)
+                gather_output=False,
+                fuse_matmul_bias=fused_linear)
 
             self.v_proj = fleet.meta_parallel.ColumnParallelLinear(
                 self.vdim,
                 embed_dim,
                 weight_attr=weight_attr,
                 has_bias=True,
-                gather_output=False)
+                gather_output=False,
+                fuse_matmul_bias=fused_linear)
 
         self.out_proj = fleet.meta_parallel.RowParallelLinear(
             embed_dim,
             embed_dim,
             weight_attr=weight_attr,
             has_bias=True,
-            input_is_parallel=True)
+            input_is_parallel=True,
+            fuse_matmul_bias=fused_linear)
 
     def _fuse_prepare_qkv(self, query):
         mix_layer = self.qkv_proj(query)
@@ -280,13 +288,15 @@ class TransformerDecoder(nn.Layer):
                  num_layers,
                  norm=None,
                  hidden_size=None,
-                 use_recompute=False):
+                 use_recompute=False,
+                 recompute_granularity="full"):
         super(TransformerDecoder, self).__init__()
 
         self.num_layers = num_layers
         self.layers = decoder_layers
         self.norm = norm
         self.use_recompute = use_recompute
+        self.recompute_granularity = recompute_granularity
         if norm == "LayerNorm":
             self.norm = nn.LayerNorm(hidden_size, epsilon=1e-5)
         elif norm is not None:
@@ -317,8 +327,10 @@ class TransformerDecoder(nn.Layer):
                                             cache=cache)
                     new_caches.append(new_cache)
                 else:
-                    output = recompute(mod, output, memory, tgt_mask, use_cache, cache) if self.use_recompute \
-                        else mod(output, memory, tgt_mask, use_cache, cache)
+                    if self.use_recompute and self.recompute_granularity == "full":
+                        output = recompute(mod, output, memory, tgt_mask, use_cache, cache)
+                    else:
+                        output = mod(output, memory, tgt_mask, use_cache, cache)
 
             else:
                 output, new_cache = mod(output,
@@ -364,7 +376,9 @@ class TransformerDecoderLayer(nn.Layer):
                  normalize_before=True,
                  weight_attr=None,
                  bias_attr=None,
-                 num_partitions=1):
+                 num_partitions=1,
+                 fused_linear=False,
+                 recompute_attn=False):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
@@ -373,6 +387,7 @@ class TransformerDecoderLayer(nn.Layer):
         attn_dropout = dropout if attn_dropout is None else attn_dropout
         act_dropout = dropout if act_dropout is None else act_dropout
         self.normalize_before = normalize_before
+        self.recompute_attn = recompute_attn
 
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
@@ -383,21 +398,24 @@ class TransformerDecoderLayer(nn.Layer):
             dropout=attn_dropout,
             weight_attr=weight_attrs[0],
             bias_attr=bias_attrs[0],
-            num_partitions=num_partitions)
+            num_partitions=num_partitions,
+            fused_linear=fused_linear)
 
         self.linear1 = fleet.meta_parallel.ColumnParallelLinear(
             d_model,
             dim_feedforward,
             weight_attr=weight_attrs[2],
             gather_output=False,
-            has_bias=True)
+            has_bias=True,
+            fuse_matmul_bias=fused_linear)
 
         self.linear2 = fleet.meta_parallel.RowParallelLinear(
             dim_feedforward,
             d_model,
             weight_attr=weight_attrs[2],
             input_is_parallel=True,
-            has_bias=True)
+            has_bias=True,
+            fuse_matmul_bias=fused_linear)
 
         self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
@@ -417,7 +435,10 @@ class TransformerDecoderLayer(nn.Layer):
             tgt = self.norm1(tgt)
 
         if use_cache is False:
-            tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
+            if self.recompute_attn:
+                tgt = recompute(self.self_attn, tgt, None, None, tgt_mask, use_cache, cache)
+            else:
+                tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
         else:
             tgt, incremental_cache = self.self_attn(tgt, tgt, tgt, tgt_mask,
                                                     use_cache, cache)
@@ -505,9 +526,13 @@ class GPTModel(nn.Layer):
                  type_vocab_size=16,
                  initializer_range=0.02,
                  num_partitions=1,
-                 use_recompute=False):
+                 use_recompute=False,
+                 fused_linear=False,
+                 recompute_granularity="full"):
 
         super(GPTModel, self).__init__()
+
+        recompute_attn = use_recompute and recompute_granularity == "only_attn"
 
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
@@ -532,14 +557,17 @@ class GPTModel(nn.Layer):
                         initializer=nn.initializer.Normal(
                             mean=0.0, std=self.initializer_range)),
                     bias_attr=None,
-                    num_partitions=num_partitions))
+                    num_partitions=num_partitions,
+                    fused_linear=fused_linear,
+                    recompute_attn=recompute_attn))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
             num_layers,
             norm="LayerNorm",
             hidden_size=hidden_size,
-            use_recompute=use_recompute)
+            use_recompute=use_recompute,
+            recompute_granularity=recompute_granularity)
 
     @classmethod
     def from_config(cls, cfg):
@@ -555,7 +583,9 @@ class GPTModel(nn.Layer):
             "type_vocab_size": cfg.type_vocab_size,
             "initializer_range": cfg.initializer_range,
             "num_partitions": cfg.mp_degree,
-            "use_recompute": cfg.use_recompute
+            "use_recompute": cfg.use_recompute,
+            "fused_linear": cfg.fused_linear,
+            "recompute_granularity": cfg.recompute_granularity
         }
 
     def forward(self,
@@ -727,7 +757,11 @@ class GPTForPretrainingPipe(PipelineLayer):
                  initializer_range=0.02,
                  num_partitions=1,
                  topology=None,
-                 use_recompute=False):
+                 use_recompute=False,
+                 fused_linear=False,
+                 recompute_granularity="full"):
+
+        recompute_attn = use_recompute and recompute_granularity == "only_attn"
 
         # forward desc
         self.descs = []
@@ -759,7 +793,9 @@ class GPTForPretrainingPipe(PipelineLayer):
                         initializer=nn.initializer.Normal(
                             mean=0.0, std=initializer_range)),
                     bias_attr=None,
-                    num_partitions=num_partitions))
+                    num_partitions=num_partitions,
+                    fused_linear=fused_linear,
+                    recompute_attn=recompute_attn))
 
         self.descs.append(
             LayerDesc(
@@ -781,12 +817,16 @@ class GPTForPretrainingPipe(PipelineLayer):
                 type_vocab_size=type_vocab_size,
                 initializer_range=0.02))
 
+        recompute_interval = 0
+        if recompute and not recompute_attn:
+            recompute_interval = 1
+
         super().__init__(
             layers=self.descs,
             loss_fn=GPTPretrainingCriterionPipe(),
             topology=topology,
             seg_method="layer:TransformerDecoderLayer",
-            recompute_interval=1 if use_recompute else 0,
+            recompute_interval=recompute_interval,
             recompute_partition=False,
             recompute_offload=False)
 
@@ -805,5 +845,7 @@ class GPTForPretrainingPipe(PipelineLayer):
             "initializer_range": cfg.initializer_range,
             "num_partitions": cfg.mp_degree,
             "use_recompute": cfg.use_recompute,
-            "topology": cfg.topology
+            "topology": cfg.topology,
+            "fused_linear": cfg.fused_linear,
+            "recompute_granularity": cfg.recompute_granularity
         }

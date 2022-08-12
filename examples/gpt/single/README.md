@@ -85,6 +85,7 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
   num_train_epochs: 1
   seed: 1024
   use_recompute: False
+  recompute_granularity:
   batch_size:
     global_batch_size: 8
     local_batch_size: 8
@@ -103,6 +104,7 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
     save_steps: 1000
     output_dir: ./output
     ckpt_dir: 
+  fused_linear: False 
 ```
 
 其中参数说明：
@@ -114,6 +116,7 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
 | num_train_epochs  | 训练的epoch数量                           |
 | seed              | 随机种子，保证训练过程可复现                       |
 | use_recompute     | 是否使用recompute训练                      |
+| recompute_granularity | recompute训练的粒度，可选 `full` `only_attn`，full即recompute全部transformer，only_attn表明只recompute self attention部分 |
 | global_batch_size | 全局的batch size大小，即一次参数更新等效的batch size |
 | local_batch_size  | 每个进程训练的batch size大小                  |
 | micro_batch_size  | 每次前向计算的batch size大小                  |
@@ -128,6 +131,7 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
 | save_steps        | 保存模型间隔                               |
 | output_dir        | 指定输出文件                               |
 | ckpt_dir          | checkpoint的加载目录                      |
+| fused_linear      | 是否使用fused_linear代替传统Linear加速训练。注：该功能需要cuda 11.6及以上编译的paddle支持。       |
 
 
 ## 运行方式

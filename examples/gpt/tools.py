@@ -16,12 +16,14 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import logging
 import os
 import sys
 
 import yaml
 import paddle
 import paddle.distributed as dist
+from paddle.fluid import core
 import argparse
 from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
 
@@ -47,6 +49,13 @@ def process_batch_size(args):
     else:
         args.global_batch_size = args.local_batch_size * args.dp_degree * args.sharding_degree
     assert args.local_batch_size % args.micro_batch_size == 0
+
+
+def is_fused_matmul_bias_supported():
+    if paddle.is_compiled_with_cuda() and not paddle.is_compiled_with_rocm():
+        return hasattr(core.ops, 'fused_gemm_epilogue')
+    else:
+        return False
 
 
 def model_size(args):
@@ -83,6 +92,22 @@ def parse_yaml(yaml_file):
     args = argparse.Namespace(**yaml_dict)
 
     args.test_iters = args.eval_iters * 10
+
+    if args.fused_linear and not is_fused_matmul_bias_supported():
+        args.fused_linear = False
+        logging.warning("The flag fused_linear only valid for cuda version higher than 11.6, "
+                        "but the paddle is compiled with cuda " + paddle.version.cuda())
+
+    if args.use_recompute:
+        assert args.recompute_granularity is None or \
+               isinstance(args.recompute_granularity, str), \
+            "recompute_granularity must be a None or a string object"
+        if args.recompute_granularity is None:
+            args.recompute_granularity = "full"
+        else:
+            assert args.recompute_granularity in ["full", "only_attn"], \
+                "recompute_granularity can be only chosen from " \
+                "full or only_attn, but received " + args.recompute_granularity
 
     # process batch size
     process_batch_size(args)
