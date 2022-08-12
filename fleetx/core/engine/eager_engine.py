@@ -126,7 +126,8 @@ class EagerEngine(BasicEngine):
                 eval_start = time.time()
 
                 for eval_step, batch in enumerate(valid_data_loader):
-                    eval_losses.append(self._module.validation_step(batch))
+                    loss = self._evaluate_impl(batch)
+                    eval_losses.append(loss)
 
                     if eval_step >= self._eval_iters - 1:
                         break
@@ -171,6 +172,7 @@ class EagerEngine(BasicEngine):
 
         return loss
 
+    @paddle.no_grad()
     def evaluate(self, epoch=1, valid_data_loader=None):
         self._module.model.eval()
 
@@ -192,10 +194,12 @@ class EagerEngine(BasicEngine):
                 del valid_data_loader
                 return
 
+    @paddle.no_grad()
     def _evaluate_impl(self, batch):
-        loss = self._module.evaluate_step(batch)
+        loss = self._module.validation_step(batch)
         return loss
 
+    @paddle.no_grad()
     def predict(self, epoch=1, test_data_loader=None):
         self._module.model.eval()
 
@@ -216,6 +220,7 @@ class EagerEngine(BasicEngine):
                 del test_data_loader
                 return
 
+    @paddle.no_grad()
     def _predict_impl(self, batch):
         loss = self._module.test_step(batch)
         return loss

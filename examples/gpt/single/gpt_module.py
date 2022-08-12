@@ -93,7 +93,7 @@ class GPTModule(BasicModule):
 
     def validation_step(self, batch):
         tokens, loss_mask, position_ids, labels = batch
-        preds = self.model(tokens, position_ids)
+        preds = self(tokens, position_ids)
         preds = paddle.cast(preds, dtype="float32")
         loss = self.loss_fn(preds, labels, loss_mask)
         return loss
