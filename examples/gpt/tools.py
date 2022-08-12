@@ -92,7 +92,7 @@ def parse_yaml(yaml_file):
 
     _print_args(args)
     model_size(args)
-    return args
+    return args, yaml_dict
 
 
 def _print_args(args):

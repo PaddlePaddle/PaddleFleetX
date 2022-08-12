@@ -23,17 +23,18 @@ from paddle.optimizer.lr import LRScheduler
 
 sys.path.append("../../../")
 from fleetx.utils import logger
-from .module import FleetxModule
+from fleetx.core.engine.basic_engine import BasicEngine
+from fleetx.core.module.basic_module import BasicModule
 
 
-class Engine:
+class EagerEngine(BasicEngine):
     """
     """
 
     def __init__(self, module, configs=None):
         super().__init__()
 
-        if not isinstance(module, FleetxModule):
+        if not isinstance(module, BasicModule):
             raise TypeError(
                 "'module' must be sub classes of `FleetxModule`, but got: {model.__class__.__name__}."
             )
@@ -79,9 +80,8 @@ class Engine:
         self._configs = configs
 
         # configs
-        self._use_recompute = configs['use_recompute']
-        self._use_pure_fp16 = configs['mix_precision']['use_pure_fp16']
-        self._scale_loss = configs['mix_precision']['scale_loss']
+        for k, v in configs.items():
+            self.__dict__.update({'_{}'.format(k): v})
 
         if self._use_pure_fp16:
             self._scaler = paddle.amp.GradScaler(
@@ -91,37 +91,62 @@ class Engine:
         else:
             self._scaler = None
 
-        self._logging_freq = configs['logging_freq']
+        self._module.global_step = 0
 
-    def fit(
-            self,
-            epoch=1,
-            global_step=1,
-            train_data_loader=None, ):
+    def fit(self, epoch=1, train_data_loader=None, valid_data_loader=None):
         self._module.model.train()
 
         # time count
         reader_cost = 0.0
-        run_cost = 0.0
+        train_cost = 0.0
         reader_start = time.time()
 
         for step, batch in enumerate(train_data_loader()):
             reader_cost += time.time() - reader_start
             train_start = time.time()
 
+            self._module.global_step += 1
             loss = self._fit_impl(batch)
 
             # Sync for profile time, delete it may be a little faster
             paddle.device.cuda.synchronize()
-            run_cost += time.time() - train_start
+            train_cost += time.time() - train_start
 
-            if global_step % self._logging_freq == 0:
-                self._module.training_step_end(loss, global_step, epoch, step,
-                                               reader_cost, run_cost)
+            if self._module.global_step % self._logging_freq == 0:
+                self._module.training_step_end(loss, epoch, step, reader_cost,
+                                               train_cost)
 
-            global_step += 1
-            reader_cost = 0.0
-            run_cost = 0.0
+                reader_cost = 0.0
+                train_cost = 0.0
+
+            if self._module.global_step % self._eval_freq == 0:
+                self._module.model.eval()
+
+                eval_losses = []
+                eval_start = time.time()
+
+                for eval_step, batch in enumerate(valid_data_loader):
+                    eval_losses.append(self._module.validation_step(batch))
+
+                    if eval_step >= self._eval_iters - 1:
+                        break
+
+                paddle.device.cuda.synchronize()
+                eval_cost = time.time() - eval_start
+                eval_loss = sum(eval_losses) / len(eval_losses)
+                self._module.validation_step_end(eval_loss, epoch, eval_step,
+                                                 eval_cost)
+
+                self._module.model.train()
+
+            if self._module.global_step % self._save_steps == 0 or self._module.global_step >= self._max_steps:
+                self.save(self._output_dir)
+
+            if self._module.global_step >= self._max_steps:
+                logger.info("The training process is complete.")
+                del train_data_loader
+                return
+
             reader_start = time.time()
 
     def _fit_impl(self, batch):
@@ -146,22 +171,59 @@ class Engine:
 
         return loss
 
-    def evaluate(self, valid_dataloaders=None):
+    def evaluate(self, epoch=1, valid_data_loader=None):
         self._module.model.eval()
-        pass
 
-    def _evaluate_impl(self):
-        pass
+        eval_start = time.time()
+        for eval_step, batch in enumerate(valid_data_loader):
+            self._module.global_step += 1
+            loss = self._evaluate_impl(batch)
 
-    def predict(self, test_dataloaders=None):
-        pass
+            paddle.device.cuda.synchronize()
+            eval_cost += time.time() - eval_start
 
-    def _predict_impl(self):
-        pass
+            if self._module.global_step % self._logging_freq == 0:
+                self._module.validation_step_end(loss, epoch, eval_step,
+                                                 eval_cost)
+                eval_start = time.time()
+
+            if self._module.global_step >= self._max_steps:
+                logger.info("The evaluting process is complete.")
+                del valid_data_loader
+                return
+
+    def _evaluate_impl(self, batch):
+        loss = self._module.evaluate_step(batch)
+        return loss
+
+    def predict(self, epoch=1, test_data_loader=None):
+        self._module.model.eval()
+
+        test_start = time.time()
+        for test_step, batch in enumerate(test_data_loader):
+            self._module.global_step += 1
+            loss = self._predict_impl(batch)
+
+            paddle.device.cuda.synchronize()
+            test_cost += time.time() - test_start
+
+            if self._module.global_step % self._logging_freq == 0:
+                self._module.test_step_end(loss, epoch, test_step, test_cost)
+                test_start = time.time()
+
+            if self._module.global_step >= self._max_steps:
+                logger.info("The predicting process is complete.")
+                del test_data_loader
+                return
+
+    def _predict_impl(self, batch):
+        loss = self._module.test_step(batch)
+        return loss
 
     def save(self, output_dir):
         if output_dir and isinstance(output_dir, str):
-            output_dir = os.path.join(output_dir)
+            output_dir = os.path.join(output_dir,
+                                      "model_%d" % self._module.global_step)
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
             logger.info("Save model to %s" % output_dir)

@@ -12,5 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .engine import *
-from .module import *
+from .basic_module import BasicModule

@@ -16,7 +16,7 @@ import paddle
 import paddle.nn as nn
 
 
-class FleetxModule(nn.Layer):
+class BasicModule(nn.Layer):
     """
 
     """
