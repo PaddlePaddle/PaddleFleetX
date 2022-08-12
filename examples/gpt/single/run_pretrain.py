@@ -18,6 +18,7 @@ import os
 import random
 import time
 import sys
+import yaml
 import numpy as np
 
 import paddle
@@ -28,164 +29,91 @@ from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
 from fleetx.data.tokenizers import GPTTokenizer
 from fleetx.utils import logger
 from fleetx.optim import lr_scheduler as lr
+from fleetx.core import FleetxModule, Engine
 
 
-@paddle.no_grad()
-def run_evaluate(args,
-                 data_loader,
-                 model,
-                 criterion,
-                 iter_steps,
-                 global_step,
-                 epoch,
-                 task_name="valid"):
-    """
-    evaluate for gpt model
-    """
-    model.eval()
-    all_loss = []
-    local_time = time.time()
-    for eval_step, batch in enumerate(data_loader):
+class GPTModule(FleetxModule):
+    def __init__(self, args):
+        super().__init__()
+        self.args = args
+        self.model = GPTForPretraining(GPTModel(args))
+        self.loss_fn = GPTPretrainingCriterion()
+
+        print('>> total parameters: ', len(self.model.parameters()))
+
+    def forward(self, tokens, ids):
+        return self.model(tokens, ids)
+
+    def training_step(self, batch):
         tokens, loss_mask, position_ids, labels = batch
-        preds = model(tokens, position_ids)
-        preds = paddle.cast(preds, dtype="float32")
-        loss = criterion(preds, labels, loss_mask)
-        all_loss.append(float(loss))
-        if eval_step >= iter_steps - 1:
-            break
-    average_loss = sum(all_loss) / len(all_loss)
-    logger.info(
-        "%s step %d, epoch: %d, batch: %d, loss: %f, speed: %.2f step/s" %
-        (task_name, global_step, epoch, eval_step, average_loss,
-         iter_steps / (time.time() - local_time)))
-    model.train()
 
+        loss_mask.stop_gradient = True
+        labels.stop_gradient = True
+        position_ids.stop_gradient = True
 
-def generate_model(args):
-    # Create the critrion for the gpt model
-    model = GPTForPretraining(GPTModel(args))
-    criterion = GPTPretrainingCriterion()
-    tokenizer = GPTTokenizer.from_pretrained("gpt2")
-    print('>> total parameters: ', len(model.parameters()))
-    return model, criterion, tokenizer
+        preds = self(tokens, position_ids)
+        loss = self.loss_fn(preds, labels, loss_mask)
 
+        return loss
 
-def generate_optimizer(model, args):
-    if args.decay_steps is None:
-        args.decay_steps = args.max_steps
-    warmup_step = args.warmup_rate * args.decay_steps
-    lr_scheduler = lr.CosineAnnealingWithWarmupDecay(
-        max_lr=args.max_lr,
-        min_lr=args.min_lr,
-        warmup_step=warmup_step,
-        decay_step=args.decay_steps)
-    clip = None
-    if args.grad_clip > 0:
-        clip = paddle.nn.ClipGradByGlobalNorm(clip_norm=args.grad_clip)
+    def training_step_end(self, loss, global_step, epoch, step, reader_cost,
+                          run_cost):
+        avg_loss = loss.numpy()
+        speed = self.args.logging_freq / (reader_cost + run_cost)
+        avg_reader_cost = reader_cost / self.args.logging_freq
+        default_global_tokens_num = self.args.global_batch_size * self.args.max_seq_len
 
-    # Generate parameter names needed to perform weight decay.
-    # All bias and LayerNorm parameters are excluded.
-    decay_params = [
-        p.name for n, p in model.named_parameters()
-        if not any(nd in n for nd in ["bias", "norm"])
-    ]
-    optimizer = paddle.optimizer.AdamW(
-        learning_rate=lr_scheduler
-        if lr_scheduler is not None else args.max_lr,
-        beta1=args.adam_beta1,
-        beta2=args.adam_beta2,
-        epsilon=args.adam_epsilon,
-        parameters=model.parameters(),
-        weight_decay=args.weight_decay,
-        grad_clip=clip,
-        apply_decay_param_fun=lambda x: x in decay_params,
-        # TODO: remove 'multi_precision' in definition of optimizer
-        # and add it to 'paddle.amp.decorate'
-        multi_precision=args.use_pure_fp16)
-    return optimizer, lr_scheduler
+        logger.info(
+            "global step %d, epoch: %d, batch: %d, loss: %.9f, avg_reader_cost: %.5f sec, avg_batch_cost: %.5f sec, speed: %.2f step/s, ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
+            % (global_step, epoch, step, avg_loss, avg_reader_cost, 1. / speed,
+               speed, speed * default_global_tokens_num,
+               speed * default_global_tokens_num, self.optimizer.get_lr()))
 
+    def configure_optimizers(self):
+        if args.decay_steps is None:
+            args.decay_steps = args.max_steps
+        warmup_step = args.warmup_rate * args.decay_steps
+        lr_scheduler = lr.CosineAnnealingWithWarmupDecay(
+            max_lr=args.max_lr,
+            min_lr=args.min_lr,
+            warmup_step=warmup_step,
+            decay_step=args.decay_steps)
+        clip = None
+        if args.grad_clip > 0:
+            clip = paddle.nn.ClipGradByGlobalNorm(clip_norm=args.grad_clip)
 
-def model_optimizer_load(args, model, optimizer):
-    if args.ckpt_dir:
-        logger.info("Try to load checkpoint from %s " % args.ckpt_dir)
-        model_path = os.path.join(args.ckpt_dir, "model.pdparams")
-        opt_path = os.path.join(args.ckpt_dir, "model_state.pdopt")
-        if os.path.exists(model_path):
-            model_dict = paddle.load(model_path)
-            model.set_state_dict(model_dict)
-        else:
-            logger.warning("No optimizer checkpoint file found in %s." %
-                           model_path)
-
-        if os.path.exists(opt_path):
-            opt_dict = paddle.load(opt_path)
-            optimizer.set_state_dict(opt_dict)
-        else:
-            logger.warning("No optimizer checkpoint file found in %s." %
-                           opt_path)
-    return model, optimizer
-
-
-def model_optimizer_save(model, optimizer, global_step, args):
-    # model save
-    if global_step % args.save_steps == 0 or global_step >= args.max_steps:
-        output_dir = os.path.join(args.output_dir, "model_%d" % global_step)
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-        logger.info("Save model to %s" % output_dir)
-        paddle.save(model.state_dict(),
-                    os.path.join(output_dir, "model.pdparams"))
-        paddle.save(optimizer.state_dict(),
-                    os.path.join(output_dir, "model_state.pdopt"))
-
-
-def model_forward_backward(args,
-                           model,
-                           criterion,
-                           tokens,
-                           ids,
-                           labels,
-                           loss_mask,
-                           scaler=None):
-    accumulate_steps = args.local_batch_size // args.micro_batch_size
-    loss = 0.0
-    for i in range(accumulate_steps):
-        start_index = i * args.micro_batch_size
-        end_index = start_index + args.micro_batch_size
-        with paddle.amp.auto_cast(
-                args.use_pure_fp16,
-                custom_black_list=[
-                    "reduce_sum", "c_softmax_with_cross_entropy",
-                    "elementwise_div"
-                ],
-                level='O2'):
-            preds = model(tokens[start_index:end_index, :],
-                          ids[start_index:end_index, :])
-            loss_mbs = criterion(preds, labels[start_index:end_index, :],
-                                 loss_mask[start_index:end_index, :])
-        loss_mbs = loss_mbs / accumulate_steps
-        if args.use_pure_fp16:
-            scaler.scale(loss_mbs).backward()
-        else:
-            loss_mbs.backward()
-        loss = loss + loss_mbs
-    return loss
+        # Generate parameter names needed to perform weight decay.
+        # All bias and LayerNorm parameters are excluded.
+        decay_params = [
+            p.name for n, p in self.model.named_parameters()
+            if not any(nd in n for nd in ["bias", "norm"])
+        ]
+        optimizer = paddle.optimizer.AdamW(
+            learning_rate=lr_scheduler
+            if lr_scheduler is not None else args.max_lr,
+            beta1=args.adam_beta1,
+            beta2=args.adam_beta2,
+            epsilon=args.adam_epsilon,
+            parameters=self.model.parameters(),
+            weight_decay=args.weight_decay,
+            grad_clip=clip,
+            apply_decay_param_fun=lambda x: x in decay_params,
+            multi_precision=args.use_pure_fp16)
+        return optimizer, lr_scheduler
 
 
 def do_train(args):
     paddle.set_device(args.device)
-    default_global_tokens_num = args.global_batch_size * args.max_seq_len
 
-    model, criterion, tokenizer = generate_model(args)
-    optimizer, lr_scheduler = generate_optimizer(model, args)
-    model, optimizer = model_optimizer_load(args, model, optimizer)
+    tokenizer = GPTTokenizer.from_pretrained("gpt2")
+    global_config = yaml.load(
+        open(parse_args().config, 'rb'), Loader=yaml.Loader)
 
-    if args.use_pure_fp16:
-        scaler = paddle.amp.GradScaler(init_loss_scaling=args.scale_loss)
-        model = paddle.amp.decorate(
-            models=model, level='O2', save_dtype='float32')
-    else:
-        scaler = None
+    module = GPTModule(args)
+    engine = Engine(module=module, configs=global_config['PreTraining'])
+
+    if args.ckpt_dir:
+        engine.load(ckpt_dir=args.ckpt_dir)
 
     global_step = 0
     for epoch in range(args.num_train_epochs):
@@ -207,66 +135,10 @@ def do_train(args):
             valid_data_loader = valid_data_loader()
             test_data_loader = test_data_loader()
 
-            # time count
-            train_reader_cost = 0.0
-            train_run_cost = 0.0
-            reader_start = time.time()
-            for step, batch in enumerate(train_data_loader()):
-                train_reader_cost += time.time() - reader_start
-                train_start = time.time()
+            engine.fit(train_data_loader=train_data_loader,
+                       epoch=epoch,
+                       global_step=global_step)
 
-                global_step += 1
-                tokens, loss_mask, position_ids, labels = batch
-
-                loss_mask.stop_gradient = True
-                labels.stop_gradient = True
-                position_ids.stop_gradient = True
-
-                loss = model_forward_backward(args, model, criterion, tokens,
-                                              position_ids, labels, loss_mask,
-                                              scaler)
-
-                if args.use_pure_fp16:
-                    scaler.minimize(optimizer, loss)
-                else:
-                    optimizer.step()
-                lr_scheduler.step()
-                optimizer.clear_grad()
-
-                # Sync for profile time, delete it may be a little faster
-                paddle.device.cuda.synchronize()
-                train_run_cost += time.time() - train_start
-
-                if global_step % args.logging_freq == 0:
-                    avg_loss = loss.numpy()
-                    speed = args.logging_freq / (
-                        train_reader_cost + train_run_cost)
-                    avg_reader_cost = train_reader_cost / args.logging_freq
-
-                    logger.info(
-                        "global step %d, epoch: %d, batch: %d, loss: %.9f, avg_reader_cost: %.5f sec, avg_batch_cost: %.5f sec, speed: %.2f step/s, ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
-                        % (global_step, epoch, step, avg_loss, avg_reader_cost,
-                           1. / speed, speed,
-                           speed * default_global_tokens_num, speed *
-                           default_global_tokens_num, optimizer.get_lr()))
-                    # tic_train = time.time()
-                    train_reader_cost = 0.0
-                    train_run_cost = 0.0
-
-                if global_step % args.eval_freq == 0:
-                    # Since the valid data broardcast to all devices, we do evaluate on all device.
-                    run_evaluate(args, valid_data_loader, model, criterion,
-                                 args.eval_iters, global_step, epoch, "valid")
-
-                model_optimizer_save(model, optimizer, global_step, args)
-
-                if global_step >= args.max_steps:
-                    run_evaluate(args, test_data_loader, model, criterion,
-                                 args.test_iters, global_step, epoch, "test")
-                    logger.info("The training process is complete.")
-                    del train_data_loader
-                    return
-                reader_start = time.time()
             del train_data_loader
 
 
