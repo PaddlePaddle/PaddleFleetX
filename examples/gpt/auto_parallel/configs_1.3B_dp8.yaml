@@ -47,6 +47,7 @@ PreTraining:
     sharding:
       sharding_degree: 1
       sharding_stage: 1
+      sharding_offload: False
 
   Optimizer:
     # name: Adam
@@ -54,12 +55,11 @@ PreTraining:
     adam_beta1: 0.9
     adam_beta2: 0.999
     adam_epsilon: 1.0e-8
-    lr: 1.0e-5
-    # lr:
-    #   # name: consine
-    #   decay_steps: 360000
-    #   # max_steps: 500000
-    #   warmup_rate: 0.01
-    #   max_lr: 1.0e-5
-    #   min_lr: 5.0e-5
-    # grad_clip: 1.0
+    lr:
+      # name: consine
+      decay_steps: 360000
+      # max_steps: 500000
+      warmup_rate: 0.01
+      max_lr: 1.0e-5
+      min_lr: 5.0e-5
+    grad_clip: 1.0

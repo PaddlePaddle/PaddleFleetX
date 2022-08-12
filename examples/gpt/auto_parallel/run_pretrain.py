@@ -17,19 +17,20 @@ import os
 import random
 import time
 import sys
-sys.path.append("..")
-from tools import parse_args, parse_yaml
+import numpy as np
 
 import paddle
+from paddle.distributed import fleet
+from paddle.distributed.auto_parallel.engine import Engine
+
+sys.path.append("..")
+from tools import parse_args, parse_yaml
 from fleetx.utils import logger
 from fleetx.optim import lr_scheduler as lr
 from fleetx.data.sampler import Stack, Tuple
 from fleetx.data.tokenizers import GPTTokenizer
 from fleetx.datasets.gpt import create_pretrained_dataset_auto, get_train_data_file
 from fleetx.models.gpt_model.modeling_auto import GPTModel, GPTForPretraining, GPTPretrainingCriterion
-
-from paddle.distributed import fleet
-from paddle.distributed.auto_parallel.engine import Engine
 
 
 def generate_model(args):
@@ -43,17 +44,17 @@ def generate_model(args):
 
 def generate_optimizer(model, args):
     # TODO: support lr_scheduler
-    # if args.decay_steps is None:
-    #     args.decay_steps = args.max_steps
-    # warmup_step = args.warmup_rate * args.decay_steps
-    # lr_scheduler = lr.CosineAnnealingWithWarmupDecay(
-    #     max_lr=args.max_lr,
-    #     min_lr=args.min_lr,
-    #     warmup_step=warmup_step,
-    #     decay_step=args.decay_steps)
-    # clip = None
-    # if args.grad_clip > 0:
-    #     clip = paddle.nn.ClipGradByGlobalNorm(clip_norm=args.grad_clip)
+    if args.decay_steps is None:
+        args.decay_steps = args.max_steps
+    warmup_step = args.warmup_rate * args.decay_steps
+    lr_scheduler = lr.CosineAnnealingWithWarmupDecay(
+        max_lr=args.max_lr,
+        min_lr=args.min_lr,
+        warmup_step=warmup_step,
+        decay_step=args.decay_steps)
+    clip = None
+    if args.grad_clip > 0:
+        clip = paddle.nn.ClipGradByGlobalNorm(clip_norm=args.grad_clip)
 
     # Generate parameter names needed to perform weight decay.
     # All bias and LayerNorm parameters are excluded.
@@ -62,13 +63,14 @@ def generate_optimizer(model, args):
         if not any(nd in n for nd in ["bias", "norm"])
     ]
     optimizer = paddle.optimizer.AdamW(
-        learning_rate=args.lr,
+        learning_rate=lr_scheduler
+        if lr_scheduler is not None else args.max_lr,
         beta1=args.adam_beta1,
         beta2=args.adam_beta2,
         epsilon=args.adam_epsilon,
         parameters=model.parameters(),
         weight_decay=args.weight_decay,
-        grad_clip=None,
+        grad_clip=clip,
         apply_decay_param_fun=lambda x: x in decay_params)
     return optimizer
 
@@ -118,6 +120,10 @@ def do_train(args):
 
     fleet.init(is_collective=True)
 
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    paddle.seed(args.seed)
+
     model, criterion, tokenizer = generate_model(args)
     optimizer = generate_optimizer(model, args)
     inputs, labels = generate_data_holder(args)
@@ -137,7 +143,7 @@ def do_train(args):
             engine.fit(train_data,
                        batch_size=args.global_batch_size,
                        collate_fn=Tuple(Stack(), Stack(), Stack(), Stack()),
-                       use_program_cache=True)
+                       use_cache=True)
 
 
 if __name__ == "__main__":
