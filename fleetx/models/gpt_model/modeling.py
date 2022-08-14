@@ -15,6 +15,8 @@
 # limitations under the License.
 
 import collections
+import logging
+
 import paddle
 import paddle.nn as nn
 import paddle.nn.functional as F
@@ -24,6 +26,7 @@ from paddle.nn.layer.transformer import _convert_param_attr_to_list
 import paddle.incubate as incubate
 from paddle.distributed.fleet.utils import recompute
 from .config import configurable
+from paddle.incubate.nn import FusedLinear
 
 
 class MultiHeadAttention(nn.Layer):
@@ -46,7 +49,8 @@ class MultiHeadAttention(nn.Layer):
                  need_weights=False,
                  weight_attr=None,
                  bias_attr=None,
-                 fuse=True):
+                 fuse=True,
+                 fused_linear=False):
         super(MultiHeadAttention, self).__init__()
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
@@ -59,19 +63,21 @@ class MultiHeadAttention(nn.Layer):
         self.head_dim = embed_dim // num_heads
         assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
 
+        Linear = FusedLinear if fused_linear else nn.Linear
+
         if self.fuse:
             assert self.kdim == embed_dim
             assert self.vdim == embed_dim
-            self.qkv_proj = nn.Linear(
+            self.qkv_proj = Linear(
                 embed_dim, 3 * embed_dim, weight_attr, bias_attr=bias_attr)
         else:
-            self.q_proj = nn.Linear(
+            self.q_proj = Linear(
                 embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
-            self.k_proj = nn.Linear(
+            self.k_proj = Linear(
                 self.kdim, embed_dim, weight_attr, bias_attr=bias_attr)
-            self.v_proj = nn.Linear(
+            self.v_proj = Linear(
                 self.vdim, embed_dim, weight_attr, bias_attr=bias_attr)
-        self.out_proj = nn.Linear(
+        self.out_proj = Linear(
             embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
 
     def _fuse_prepare_qkv(self, query):
@@ -221,13 +227,15 @@ class TransformerDecoder(nn.Layer):
                  num_layers,
                  norm=None,
                  hidden_size=None,
-                 use_recompute=False):
+                 use_recompute=False,
+                 recompute_granularity="full"):
         super(TransformerDecoder, self).__init__()
 
         self.num_layers = num_layers
         self.layers = decoder_layers
         self.norm = norm
         self.use_recompute = use_recompute
+        self.recompute_granularity = recompute_granularity
         if norm == "LayerNorm":
             self.norm = nn.LayerNorm(hidden_size, epsilon=1e-5)
         elif norm is not None:
@@ -258,9 +266,10 @@ class TransformerDecoder(nn.Layer):
                                             cache=cache)
                     new_caches.append(new_cache)
                 else:
-                    output = recompute(mod, output, memory, tgt_mask, use_cache, cache) if self.use_recompute \
-                        else mod(output, memory, tgt_mask, use_cache, cache)
-
+                    if self.use_recompute and self.recompute_granularity == "full":
+                        output = recompute(mod, output, memory, tgt_mask, use_cache, cache)
+                    else:
+                        output = mod(output, memory, tgt_mask, use_cache, cache)
             else:
                 output, new_cache = mod(output,
                                         memory,
@@ -304,7 +313,9 @@ class TransformerDecoderLayer(nn.Layer):
                  act_dropout=None,
                  normalize_before=True,
                  weight_attr=None,
-                 bias_attr=None):
+                 bias_attr=None,
+                 fused_linear=False,
+                 recompute_attn=False):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
@@ -313,19 +324,23 @@ class TransformerDecoderLayer(nn.Layer):
         attn_dropout = dropout if attn_dropout is None else attn_dropout
         act_dropout = dropout if act_dropout is None else act_dropout
         self.normalize_before = normalize_before
+        self.recompute_attn = recompute_attn
 
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
+
+        Linear = FusedLinear if fused_linear else nn.Linear
 
         self.self_attn = MultiHeadAttention(
             d_model,
             nhead,
             dropout=attn_dropout,
             weight_attr=weight_attrs[0],
-            bias_attr=bias_attrs[0])
-        self.linear1 = nn.Linear(
+            bias_attr=bias_attrs[0],
+            fused_linear=fused_linear)
+        self.linear1 = Linear(
             d_model, dim_feedforward, weight_attrs[2], bias_attr=bias_attrs[2])
-        self.linear2 = nn.Linear(
+        self.linear2 = Linear(
             dim_feedforward, d_model, weight_attrs[2], bias_attr=bias_attrs[2])
 
         self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
@@ -341,7 +356,10 @@ class TransformerDecoderLayer(nn.Layer):
             tgt = self.norm1(tgt)
 
         if use_cache is False:
-            tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
+            if self.recompute_attn:
+                tgt = recompute(self.self_attn, tgt, None, None, tgt_mask, use_cache, cache)
+            else:
+                tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
         else:
             tgt, incremental_cache = self.self_attn(tgt, tgt, tgt, tgt_mask,
                                                     use_cache, cache)
@@ -421,9 +439,13 @@ class GPTModel(nn.Layer):
                  max_position_embeddings=512,
                  type_vocab_size=16,
                  use_recompute=False,
-                 initializer_range=0.02):
+                 initializer_range=0.02,
+                 fused_linear=False,
+                 recompute_granularity="full"):
 
         super(GPTModel, self).__init__()
+
+        recompute_attn = use_recompute and recompute_granularity == "only_attn"
 
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
@@ -447,14 +469,17 @@ class GPTModel(nn.Layer):
                     weight_attr=paddle.ParamAttr(
                         initializer=nn.initializer.Normal(
                             mean=0.0, std=self.initializer_range)),
-                    bias_attr=None))
+                    bias_attr=None,
+                    fused_linear=fused_linear,
+                    recompute_attn=recompute_attn))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
             num_layers,
             norm="LayerNorm",
             hidden_size=hidden_size,
-            use_recompute=use_recompute)
+            use_recompute=use_recompute,
+            recompute_granularity=recompute_granularity)
 
     @classmethod
     def from_config(cls, cfg):
@@ -469,7 +494,9 @@ class GPTModel(nn.Layer):
             "max_position_embeddings": cfg.max_position_embeddings,
             "type_vocab_size": cfg.type_vocab_size,
             "initializer_range": cfg.initializer_range,
-            "use_recompute": cfg.use_recompute
+            "use_recompute": cfg.use_recompute,
+            "fused_linear": cfg.fused_linear,
+            "recompute_granularity": cfg.recompute_granularity
         }
 
     def forward(self,
