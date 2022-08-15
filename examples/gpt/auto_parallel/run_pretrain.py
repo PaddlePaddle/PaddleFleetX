@@ -23,9 +23,8 @@ import paddle
 from paddle.distributed import fleet
 from paddle.distributed.auto_parallel.engine import Engine
 
-sys.path.append("..")
-from tools import parse_args, parse_yaml
-from fleetx.utils import logger
+sys.path.append("../../../")
+from examples.gpt.tools import parse_args, parse_yaml
 from fleetx.optim import lr_scheduler as lr
 from fleetx.data.sampler import Stack, Tuple
 from fleetx.data.tokenizers import GPTTokenizer
@@ -43,7 +42,6 @@ def generate_model(args):
 
 
 def generate_optimizer(model, args):
-    # TODO: support lr_scheduler
     if args.decay_steps is None:
         args.decay_steps = args.max_steps
     warmup_step = args.warmup_rate * args.decay_steps
@@ -147,5 +145,5 @@ def do_train(args):
 
 
 if __name__ == "__main__":
-    args = parse_yaml(parse_args().config)
+    args, _ = parse_yaml(parse_args().config)
     do_train(args)

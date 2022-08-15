@@ -1,21 +1,22 @@
-# 1.3B
+# 345M
 PreTraining:
   device: gpu
   max_steps: 500000
   num_train_epochs: 1
   seed: 1024
   use_recompute: True
+  recompute_granularity:
   batch_size:
     global_batch_size: 64
     local_batch_size: 8
     micro_batch_size: 8
-  mix_precision:
-    use_pure_fp16: True
-    scale_loss: 32768.0
   quantization:
     use_qat: False
     weight_bits: 8
     activation_bits: 8
+  mix_precision:
+    use_pure_fp16: True
+    scale_loss: 32768.0
   logging_freq: 1
   eval_freq: 500
   eval_iters: 10
@@ -27,13 +28,14 @@ PreTraining:
     save_steps: 1000
     output_dir: ./output
     ckpt_dir: 
+  fused_linear: False
 
   Model:
     vocab_size: 50304
-    hidden_size: 2048
+    hidden_size: 1024
     num_layers: 24
     num_attention_heads: 16
-    ffn_hidden_size:
+    ffn_hidden_size: 4096
     hidden_dropout_prob: 0.1
     attention_probs_dropout_prob: 0.1
     max_position_embeddings: 1024
