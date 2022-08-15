@@ -53,6 +53,14 @@ class EagerEngine(BasicEngine):
                 "'loss_fn' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.loss_fn.__class__.__name__}."
             )
 
+        if self._use_pure_fp16:
+            self._scaler = paddle.amp.GradScaler(
+                init_loss_scaling=self._scale_loss)
+            self._module.model = paddle.amp.decorate(
+                models=self._module.model, level='O2', save_dtype='float32')
+        else:
+            self._scaler = None
+
         optimizers = module.configure_optimizers()
 
         if optimizers and isinstance(optimizers, (
@@ -82,14 +90,6 @@ class EagerEngine(BasicEngine):
         # configs
         for k, v in configs.items():
             self.__dict__.update({'_{}'.format(k): v})
-
-        if self._use_pure_fp16:
-            self._scaler = paddle.amp.GradScaler(
-                init_loss_scaling=self._scale_loss)
-            self._module.model = paddle.amp.decorate(
-                models=self._module.model, level='O2', save_dtype='float32')
-        else:
-            self._scaler = None
 
         self._module.global_step = 0
 
