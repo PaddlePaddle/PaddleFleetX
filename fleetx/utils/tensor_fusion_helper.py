@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import paddle
 from paddle.framework import core
 import numpy as np
 from collections import OrderedDict
@@ -112,3 +113,13 @@ def fused_parameters(model, use_sharding=False):
     all_fused = decay_fused + other_fused
 
     return decay_fused, all_fused
+
+def all_reduce_parameters(params, group):
+    if group.nranks < 2:
+        return
+
+    div_factor = 1.0 / group.nranks
+    with paddle.framework.no_grad():
+        for p in params:
+            grad = p.grad.scale_(div_factor)
+            paddle.distributed.all_reduce(grad, group=group)
