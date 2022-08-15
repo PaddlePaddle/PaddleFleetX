@@ -105,9 +105,9 @@ def parse_yaml(yaml_file):
         if args.recompute_granularity is None:
             args.recompute_granularity = "full"
         else:
-            assert args.recompute_granularity in ["full", "only_attn"], \
+            assert args.recompute_granularity in ["full", "full_attn", "core_attn"], \
                 "recompute_granularity can be only chosen from " \
-                "full or only_attn, but received " + args.recompute_granularity
+                "full, full_attn or core_attn, but received " + args.recompute_granularity
 
     # process batch size
     process_batch_size(args)
