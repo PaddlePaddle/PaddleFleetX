@@ -201,7 +201,7 @@ PaddlePaddle is installed successfully! Let's start deep learning with PaddlePad
 
 ### 4. 分布式环境验证
 
-如果单机运行正常，但多机分布式运行异常请先根据 [FAQ](#5.1-网络问题排查) 部分排查网络问题再进行以下排查。
+如果单机运行正常，但多机分布式运行异常请先根据 [FAQ](#51-网络问题排查) 部分排查网络问题再进行以下排查。
 
 请先确保**各个机器**的 PaddlePaddle 环境已经正确安装，然后在等待验证的其中一个节点上运行如下命令
 
