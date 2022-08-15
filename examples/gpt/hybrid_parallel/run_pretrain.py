@@ -34,9 +34,10 @@ from fleetx.data.tokenizers import GPTTokenizer
 from fleetx.utils import logger
 from fleetx.optim import lr_scheduler as lr
 from fleetx.models.gpt_model.modeling_hybrid import GPTModel, GPTForPretraining, GPTPretrainingCriterion, GPTForPretrainingPipe
+from fleetx.utils.tensor_fusion_helper import fused_parameters, all_reduce_parameters
 
 
-def generate_optimizer(model, args):
+def generate_optimizer(model, args, decay_fused_tensors=None, all_fused_tensors=None):
     if args.decay_steps is None:
         args.decay_steps = args.max_steps
     warmup_step = args.warmup_rate * args.decay_steps
@@ -51,17 +52,20 @@ def generate_optimizer(model, args):
 
     # Generate parameter names needed to perform weight decay.
     # All bias and LayerNorm parameters are excluded.
-    decay_params = [
-        p.name for n, p in model.named_parameters()
-        if not any(nd in n for nd in ["bias", "norm"])
-    ]
+    if args.tensor_fusion:
+        decay_params = [p.name for p in decay_fused_tensors]
+    else:
+        decay_params = [
+            p.name for n, p in model.named_parameters()
+            if not any(nd in n for nd in ["bias", "norm"])
+        ]
     optimizer = paddle.optimizer.AdamW(
         learning_rate=lr_scheduler
         if lr_scheduler is not None else args.max_lr,
         beta1=args.adam_beta1,
         beta2=args.adam_beta2,
         epsilon=args.adam_epsilon,
-        parameters=model.parameters(),
+        parameters=all_fused_tensors if args.tensor_fusion else model.parameters(),
         weight_decay=args.weight_decay,
         grad_clip=clip,
         apply_decay_param_fun=lambda x: x in decay_params,
@@ -311,7 +315,6 @@ def do_train(args):
     default_global_tokens_num = args.global_batch_size * args.max_seq_len
 
     model, tokenizer, criterion = generate_model(args)
-    optimizer, lr_scheduler = generate_optimizer(model, args)
 
     if args.use_pure_fp16:
         scaler = paddle.amp.GradScaler(init_loss_scaling=args.scale_loss)
@@ -319,6 +322,12 @@ def do_train(args):
             models=model, level='O2', save_dtype='float32')
     else:
         scaler = None
+
+    decay_fused_tensors, all_fused_tensors = None, None
+    if args.tensor_fusion:
+        decay_fused_tensors, all_fused_tensors = fused_parameters(model, use_sharding=args.sharding_degree > 1)
+    optimizer, lr_scheduler = generate_optimizer(model, args, decay_fused_tensors, all_fused_tensors)
+    model, optimizer = model_optimizer_load(args, model, optimizer)
 
     # wrap sharding stage2/3 and add collective group
     if args.sharding_stage in [2, 3]:
@@ -365,18 +374,25 @@ def do_train(args):
                 position_ids.stop_gradient = True
 
                 if args.pp_degree == 1:
-                    if args.use_recompute and isinstance(model,
-                                                         paddle.DataParallel):
+                    if args.tensor_fusion:
                         with model.no_sync():
                             loss = model_forward_backward(
                                 args, model, criterion, tokens, position_ids,
                                 labels, loss_mask, scaler)
-                        fused_allreduce_gradients(
-                            list(model.parameters()), None)
+                        all_reduce_parameters(all_fused_tensors, hcg.get_data_parallel_group())
                     else:
-                        loss = model_forward_backward(
-                            args, model, criterion, tokens, position_ids,
-                            labels, loss_mask, scaler)
+                        if args.use_recompute and isinstance(model,
+                                                             paddle.DataParallel):
+                            with model.no_sync():
+                                loss = model_forward_backward(
+                                    args, model, criterion, tokens, position_ids,
+                                    labels, loss_mask, scaler)
+                            fused_allreduce_gradients(
+                                list(model.parameters()), None)
+                        else:
+                            loss = model_forward_backward(
+                                args, model, criterion, tokens, position_ids,
+                                labels, loss_mask, scaler)
                     optim_update_params(args, model, optimizer, scaler)
 
                     if lr_scheduler is not None:
