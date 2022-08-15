@@ -24,6 +24,9 @@ class BasicModule(nn.Layer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    def pretreating_batch(self, batch):
+        return batch
+
     def forward(self, *args, **kwargs):
         return super().forward(*args, **kwargs)
 

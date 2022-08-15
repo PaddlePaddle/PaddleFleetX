@@ -23,7 +23,7 @@ import numpy as np
 
 import paddle
 sys.path.append("../../../")
-from examples.gpt.single.gpt_module import GPTModule
+from examples.gpt.gpt_module import GPTModule
 from examples.gpt.tools import parse_args, parse_yaml
 from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
 from fleetx.data.tokenizers import GPTTokenizer
@@ -32,7 +32,6 @@ from fleetx.core.engine.eager_engine import EagerEngine
 
 def do_train():
     args, configs = parse_yaml(parse_args().config)
-
     paddle.set_device(args.device)
 
     random.seed(args.seed)
