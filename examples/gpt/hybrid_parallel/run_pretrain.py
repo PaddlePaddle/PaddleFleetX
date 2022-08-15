@@ -33,8 +33,96 @@ from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
 from fleetx.data.tokenizers import GPTTokenizer
 from fleetx.utils import logger
 from fleetx.optim import lr_scheduler as lr
-from examples.gpt.single.run_pretrain import generate_optimizer, model_optimizer_load, model_forward_backward
 from fleetx.models.gpt_model.modeling_hybrid import GPTModel, GPTForPretraining, GPTPretrainingCriterion, GPTForPretrainingPipe
+
+
+def generate_optimizer(model, args):
+    if args.decay_steps is None:
+        args.decay_steps = args.max_steps
+    warmup_step = args.warmup_rate * args.decay_steps
+    lr_scheduler = lr.CosineAnnealingWithWarmupDecay(
+        max_lr=args.max_lr,
+        min_lr=args.min_lr,
+        warmup_step=warmup_step,
+        decay_step=args.decay_steps)
+    clip = None
+    if args.grad_clip > 0:
+        clip = paddle.nn.ClipGradByGlobalNorm(clip_norm=args.grad_clip)
+
+    # Generate parameter names needed to perform weight decay.
+    # All bias and LayerNorm parameters are excluded.
+    decay_params = [
+        p.name for n, p in model.named_parameters()
+        if not any(nd in n for nd in ["bias", "norm"])
+    ]
+    optimizer = paddle.optimizer.AdamW(
+        learning_rate=lr_scheduler
+        if lr_scheduler is not None else args.max_lr,
+        beta1=args.adam_beta1,
+        beta2=args.adam_beta2,
+        epsilon=args.adam_epsilon,
+        parameters=model.parameters(),
+        weight_decay=args.weight_decay,
+        grad_clip=clip,
+        apply_decay_param_fun=lambda x: x in decay_params,
+        # TODO: remove 'multi_precision' in definition of optimizer
+        # and add it to 'paddle.amp.decorate'
+        multi_precision=args.use_pure_fp16)
+    return optimizer, lr_scheduler
+
+
+def model_optimizer_load(args, model, optimizer):
+    if args.ckpt_dir:
+        logger.info("Try to load checkpoint from %s " % args.ckpt_dir)
+        model_path = os.path.join(args.ckpt_dir, "model.pdparams")
+        opt_path = os.path.join(args.ckpt_dir, "model_state.pdopt")
+        if os.path.exists(model_path):
+            model_dict = paddle.load(model_path)
+            model.set_state_dict(model_dict)
+        else:
+            logger.warning("No optimizer checkpoint file found in %s." %
+                           model_path)
+
+        if os.path.exists(opt_path):
+            opt_dict = paddle.load(opt_path)
+            optimizer.set_state_dict(opt_dict)
+        else:
+            logger.warning("No optimizer checkpoint file found in %s." %
+                           opt_path)
+    return model, optimizer
+
+
+def model_forward_backward(args,
+                           model,
+                           criterion,
+                           tokens,
+                           ids,
+                           labels,
+                           loss_mask,
+                           scaler=None):
+    accumulate_steps = args.local_batch_size // args.micro_batch_size
+    loss = 0.0
+    for i in range(accumulate_steps):
+        start_index = i * args.micro_batch_size
+        end_index = start_index + args.micro_batch_size
+        with paddle.amp.auto_cast(
+                args.use_pure_fp16,
+                custom_black_list=[
+                    "reduce_sum", "c_softmax_with_cross_entropy",
+                    "elementwise_div"
+                ],
+                level='O2'):
+            preds = model(tokens[start_index:end_index, :],
+                          ids[start_index:end_index, :])
+            loss_mbs = criterion(preds, labels[start_index:end_index, :],
+                                 loss_mask[start_index:end_index, :])
+        loss_mbs = loss_mbs / accumulate_steps
+        if args.use_pure_fp16:
+            scaler.scale(loss_mbs).backward()
+        else:
+            loss_mbs.backward()
+        loss = loss + loss_mbs
+    return loss
 
 
 def set_hyrbid_parallel_seed(basic_seed, data_world_rank, mp_rank, pp_rank):
@@ -355,5 +443,5 @@ def do_train(args):
 
 
 if __name__ == "__main__":
-    args = parse_yaml(parse_args().config)
+    args, _ = parse_yaml(parse_args().config)
     do_train(args)
