@@ -144,6 +144,33 @@ def _print_args(args):
         flush=True)
 
 
+def parse_yaml_auto(yaml_file):
+    global_config = yaml.load(open(yaml_file, 'rb'), Loader=yaml.Loader)
+    yaml_dict = {}
+
+    def add_dict(config, k, v):
+        if not isinstance(v, dict):
+            config[k] = v
+            return
+        for ik, iv in v.items():
+            add_dict(config, ik, iv)
+
+    add_dict(yaml_dict, "PreTraining", global_config["PreTraining"])
+    args = argparse.Namespace(**yaml_dict)
+
+    args.test_iters = args.eval_iters * 10
+
+    # process process_mesh
+    process_mesh(args)
+
+    if args.ffn_hidden_size is None:
+        args.ffn_hidden_size = 4 * args.hidden_size
+
+    _print_args(args)
+    model_size(args)
+    return args, yaml_dict
+
+
 def process_mesh(args):
     args.mesh = Mesh(args)
 

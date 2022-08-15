@@ -5,11 +5,10 @@ PreTraining:
   num_train_epochs: 1
   seed: 1024
   use_recompute: True
-  recompute_granularity:
   batch_size:
     global_batch_size: 64
-    local_batch_size: 8
-    micro_batch_size: 8
+    # local_batch_size: 8
+    # micro_batch_size: 8
   quantization:
     use_qat: False
     weight_bits: 8
@@ -28,7 +27,6 @@ PreTraining:
     save_steps: 1000
     output_dir: ./output
     ckpt_dir: 
-  fused_linear: False
 
   Model:
     vocab_size: 50304
