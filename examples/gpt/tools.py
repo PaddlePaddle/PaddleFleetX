@@ -117,8 +117,6 @@ def parse_yaml(yaml_file):
 
     # process batch size
     process_batch_size(args)
-    # process process_mesh
-    process_mesh(args)
 
     if args.ffn_hidden_size is None:
         args.ffn_hidden_size = 4 * args.hidden_size
