@@ -8,3 +8,5 @@ RUN python -m pip install paddlepaddle-gpu==0.0.0.post112 -f https://www.paddlep
 
 RUN wget https://raw.githubusercontent.com/PaddlePaddle/FleetX/develop/requirements.txt && python -m pip install -r requirements.txt -i https://mirror.baidu.com/pypi/simple
 
+ENV LD_LIBRARY_PATH=/usr/lib64/:${LD_LIBRARY_PATH}
+
