@@ -88,10 +88,8 @@ class MultiHeadAttention(nn.Layer):
         mix_layer = self.qkv_proj(query)
         mix_layer = paddle.reshape_(mix_layer,
                                     [0, 0, self.num_heads, 3 * self.head_dim])
+        mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
         q, k, v = paddle.split(mix_layer, num_or_sections=3, axis=-1)
-        q = paddle.transpose(q, [0, 2, 1, 3])
-        k = paddle.transpose(k, [0, 2, 1, 3])
-        v = paddle.transpose(v, [0, 2, 1, 3])
         return q, k, v
 
     def _prepare_qkv(self, query, key, value, use_cache=False, cache=None):
