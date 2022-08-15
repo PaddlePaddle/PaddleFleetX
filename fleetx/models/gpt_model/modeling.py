@@ -88,8 +88,10 @@ class MultiHeadAttention(nn.Layer):
         mix_layer = self.qkv_proj(query)
         mix_layer = paddle.reshape_(mix_layer,
                                     [0, 0, self.num_heads, 3 * self.head_dim])
-        mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
         q, k, v = paddle.split(mix_layer, num_or_sections=3, axis=-1)
+        q = paddle.transpose(q, [0, 2, 1, 3])
+        k = paddle.transpose(k, [0, 2, 1, 3])
+        v = paddle.transpose(v, [0, 2, 1, 3])
         return q, k, v
 
     def _prepare_qkv(self, query, key, value, use_cache=False, cache=None):
@@ -163,6 +165,28 @@ class MultiHeadAttention(nn.Layer):
             # incremental_state with initial value, mainly for usage like UniLM
             return self.Cache(key, value)
 
+    def core_attn(self, q, k, v):
+        # scale dot product attention
+        product = layers.matmul(
+            x=q, y=k, transpose_y=True, alpha=self.head_dim ** -0.5)
+
+        weights = incubate.softmax_mask_fuse_upper_triangle(product)
+
+        if self.dropout:
+            weights = F.dropout(
+                weights,
+                self.dropout,
+                training=self.training,
+                mode="upscale_in_train")
+
+        out = tensor.matmul(weights, v)
+
+        # combine heads
+        out = tensor.transpose(out, perm=[0, 2, 1, 3])
+        out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
+
+        return out, weights
+
     def forward(self,
                 query,
                 key,
@@ -186,29 +210,11 @@ class MultiHeadAttention(nn.Layer):
         else:
             q, k, v, cache = self._prepare_qkv(query, key, value, use_cache,
                                                cache)
-        # scale dot product attention
-        product = layers.matmul(
-            x=q, y=k, transpose_y=True, alpha=self.head_dim**-0.5)
 
-        # if attn_mask is not None:
-        #     product = product + attn_mask
-
-        # weights = F.softmax(product)
-
-        weights = incubate.softmax_mask_fuse_upper_triangle(product)
-
-        if self.dropout:
-            weights = F.dropout(
-                weights,
-                self.dropout,
-                training=self.training,
-                mode="upscale_in_train")
-
-        out = tensor.matmul(weights, v)
-
-        # combine heads
-        out = tensor.transpose(out, perm=[0, 2, 1, 3])
-        out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
+        if self.use_recompute and self.recompute_granularity == "core_attn":
+            out, weights = recompute(self.core_attn, q, k, v)
+        else:
+            out, weights = self.core_attn(q, k, v)
 
         # project to output
         out = self.out_proj(out)
