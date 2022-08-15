@@ -20,6 +20,7 @@ from fleetx.models.gpt_model.modeling import GPTModel, GPTForPretraining, GPTPre
 from fleetx.utils import logger
 from fleetx.optim import lr_scheduler as lr
 from fleetx.core.module.basic_module import BasicModule
+from fleetx.utils.tensor_fusion_helper import fused_parameters
 
 
 class GPTModule(BasicModule):
@@ -61,6 +62,8 @@ class GPTModule(BasicModule):
     def configure_optimizers(self):
         if self.args.decay_steps is None:
             self.args.decay_steps = self.args.max_steps
+        if self.args.tensor_fusion:
+            decay_fused_tensors, all_fused_tensors = fused_parameters(self.model)
         warmup_step = self.args.warmup_rate * self.args.decay_steps
         lr_scheduler = lr.CosineAnnealingWithWarmupDecay(
             max_lr=self.args.max_lr,
@@ -74,17 +77,20 @@ class GPTModule(BasicModule):
 
         # Generate parameter names needed to perform weight decay.
         # All bias and LayerNorm parameters are excluded.
-        decay_params = [
-            p.name for n, p in self.model.named_parameters()
-            if not any(nd in n for nd in ["bias", "norm"])
-        ]
+        if self.args.tensor_fusion:
+            decay_params = [p.name for p in decay_fused_tensors]
+        else:
+            decay_params = [
+                p.name for n, p in self.model.named_parameters()
+                if not any(nd in n for nd in ["bias", "norm"])
+            ]
         optimizer = paddle.optimizer.AdamW(
             learning_rate=lr_scheduler
             if lr_scheduler is not None else self.args.max_lr,
             beta1=self.args.adam_beta1,
             beta2=self.args.adam_beta2,
             epsilon=self.args.adam_epsilon,
-            parameters=self.model.parameters(),
+            parameters=all_fused_tensors if self.args.tensor_fusion else self.model.parameters(),
             weight_decay=self.args.weight_decay,
             grad_clip=clip,
             apply_decay_param_fun=lambda x: x in decay_params,

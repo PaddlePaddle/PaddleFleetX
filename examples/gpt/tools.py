@@ -91,6 +91,9 @@ def parse_yaml(yaml_file):
     add_dict(yaml_dict, "PreTraining", global_config["PreTraining"])
     args = argparse.Namespace(**yaml_dict)
 
+    if not hasattr(args, 'recompute_granularity'):
+        args.recompute_granularity = None
+
     args.test_iters = args.eval_iters * 10
 
     if args.fused_linear and not is_fused_matmul_bias_supported():
