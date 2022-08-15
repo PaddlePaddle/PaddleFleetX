@@ -107,10 +107,8 @@ def model_forward_backward(args,
         end_index = start_index + args.micro_batch_size
         with paddle.amp.auto_cast(
                 args.use_pure_fp16,
-                custom_black_list=[
-                    "reduce_sum", "c_softmax_with_cross_entropy",
-                    "elementwise_div"
-                ],
+                custom_black_list=args.custom_black_list,
+                custom_white_list=args.custom_white_list,
                 level='O2'):
             preds = model(tokens[start_index:end_index, :],
                           ids[start_index:end_index, :])
@@ -386,10 +384,8 @@ def do_train(args):
                     data = [(tokens, position_ids), (labels, loss_mask)]
                     with paddle.amp.auto_cast(
                             args.use_pure_fp16,
-                            custom_black_list=[
-                                "reduce_sum", "c_softmax_with_cross_entropy",
-                                "elementwise_div"
-                            ],
+                            custom_black_list=args.custom_black_list,
+                            custom_white_list=args.custom_white_list,
                             level='O2'):
                         loss = model.train_batch(
                             data,

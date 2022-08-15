@@ -96,8 +96,8 @@ def generate_dist_strategy(args):
     if args.use_pure_fp16:
         dist_strategy.amp = True
         dist_strategy.amp_configs = {
-            "custom_black_list":
-            ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"],
+            "custom_black_list": args.custom_black_list,
+            "custom_white_list": args.custom_white_list,
             "init_loss_scaling": args.scale_loss,
             "use_pure_fp16": True,
         }
