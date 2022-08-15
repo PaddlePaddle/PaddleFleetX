@@ -25,6 +25,7 @@ PreTraining:
     output_dir: ./output
     ckpt_dir:
   fused_linear: True
+  tensor_fusion: True
 
   Model:
     vocab_size: 50304
