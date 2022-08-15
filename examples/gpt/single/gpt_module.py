@@ -62,7 +62,7 @@ class GPTModule(BasicModule):
     def configure_optimizers(self):
         if self.args.decay_steps is None:
             self.args.decay_steps = self.args.max_steps
-        if self.args.tensor_fustion:
+        if self.args.tensor_fusion:
             decay_fused_tensors, all_fused_tensors = fused_parameters(self.model)
         warmup_step = self.args.warmup_rate * self.args.decay_steps
         lr_scheduler = lr.CosineAnnealingWithWarmupDecay(

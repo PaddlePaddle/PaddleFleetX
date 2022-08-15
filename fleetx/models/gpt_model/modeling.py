@@ -88,7 +88,6 @@ class MultiHeadAttention(nn.Layer):
         mix_layer = self.qkv_proj(query)
         mix_layer = paddle.reshape_(mix_layer,
                                     [0, 0, self.num_heads, 3 * self.head_dim])
-        mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
         q, k, v = paddle.split(mix_layer, num_or_sections=3, axis=-1)
         return q, k, v
 
@@ -163,7 +162,11 @@ class MultiHeadAttention(nn.Layer):
             # incremental_state with initial value, mainly for usage like UniLM
             return self.Cache(key, value)
 
-    def core_attn(self, q, k, v):
+    def core_attn(self, q, k, v, transpose=False):
+        if transpose:
+            q = paddle.transpose(q, [0, 2, 1, 3])
+            k = paddle.transpose(k, [0, 2, 1, 3])
+            v = paddle.transpose(v, [0, 2, 1, 3])
         # scale dot product attention
         product = layers.matmul(
             x=q, y=k, transpose_y=True, alpha=self.head_dim ** -0.5)
@@ -210,9 +213,9 @@ class MultiHeadAttention(nn.Layer):
                                                cache)
 
         if self.use_recompute and self.recompute_granularity == "core_attn":
-            out, weights = recompute(self.core_attn, q, k, v)
+            out, weights = recompute(self.core_attn, q, k, v, self.fuse)
         else:
-            out, weights = self.core_attn(q, k, v)
+            out, weights = self.core_attn(q, k, v, self.fuse)
 
         # project to output
         out = self.out_proj(out)

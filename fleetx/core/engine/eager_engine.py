@@ -53,6 +53,12 @@ class EagerEngine(BasicEngine):
                 "'loss_fn' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.loss_fn.__class__.__name__}."
             )
 
+        self._configs = configs
+
+        # configs
+        for k, v in configs.items():
+            self.__dict__.update({'_{}'.format(k): v})
+
         if self._use_pure_fp16:
             self._scaler = paddle.amp.GradScaler(
                 init_loss_scaling=self._scale_loss)
@@ -84,12 +90,6 @@ class EagerEngine(BasicEngine):
             raise TypeError(
                 "Only support optimizer or/and lr_scheduler as outputs of `configure_optimizers`."
             )
-
-        self._configs = configs
-
-        # configs
-        for k, v in configs.items():
-            self.__dict__.update({'_{}'.format(k): v})
 
         self._module.global_step = 0
 
