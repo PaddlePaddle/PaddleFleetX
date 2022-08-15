@@ -252,7 +252,7 @@ def run_evaluate(args,
     all_loss = []
     local_time = time.time()
     for eval_step, batch in enumerate(data_loader):
-        tokens, loss_mask, position_ids, labels = batch
+        tokens, position_ids, labels, loss_mask = batch
         if args.pp_degree < 2:
             preds = model(tokens, position_ids)
             loss = criterion(preds, labels, loss_mask)
@@ -358,7 +358,7 @@ def do_train(args):
                 train_start = time.time()
 
                 global_step += 1
-                tokens, loss_mask, position_ids, labels = batch
+                tokens, position_ids, labels, loss_mask = batch
 
                 loss_mask.stop_gradient = True
                 labels.stop_gradient = True

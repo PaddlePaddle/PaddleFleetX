@@ -35,7 +35,7 @@ class GPTModule(BasicModule):
         return self.model(tokens, ids)
 
     def training_step(self, batch):
-        tokens, loss_mask, position_ids, labels = batch
+        tokens, position_ids, labels, loss_mask = batch
 
         loss_mask.stop_gradient = True
         labels.stop_gradient = True
@@ -92,7 +92,7 @@ class GPTModule(BasicModule):
         return optimizer, lr_scheduler
 
     def validation_step(self, batch):
-        tokens, loss_mask, position_ids, labels = batch
+        tokens, position_ids, labels, loss_mask = batch
         preds = self(tokens, position_ids)
         preds = paddle.cast(preds, dtype="float32")
         loss = self.loss_fn(preds, labels, loss_mask)
