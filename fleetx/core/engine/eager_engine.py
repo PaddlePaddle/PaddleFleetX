@@ -219,10 +219,8 @@ class EagerEngine(BasicEngine):
         else:
             with paddle.amp.auto_cast(
                     self._use_pure_fp16,
-                    custom_black_list=[
-                        "reduce_sum", "c_softmax_with_cross_entropy",
-                        "elementwise_div"
-                    ],
+                    custom_black_list=self._custom_black_list,
+                    custom_white_list=self._custom_white_list,
                     level='O2'):
                 loss = self._module.model.train_batch(
                     batch,
@@ -234,10 +232,8 @@ class EagerEngine(BasicEngine):
     def _model_forward_backward(self, batch):
         with paddle.amp.auto_cast(
                 self._use_pure_fp16,
-                custom_black_list=[
-                    "reduce_sum", "c_softmax_with_cross_entropy",
-                    "elementwise_div"
-                ],
+                custom_black_list=self._custom_black_list,
+                custom_white_list=self._custom_white_list,
                 level='O2'):
             loss = self._module.training_step(batch)
 
