@@ -40,10 +40,10 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 PRETRAINED_VOCAB_ARCHIVE_MAP = {
-    'gpt2': "https://fleet.bj.bcebos.com/datasets/gpt/gpt2-vocab.json",
+    'gpt2': "http://fleet.bj.bcebos.com/datasets/gpt/gpt2-vocab.json",
 }
 PRETRAINED_MERGES_ARCHIVE_MAP = {
-    'gpt2': "https://fleet.bj.bcebos.com/datasets/gpt/gpt2-merges.txt",
+    'gpt2': "http://fleet.bj.bcebos.com/datasets/gpt/gpt2-merges.txt",
 }
 PRETRAINED_VOCAB_POSITIONAL_EMBEDDINGS_SIZE_MAP = {'gpt2': 1024, }
 VOCAB_NAME = 'vocab.json'

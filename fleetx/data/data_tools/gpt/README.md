@@ -12,15 +12,18 @@
 └── raw_trans_to_json.py # 原始文本数据转化的脚本，将数据转化为json串格式。
 ```
 
-## 目录切换(以下的所有命令都在根目录中执行)
+## 目录切换
 ```
 # 如果您还未下载 FleetX 套件，请先 clone 套件
 # git clone https://github.com/PaddlePaddle/FleetX.git
 cd FleetX
+
+# 以下所有命令都在 FleetX 根目录中执行
 ```
 
 ## 环境依赖
 
+ - python 3.7+
  - tqdm
  - numpy
  - pybind11
@@ -45,7 +48,7 @@ cd FleetX
 首先下载样例数据：
 ```
 mkdir -p data/wikitext_103_en
-wget -O data/wikitext_103_en/wikitext-103-en.txt https://fleet.bj.bcebos.com/datasets/gpt/wikitext-103-en.txt
+wget -O data/wikitext_103_en/wikitext-103-en.txt http://fleet.bj.bcebos.com/datasets/gpt/wikitext-103-en.txt
 ```
 ### 原始数据转换 jsonl 格式
 使用`raw_trans_to_json.py`转化为json串格式，下面是脚本的使用说明
