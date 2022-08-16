@@ -5,7 +5,7 @@ PreTraining:
   num_train_epochs: 1
   seed: 1024
   use_recompute: True
-  recompute_granularity: 'only_attn'
+  recompute_granularity:
   batch_size:
     global_batch_size: 128
     local_batch_size: 8
