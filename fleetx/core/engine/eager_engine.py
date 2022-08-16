@@ -29,6 +29,7 @@ sys.path.append("../../../")
 from fleetx.utils import logger
 from fleetx.core.engine.basic_engine import BasicEngine
 from fleetx.core.module.basic_module import BasicModule
+from fleetx.utils.tensor_fusion_helper import all_reduce_parameters
 
 
 class EagerEngine(BasicEngine):
@@ -211,8 +212,11 @@ class EagerEngine(BasicEngine):
                                                   paddle.DataParallel):
                 with self._module.model.no_sync():
                     loss = self._model_forward_backward(batch)
-                fused_allreduce_gradients(
-                    list(self._module.model.parameters()), None)
+                if hasattr(self._module, "all_fused_tensors") and self._module.all_fused_tensors is None:
+                    fused_allreduce_gradients(
+                        list(self._module.model.parameters()), None)
+                else:
+                    all_reduce_parameters(self._module.all_fused_tensors, self._dp_group)
             else:
                 loss = self._model_forward_backward(batch)
             self._optim_update_params()
