@@ -107,6 +107,7 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
     output_dir: ./output
     ckpt_dir: 
   fused_linear: False 
+  tensor_fusion: False
 ```
 
 其中参数说明：
