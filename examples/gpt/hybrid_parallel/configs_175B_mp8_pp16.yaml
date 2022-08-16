@@ -13,6 +13,8 @@ PreTraining:
   mix_precision:
     use_pure_fp16: True
     scale_loss: 32768.0
+    custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
+    custom_white_list: ["lookup_table", "lookup_table_v2"]
   logging_freq: 1
   eval_freq: 500
   eval_iters: 10
@@ -25,6 +27,7 @@ PreTraining:
     output_dir: ./output
     ckpt_dir:
   fused_linear: True
+  tensor_fusion: False
 
   Model:
     vocab_size: 51200

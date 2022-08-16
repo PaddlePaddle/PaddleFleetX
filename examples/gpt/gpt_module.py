@@ -15,8 +15,9 @@
 import sys
 
 import paddle
+from paddle.distributed import fleet
+
 sys.path.append("../../../")
-from fleetx.models.gpt_model.modeling import GPTModel, GPTForPretraining, GPTPretrainingCriterion
 from fleetx.utils import logger
 from fleetx.optim import lr_scheduler as lr
 from fleetx.core.module.basic_module import BasicModule
@@ -27,8 +28,21 @@ class GPTModule(BasicModule):
     def __init__(self, args):
         super().__init__()
         self.args = args
-        self.model = GPTForPretraining(GPTModel(args))
-        self.loss_fn = GPTPretrainingCriterion()
+        self.nranks = paddle.distributed.get_world_size()
+
+        if self.nranks == 1:
+            from fleetx.models.gpt_model.modeling import GPTModel, GPTForPretraining, GPTPretrainingCriterion
+            self.model = GPTForPretraining(GPTModel(args))
+            self.loss_fn = GPTPretrainingCriterion()
+        else:
+            from fleetx.models.gpt_model.modeling_hybrid import GPTModel, GPTForPretraining, GPTPretrainingCriterion, GPTForPretrainingPipe
+            if args.pp_degree == 1:
+                self.model = GPTForPretraining(GPTModel(args))
+            else:
+                hcg = fleet.get_hybrid_communicate_group()
+                setattr(args, 'topology', hcg.topology())
+                self.model = GPTForPretrainingPipe(args)
+            self.loss_fn = GPTPretrainingCriterion()
 
         print('>> total parameters: ', len(self.model.parameters()))
 
@@ -63,7 +77,8 @@ class GPTModule(BasicModule):
         if self.args.decay_steps is None:
             self.args.decay_steps = self.args.max_steps
         if self.args.tensor_fusion:
-            decay_fused_tensors, all_fused_tensors = fused_parameters(self.model)
+            decay_fused_tensors, all_fused_tensors = fused_parameters(
+                self.model)
         warmup_step = self.args.warmup_rate * self.args.decay_steps
         lr_scheduler = lr.CosineAnnealingWithWarmupDecay(
             max_lr=self.args.max_lr,
@@ -90,7 +105,8 @@ class GPTModule(BasicModule):
             beta1=self.args.adam_beta1,
             beta2=self.args.adam_beta2,
             epsilon=self.args.adam_epsilon,
-            parameters=all_fused_tensors if self.args.tensor_fusion else self.model.parameters(),
+            parameters=all_fused_tensors
+            if self.args.tensor_fusion else self.model.parameters(),
             weight_decay=self.args.weight_decay,
             grad_clip=clip,
             apply_decay_param_fun=lambda x: x in decay_params,
@@ -109,3 +125,26 @@ class GPTModule(BasicModule):
         logger.info(
             "[eval] step %d, epoch: %d, batch: %d, loss: %.9f, avg_eval_cost: %.5f sec, speed: %.2f step/s"
             % (self.global_step, epoch, step, loss, 1. / speed, speed))
+
+
+class GPTHybridModule(GPTModule):
+    def pretreating_batch(self, batch):
+        if self.args.pp_degree > 1:
+            tokens, position_ids, labels, loss_mask = batch
+            data = [(tokens, position_ids), (labels, loss_mask)]
+            return data
+        else:
+            return batch
+
+    def training_step_end(self, loss, epoch, step, reader_cost, train_cost):
+        avg_loss = loss.numpy()
+        speed = self.args.logging_freq / (reader_cost + train_cost)
+        avg_reader_cost = reader_cost / self.args.logging_freq
+        default_global_tokens_num = self.args.global_batch_size * self.args.max_seq_len
+
+        logger.info(
+            "[train] global step %d, epoch: %d, batch: %d, loss: %.9f, avg_reader_cost: %.5f sec, avg_batch_cost: %.5f sec, speed: %.2f step/s, ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
+            % (self.global_step, epoch, step, avg_loss, avg_reader_cost,
+               1. / speed, speed, speed * default_global_tokens_num,
+               speed * default_global_tokens_num / self.nranks,
+               self.optimizer.get_lr()))
