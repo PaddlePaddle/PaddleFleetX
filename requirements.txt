@@ -4,3 +4,4 @@ colorama
 omegaconf
 tqdm
 pybind11
+numpy
