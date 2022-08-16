@@ -21,7 +21,7 @@ sys.path.append("../../../")
 from fleetx.utils import logger
 from fleetx.optim import lr_scheduler as lr
 from fleetx.core.module.basic_module import BasicModule
-from fleetx.utils.tensor_fusion_helper import fused_parameters, all_reduce_parameters
+from fleetx.utils.tensor_fusion_helper import fused_parameters
 
 
 class GPTModule(BasicModule):
@@ -79,7 +79,7 @@ class GPTModule(BasicModule):
         self.decay_fused_tensors, self.all_fused_tensors = None, None
         if self.args.tensor_fusion:
             self.decay_fused_tensors, self.all_fused_tensors = fused_parameters(
-                self.model, use_sharding=self.args.sharding_degree > 1)
+                self.model)
         warmup_step = self.args.warmup_rate * self.args.decay_steps
         lr_scheduler = lr.CosineAnnealingWithWarmupDecay(
             max_lr=self.args.max_lr,
