@@ -67,7 +67,7 @@ wget -O data/gpt_en_dataset_300m_ids.npy https://bj.bcebos.com/paddlenlp/models/
 wget -O data/gpt_en_dataset_300m_idx.npz https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_idx.npz
 ```
 
-然后使用以下命令运行单机多卡程序，该gpt程序需要8卡以运行，如单机无法满足要求可以使用[多机](#4-多机多卡训练)启动，
+然后使用以下命令运行单机多卡程序，该gpt程序需要8卡以运行，如单机无法满足要求可以使用[多机](#4-多机多卡训练)启动命令，启动总8卡任务，
 ```
 python -m paddle.distributed.launch run_pretrain.py -c ./configs_1.3B_dp8.yaml
 ```
@@ -115,9 +115,10 @@ LAUNCH INFO 2022-08-15 07:37:39,063 Watching Pod: vqhbut, replicas 8, status run
 ## 4. 多机多卡训练
 
 使用以下命令进行多机分布式训练，其中 --nnodes 参数为分布式训练机器数量，--master 为训练机器中其中一台机器的IP，运行时需要将命令中示例IP替换为真实的机器IP和任意可用端口，然后在**每个节点**上都运行以下命令，
+该示例为16卡任务，需要满足总卡数为16的要求。
 
 ```
-python -m paddle.distributed.launch --master=10.10.10.1:8099 --nnodes=2 run_pretrain.py -c ./configs_1.3B_dp8.yaml
+python -m paddle.distributed.launch --master=10.10.10.1:8099 --nnodes=2 run_pretrain.py -c ./configs_6.7B_sharding16.yaml
 ```
 
 > 注意这里需要使用单机多卡训练部分的代码和数据。
