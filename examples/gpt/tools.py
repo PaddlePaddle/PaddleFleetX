@@ -21,10 +21,12 @@ import os
 import sys
 
 import yaml
+import numpy as np
 import paddle
 import paddle.distributed as dist
 from paddle.fluid import core
 import argparse
+from functools import reduce
 from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
 
 
@@ -91,14 +93,22 @@ def parse_yaml(yaml_file):
     add_dict(yaml_dict, "PreTraining", global_config["PreTraining"])
     args = argparse.Namespace(**yaml_dict)
 
+    if not hasattr(args, 'recompute_granularity'):
+        args.recompute_granularity = None
+
     args.test_iters = args.eval_iters * 10
+
+    if args.tensor_fusion:
+        assert args.mp_degree == 1 and args.pp_degree == 1 and args.sharding_degree == 1, \
+            "tensor_fusion only support single card train or data parallel train"
 
     if args.fused_linear and not is_fused_matmul_bias_supported():
         args.fused_linear = False
-        logging.warning("The flag fused_linear only valid for cuda version higher than 11.6, "
-                        "but the paddle is compiled with cuda " + paddle.version.cuda())
+        logging.warning(
+            "The flag fused_linear only valid for cuda version higher than 11.6, "
+            "but the paddle is compiled with cuda " + paddle.version.cuda())
 
-    if args.recompute:
+    if args.use_recompute:
         assert args.recompute_granularity is None or \
                isinstance(args.recompute_granularity, str), \
             "recompute_granularity must be a None or a string object"
@@ -117,7 +127,7 @@ def parse_yaml(yaml_file):
 
     _print_args(args)
     model_size(args)
-    return args
+    return args, yaml_dict
 
 
 def _print_args(args):
@@ -134,3 +144,101 @@ def _print_args(args):
     print(
         '-------------------- end of arguments ---------------------',
         flush=True)
+
+
+def parse_yaml_auto(yaml_file):
+    global_config = yaml.load(open(yaml_file, 'rb'), Loader=yaml.Loader)
+    yaml_dict = {}
+
+    def add_dict(config, k, v):
+        if not isinstance(v, dict):
+            config[k] = v
+            return
+        for ik, iv in v.items():
+            add_dict(config, ik, iv)
+
+    add_dict(yaml_dict, "PreTraining", global_config["PreTraining"])
+    args = argparse.Namespace(**yaml_dict)
+
+    args.test_iters = args.eval_iters * 10
+
+    # process process_mesh
+    process_mesh(args)
+
+    if args.ffn_hidden_size is None:
+        args.ffn_hidden_size = 4 * args.hidden_size
+
+    _print_args(args)
+    model_size(args)
+    return args, yaml_dict
+
+
+def process_mesh(args):
+    args.mesh = Mesh(args)
+
+
+class Mesh:
+    def __init__(self, args):
+        self.dp_idx = -1
+        self.mp_idx = -1
+        self.process_mesh = None
+        self.args = args
+
+        topology = list(
+            filter(lambda x: x > 1,
+                   [args.dp_degree, args.mp_degree, args.pp_degree]))
+        num_proc = 1 if not topology else reduce(lambda x, y: x * y, topology)
+        processes = [i for i in range(num_proc)]
+
+        if args.pp_degree > 1:
+            if len(topology) > 1:
+                # dpmppp, dppp, mppp
+                process_mesh_shape = topology[:-1]
+                per_process_mesh_group = num_proc // args.pp_degree
+                self.process_mesh = [
+                    np.array(processes[i * per_process_mesh_group:(i + 1) *
+                                       per_process_mesh_group]).reshape(
+                                           process_mesh_shape).tolist()
+                    for i in range(args.pp_degree)
+                ]
+                if len(process_mesh_shape) > 1:
+                    self.dp_idx = 0
+                    self.mp_idx = 1
+                else:
+                    self.dp_idx = 0 if args.dp_degree > 1 else -1
+                    self.mp_idx = 0 if args.mp_degree > 1 else -1
+            elif len(topology) == 1:
+                # pp
+                self.process_mesh = [[i] for i in range(args.pp_degree)]
+        else:
+            if len(topology) > 1:
+                # dpmp
+                self.process_mesh = [
+                    np.array(processes).reshape(topology).tolist()
+                ]
+                self.dp_idx = 0
+                self.mp_idx = 1
+            else:
+                # dp, mp, serial
+                self.process_mesh = [processes]
+                self.dp_idx = 0 if args.dp_degree > 1 else -1
+                self.mp_idx = 0 if args.mp_degree > 1 else -1
+
+    def __getitem__(self, idx):
+        if self.args.pp_degree > 1:
+            assert self.args.pp_degree == len(self.process_mesh)
+
+        assert idx < len(self.process_mesh)
+        return self.process_mesh[idx]
+
+    def stages(self, num_layers):
+        layer_per_stage = num_layers // self.args.pp_degree
+        return [i // layer_per_stage for i in range(num_layers)]
+
+    @property
+    def dp(self):
+        return self.dp_idx
+
+    @property
+    def mp(self):
+        return self.mp_idx
