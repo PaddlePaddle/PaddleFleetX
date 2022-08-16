@@ -212,7 +212,7 @@ class EagerEngine(BasicEngine):
                                                   paddle.DataParallel):
                 with self._module.model.no_sync():
                     loss = self._model_forward_backward(batch)
-                if hasattr(self._module, "all_fused_tensors") and self._module.all_fused_tensors is None:
+                if not hasattr(self._module, "all_fused_tensors") or self._module.all_fused_tensors is None:
                     fused_allreduce_gradients(
                         list(self._module.model.parameters()), None)
                 else:
