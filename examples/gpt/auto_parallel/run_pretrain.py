@@ -24,7 +24,7 @@ from paddle.distributed import fleet
 from paddle.distributed.auto_parallel.engine import Engine
 
 sys.path.append("../../../")
-from examples.gpt.tools import parse_args, parse_yaml
+from examples.gpt.tools import parse_args, parse_yaml_auto
 from fleetx.optim import lr_scheduler as lr
 from fleetx.data.sampler import Stack, Tuple
 from fleetx.data.tokenizers import GPTTokenizer
@@ -145,5 +145,5 @@ def do_train(args):
 
 
 if __name__ == "__main__":
-    args, _ = parse_yaml(parse_args().config)
+    args, _ = parse_yaml_auto(parse_args().config)
     do_train(args)
