@@ -98,6 +98,10 @@ def parse_yaml(yaml_file):
 
     args.test_iters = args.eval_iters * 10
 
+    if args.tensor_fusion:
+        assert args.mp_degree == 1 and args.pp_degree == 1 and args.sharding_degree == 1, \
+            "tensor_fusion only support single card train or data parallel train"
+
     if args.fused_linear and not is_fused_matmul_bias_supported():
         args.fused_linear = False
         logging.warning(

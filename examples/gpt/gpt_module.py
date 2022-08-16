@@ -76,8 +76,9 @@ class GPTModule(BasicModule):
     def configure_optimizers(self):
         if self.args.decay_steps is None:
             self.args.decay_steps = self.args.max_steps
+        self.decay_fused_tensors, self.all_fused_tensors = None, None
         if self.args.tensor_fusion:
-            decay_fused_tensors, all_fused_tensors = fused_parameters(
+            self.decay_fused_tensors, self.all_fused_tensors = fused_parameters(
                 self.model)
         warmup_step = self.args.warmup_rate * self.args.decay_steps
         lr_scheduler = lr.CosineAnnealingWithWarmupDecay(
@@ -93,7 +94,7 @@ class GPTModule(BasicModule):
         # Generate parameter names needed to perform weight decay.
         # All bias and LayerNorm parameters are excluded.
         if self.args.tensor_fusion:
-            decay_params = [p.name for p in decay_fused_tensors]
+            decay_params = [p.name for p in self.decay_fused_tensors]
         else:
             decay_params = [
                 p.name for n, p in self.model.named_parameters()
@@ -105,7 +106,7 @@ class GPTModule(BasicModule):
             beta1=self.args.adam_beta1,
             beta2=self.args.adam_beta2,
             epsilon=self.args.adam_epsilon,
-            parameters=all_fused_tensors
+            parameters=self.all_fused_tensors
             if self.args.tensor_fusion else self.model.parameters(),
             weight_decay=self.args.weight_decay,
             grad_clip=clip,
