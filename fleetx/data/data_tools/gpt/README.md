@@ -1,4 +1,4 @@
-## GPT 模型预训练数据准备流程
+## GPT 模型预训练数据准备流程(中文数据处理正在支持中)
 
 我们将预训练数据过程划分为以下2个部分：
 
@@ -17,10 +17,8 @@
  - tqdm
  - numpy
  - pybind11
- - lac (可选)
- - zstandard (可选)
 
-安装命令`pip install tqdm numpy pybind11 lac zstandard`。
+安装命令`pip install tqdm numpy pybind11`。
 
 
 ## 训练全流程数据 Pipeline
