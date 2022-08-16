@@ -62,10 +62,9 @@ git clone https://github.com/PaddlePaddle/FleetX.git
 ```
 cd FleetX/examples/gpt/hybrid_parallel
 
-mkdir data && cd data
-wget https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_ids.npy
-wget https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_idx.npz
-cd ..
+mkdir data
+wget -O data/gpt_en_dataset_300m_ids.npy https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_ids.npy
+wget -O data/gpt_en_dataset_300m_idx.npz https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_idx.npz
 ```
 
 然后使用以下命令运行单机多卡程序，该gpt程序需要8卡以运行，如单机无法满足要求可以使用[多机](#4-多机多卡训练)启动，
