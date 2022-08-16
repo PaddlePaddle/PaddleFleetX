@@ -3,9 +3,38 @@
 
 ## 参数释义
 
+### 数据集
+数据集参数指定训练的batch size，以及数据的目录。
+
+```yaml
+Data:
+  batch_size:
+    global_batch_size: 8
+    local_batch_size: 8
+    micro_batch_size: 8
+
+  dataset:
+    input_dir: ./data
+    split: '949,50,1'
+    max_seq_len: 1024
+```
+
+
+其中参数对应的释义如下：
+| **参数名**                      | **参数释义**               |
+|------------------------------|------------------------|
+| global_batch_size | 全局的batch size大小，即一次参数更新等效的batch size |
+| local_batch_size  | 每个进程训练的batch size大小                  |
+| micro_batch_size  | 每次前向计算的batch size大小                  |
+| input_dir         | 指定输入文件，可以使用目录，指定目录时将包括目录中的所有文件       |
+| split             | 训练集，验证集和测试集的切分比例                     |
+| max_seq_len       | 输入文本序列的长度                            |
+
+
+
 ### 模型网络
 
-网络部分完成了网络的组网操作，GPT在[FleetX/fleetx/models/gpt_model/modeling.py]([../../ppocr/modeling](https://github.com/PaddlePaddle/FleetX/tree/develop/fleetx/models/gpt_model))下。 
+网络部分完成了网络的组网操作，GPT在[FleetX/fleetx/models/gpt_model/modeling.py]([](https://github.com/PaddlePaddle/FleetX/tree/develop/fleetx/models/gpt_model))下。 
 可以使用配置文件配置模型的规模，如：
 
 ```yaml
@@ -20,6 +49,7 @@
     max_position_embeddings: 1024
     type_vocab_size: 16
     initializer_range: 0.02
+    use_recompute: False
 ```
 
 其中参数对应的释义如下：
@@ -35,8 +65,8 @@
 | max_position_embeddings      | position embedding的长度  |
 | type_vocab_size              | 词表类型                   |
 | initializer_range            | 参数初始化的范围               |
-
-
+| use_recompute     | 是否使用recompute训练                      |
+| recompute_granularity | recompute训练的粒度，可选 `full` `only_attn`，full即recompute全部transformer，only_attn表明只recompute self attention部分 |
 
 ### 优化器
 
@@ -74,39 +104,53 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
 | min_lr       | Adam 的初始最小学习率             |
 | grad_clip    | 梯度裁剪范围，使用的是GlobalNorm梯度裁剪 |
 
-### 训练控制
+### Engine训练控制
 
-通过配置文件配置训练相关的超参数，如：
-
+Engine训练设置完成模型训练/验证/推理等过程中的参数设置，是fleetX的EagerEngine的必要参数，所有使用该Engine都必须指定该配置。 其中包含的参数有：
 
 ```yaml
-  device: gpu
-  max_steps: 500000
-  num_train_epochs: 1
-  seed: 1024
-  use_recompute: False
-  recompute_granularity:
-  batch_size:
-    global_batch_size: 8
-    local_batch_size: 8
-    micro_batch_size: 8
-  mix_precision:
-    use_pure_fp16: True
-    scale_loss: 32768.0
-    custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
-    custom_white_list: ["lookup_table", "lookup_table_v2"]
-  logging_freq: 1
-  eval_freq: 500
-  eval_iters: 10
-  dataset:
-    input_dir: ./data
-    split: '949,50,1'
-    max_seq_len: 1024
-  save_load:
-    save_steps: 1000
-    output_dir: ./output
-    ckpt_dir: 
-  fused_linear: False 
+  Engine:
+    max_steps: 500000
+    num_train_epochs: 1
+    accumulate_steps: 
+    logging_freq: 1
+    eval_freq: 500
+    eval_iters: 10
+    mix_precision:
+      use_pure_fp16: True
+      scale_loss: 32768.0
+      custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
+      custom_white_list: ["lookup_table", "lookup_table_v2"]
+    save_load:
+      save_steps: 1000
+      output_dir: ./output
+      ckpt_dir:
+```
+其中参数对应的释义如下：
+
+| **参数名**                      | **参数释义**               |
+|------------------------------|------------------------|
+| max_steps         | 最大训练步数                               |
+| num_train_epochs  | 训练的epoch数量                           |
+| accumulate_steps  | 梯度累加次数                           |
+| logging_freq      | 训练日志打印的频率                            |
+| eval_freq         | 模型评估间隔                               |
+| eval_iters        | 模型评估时训练评估测试集的轮数                      |
+| use_pure_fp16     | 是否使用purefp16精度训练                     |
+| scale_loss        | 使用fp16精度下，loss的放缩比例                  |
+| custom_black_list | 自定义算子黑名单。这个名单中的算子在支持float16计算时会被认为是数值危险的，它们的影响也可能会在下游操作中观察到。这些算子通常不会转为float16计算。 |
+| custom_white_list | 自定义算子白名单。这个名单中的算子在支持float16计算时会被认为是数值安全的，并且对性能至关重要。如果设置了白名单，该名单中的算子会使用float16计算。|
+| save_steps        | 保存模型间隔                               |
+| output_dir        | 指定输出文件                               |
+| ckpt_dir          | checkpoint的加载目录                      |
+
+
+### 性能优化
+性能优化这里采用部分fuse op优化方式，可以选择是否fuse。
+
+```yaml
+Fused:
+  fused_linear: True
   tensor_fusion: False
 ```
 
@@ -114,30 +158,9 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
 
 | **参数名**           | **参数释义**                             |
 |-------------------|--------------------------------------|
-| device            | 训练设备                                 |
-| max_steps         | 最大训练步数                               |
-| num_train_epochs  | 训练的epoch数量                           |
-| seed              | 随机种子，保证训练过程可复现                       |
-| use_recompute     | 是否使用recompute训练                      |
-| recompute_granularity | recompute训练的粒度，可选 `full` `only_attn`，full即recompute全部transformer，only_attn表明只recompute self attention部分 |
-| global_batch_size | 全局的batch size大小，即一次参数更新等效的batch size |
-| local_batch_size  | 每个进程训练的batch size大小                  |
-| micro_batch_size  | 每次前向计算的batch size大小                  |
-| use_pure_fp16     | 是否使用purefp16精度训练                     |
-| scale_loss        | 使用fp16精度下，loss的放缩比例                  |
-| custom_black_list | 自定义算子黑名单。这个名单中的算子在支持float16计算时会被认为是数值危险的，它们的影响也可能会在下游操作中观察到。这些算子通常不会转为float16计算。 |
-| custom_white_list | 自定义算子白名单。这个名单中的算子在支持float16计算时会被认为是数值安全的，并且对性能至关重要。如果设置了白名单，该名单中的算子会使用float16计算。|
-| logging_freq      | 训练日志打印的频率                            |
-| eval_freq         | 模型评估间隔                               |
-| eval_iters        | 模型评估时训练评估测试集的轮数                      |
-| input_dir         | 指定输入文件，可以使用目录，指定目录时将包括目录中的所有文件       |
-| split             | 训练集，验证集和测试集的切分比例                     |
-| max_seq_len       | 输入文本序列的长度                            |
-| save_steps        | 保存模型间隔                               |
-| output_dir        | 指定输出文件                               |
-| ckpt_dir          | checkpoint的加载目录                      |
 | fused_linear      | 是否使用fused_linear代替传统Linear加速训练。注：该功能需要cuda 11.6及以上编译的paddle支持。       |
 | tensor_fusion | 是否使用tensor_fustion功能加速训练 |
+
 
 ## 运行方式
 
