@@ -43,13 +43,15 @@ Data:
     hidden_size: 1024
     num_layers: 24
     num_attention_heads: 16
-    ffn_hidden_size: 4096
+    ffn_hidden_size:
     hidden_dropout_prob: 0.1
     attention_probs_dropout_prob: 0.1
     max_position_embeddings: 1024
     type_vocab_size: 16
     initializer_range: 0.02
-    use_recompute: False
+    use_recompute: True
+    recompute_granularity:
+    fused_linear: True
 ```
 
 其中参数对应的释义如下：
@@ -67,6 +69,7 @@ Data:
 | initializer_range            | 参数初始化的范围               |
 | use_recompute     | 是否使用recompute训练                      |
 | recompute_granularity | recompute训练的粒度，可选 `full` `only_attn`，full即recompute全部transformer，only_attn表明只recompute self attention部分 |
+| fused_linear      | 是否使用fused_linear代替传统Linear加速训练。注：该功能需要cuda 11.6及以上编译的paddle支持。       |
 
 ### 优化器
 
@@ -150,7 +153,6 @@ Engine训练设置完成模型训练/验证/推理等过程中的参数设置，
 
 ```yaml
 Fused:
-  fused_linear: True
   tensor_fusion: False
 ```
 
@@ -158,7 +160,6 @@ Fused:
 
 | **参数名**           | **参数释义**                             |
 |-------------------|--------------------------------------|
-| fused_linear      | 是否使用fused_linear代替传统Linear加速训练。注：该功能需要cuda 11.6及以上编译的paddle支持。       |
 | tensor_fusion | 是否使用tensor_fustion功能加速训练 |
 
 
@@ -179,6 +180,8 @@ python run_pretrain.py -c ./configs_345m_single_card.yaml
 # 1.3B
 python run_pretrain.py -c ./configs_1.3B_single_card.yaml
 ```
+
+若要在显存容量更小的16G V100环境下进行GPT模型单卡训练，可将对应yaml文件中的`Model`-`hidden size`值改为原来的1/2即可。
 
 **运行日志**
 
