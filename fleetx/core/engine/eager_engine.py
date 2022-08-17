@@ -58,11 +58,39 @@ class EagerEngine(BasicEngine):
                 "'loss_fn' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.loss_fn.__class__.__name__}."
             )
 
-        self._configs = configs
+        # engine configs
+        self._configs = configs['Engine']
 
-        # configs
-        for k, v in configs.items():
-            self.__dict__.update({'_{}'.format(k): v})
+        self._max_steps = self._configs['max_steps']
+        self._eval_freq = self._configs['eval_freq']
+        self._eval_iters = self._configs['eval_iters']
+        self._test_iters = self._configs['test_iters']
+        self._logging_freq = self._configs['logging_freq']
+        self._num_train_epochs = self._configs['num_train_epochs']
+        self._accumulate_steps = self._configs['accumulate_steps']
+
+        self._use_pure_fp16 = self._configs['mix_precision']['use_pure_fp16']
+        self._scale_loss = self._configs['mix_precision']['scale_loss']
+        self._custom_black_list = self._configs['mix_precision'][
+            'custom_black_list']
+        self._custom_white_list = self._configs['mix_precision'][
+            'custom_white_list']
+
+        self._save_steps = self._configs['save_load']['save_steps']
+        self._output_dir = self._configs['save_load']['output_dir']
+        self._ckpt_dir = self._configs['save_load']['ckpt_dir']
+
+        # TODO(haohongxiang): Remove there extra configs after reconstruct of Fleet API
+        self._dist_configs = configs['Distributed']
+        self._dp_degree = self._dist_configs['dp_degree']
+        self._mp_degree = self._dist_configs['mp_degree']
+        self._pp_degree = self._dist_configs['pp_degree']
+        self._sharding_stage = self._dist_configs['sharding']['sharding_stage']
+        self._sharding_degree = self._dist_configs['sharding'][
+            'sharding_degree']
+        self._sharding_offload = self._dist_configs['sharding'][
+            'sharding_offload']
+        self._use_recompute = configs['Model']['use_recompute']
 
         if self._use_pure_fp16:
             self._scaler = paddle.amp.GradScaler(
@@ -196,7 +224,7 @@ class EagerEngine(BasicEngine):
             if (self._module.global_step % self._save_steps == 0 or
                     self._module.global_step >= self._max_steps
                 ) and self._dp_rank == 0:
-                self.save(self._output_dir)
+                self.save()
 
             if self._module.global_step >= self._max_steps:
                 logger.info("The training process is complete.")
@@ -212,11 +240,13 @@ class EagerEngine(BasicEngine):
                                                   paddle.DataParallel):
                 with self._module.model.no_sync():
                     loss = self._model_forward_backward(batch)
-                if not hasattr(self._module, "all_fused_tensors") or self._module.all_fused_tensors is None:
+                if not hasattr(self._module, "all_fused_tensors"
+                               ) or self._module.all_fused_tensors is None:
                     fused_allreduce_gradients(
                         list(self._module.model.parameters()), None)
                 else:
-                    all_reduce_parameters(self._module.all_fused_tensors, self._dp_group)
+                    all_reduce_parameters(self._module.all_fused_tensors,
+                                          self._dp_group)
             else:
                 loss = self._model_forward_backward(batch)
             self._optim_update_params()
@@ -277,7 +307,7 @@ class EagerEngine(BasicEngine):
             loss = self._evaluate_impl(batch)
 
             paddle.device.cuda.synchronize()
-            eval_cost += time.time() - eval_start
+            eval_cost = time.time() - eval_start
 
             if self._module.global_step % self._logging_freq == 0:
                 self._module.validation_step_end(loss, epoch, eval_step,
@@ -308,7 +338,7 @@ class EagerEngine(BasicEngine):
             loss = self._predict_impl(batch)
 
             paddle.device.cuda.synchronize()
-            test_cost += time.time() - test_start
+            test_cost = time.time() - test_start
 
             if self._module.global_step % self._logging_freq == 0:
                 self._module.test_step_end(loss, epoch, test_step, test_cost)
@@ -328,17 +358,17 @@ class EagerEngine(BasicEngine):
             loss = self._module.model.eval_batch(batch, compute_loss=True)
         return loss
 
-    def save(self, output_dir):
-        if output_dir and isinstance(output_dir, str):
-            output_dir = os.path.join(output_dir,
-                                      "model_%d" % self._module.global_step)
-            if not os.path.exists(output_dir):
-                os.makedirs(output_dir)
-            logger.info("Save model to %s" % output_dir)
+    def save(self):
+        if self._output_dir and isinstance(self._output_dir, str):
+            self._output_dir = os.path.join(self._output_dir, "model_%d" %
+                                            self._module.global_step)
+            if not os.path.exists(self._output_dir):
+                os.makedirs(self._output_dir)
+            logger.info("Save model to %s" % self._output_dir)
 
             save_dir = "{}/mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}".format(
-                output_dir, self._mp_rank, self._sharding_rank,
-                self._pp_rank) if self._distributed else output_dir
+                self._output_dir, self._mp_rank, self._sharding_rank,
+                self._pp_rank) if self._distributed else self._output_dir
             paddle.save(self._module.model.state_dict(),
                         os.path.join(save_dir, "model.pdparams"))
             paddle.save(self._module.optimizer.state_dict(),
@@ -346,13 +376,13 @@ class EagerEngine(BasicEngine):
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
 
-    def load(self, ckpt_dir):
-        if ckpt_dir and isinstance(ckpt_dir, str):
-            logger.info("Try to load checkpoint from %s " % ckpt_dir)
+    def load(self):
+        if self._ckpt_dir and isinstance(self._ckpt_dir, str):
+            logger.info("Try to load checkpoint from %s " % self._ckpt_dir)
 
             load_dir = "{}/mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}".format(
-                ckpt_dir, self._mp_rank, self._sharding_rank,
-                self._pp_rank) if self._distributed else ckpt_dir
+                self._ckpt_dir, self._mp_rank, self._sharding_rank,
+                self._pp_rank) if self._distributed else self._ckpt_dir
             model_path = os.path.join(load_dir, "model.pdparams")
             opt_path = os.path.join(load_dir, "model_state.pdopt")
             if os.path.exists(model_path):
@@ -369,4 +399,4 @@ class EagerEngine(BasicEngine):
                 logger.warning("No optimizer checkpoint file found in %s." %
                                opt_path)
         else:
-            raise TypeError("`load` requires a valid value of `ckpt_dir`.")
+            logger.warning("`load` requires a valid value of `ckpt_dir`.")

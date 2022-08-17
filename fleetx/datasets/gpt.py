@@ -25,10 +25,10 @@ from fleetx.data.sampler import DistributedBatchSampler
 from fleetx.data.sampler import Stack, Tuple
 
 
-def get_train_data_file(args):
+def get_train_data_file(input_dir):
     files = [
-        os.path.join(args.input_dir, f) for f in os.listdir(args.input_dir)
-        if (os.path.isfile(os.path.join(args.input_dir, f)) and str(f)
+        os.path.join(input_dir, f) for f in os.listdir(input_dir)
+        if (os.path.isfile(os.path.join(input_dir, f)) and str(f)
             .endswith("_idx.npz"))
     ]
     files = [x.replace("_idx.npz", "") for x in files]
@@ -40,8 +40,8 @@ def get_train_data_file(args):
         return files
 
     files = [
-        os.path.join(args.input_dir, f) for f in os.listdir(args.input_dir)
-        if (os.path.isfile(os.path.join(args.input_dir, f)) and str(f)
+        os.path.join(input_dir, f) for f in os.listdir(input_dir)
+        if (os.path.isfile(os.path.join(input_dir, f)) and str(f)
             .endswith("_ids.npz"))
     ]
 
@@ -122,7 +122,7 @@ def create_pretrained_dataset_auto(args, input_path, eos_id):
     return train_dataset, valid_dataset, test_dataset
 
 
-def create_pretrained_dataset(args,
+def create_pretrained_dataset(configs,
                               input_path,
                               local_rank,
                               data_world_rank,
@@ -178,7 +178,8 @@ def create_pretrained_dataset(args,
     # The sum(sample_lens) should equal len(sample_ids)
     sample_lens = process_data["lens"]
 
-    splits = get_train_valid_test_split_(args.split, len(sample_lens))
+    splits = get_train_valid_test_split_(configs['Data']['dataset']['split'],
+                                         len(sample_lens))
     assert len(sample_lens) >= splits[
         -1], "The document nums should larger than max of splits, but %s < %s" % (
             len(sample_lens), splits[-1])
@@ -194,11 +195,11 @@ def create_pretrained_dataset(args,
             sample_ids=sample_ids,
             sample_lens=sample_lens,
             eos_id=eos_id,
-            seed=args.seed)
+            seed=configs['Global']['seed'])
 
         batch_sampler = DistributedBatchSampler(
             dataset,
-            batch_size=args.local_batch_size,
+            batch_size=configs['Data']['batch_size']['local_batch_size'],
             num_replicas=data_world_size,
             rank=data_world_rank,
             shuffle=False,
@@ -217,14 +218,17 @@ def create_pretrained_dataset(args,
 
     # Note, data should be broardcast to all devices.
     # for train, valid, test, the distinct data num is data_world_size
-    train_data_loader = build_dataset(0, "train", args.local_batch_size *
-                                      args.max_steps * data_world_size)
+    train_data_loader = build_dataset(
+        0, "train", configs['Data']['batch_size']['local_batch_size'] *
+        configs['Engine']['max_steps'] * data_world_size)
 
-    valid_data_loader = build_dataset(1, "valid", args.local_batch_size *
-                                      (args.max_steps // args.eval_freq + 1) *
-                                      args.eval_iters * data_world_size)
-    test_data_loader = build_dataset(2, "test", args.local_batch_size *
-                                     args.test_iters * data_world_size)
+    valid_data_loader = build_dataset(
+        1, "valid", configs['Data']['batch_size']['local_batch_size'] *
+        (configs['Engine']['max_steps'] // configs['Engine']['eval_freq'] + 1)
+        * configs['Engine']['eval_iters'] * data_world_size)
+    test_data_loader = build_dataset(
+        2, "test", configs['Data']['batch_size']['local_batch_size'] *
+        configs['Engine']['test_iters'] * data_world_size)
 
     return train_data_loader, valid_data_loader, test_data_loader
 

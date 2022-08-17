@@ -1,4 +1,9 @@
 # 175B
+Global:
+  device: gpu
+  seed: 1024
+
+
 Engine:
   max_steps: 500000
   num_train_epochs: 1
@@ -16,9 +21,10 @@ Engine:
     output_dir: ./output
     ckpt_dir:
 
+
 Data:
   batch_size:
-    global_batch_size: 1536
+    global_batch_size:
     local_batch_size: 1536
     micro_batch_size: 1
 
@@ -26,6 +32,7 @@ Data:
     input_dir: ./data
     split: '949,50,1'
     max_seq_len: 1024
+
 
 Model:
   vocab_size: 51200
@@ -40,20 +47,20 @@ Model:
   initializer_range: 0.02
   use_recompute: True
   recompute_granularity:
+  fused_linear: True
   
 
 Distributed:
-  dp_degree: 1
+  dp_degree:
   mp_degree: 8
   pp_degree: 16
   sharding:
     sharding_degree: 1
     sharding_stage: 1
     sharding_offload: False
-  seed: 1024
+
 
 Fused:
-  fused_linear: True
   tensor_fusion: False
 
 

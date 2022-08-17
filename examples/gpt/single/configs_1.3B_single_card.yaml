@@ -1,4 +1,9 @@
 # 1.3B
+Global:
+  device: gpu
+  seed: 1024
+
+
 Engine:
   max_steps: 500000
   num_train_epochs: 1
@@ -28,6 +33,7 @@ Data:
     split: '949,50,1'
     max_seq_len: 1024
 
+
 Model:
   vocab_size: 50304
   hidden_size: 2048
@@ -41,6 +47,7 @@ Model:
   initializer_range: 0.02
   use_recompute: True
   recompute_granularity:
+  fused_linear: True
   
 
 Distributed:
@@ -51,10 +58,9 @@ Distributed:
     sharding_degree: 1
     sharding_stage: 1
     sharding_offload: False
-  seed: 1024
+
 
 Fused:
-  fused_linear: True
   tensor_fusion: False
 
 

@@ -31,34 +31,36 @@ from fleetx.core.engine.eager_engine import EagerEngine
 
 
 def do_train():
-    args, configs = parse_yaml(parse_args().config)
-    paddle.set_device(args.device)
+    configs = parse_yaml(parse_args().config)
 
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    paddle.seed(args.seed)
+    paddle.set_device(configs['Global']['device'])
+
+    seed = configs['Global']['seed']
+    random.seed(seed)
+    np.random.seed(seed)
+    paddle.seed(seed)
 
     tokenizer = GPTTokenizer.from_pretrained("gpt2")
 
-    module = GPTModule(args)
+    module = GPTModule(configs)
+
+    # TODO(haohongxiang): Only need to send `configs['Engine']` into `EagerEngine`
     engine = EagerEngine(module=module, configs=configs)
+    engine.load()
 
-    if args.ckpt_dir:
-        engine.load(ckpt_dir=args.ckpt_dir)
-
-    for epoch in range(args.num_train_epochs):
-        files = get_train_data_file(args)
+    for epoch in range(configs['Engine']['num_train_epochs']):
+        files = get_train_data_file(configs['Data']['dataset']['input_dir'])
         files.sort()
         num_files = len(files)
 
         for f_id in range(num_files):
             data_file = files[f_id]
             train_data_loader, valid_data_loader, test_data_loader = create_pretrained_dataset(
-                args, [data_file],
+                configs, [data_file],
                 local_rank=0,
                 data_world_size=1,
                 data_world_rank=0,
-                max_seq_len=args.max_seq_len,
+                max_seq_len=configs['Data']['dataset']['max_seq_len'],
                 eos_id=tokenizer.eos_token_id)
             # Bug fix, if not call valid_data_loader, the enumerate will call valid_data_loader
             # many times. and start a new random dataloader.
