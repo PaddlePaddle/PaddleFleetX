@@ -211,8 +211,8 @@ def parse_yaml_auto(yaml_file):
     if args.ffn_hidden_size is None:
         args.ffn_hidden_size = 4 * args.hidden_size
 
-    _print_args(args)
-    model_size(args)
+    # _print_args(args)
+    # model_size(args)
     return args, yaml_dict
 
 
@@ -228,10 +228,8 @@ class Mesh:
         self.args = args
 
         topology = list(
-            filter(lambda x: x > 1, [
-                args.dp_degree, configs['Distributed']['mp_degree'],
-                args.pp_degree
-            ]))
+            filter(lambda x: x > 1,
+                   [args.dp_degree, args.mp_degree, args.pp_degree]))
         num_proc = 1 if not topology else reduce(lambda x, y: x * y, topology)
         processes = [i for i in range(num_proc)]
 
@@ -251,8 +249,7 @@ class Mesh:
                     self.mp_idx = 1
                 else:
                     self.dp_idx = 0 if args.dp_degree > 1 else -1
-                    self.mp_idx = 0 if configs['Distributed'][
-                        'mp_degree'] > 1 else -1
+                    self.mp_idx = 0 if args.mp_degree > 1 else -1
             elif len(topology) == 1:
                 # pp
                 self.process_mesh = [[i] for i in range(args.pp_degree)]
@@ -268,8 +265,7 @@ class Mesh:
                 # dp, mp, serial
                 self.process_mesh = [processes]
                 self.dp_idx = 0 if args.dp_degree > 1 else -1
-                self.mp_idx = 0 if configs['Distributed'][
-                    'mp_degree'] > 1 else -1
+                self.mp_idx = 0 if args.mp_degree > 1 else -1
 
     def __getitem__(self, idx):
         if self.args.pp_degree > 1:

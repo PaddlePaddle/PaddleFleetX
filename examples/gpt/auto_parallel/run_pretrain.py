@@ -131,7 +131,7 @@ def do_train(args):
     engine.prepare(optimizer, criterion)
 
     for _ in range(args.num_train_epochs):
-        files = get_train_data_file(args)
+        files = get_train_data_file(args.input_dir)
         files.sort()
         num_files = len(files)
         for f_id in range(num_files):
