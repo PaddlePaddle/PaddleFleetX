@@ -134,6 +134,19 @@ class GPTModule(BasicModule):
             "[eval] step %d, epoch: %d, batch: %d, loss: %.9f, avg_eval_cost: %.5f sec, speed: %.2f step/s"
             % (self.global_step, epoch, step, loss, 1. / speed, speed))
 
+    def test_step(self, batch):
+        tokens, position_ids, labels, loss_mask = batch
+        preds = self(tokens, position_ids)
+        preds = paddle.cast(preds, dtype="float32")
+        loss = self.loss_fn(preds, labels, loss_mask)
+        return loss
+
+    def test_step_end(self, loss, epoch, step, test_cost):
+        speed = self.configs['Engine']['logging_freq'] / test_cost
+        logger.info(
+            "[test] step %d, epoch: %d, batch: %d, loss: %.9f, avg_test_cost: %.5f sec, speed: %.2f step/s"
+            % (self.global_step, epoch, step, loss, 1. / speed, speed))
+
 
 class GPTHybridModule(GPTModule):
     def pretreating_batch(self, batch):
