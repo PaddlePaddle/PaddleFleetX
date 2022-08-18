@@ -30,6 +30,7 @@ import argparse
 from functools import reduce
 from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
 from .gpt_config import GPTConfig
+from fleetx.utils import logger
 
 
 def process_dist_configs(yaml_dict):
@@ -42,6 +43,12 @@ def process_dist_configs(yaml_dict):
     other_degree = configs['mp_degree'] * configs['pp_degree'] * configs[
         'sharding']['sharding_degree']
     assert nranks % other_degree == 0, "unreasonable configs of dist_strategy."
+
+    if configs['dp_degree'] * other_degree != nranks:
+        logger.warning('Mismatched configs using {} cards with dp_degree[{}], ' \
+            'mp_degree[{}], pp_degree[{}] and sharding_degree[{}]. So adaptively ' \
+            'adjust dp_degree to {}'.format(nranks, configs['dp_degree'], configs['mp_degree'],
+            configs['pp_degree'], configs['sharding']['sharding_degree'], nranks // other_degree))
 
     configs['dp_degree'] = nranks // other_degree
     assert nranks % configs[
