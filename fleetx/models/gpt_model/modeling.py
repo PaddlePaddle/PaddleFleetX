@@ -267,9 +267,11 @@ class TransformerDecoder(nn.Layer):
                     new_caches.append(new_cache)
                 else:
                     if self.use_recompute and self.recompute_granularity == "full":
-                        output = recompute(mod, output, memory, tgt_mask, use_cache, cache)
+                        output = recompute(mod, output, memory, tgt_mask,
+                                           use_cache, cache)
                     else:
-                        output = mod(output, memory, tgt_mask, use_cache, cache)
+                        output = mod(output, memory, tgt_mask, use_cache,
+                                     cache)
             else:
                 output, new_cache = mod(output,
                                         memory,
@@ -357,7 +359,8 @@ class TransformerDecoderLayer(nn.Layer):
 
         if use_cache is False:
             if self.recompute_attn:
-                tgt = recompute(self.self_attn, tgt, None, None, tgt_mask, use_cache, cache)
+                tgt = recompute(self.self_attn, tgt, None, None, tgt_mask,
+                                use_cache, cache)
             else:
                 tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
         else:
@@ -484,19 +487,20 @@ class GPTModel(nn.Layer):
     @classmethod
     def from_config(cls, cfg):
         return {
-            "vocab_size": cfg.vocab_size,
-            "hidden_size": cfg.hidden_size,
-            "num_layers": cfg.num_layers,
-            "num_attention_heads": cfg.num_attention_heads,
-            "ffn_hidden_size": cfg.ffn_hidden_size,
-            "hidden_dropout_prob": cfg.hidden_dropout_prob,
-            "attention_probs_dropout_prob": cfg.attention_probs_dropout_prob,
-            "max_position_embeddings": cfg.max_position_embeddings,
-            "type_vocab_size": cfg.type_vocab_size,
-            "initializer_range": cfg.initializer_range,
-            "use_recompute": cfg.use_recompute,
-            "fused_linear": cfg.fused_linear,
-            "recompute_granularity": cfg.recompute_granularity
+            "vocab_size": cfg['vocab_size'],
+            "hidden_size": cfg['hidden_size'],
+            "num_layers": cfg['num_layers'],
+            "num_attention_heads": cfg['num_attention_heads'],
+            "ffn_hidden_size": cfg['ffn_hidden_size'],
+            "hidden_dropout_prob": cfg['hidden_dropout_prob'],
+            "attention_probs_dropout_prob":
+            cfg['attention_probs_dropout_prob'],
+            "max_position_embeddings": cfg['max_position_embeddings'],
+            "type_vocab_size": cfg['type_vocab_size'],
+            "initializer_range": cfg['initializer_range'],
+            "use_recompute": cfg['use_recompute'],
+            "fused_linear": cfg['fused_linear'],
+            "recompute_granularity": cfg['recompute_granularity']
         }
 
     def forward(self,

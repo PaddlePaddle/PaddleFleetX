@@ -12,6 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# The file has been adapted from lightning file:
+# https://github.com/Lightning-AI/lightning/blob/master/src/pytorch_lightning/core/module.py
+# Git commit hash: 2d9e00fab64c8b19a8646f755a95bcb092aa710f
+# We retain the following license from the original files:
+
+# Copyright 2018-2021 William Falcon. All rights reserved.
+#
+# This source code is licensed under the BSD license found in the
+# LICENSE file in the root directory of this source tree.
+
 import paddle
 import paddle.nn as nn
 

@@ -25,24 +25,25 @@ from fleetx.utils.tensor_fusion_helper import fused_parameters
 
 
 class GPTModule(BasicModule):
-    def __init__(self, args):
+    def __init__(self, configs):
         super().__init__()
-        self.args = args
+        self.configs = configs
         self.nranks = paddle.distributed.get_world_size()
 
         if self.nranks == 1:
             from fleetx.models.gpt_model.modeling import GPTModel, GPTForPretraining, GPTPretrainingCriterion
-            self.model = GPTForPretraining(GPTModel(args))
+            self.model = GPTForPretraining(GPTModel(configs['Model']))
             self.loss_fn = GPTPretrainingCriterion()
         else:
             from fleetx.models.gpt_model.modeling_hybrid import GPTModel, GPTForPretraining, GPTPretrainingCriterion, GPTForPretrainingPipe
-            if args.pp_degree == 1:
-                self.model = GPTForPretraining(GPTModel(args))
+            hcg = fleet.get_hybrid_communicate_group()
+            configs['Model']['topology'] = hcg.topology()
+            if self.configs['Distributed']['pp_degree'] == 1:
+                self.model = GPTForPretraining(GPTModel(configs['Model']))
             else:
-                hcg = fleet.get_hybrid_communicate_group()
-                setattr(args, 'topology', hcg.topology())
-                self.model = GPTForPretrainingPipe(args)
+                self.model = GPTForPretrainingPipe(configs['Model'])
             self.loss_fn = GPTPretrainingCriterion()
+            del configs['Model']['topology']
 
         print('>> total parameters: ', len(self.model.parameters()))
 
@@ -63,9 +64,11 @@ class GPTModule(BasicModule):
 
     def training_step_end(self, loss, epoch, step, reader_cost, train_cost):
         avg_loss = loss.numpy()
-        speed = self.args.logging_freq / (reader_cost + train_cost)
-        avg_reader_cost = reader_cost / self.args.logging_freq
-        default_global_tokens_num = self.args.global_batch_size * self.args.max_seq_len
+        speed = self.configs['Engine']['logging_freq'] / (
+            reader_cost + train_cost)
+        avg_reader_cost = reader_cost / self.configs['Engine']['logging_freq']
+        default_global_tokens_num = self.configs['Data']['batch_size']['global_batch_size'] * \
+            self.configs['Data']['dataset']['max_seq_len']
 
         logger.info(
             "[train] global step %d, epoch: %d, batch: %d, loss: %.9f, avg_reader_cost: %.5f sec, avg_batch_cost: %.5f sec, speed: %.2f step/s, ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
@@ -74,44 +77,48 @@ class GPTModule(BasicModule):
                speed * default_global_tokens_num, self.optimizer.get_lr()))
 
     def configure_optimizers(self):
-        if self.args.decay_steps is None:
-            self.args.decay_steps = self.args.max_steps
         self.decay_fused_tensors, self.all_fused_tensors = None, None
-        if self.args.tensor_fusion:
+
+        if self.configs['Fused']['tensor_fusion']:
             self.decay_fused_tensors, self.all_fused_tensors = fused_parameters(
                 self.model)
-        warmup_step = self.args.warmup_rate * self.args.decay_steps
+
+        opt_configs = self.configs['Optimizer']
+        warmup_step = opt_configs['lr']['warmup_rate'] * opt_configs['lr'][
+            'decay_steps']
         lr_scheduler = lr.CosineAnnealingWithWarmupDecay(
-            max_lr=self.args.max_lr,
-            min_lr=self.args.min_lr,
+            max_lr=opt_configs['lr']['max_lr'],
+            min_lr=opt_configs['lr']['min_lr'],
             warmup_step=warmup_step,
-            decay_step=self.args.decay_steps)
-        clip = None
-        if self.args.grad_clip > 0:
-            clip = paddle.nn.ClipGradByGlobalNorm(
-                clip_norm=self.args.grad_clip)
+            decay_step=opt_configs['lr']['decay_steps'])
+
+        clip = paddle.nn.ClipGradByGlobalNorm(clip_norm=opt_configs[
+            'grad_clip']) if opt_configs['grad_clip'] > 0 else None
 
         # Generate parameter names needed to perform weight decay.
         # All bias and LayerNorm parameters are excluded.
-        if self.args.tensor_fusion:
+        if self.configs['Fused']['tensor_fusion']:
             decay_params = [p.name for p in self.decay_fused_tensors]
         else:
             decay_params = [
                 p.name for n, p in self.model.named_parameters()
                 if not any(nd in n for nd in ["bias", "norm"])
             ]
+
         optimizer = paddle.optimizer.AdamW(
             learning_rate=lr_scheduler
-            if lr_scheduler is not None else self.args.max_lr,
-            beta1=self.args.adam_beta1,
-            beta2=self.args.adam_beta2,
-            epsilon=self.args.adam_epsilon,
+            if lr_scheduler is not None else opt_configs['lr']['max_lr'],
+            beta1=opt_configs['adam_beta1'],
+            beta2=opt_configs['adam_beta2'],
+            epsilon=opt_configs['adam_epsilon'],
             parameters=self.all_fused_tensors
-            if self.args.tensor_fusion else self.model.parameters(),
-            weight_decay=self.args.weight_decay,
+            if self.configs['Fused']['tensor_fusion'] else
+            self.model.parameters(),
+            weight_decay=opt_configs['weight_decay'],
             grad_clip=clip,
             apply_decay_param_fun=lambda x: x in decay_params,
-            multi_precision=self.args.use_pure_fp16)
+            multi_precision=self.configs['Engine']['mix_precision'][
+                'use_pure_fp16'])
         return optimizer, lr_scheduler
 
     def validation_step(self, batch):
@@ -122,7 +129,7 @@ class GPTModule(BasicModule):
         return loss
 
     def validation_step_end(self, loss, epoch, step, eval_cost):
-        speed = self.args.logging_freq / eval_cost
+        speed = self.configs['Engine']['logging_freq'] / eval_cost
         logger.info(
             "[eval] step %d, epoch: %d, batch: %d, loss: %.9f, avg_eval_cost: %.5f sec, speed: %.2f step/s"
             % (self.global_step, epoch, step, loss, 1. / speed, speed))
@@ -130,7 +137,7 @@ class GPTModule(BasicModule):
 
 class GPTHybridModule(GPTModule):
     def pretreating_batch(self, batch):
-        if self.args.pp_degree > 1:
+        if self.configs['Distributed']['pp_degree'] > 1:
             tokens, position_ids, labels, loss_mask = batch
             data = [(tokens, position_ids), (labels, loss_mask)]
             return data
@@ -139,9 +146,11 @@ class GPTHybridModule(GPTModule):
 
     def training_step_end(self, loss, epoch, step, reader_cost, train_cost):
         avg_loss = loss.numpy()
-        speed = self.args.logging_freq / (reader_cost + train_cost)
-        avg_reader_cost = reader_cost / self.args.logging_freq
-        default_global_tokens_num = self.args.global_batch_size * self.args.max_seq_len
+        speed = self.configs['Engine']['logging_freq'] / (
+            reader_cost + train_cost)
+        avg_reader_cost = reader_cost / self.configs['Engine']['logging_freq']
+        default_global_tokens_num = self.configs['Data']['batch_size']['global_batch_size'] * \
+            self.configs['Data']['dataset']['max_seq_len']
 
         logger.info(
             "[train] global step %d, epoch: %d, batch: %d, loss: %.9f, avg_reader_cost: %.5f sec, avg_batch_cost: %.5f sec, speed: %.2f step/s, ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"

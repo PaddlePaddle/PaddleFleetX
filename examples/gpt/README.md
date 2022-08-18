@@ -8,6 +8,8 @@ GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupe
 ```text
 .
 ├── tools.py                               # 训练参数配置处理脚本
+├── gpt_module.py                          # GPT模型执行Module定义
+├── gpt_config.py                          # GPT模型配置文件定义
 ├── single                                 # 单卡模型训练
     ├── configs_345m_single_card.yaml      # 单卡345M模型配置文件
     ├── configs_1.3B_single_card.yaml      # 单卡1.3B模型配置文件
@@ -53,8 +55,8 @@ cd single # 或者 cd hybrid_parallel
 
 # 下载样例数据
 mkdir data && cd data
-wget https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_ids.npy
-wget https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_idx.npz
+wget -O https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_ids.npy
+wget -O https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_idx.npz
 
 cd .. # 回到 single/hybrid_parallel 路径下
 ```

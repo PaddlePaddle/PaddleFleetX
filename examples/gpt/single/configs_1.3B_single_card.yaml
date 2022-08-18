@@ -1,66 +1,78 @@
 # 1.3B
-PreTraining:
+Global:
   device: gpu
+  seed: 1024
+
+
+Engine:
   max_steps: 500000
   num_train_epochs: 1
-  seed: 1024
-  use_recompute: True
-  recompute_granularity:
-  batch_size:
-    global_batch_size: 8
-    local_batch_size: 8
-    micro_batch_size: 8
+  accumulate_steps: 
+  logging_freq: 1
+  eval_freq: 500
+  eval_iters: 10
   mix_precision:
     use_pure_fp16: True
     scale_loss: 32768.0
     custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
     custom_white_list: ["lookup_table", "lookup_table_v2"]
-  logging_freq: 1
-  eval_freq: 500
-  eval_iters: 10
-  dataset:
-    input_dir: ./data
-    split: '949,50,1'
-    max_seq_len: 1024
   save_load:
     save_steps: 1000
     output_dir: ./output
     ckpt_dir:
+
+
+Data:
+  batch_size:
+    global_batch_size: 8
+    local_batch_size: 8
+    micro_batch_size: 8
+
+  dataset:
+    input_dir: ./data
+    split: '949,50,1'
+    max_seq_len: 1024
+
+
+Model:
+  vocab_size: 50304
+  hidden_size: 2048
+  num_layers: 24
+  num_attention_heads: 16
+  ffn_hidden_size: 
+  hidden_dropout_prob: 0.1
+  attention_probs_dropout_prob: 0.1
+  max_position_embeddings: 1024
+  type_vocab_size: 16
+  initializer_range: 0.02
+  use_recompute: True
+  recompute_granularity:
   fused_linear: True
+  
+
+Distributed:
+  dp_degree: 1
+  mp_degree: 1
+  pp_degree: 1
+  sharding:
+    sharding_degree: 1
+    sharding_stage: 1
+    sharding_offload: False
+
+
+Fused:
   tensor_fusion: False
 
-  Model:
-    vocab_size: 50304
-    hidden_size: 2048
-    num_layers: 24
-    num_attention_heads: 16
-    ffn_hidden_size: 
-    hidden_dropout_prob: 0.1
-    attention_probs_dropout_prob: 0.1
-    max_position_embeddings: 1024
-    type_vocab_size: 16
-    initializer_range: 0.02
 
-  Distributed:
-    dp_degree: 1
-    mp_degree: 1
-    pp_degree: 1
-    sharding:
-      sharding_degree: 1
-      sharding_stage: 1
-      sharding_offload: False
-
-  Optimizer:
-    # name: Adam
-    weight_decay: 0.01
-    adam_beta1: 0.9
-    adam_beta2: 0.999
-    adam_epsilon: 1.0e-8
-    lr:
-      # name: consine
-      decay_steps: 360000
-      # max_steps: 500000
-      warmup_rate: 0.01
-      max_lr: 1.0e-5
-      min_lr: 5.0e-5
-    grad_clip: 1.0
+Optimizer:
+  # name: Adam
+  weight_decay: 0.01
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1.0e-8
+  lr:
+    decay_steps: 360000
+    warmup_rate: 0.01
+    max_lr: 1.0e-5
+    min_lr: 5.0e-5
+  grad_clip: 1.0
