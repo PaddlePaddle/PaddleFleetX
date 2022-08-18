@@ -76,3 +76,16 @@ Optimizer:
     max_lr: 1.0e-5
     min_lr: 5.0e-5
   grad_clip: 1.0
+
+
+Generation:
+  top_k: 5
+  temperature: 1.0
+  top_p: 1.0
+  num_beams: 0
+  length_penalty: 1.0
+  early_stopping: False
+  min_dec_len: 1
+  max_dec_len: 16
+  num_return_sequences: 1
+  decode_strategy: "sampling"
