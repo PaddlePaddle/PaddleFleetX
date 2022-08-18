@@ -39,15 +39,20 @@ class InferenceEngine(object):
 
     Args:
         model_dir (string): root directory of inference model
-        mp_size (int): model parallel size
+        mp_degree (int): model parallel size
     """
 
-    def __init__(self, model_dir, mp_size=1):
+    def __init__(self, model_dir, mp_degree=1):
         self.model_dir = model_dir
-        self.mp_size = mp_size
+        self.mp_degree = mp_degree
 
-        self.nranks = fleet.worker_num()
-        self.rank = fleet.worker_index()
+        if mp_degree == 1:
+            self.nranks = 1
+            self.rank = 0
+        else:
+            self.nranks = fleet.worker_num()
+            self.rank = fleet.worker_index()
+
         self._check_model()
 
         self._static_guard = _StaticGuard()
@@ -55,6 +60,7 @@ class InferenceEngine(object):
             self._init_predictor()
 
     def _check_model(self):
+        print("model_dir", self.model_dir)
         if not os.path.isdir(self.model_dir):
             raise ValueError('model_dir is not a directory')
 
@@ -99,23 +105,25 @@ class InferenceEngine(object):
 
     def _init_predictor(self):
         device_id = int(os.environ.get('FLAGS_selected_gpus', 0))
-        trainer_endpoints = fleet.worker_endpoints()
-        current_endpoint = trainer_endpoints[self.rank]
-
         config = paddle.inference.Config(self.model_file, self.param_file)
 
         config.enable_use_gpu(100, device_id)
         config.switch_use_feed_fetch_ops(False)
 
         # distributed config
-        dist_config = config.dist_config()
-        dist_config.set_ranks(self.nranks, self.rank)
-        dist_config.set_endpoints(trainer_endpoints, current_endpoint)
-        dist_config.enable_dist_model(True)
+        if self.mp_degree > 1:
+            trainer_endpoints = fleet.worker_endpoints()
+            current_endpoint = trainer_endpoints[self.rank]
 
-        config_fname = self._generate_comm_init_config(self.rank, self.nranks)
-        dist_config.set_comm_init_config(config_fname)
-        config.set_dist_config(dist_config)
+            dist_config = config.dist_config()
+            dist_config.set_ranks(self.nranks, self.rank)
+            dist_config.set_endpoints(trainer_endpoints, current_endpoint)
+            dist_config.enable_dist_model(True)
+
+            config_fname = self._generate_comm_init_config(self.rank,
+                                                           self.nranks)
+            dist_config.set_comm_init_config(config_fname)
+            config.set_dist_config(dist_config)
 
         self.predictor = paddle.inference.create_predictor(config)
 

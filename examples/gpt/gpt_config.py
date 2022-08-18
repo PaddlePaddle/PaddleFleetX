@@ -104,6 +104,8 @@ class GPTConfig(dict):
             'grad_clip': 0.0,
         }
 
+        self.Inference = {'model_dir': './output', 'mp_degree': 1}
+
         self._update(yaml_dict)
 
     def _update(self, yaml_dict):

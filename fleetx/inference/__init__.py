@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from . import engine
-from .engine import *
+from . import inference_engine
+from .inference_engine import *
 
-__all__ = engine.__all__
+__all__ = inference_engine.__all__
