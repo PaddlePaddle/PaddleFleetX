@@ -29,6 +29,13 @@ from .config import configurable
 from paddle.incubate.nn import FusedLinear
 
 
+def get_attr(layer, name):
+    if getattr(layer, name, None) is not None:
+        return getattr(layer, name, None)
+    else:
+        return get_attr(layer._layer, name)
+
+
 class MultiHeadAttention(nn.Layer):
     """
     Attention mapps queries and a set of key-value pairs to outputs, and
@@ -584,7 +591,7 @@ class GPTForPretraining(nn.Layer):
             encoder_outputs = outputs
         logits = paddle.matmul(
             encoder_outputs,
-            self.gpt.embeddings.word_embeddings.weight,
+            get_attr(self.gpt.embeddings.word_embeddings, "weight"),
             transpose_y=True)
 
         if use_cache:

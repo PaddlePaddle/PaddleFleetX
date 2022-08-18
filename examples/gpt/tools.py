@@ -128,6 +128,13 @@ def process_engine_configs(yaml_dict):
         // yaml_dict['Data']['batch_size']['micro_batch_size']
 
 
+def process_quant_configs(yaml_dict):
+    """
+    process engine configs for hybrid parallel
+    """
+    configs = yaml_dict['Quantization']
+
+
 def model_size(yaml_dict):
     """
     get model size for transformer
@@ -149,12 +156,12 @@ def parse_args():
 
 def parse_yaml(yaml_file):
     yaml_dict = GPTConfig(yaml.load(open(yaml_file, 'rb'), Loader=yaml.Loader))
-
     process_dist_configs(yaml_dict)
     process_data_configs(yaml_dict)
     process_fused_configs(yaml_dict)
     process_model_configs(yaml_dict)
     process_engine_configs(yaml_dict)
+    process_quant_configs(yaml_dict)
 
     _print_args(yaml_dict)
     model_size(yaml_dict)
