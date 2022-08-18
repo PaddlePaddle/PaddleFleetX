@@ -25,6 +25,8 @@ import os
 import regex as re
 from io import open
 
+from fleetx.utils.download import cached_path
+
 try:
     from functools import lru_cache
 except ImportError:
@@ -38,12 +40,10 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 PRETRAINED_VOCAB_ARCHIVE_MAP = {
-    'gpt2':
-    "https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-vocab.json",
+    'gpt2': "http://fleet.bj.bcebos.com/datasets/gpt/gpt2-vocab.json",
 }
 PRETRAINED_MERGES_ARCHIVE_MAP = {
-    'gpt2':
-    "https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-merges.txt",
+    'gpt2': "http://fleet.bj.bcebos.com/datasets/gpt/gpt2-merges.txt",
 }
 PRETRAINED_VOCAB_POSITIONAL_EMBEDDINGS_SIZE_MAP = {'gpt2': 1024, }
 VOCAB_NAME = 'vocab.json'
@@ -124,7 +124,6 @@ class GPTTokenizer(object):
                     special_tokens_file))
         # redirect to the cache, if necessary
         try:
-            from cached_path import cached_path
             resolved_vocab_file = cached_path(vocab_file, cache_dir=cache_dir)
             resolved_merges_file = cached_path(
                 merges_file, cache_dir=cache_dir)

@@ -1,6 +1,7 @@
-regex
-colorlog
-colorama
-cached_path >= 1.1.5
-inspect
-omegaconf
+regex==2022.7.25
+colorlog==6.6.0
+colorama==0.4.5
+omegaconf==2.2.2
+tqdm==4.54.1
+pybind11==2.10.0
+numpy==1.20.1

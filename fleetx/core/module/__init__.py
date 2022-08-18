@@ -12,8 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# 345M
-python run_pretrain.py -c ./configs_345m_single_card.yaml
-
-# 1.3B
-# python run_pretrain.py -c ./configs_1.3B_single_card.yaml
+from .basic_module import BasicModule

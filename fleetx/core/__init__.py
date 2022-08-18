@@ -12,12 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-export PYTHONPATH=$PYTHONPATH:../../../
-
-log_dir=dp2_pp2_mp2
-rm -rf $log_dir
-export FLAGS_enable_eager_mode=0
-
-# 175B
-python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
-    -c ./configs.yaml
+from .engine import *
+from .module import *

@@ -19,42 +19,13 @@ import paddle
 import paddle.nn as nn
 import paddle.nn.functional as F
 import paddle.tensor as tensor
+import paddle.incubate as incubate
+import paddle.distributed.auto_parallel as auto
+
 from paddle.fluid import layers
 from paddle.nn.layer.transformer import _convert_param_attr_to_list
-import paddle.incubate as incubate
 
-from paddle.distributed import fleet
-from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
-from paddle.distributed.fleet.meta_parallel import LayerDesc, PipelineLayer, SharedLayerDesc
-from paddle.distributed.fleet.utils import recompute
-import sys
 from .config import configurable
-
-from .modeling import TransformerDecoder
-
-
-def parallel_matmul(lm_output, logit_weights, parallel_output):
-    """
-    """
-    hcg = fleet.get_hybrid_communicate_group()
-    model_parallel_group = hcg.get_model_parallel_group()
-    world_size = hcg.get_model_parallel_world_size()
-    rank = hcg.get_model_parallel_rank()
-
-    if world_size > 1:
-        input_parallel = paddle.distributed.collective._c_identity(
-            lm_output, group=model_parallel_group)
-
-        logits = paddle.matmul(input_parallel, logit_weights, transpose_y=True)
-
-        if parallel_output:
-            return logits
-
-        return paddle.distributed.collective._c_concat(
-            logits, group=model_parallel_group)
-    else:
-        logits = paddle.matmul(lm_output, logit_weights, transpose_y=True)
-        return logits
 
 
 class MultiHeadAttention(nn.Layer):
@@ -77,8 +48,9 @@ class MultiHeadAttention(nn.Layer):
                  need_weights=False,
                  weight_attr=None,
                  bias_attr=None,
-                 fuse=True,
-                 num_partitions=1):
+                 fuse=False,
+                 mesh=None,
+                 mesh_idx=None):
         super(MultiHeadAttention, self).__init__()
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
@@ -87,52 +59,26 @@ class MultiHeadAttention(nn.Layer):
         self.dropout = dropout
         self.need_weights = need_weights
         self.fuse = fuse
+        self.mesh = mesh
+        self.mesh_idx = mesh_idx
 
         self.head_dim = embed_dim // num_heads
         assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
 
-        assert self.num_heads % num_partitions == 0, "num_heads {} must be divisible by num_partitions {}".format(
-            self.num_heads, num_partitions)
-        self.num_heads = self.num_heads // num_partitions
-
         if self.fuse:
             assert self.kdim == embed_dim
             assert self.vdim == embed_dim
-
-            self.qkv_proj = fleet.meta_parallel.ColumnParallelLinear(
-                embed_dim,
-                3 * embed_dim,
-                weight_attr=weight_attr,
-                has_bias=True,
-                gather_output=False)
+            self.qkv_proj = nn.Linear(
+                embed_dim, 3 * embed_dim, weight_attr, bias_attr=bias_attr)
         else:
-            self.q_proj = fleet.meta_parallel.ColumnParallelLinear(
-                embed_dim,
-                embed_dim,
-                weight_attr=weight_attr,
-                has_bias=True,
-                gather_output=False)
-
-            self.k_proj = fleet.meta_parallel.ColumnParallelLinear(
-                self.kdim,
-                embed_dim,
-                weight_attr=weight_attr,
-                has_bias=True,
-                gather_output=False)
-
-            self.v_proj = fleet.meta_parallel.ColumnParallelLinear(
-                self.vdim,
-                embed_dim,
-                weight_attr=weight_attr,
-                has_bias=True,
-                gather_output=False)
-
-        self.out_proj = fleet.meta_parallel.RowParallelLinear(
-            embed_dim,
-            embed_dim,
-            weight_attr=weight_attr,
-            has_bias=True,
-            input_is_parallel=True)
+            self.q_proj = nn.Linear(
+                embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
+            self.k_proj = nn.Linear(
+                self.kdim, embed_dim, weight_attr, bias_attr=bias_attr)
+            self.v_proj = nn.Linear(
+                self.vdim, embed_dim, weight_attr, bias_attr=bias_attr)
+        self.out_proj = nn.Linear(
+            embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
 
     def _fuse_prepare_qkv(self, query):
         mix_layer = self.qkv_proj(query)
@@ -149,6 +95,13 @@ class MultiHeadAttention(nn.Layer):
         to reduce redundant calculations.
 
         """
+        auto.shard_tensor(
+            self.q_proj.weight,
+            dist_attr={
+                "process_mesh": self.mesh[self.mesh_idx],
+                "dims_mapping": [-1, self.mesh.mp]
+            })
+
         q = self.q_proj(query)
         q = tensor.reshape(x=q, shape=[0, 0, self.num_heads, self.head_dim])
         q = tensor.transpose(x=q, perm=[0, 2, 1, 3])
@@ -180,6 +133,18 @@ class MultiHeadAttention(nn.Layer):
         to construct cache for inference.
 
         """
+        auto.shard_tensor(
+            self.k_proj.weight,
+            dist_attr={
+                "process_mesh": self.mesh[self.mesh_idx],
+                "dims_mapping": [-1, self.mesh.mp]
+            })
+        auto.shard_tensor(
+            self.v_proj.weight,
+            dist_attr={
+                "process_mesh": self.mesh[self.mesh_idx],
+                "dims_mapping": [-1, self.mesh.mp]
+            })
         k = self.k_proj(key)
         v = self.v_proj(value)
         k = tensor.reshape(x=k, shape=[0, 0, self.num_heads, self.head_dim])
@@ -248,12 +213,11 @@ class MultiHeadAttention(nn.Layer):
         weights = incubate.softmax_mask_fuse_upper_triangle(product)
 
         if self.dropout:
-            with get_rng_state_tracker().rng_state('local_seed'):
-                weights = F.dropout(
-                    weights,
-                    self.dropout,
-                    training=self.training,
-                    mode="upscale_in_train")
+            weights = F.dropout(
+                weights,
+                self.dropout,
+                training=self.training,
+                mode="upscale_in_train")
 
         out = tensor.matmul(weights, v)
 
@@ -261,6 +225,12 @@ class MultiHeadAttention(nn.Layer):
         out = tensor.transpose(out, perm=[0, 2, 1, 3])
         out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
 
+        auto.shard_tensor(
+            self.out_proj.weight,
+            dist_attr={
+                "process_mesh": self.mesh[self.mesh_idx],
+                "dims_mapping": [self.mesh.mp, -1]
+            })
         # project to output
         out = self.out_proj(out)
 
@@ -270,6 +240,85 @@ class MultiHeadAttention(nn.Layer):
         if use_cache:
             outs.append(cache)
         return out if len(outs) == 1 else tuple(outs)
+
+
+class TransformerDecoder(nn.Layer):
+    """
+    TransformerDecoder is a stack of N decoder layers.
+    """
+
+    def __init__(self, decoder_layers, num_layers, norm=None,
+                 hidden_size=None):
+        super(TransformerDecoder, self).__init__()
+
+        self.num_layers = num_layers
+        self.layers = decoder_layers
+        self.norm = norm
+        if norm == "LayerNorm":
+            self.norm = nn.LayerNorm(hidden_size, epsilon=1e-5)
+        elif norm is not None:
+            raise ValueError("Only support LayerNorm")
+        self.checkpoints = []
+
+    def forward(self,
+                tgt,
+                memory,
+                tgt_mask=None,
+                memory_mask=None,
+                use_cache=False,
+                cache=None):
+        r"""
+        Applies a stack of N Transformer decoder layers on inputs. If `norm` is
+        provided, also applies layer normalization on the output of last decoder
+        layer.
+        """
+        output = tgt
+        new_caches = []
+
+        for i, mod in enumerate(self.layers):
+            auto.shard_tensor(
+                output,
+                dist_attr={
+                    "process_mesh": mod.mesh[mod.mesh_idx],
+                    "dims_mapping": [mod.mesh.dp] +
+                    [-1 for i in range(len(output.shape) - 1)]
+                })
+
+            if cache is None:
+                if use_cache:
+                    output, new_cache = mod(output,
+                                            memory,
+                                            tgt_mask=tgt_mask,
+                                            use_cache=use_cache,
+                                            cache=cache)
+                    new_caches.append(new_cache)
+                else:
+                    output = mod(output, memory, tgt_mask, use_cache, cache)
+            else:
+                output, new_cache = mod(output,
+                                        memory,
+                                        tgt_mask=tgt_mask,
+                                        use_cache=use_cache,
+                                        cache=cache[i])
+                new_caches.append(new_cache)
+            self.checkpoints.append(output.name)
+
+        if self.norm is not None:
+            output = self.norm(output)
+        return output if use_cache is False else (output, new_caches)
+
+    def gen_cache(self, memory, do_zip=False):
+        r"""
+        Generates cache for `forward` usage. The generated cache is a list, and
+        each element in it is a tuple( :code:`(incremental_cache, static_cache)` )
+        produced by `TransformerDecoderLayer.gen_cache`. See `TransformerDecoderLayer.gen_cache`
+        for more details. If `do_zip` is True, apply `zip` on these tuples to get
+        a list with two elements.
+       """
+        cache = [layer.gen_cache(memory) for layer in self.layers]
+        if do_zip:
+            cache = list(zip(*cache))
+        return cache
 
 
 class TransformerDecoderLayer(nn.Layer):
@@ -290,7 +339,8 @@ class TransformerDecoderLayer(nn.Layer):
                  normalize_before=True,
                  weight_attr=None,
                  bias_attr=None,
-                 num_partitions=1):
+                 mesh=None,
+                 mesh_idx=None):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
@@ -299,6 +349,8 @@ class TransformerDecoderLayer(nn.Layer):
         attn_dropout = dropout if attn_dropout is None else attn_dropout
         act_dropout = dropout if act_dropout is None else act_dropout
         self.normalize_before = normalize_before
+        self.mesh = mesh
+        self.mesh_idx = mesh_idx
 
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
@@ -309,21 +361,12 @@ class TransformerDecoderLayer(nn.Layer):
             dropout=attn_dropout,
             weight_attr=weight_attrs[0],
             bias_attr=bias_attrs[0],
-            num_partitions=num_partitions)
-
-        self.linear1 = fleet.meta_parallel.ColumnParallelLinear(
-            d_model,
-            dim_feedforward,
-            weight_attr=weight_attrs[2],
-            gather_output=False,
-            has_bias=True)
-
-        self.linear2 = fleet.meta_parallel.RowParallelLinear(
-            dim_feedforward,
-            d_model,
-            weight_attr=weight_attrs[2],
-            input_is_parallel=True,
-            has_bias=True)
+            mesh=mesh,
+            mesh_idx=mesh_idx)
+        self.linear1 = nn.Linear(
+            d_model, dim_feedforward, weight_attrs[2], bias_attr=bias_attrs[2])
+        self.linear2 = nn.Linear(
+            dim_feedforward, d_model, weight_attrs[2], bias_attr=bias_attrs[2])
 
         self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
@@ -331,12 +374,21 @@ class TransformerDecoderLayer(nn.Layer):
         self.dropout2 = nn.Dropout(act_dropout, mode="upscale_in_train")
         self.activation = getattr(F, activation)
 
-    def forward(self,
-                tgt,
-                memory=None,
-                tgt_mask=None,
-                use_cache=False,
-                cache=None):
+    def forward(self, tgt, memory, tgt_mask=None, use_cache=False, cache=None):
+
+        auto.shard_tensor(
+            self.linear1.weight,
+            dist_attr={
+                "process_mesh": self.mesh[self.mesh_idx],
+                "dims_mapping": [-1, self.mesh.mp]
+            })
+        auto.shard_tensor(
+            self.linear2.weight,
+            dist_attr={
+                "process_mesh": self.mesh[self.mesh_idx],
+                "dims_mapping": [self.mesh.mp, -1]
+            })
+
         residual = tgt
 
         if self.normalize_before:
@@ -347,22 +399,16 @@ class TransformerDecoderLayer(nn.Layer):
         else:
             tgt, incremental_cache = self.self_attn(tgt, tgt, tgt, tgt_mask,
                                                     use_cache, cache)
-
-        with get_rng_state_tracker().rng_state('global_seed'):
-            tgt = residual + self.dropout1(tgt)
-
+        tgt = residual + self.dropout1(tgt)
         if not self.normalize_before:
             tgt = self.norm1(tgt)
 
         residual = tgt
         if self.normalize_before:
             tgt = self.norm2(tgt)
-
-        with get_rng_state_tracker().rng_state('global_seed'):
-            tgt = self.dropout2(
-                self.linear2(F.gelu(
-                    self.linear1(tgt), approximate=True)))
-
+        tgt = self.dropout2(
+            self.linear2(F.gelu(
+                self.linear1(tgt), approximate=True)))
         tgt = residual + tgt
 
         if not self.normalize_before:
@@ -387,10 +433,12 @@ class GPTEmbeddings(nn.Layer):
                  hidden_dropout_prob=0.1,
                  max_position_embeddings=512,
                  type_vocab_size=16,
-                 initializer_range=0.02):
+                 initializer_range=0.02,
+                 mesh=None):
         super(GPTEmbeddings, self).__init__()
+        self.mesh = mesh
 
-        self.word_embeddings = fleet.meta_parallel.VocabParallelEmbedding(
+        self.word_embeddings = nn.Embedding(
             vocab_size,
             hidden_size,
             weight_attr=paddle.ParamAttr(initializer=nn.initializer.Normal(
@@ -409,6 +457,13 @@ class GPTEmbeddings(nn.Layer):
             ones = paddle.ones_like(input_ids, dtype="int64")
             seq_length = paddle.cumsum(ones, axis=-1)
             position_ids = seq_length - ones
+
+        auto.shard_tensor(
+            self.word_embeddings.weight,
+            dist_attr={
+                "process_mesh": self.mesh[0],
+                "dims_mapping": [self.mesh.mp, -1]
+            })
 
         input_embedings = self.word_embeddings(input_ids)
         position_embeddings = self.position_embeddings(position_ids)
@@ -430,19 +485,21 @@ class GPTModel(nn.Layer):
                  max_position_embeddings=512,
                  type_vocab_size=16,
                  initializer_range=0.02,
-                 num_partitions=1,
-                 use_recompute=False):
+                 mesh=None):
 
         super(GPTModel, self).__init__()
 
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
+        self.mesh = mesh
 
         self.embeddings = GPTEmbeddings(
             vocab_size, hidden_size, hidden_dropout_prob,
-            max_position_embeddings, type_vocab_size, self.initializer_range)
+            max_position_embeddings, type_vocab_size, self.initializer_range,
+            self.mesh)
 
+        stages = self.mesh.stages(num_layers)
         decoder_layers = nn.LayerList()
         for i in range(num_layers):
             decoder_layers.append(
@@ -458,14 +515,15 @@ class GPTModel(nn.Layer):
                         initializer=nn.initializer.Normal(
                             mean=0.0, std=self.initializer_range)),
                     bias_attr=None,
-                    num_partitions=num_partitions))
+                    mesh=self.mesh,
+                    mesh_idx=stages[i]))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
             num_layers,
             norm="LayerNorm",
-            hidden_size=hidden_size,
-            use_recompute=use_recompute)
+            hidden_size=hidden_size)
+        self.checkpoints = []
 
     @classmethod
     def from_config(cls, cfg):
@@ -480,8 +538,7 @@ class GPTModel(nn.Layer):
             "max_position_embeddings": cfg.max_position_embeddings,
             "type_vocab_size": cfg.type_vocab_size,
             "initializer_range": cfg.initializer_range,
-            "num_partitions": cfg.mp_degree,
-            "use_recompute": cfg.use_recompute
+            "mesh": cfg.mesh,
         }
 
     def forward(self,
@@ -506,6 +563,21 @@ class GPTModel(nn.Layer):
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
 
+        # TODO, use registered buffer
+        # causal_mask = paddle.tensor.triu(
+        #     paddle.ones((paddle.shape(input_ids)[-1],
+        #                  paddle.shape(input_ids)[-1])) * -1e4,
+        #     diagonal=1)
+
+        # if attention_mask is not None:
+        #     if len(attention_mask.shape) == 2:
+        #         attention_mask = attention_mask[:, None, None, :]
+        #     attention_mask = attention_mask + causal_mask
+        # else:
+        #     attention_mask = causal_mask
+        # # The tensor returned by triu not in static graph.
+        # attention_mask.stop_gradient = True
+
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
@@ -513,7 +585,7 @@ class GPTModel(nn.Layer):
             tgt_mask=None,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
-
+        self.checkpoints.extend(self.decoder.checkpoints)
         return encoder_outputs
 
 
@@ -548,9 +620,10 @@ class GPTForPretraining(nn.Layer):
             encoder_outputs, cached_kvs = outputs[:2]
         else:
             encoder_outputs = outputs
-
-        logits = parallel_matmul(
-            encoder_outputs, self.gpt.embeddings.word_embeddings.weight, True)
+        logits = paddle.matmul(
+            encoder_outputs,
+            self.gpt.embeddings.word_embeddings.weight,
+            transpose_y=True)
 
         if use_cache:
             return logits, cached_kvs
@@ -566,7 +639,6 @@ class GPTPretrainingCriterion(nn.Layer):
     def __init__(self, topo=None):
         super(GPTPretrainingCriterion, self).__init__()
         self.loss_func = paddle.nn.CrossEntropyLoss(reduction="none")
-        self.parallel_loss_func = fleet.meta_parallel.ParallelCrossEntropy()
 
     def forward(self, prediction_scores, masked_lm_labels, loss_mask):
         """
@@ -587,147 +659,10 @@ class GPTPretrainingCriterion(nn.Layer):
             Tensor: The pretraining loss. Its data type should be float32 and its shape is [1].
 
         """
-        hcg = fleet.get_hybrid_communicate_group()
-        mp_size = hcg.get_model_parallel_world_size()
-        if mp_size > 1:
-            masked_lm_loss = self.parallel_loss_func(
-                prediction_scores, masked_lm_labels.unsqueeze(2))
-        else:
-            masked_lm_loss = self.loss_func(prediction_scores,
-                                            masked_lm_labels.unsqueeze(2))
+        masked_lm_loss = self.loss_func(prediction_scores,
+                                        masked_lm_labels.unsqueeze(2))
 
         loss_mask = loss_mask.reshape([-1])
         masked_lm_loss = paddle.sum(masked_lm_loss.reshape([-1]) * loss_mask)
         loss = masked_lm_loss / loss_mask.sum()
         return loss
-
-
-# these Layers is just for PipelineParallel
-
-
-class GPTPretrainingCriterionPipe(GPTPretrainingCriterion):
-    """Extends GPTPretrainingCriterion to meet the input standard."""
-
-    def forward(self, prediction_scores, args):
-        masked_lm_labels = args[0]
-        loss_mask = args[1]
-        loss = super().forward(prediction_scores, masked_lm_labels, loss_mask)
-        return loss
-
-
-class EmbeddingPipe(GPTEmbeddings):
-    """Extends GPTEmbeddings to forward attention_mask through the pipeline."""
-
-    @property
-    def embedding_weight(self):
-        return self.word_embeddings.weight
-
-    def forward(self, tensors):
-        input_ids, position_ids = tensors
-        embeddings = super().forward(
-            input_ids=input_ids, position_ids=position_ids)
-        return embeddings
-
-
-class GPTForPretrainingPipe(PipelineLayer):
-    """GPTForPretraining adapted for pipeline parallelism.
-
-    The largest change is flattening the GPTModel class so we can express it as a
-    sequence of layers including embedding, transformer layers, and output.
-    """
-
-    @configurable
-    def __init__(self,
-                 vocab_size,
-                 hidden_size=768,
-                 num_layers=12,
-                 num_attention_heads=12,
-                 ffn_hidden_size=3072,
-                 hidden_act="gelu",
-                 hidden_dropout_prob=0.1,
-                 attention_probs_dropout_prob=0.1,
-                 max_position_embeddings=512,
-                 type_vocab_size=16,
-                 initializer_range=0.02,
-                 num_partitions=1,
-                 topology=None,
-                 use_recompute=False):
-
-        # forward desc
-        self.descs = []
-
-        self.descs.append(
-            SharedLayerDesc(
-                'embed',
-                EmbeddingPipe,
-                shared_weight_attr='embedding_weight',
-                vocab_size=vocab_size,
-                hidden_size=hidden_size,
-                hidden_dropout_prob=hidden_dropout_prob,
-                max_position_embeddings=max_position_embeddings,
-                type_vocab_size=type_vocab_size,
-                initializer_range=0.02))
-
-        for _ in range(num_layers):
-            self.descs.append(
-                LayerDesc(
-                    TransformerDecoderLayer,
-                    d_model=hidden_size,
-                    nhead=num_attention_heads,
-                    dim_feedforward=ffn_hidden_size,
-                    dropout=hidden_dropout_prob,
-                    activation=hidden_act,
-                    attn_dropout=attention_probs_dropout_prob,
-                    act_dropout=hidden_dropout_prob,
-                    weight_attr=paddle.ParamAttr(
-                        initializer=nn.initializer.Normal(
-                            mean=0.0, std=initializer_range)),
-                    bias_attr=None,
-                    num_partitions=num_partitions))
-
-        self.descs.append(
-            LayerDesc(
-                nn.LayerNorm, normalized_shape=hidden_size))
-
-        def _logits_helper(embedding, output):
-            return parallel_matmul(output, embedding.embedding_weight, True)
-
-        self.descs.append(
-            SharedLayerDesc(
-                'embed',
-                EmbeddingPipe,
-                forward_func=_logits_helper,
-                shared_weight_attr='embedding_weight',
-                vocab_size=vocab_size,
-                hidden_size=hidden_size,
-                hidden_dropout_prob=hidden_dropout_prob,
-                max_position_embeddings=max_position_embeddings,
-                type_vocab_size=type_vocab_size,
-                initializer_range=0.02))
-
-        super().__init__(
-            layers=self.descs,
-            loss_fn=GPTPretrainingCriterionPipe(),
-            topology=topology,
-            seg_method="layer:TransformerDecoderLayer",
-            recompute_interval=1 if use_recompute else 0,
-            recompute_partition=False,
-            recompute_offload=False)
-
-    @classmethod
-    def from_config(cls, cfg):
-        return {
-            "vocab_size": cfg.vocab_size,
-            "hidden_size": cfg.hidden_size,
-            "num_layers": cfg.num_layers,
-            "num_attention_heads": cfg.num_attention_heads,
-            "ffn_hidden_size": cfg.ffn_hidden_size,
-            "hidden_dropout_prob": cfg.hidden_dropout_prob,
-            "attention_probs_dropout_prob": cfg.attention_probs_dropout_prob,
-            "max_position_embeddings": cfg.max_position_embeddings,
-            "type_vocab_size": cfg.type_vocab_size,
-            "initializer_range": cfg.initializer_range,
-            "num_partitions": cfg.mp_degree,
-            "use_recompute": cfg.use_recompute,
-            "topology": cfg.topology
-        }

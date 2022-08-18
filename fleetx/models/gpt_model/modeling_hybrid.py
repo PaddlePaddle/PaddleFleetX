@@ -24,9 +24,37 @@ import paddle.tensor as tensor
 from paddle.fluid import layers
 from paddle.nn.layer.transformer import _convert_param_attr_to_list
 import paddle.incubate as incubate
+
+from paddle.distributed import fleet
+from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
+from paddle.distributed.fleet.meta_parallel import LayerDesc, PipelineLayer, SharedLayerDesc
 from paddle.distributed.fleet.utils import recompute
+import sys
 from .config import configurable
-from paddle.incubate.nn import FusedLinear
+
+
+def parallel_matmul(lm_output, logit_weights, parallel_output):
+    """
+    """
+    hcg = fleet.get_hybrid_communicate_group()
+    model_parallel_group = hcg.get_model_parallel_group()
+    world_size = hcg.get_model_parallel_world_size()
+    rank = hcg.get_model_parallel_rank()
+
+    if world_size > 1:
+        input_parallel = paddle.distributed.collective._c_identity(
+            lm_output, group=model_parallel_group)
+
+        logits = paddle.matmul(input_parallel, logit_weights, transpose_y=True)
+
+        if parallel_output:
+            return logits
+
+        return paddle.distributed.collective._c_concat(
+            logits, group=model_parallel_group)
+    else:
+        logits = paddle.matmul(lm_output, logit_weights, transpose_y=True)
+        return logits
 
 
 class MultiHeadAttention(nn.Layer):
@@ -50,6 +78,7 @@ class MultiHeadAttention(nn.Layer):
                  weight_attr=None,
                  bias_attr=None,
                  fuse=True,
+                 num_partitions=1,
                  fused_linear=False):
         super(MultiHeadAttention, self).__init__()
         self.embed_dim = embed_dim
@@ -63,22 +92,53 @@ class MultiHeadAttention(nn.Layer):
         self.head_dim = embed_dim // num_heads
         assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
 
-        Linear = FusedLinear if fused_linear else nn.Linear
+        assert self.num_heads % num_partitions == 0, "num_heads {} must be divisible by num_partitions {}".format(
+            self.num_heads, num_partitions)
+        self.num_heads = self.num_heads // num_partitions
 
         if self.fuse:
             assert self.kdim == embed_dim
             assert self.vdim == embed_dim
-            self.qkv_proj = Linear(
-                embed_dim, 3 * embed_dim, weight_attr, bias_attr=bias_attr)
+
+            self.qkv_proj = fleet.meta_parallel.ColumnParallelLinear(
+                embed_dim,
+                3 * embed_dim,
+                weight_attr=weight_attr,
+                has_bias=True,
+                gather_output=False,
+                fuse_matmul_bias=fused_linear)
         else:
-            self.q_proj = Linear(
-                embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
-            self.k_proj = Linear(
-                self.kdim, embed_dim, weight_attr, bias_attr=bias_attr)
-            self.v_proj = Linear(
-                self.vdim, embed_dim, weight_attr, bias_attr=bias_attr)
-        self.out_proj = Linear(
-            embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
+            self.q_proj = fleet.meta_parallel.ColumnParallelLinear(
+                embed_dim,
+                embed_dim,
+                weight_attr=weight_attr,
+                has_bias=True,
+                gather_output=False,
+                fuse_matmul_bias=fused_linear)
+
+            self.k_proj = fleet.meta_parallel.ColumnParallelLinear(
+                self.kdim,
+                embed_dim,
+                weight_attr=weight_attr,
+                has_bias=True,
+                gather_output=False,
+                fuse_matmul_bias=fused_linear)
+
+            self.v_proj = fleet.meta_parallel.ColumnParallelLinear(
+                self.vdim,
+                embed_dim,
+                weight_attr=weight_attr,
+                has_bias=True,
+                gather_output=False,
+                fuse_matmul_bias=fused_linear)
+
+        self.out_proj = fleet.meta_parallel.RowParallelLinear(
+            embed_dim,
+            embed_dim,
+            weight_attr=weight_attr,
+            has_bias=True,
+            input_is_parallel=True,
+            fuse_matmul_bias=fused_linear)
 
     def _fuse_prepare_qkv(self, query):
         mix_layer = self.qkv_proj(query)
@@ -194,11 +254,12 @@ class MultiHeadAttention(nn.Layer):
         weights = incubate.softmax_mask_fuse_upper_triangle(product)
 
         if self.dropout:
-            weights = F.dropout(
-                weights,
-                self.dropout,
-                training=self.training,
-                mode="upscale_in_train")
+            with get_rng_state_tracker().rng_state('local_seed'):
+                weights = F.dropout(
+                    weights,
+                    self.dropout,
+                    training=self.training,
+                    mode="upscale_in_train")
 
         out = tensor.matmul(weights, v)
 
@@ -272,6 +333,7 @@ class TransformerDecoder(nn.Layer):
                     else:
                         output = mod(output, memory, tgt_mask, use_cache,
                                      cache)
+
             else:
                 output, new_cache = mod(output,
                                         memory,
@@ -316,6 +378,7 @@ class TransformerDecoderLayer(nn.Layer):
                  normalize_before=True,
                  weight_attr=None,
                  bias_attr=None,
+                 num_partitions=1,
                  fused_linear=False,
                  recompute_attn=False):
         self._config = locals()
@@ -331,19 +394,30 @@ class TransformerDecoderLayer(nn.Layer):
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
 
-        Linear = FusedLinear if fused_linear else nn.Linear
-
         self.self_attn = MultiHeadAttention(
             d_model,
             nhead,
             dropout=attn_dropout,
             weight_attr=weight_attrs[0],
             bias_attr=bias_attrs[0],
+            num_partitions=num_partitions,
             fused_linear=fused_linear)
-        self.linear1 = Linear(
-            d_model, dim_feedforward, weight_attrs[2], bias_attr=bias_attrs[2])
-        self.linear2 = Linear(
-            dim_feedforward, d_model, weight_attrs[2], bias_attr=bias_attrs[2])
+
+        self.linear1 = fleet.meta_parallel.ColumnParallelLinear(
+            d_model,
+            dim_feedforward,
+            weight_attr=weight_attrs[2],
+            gather_output=False,
+            has_bias=True,
+            fuse_matmul_bias=fused_linear)
+
+        self.linear2 = fleet.meta_parallel.RowParallelLinear(
+            dim_feedforward,
+            d_model,
+            weight_attr=weight_attrs[2],
+            input_is_parallel=True,
+            has_bias=True,
+            fuse_matmul_bias=fused_linear)
 
         self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
@@ -351,7 +425,12 @@ class TransformerDecoderLayer(nn.Layer):
         self.dropout2 = nn.Dropout(act_dropout, mode="upscale_in_train")
         self.activation = getattr(F, activation)
 
-    def forward(self, tgt, memory, tgt_mask=None, use_cache=False, cache=None):
+    def forward(self,
+                tgt,
+                memory=None,
+                tgt_mask=None,
+                use_cache=False,
+                cache=None):
         residual = tgt
 
         if self.normalize_before:
@@ -366,16 +445,22 @@ class TransformerDecoderLayer(nn.Layer):
         else:
             tgt, incremental_cache = self.self_attn(tgt, tgt, tgt, tgt_mask,
                                                     use_cache, cache)
-        tgt = residual + self.dropout1(tgt)
+
+        with get_rng_state_tracker().rng_state('global_seed'):
+            tgt = residual + self.dropout1(tgt)
+
         if not self.normalize_before:
             tgt = self.norm1(tgt)
 
         residual = tgt
         if self.normalize_before:
             tgt = self.norm2(tgt)
-        tgt = self.dropout2(
-            self.linear2(F.gelu(
-                self.linear1(tgt), approximate=True)))
+
+        with get_rng_state_tracker().rng_state('global_seed'):
+            tgt = self.dropout2(
+                self.linear2(F.gelu(
+                    self.linear1(tgt), approximate=True)))
+
         tgt = residual + tgt
 
         if not self.normalize_before:
@@ -402,7 +487,8 @@ class GPTEmbeddings(nn.Layer):
                  type_vocab_size=16,
                  initializer_range=0.02):
         super(GPTEmbeddings, self).__init__()
-        self.word_embeddings = nn.Embedding(
+
+        self.word_embeddings = fleet.meta_parallel.VocabParallelEmbedding(
             vocab_size,
             hidden_size,
             weight_attr=paddle.ParamAttr(initializer=nn.initializer.Normal(
@@ -441,8 +527,9 @@ class GPTModel(nn.Layer):
                  attention_probs_dropout_prob=0.1,
                  max_position_embeddings=512,
                  type_vocab_size=16,
-                 use_recompute=False,
                  initializer_range=0.02,
+                 num_partitions=1,
+                 use_recompute=False,
                  fused_linear=False,
                  recompute_granularity="full"):
 
@@ -473,6 +560,7 @@ class GPTModel(nn.Layer):
                         initializer=nn.initializer.Normal(
                             mean=0.0, std=self.initializer_range)),
                     bias_attr=None,
+                    num_partitions=num_partitions,
                     fused_linear=fused_linear,
                     recompute_attn=recompute_attn))
 
@@ -498,6 +586,7 @@ class GPTModel(nn.Layer):
             "max_position_embeddings": cfg['max_position_embeddings'],
             "type_vocab_size": cfg['type_vocab_size'],
             "initializer_range": cfg['initializer_range'],
+            "num_partitions": cfg['topology'].get_dim('model'),
             "use_recompute": cfg['use_recompute'],
             "fused_linear": cfg['fused_linear'],
             "recompute_granularity": cfg['recompute_granularity']
@@ -525,21 +614,6 @@ class GPTModel(nn.Layer):
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
 
-        # TODO, use registered buffer
-        # causal_mask = paddle.tensor.triu(
-        #     paddle.ones((paddle.shape(input_ids)[-1],
-        #                  paddle.shape(input_ids)[-1])) * -1e4,
-        #     diagonal=1)
-
-        # if attention_mask is not None:
-        #     if len(attention_mask.shape) == 2:
-        #         attention_mask = attention_mask[:, None, None, :]
-        #     attention_mask = attention_mask + causal_mask
-        # else:
-        #     attention_mask = causal_mask
-        # # The tensor returned by triu not in static graph.
-        # attention_mask.stop_gradient = True
-
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
@@ -564,6 +638,8 @@ class GPTForPretraining(nn.Layer):
     def __init__(self, gpt):
         super(GPTForPretraining, self).__init__()
         self.gpt = gpt
+        # extra_parameters using for sharding stage3 to register extra_parameters
+        self.extra_parameters = [self.gpt.embeddings.word_embeddings.weight]
 
     def forward(self,
                 input_ids,
@@ -582,10 +658,9 @@ class GPTForPretraining(nn.Layer):
             encoder_outputs, cached_kvs = outputs[:2]
         else:
             encoder_outputs = outputs
-        logits = paddle.matmul(
-            encoder_outputs,
-            self.gpt.embeddings.word_embeddings.weight,
-            transpose_y=True)
+
+        logits = parallel_matmul(
+            encoder_outputs, self.gpt.embeddings.word_embeddings.weight, True)
 
         if use_cache:
             return logits, cached_kvs
@@ -601,6 +676,7 @@ class GPTPretrainingCriterion(nn.Layer):
     def __init__(self, topo=None):
         super(GPTPretrainingCriterion, self).__init__()
         self.loss_func = paddle.nn.CrossEntropyLoss(reduction="none")
+        self.parallel_loss_func = fleet.meta_parallel.ParallelCrossEntropy()
 
     def forward(self, prediction_scores, masked_lm_labels, loss_mask):
         """
@@ -621,10 +697,160 @@ class GPTPretrainingCriterion(nn.Layer):
             Tensor: The pretraining loss. Its data type should be float32 and its shape is [1].
 
         """
-        masked_lm_loss = self.loss_func(prediction_scores,
-                                        masked_lm_labels.unsqueeze(2))
+        hcg = fleet.get_hybrid_communicate_group()
+        mp_size = hcg.get_model_parallel_world_size()
+        if mp_size > 1:
+            masked_lm_loss = self.parallel_loss_func(
+                prediction_scores, masked_lm_labels.unsqueeze(2))
+        else:
+            masked_lm_loss = self.loss_func(prediction_scores,
+                                            masked_lm_labels.unsqueeze(2))
 
         loss_mask = loss_mask.reshape([-1])
         masked_lm_loss = paddle.sum(masked_lm_loss.reshape([-1]) * loss_mask)
         loss = masked_lm_loss / loss_mask.sum()
         return loss
+
+
+# these Layers is just for PipelineParallel
+
+
+class GPTPretrainingCriterionPipe(GPTPretrainingCriterion):
+    """Extends GPTPretrainingCriterion to meet the input standard."""
+
+    def forward(self, prediction_scores, args):
+        masked_lm_labels = args[0]
+        loss_mask = args[1]
+        loss = super().forward(prediction_scores, masked_lm_labels, loss_mask)
+        return loss
+
+
+class EmbeddingPipe(GPTEmbeddings):
+    """Extends GPTEmbeddings to forward attention_mask through the pipeline."""
+
+    @property
+    def embedding_weight(self):
+        return self.word_embeddings.weight
+
+    def forward(self, tensors):
+        input_ids, position_ids = tensors
+        embeddings = super().forward(
+            input_ids=input_ids, position_ids=position_ids)
+        return embeddings
+
+
+class GPTForPretrainingPipe(PipelineLayer):
+    """GPTForPretraining adapted for pipeline parallelism.
+
+    The largest change is flattening the GPTModel class so we can express it as a
+    sequence of layers including embedding, transformer layers, and output.
+    """
+
+    @configurable
+    def __init__(self,
+                 vocab_size,
+                 hidden_size=768,
+                 num_layers=12,
+                 num_attention_heads=12,
+                 ffn_hidden_size=3072,
+                 hidden_act="gelu",
+                 hidden_dropout_prob=0.1,
+                 attention_probs_dropout_prob=0.1,
+                 max_position_embeddings=512,
+                 type_vocab_size=16,
+                 initializer_range=0.02,
+                 num_partitions=1,
+                 topology=None,
+                 use_recompute=False,
+                 fused_linear=False,
+                 recompute_granularity="full"):
+
+        recompute_attn = use_recompute and recompute_granularity == "only_attn"
+
+        # forward desc
+        self.descs = []
+
+        self.descs.append(
+            SharedLayerDesc(
+                'embed',
+                EmbeddingPipe,
+                shared_weight_attr='embedding_weight',
+                vocab_size=vocab_size,
+                hidden_size=hidden_size,
+                hidden_dropout_prob=hidden_dropout_prob,
+                max_position_embeddings=max_position_embeddings,
+                type_vocab_size=type_vocab_size,
+                initializer_range=0.02))
+
+        for _ in range(num_layers):
+            self.descs.append(
+                LayerDesc(
+                    TransformerDecoderLayer,
+                    d_model=hidden_size,
+                    nhead=num_attention_heads,
+                    dim_feedforward=ffn_hidden_size,
+                    dropout=hidden_dropout_prob,
+                    activation=hidden_act,
+                    attn_dropout=attention_probs_dropout_prob,
+                    act_dropout=hidden_dropout_prob,
+                    weight_attr=paddle.ParamAttr(
+                        initializer=nn.initializer.Normal(
+                            mean=0.0, std=initializer_range)),
+                    bias_attr=None,
+                    num_partitions=num_partitions,
+                    fused_linear=fused_linear,
+                    recompute_attn=recompute_attn))
+
+        self.descs.append(
+            LayerDesc(
+                nn.LayerNorm, normalized_shape=hidden_size))
+
+        def _logits_helper(embedding, output):
+            return parallel_matmul(output, embedding.embedding_weight, True)
+
+        self.descs.append(
+            SharedLayerDesc(
+                'embed',
+                EmbeddingPipe,
+                forward_func=_logits_helper,
+                shared_weight_attr='embedding_weight',
+                vocab_size=vocab_size,
+                hidden_size=hidden_size,
+                hidden_dropout_prob=hidden_dropout_prob,
+                max_position_embeddings=max_position_embeddings,
+                type_vocab_size=type_vocab_size,
+                initializer_range=0.02))
+
+        recompute_interval = 0
+        if recompute and not recompute_attn:
+            recompute_interval = 1
+
+        super().__init__(
+            layers=self.descs,
+            loss_fn=GPTPretrainingCriterionPipe(),
+            topology=topology,
+            seg_method="layer:TransformerDecoderLayer",
+            recompute_interval=recompute_interval,
+            recompute_partition=False,
+            recompute_offload=False)
+
+    @classmethod
+    def from_config(cls, cfg):
+        return {
+            "vocab_size": cfg['vocab_size'],
+            "hidden_size": cfg['hidden_size'],
+            "num_layers": cfg['num_layers'],
+            "num_attention_heads": cfg['num_attention_heads'],
+            "ffn_hidden_size": cfg['ffn_hidden_size'],
+            "hidden_dropout_prob": cfg['hidden_dropout_prob'],
+            "attention_probs_dropout_prob":
+            cfg['attention_probs_dropout_prob'],
+            "max_position_embeddings": cfg['max_position_embeddings'],
+            "type_vocab_size": cfg['type_vocab_size'],
+            "initializer_range": cfg['initializer_range'],
+            "num_partitions": cfg['topology'].get_dim('model'),
+            "use_recompute": cfg['use_recompute'],
+            "topology": cfg['topology'],
+            "fused_linear": cfg['fused_linear'],
+            "recompute_granularity": cfg['recompute_granularity']
+        }
