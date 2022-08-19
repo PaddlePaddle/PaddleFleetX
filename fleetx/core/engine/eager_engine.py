@@ -310,8 +310,6 @@ class EagerEngine(BasicEngine):
                 del train_data_loader
                 return
 
-            reader_start = time.time()
-
     def _fit_impl(self, batch):
         batch = self._module.pretreating_batch(batch)
         if self._pp_degree == 1:
