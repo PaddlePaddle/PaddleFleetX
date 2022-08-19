@@ -62,18 +62,16 @@ class GPTModule(BasicModule):
 
         return loss
 
-    def training_step_end(self, loss, epoch, step, reader_cost, train_cost):
-        avg_loss = loss.numpy()
-        speed = self.configs['Engine']['logging_freq'] / (
-            reader_cost + train_cost)
-        avg_reader_cost = reader_cost / self.configs['Engine']['logging_freq']
+    def training_step_end(self, log_dict):
+        speed = self.configs['Engine']['logging_freq'] / log_dict['train_cost']
         default_global_tokens_num = self.configs['Data']['batch_size']['global_batch_size'] * \
             self.configs['Data']['dataset']['max_seq_len']
 
         logger.info(
-            "[train] global step %d, epoch: %d, batch: %d, loss: %.9f, avg_reader_cost: %.5f sec, avg_batch_cost: %.5f sec, speed: %.2f step/s, ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
-            % (self.global_step, epoch, step, avg_loss, avg_reader_cost,
-               1. / speed, speed, speed * default_global_tokens_num,
+            "[train] global step %d, epoch: %d, batch: %d, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
+            % (self.global_step, log_dict['epoch'], log_dict['batch'],
+               log_dict['loss'], 1. / speed, speed,
+               speed * default_global_tokens_num,
                speed * default_global_tokens_num, self.optimizer.get_lr()))
 
     def configure_optimizers(self):
@@ -128,11 +126,12 @@ class GPTModule(BasicModule):
         loss = self.loss_fn(preds, labels, loss_mask)
         return loss
 
-    def validation_step_end(self, loss, epoch, step, eval_cost):
-        speed = self.configs['Engine']['logging_freq'] / eval_cost
+    def validation_step_end(self, log_dict):
+        speed = self.configs['Engine']['logging_freq'] / log_dict['eval_cost']
         logger.info(
-            "[eval] step %d, epoch: %d, batch: %d, loss: %.9f, avg_eval_cost: %.5f sec, speed: %.2f step/s"
-            % (self.global_step, epoch, step, loss, 1. / speed, speed))
+            "[eval] epoch: %d, batch: %d, loss: %.9f, avg_eval_cost: %.5f sec, speed: %.2f step/s"
+            % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
+               1. / speed, speed))
 
     def test_step(self, batch):
         tokens, position_ids, labels, loss_mask = batch
@@ -141,11 +140,12 @@ class GPTModule(BasicModule):
         loss = self.loss_fn(preds, labels, loss_mask)
         return loss
 
-    def test_step_end(self, loss, epoch, step, test_cost):
-        speed = self.configs['Engine']['logging_freq'] / test_cost
+    def test_step_end(self, log_dict):
+        speed = self.configs['Engine']['logging_freq'] / log_dict['test_cost']
         logger.info(
-            "[test] step %d, epoch: %d, batch: %d, loss: %.9f, avg_test_cost: %.5f sec, speed: %.2f step/s"
-            % (self.global_step, epoch, step, loss, 1. / speed, speed))
+            "[test] epoch: %d, batch: %d, loss: %.9f, avg_test_cost: %.5f sec, speed: %.2f step/s"
+            % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
+               1. / speed, speed))
 
 
 class GPTHybridModule(GPTModule):

@@ -138,8 +138,11 @@ class EagerEngine(BasicEngine):
         if self._use_pure_fp16:
             self._scaler = paddle.amp.GradScaler(
                 init_loss_scaling=self._scale_loss)
+
+            # Save dtype is the same as model dtype. Also can set save_dtype='float32' when 
+            # training with pure fp16 strategy, but will cause the rise of memory.
             self._module.model = paddle.amp.decorate(
-                models=self._module.model, level='O2', save_dtype='float32')
+                models=self._module.model, level='O2')
         else:
             self._scaler = None
 
@@ -233,13 +236,16 @@ class EagerEngine(BasicEngine):
         self._module.model.train()
 
         # time count
-        reader_cost = 0.0
         train_cost = 0.0
-        reader_start = time.time()
+        train_start = time.time()
 
         for step, batch in enumerate(train_data_loader()):
-            reader_cost += time.time() - reader_start
-            train_start = time.time()
+            print("1 batch :", step, "    global step :",
+                  self._module.global_step)
+            if step < self._module.global_step:
+                continue
+            print("2 batch :", step, "    global step :",
+                  self._module.global_step)
 
             self._module.global_step += 1
             loss = self._fit_impl(batch)
@@ -249,10 +255,15 @@ class EagerEngine(BasicEngine):
             train_cost += time.time() - train_start
 
             if self._module.global_step % self._logging_freq == 0:
-                self._module.training_step_end(loss, epoch, step, reader_cost,
-                                               train_cost)
+                log_dict = {
+                    'loss': loss.numpy(),
+                    'epoch': epoch,
+                    'batch': step,
+                    'train_cost': train_cost,
+                }
+                self._module.training_step_end(log_dict)
 
-                reader_cost = 0.0
+                train_start = time.time()
                 train_cost = 0.0
 
             if self._module.global_step % self._eval_freq == 0:
@@ -271,8 +282,14 @@ class EagerEngine(BasicEngine):
                 paddle.device.cuda.synchronize()
                 eval_cost = time.time() - eval_start
                 eval_loss = sum(eval_losses) / len(eval_losses)
-                self._module.validation_step_end(eval_loss, epoch, eval_step,
-                                                 eval_cost)
+
+                log_dict = {
+                    'loss': eval_loss.numpy(),
+                    'epoch': epoch,
+                    'batch': eval_step,
+                    'eval_cost': eval_cost,
+                }
+                self._module.validation_step_end(log_dict)
 
                 self._module.model.train()
 
@@ -368,15 +385,19 @@ class EagerEngine(BasicEngine):
 
         eval_start = time.time()
         for eval_step, batch in enumerate(valid_data_loader):
-            self._module.global_step += 1
             loss = self._evaluate_impl(batch)
 
             paddle.device.cuda.synchronize()
             eval_cost = time.time() - eval_start
 
             if self._module.global_step % self._logging_freq == 0:
-                self._module.validation_step_end(loss, epoch, eval_step,
-                                                 eval_cost)
+                log_dict = {
+                    'loss': loss.numpy(),
+                    'epoch': epoch,
+                    'batch': eval_step,
+                    'eval_cost': eval_cost,
+                }
+                self._module.validation_step_end(log_dict)
                 eval_start = time.time()
 
             if self._module.global_step >= self._max_steps:
@@ -409,14 +430,19 @@ class EagerEngine(BasicEngine):
 
         test_start = time.time()
         for test_step, batch in enumerate(test_data_loader):
-            self._module.global_step += 1
             loss = self._predict_impl(batch)
 
             paddle.device.cuda.synchronize()
             test_cost = time.time() - test_start
 
             if self._module.global_step % self._logging_freq == 0:
-                self._module.test_step_end(loss, epoch, test_step, test_cost)
+                log_dict = {
+                    'loss': loss.numpy(),
+                    'epoch': epoch,
+                    'batch': test_step,
+                    'eval_cost': test_cost,
+                }
+                self._module.test_step_end(log_dict)
                 test_start = time.time()
 
             if self._module.global_step >= self._max_steps:
@@ -439,7 +465,7 @@ class EagerEngine(BasicEngine):
         """
         if self._output_dir and isinstance(self._output_dir, str):
             output_dir = os.path.join(self._output_dir,
-                                      "model_%d" % self._module.global_step)
+                                      "step_%d" % self._module.global_step)
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
             logger.info("Save model to %s" % output_dir)
@@ -451,6 +477,10 @@ class EagerEngine(BasicEngine):
                         os.path.join(save_dir, "model.pdparams"))
             paddle.save(self._module.optimizer.state_dict(),
                         os.path.join(save_dir, "model_state.pdopt"))
+
+            meta_dict = {"global_step": self._module.global_step}
+            paddle.save(meta_dict, os.path.join(save_dir, "meta_state.pdopt"))
+
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
 
@@ -466,18 +496,36 @@ class EagerEngine(BasicEngine):
                 self._pp_rank) if self._distributed else self._ckpt_dir
             model_path = os.path.join(load_dir, "model.pdparams")
             opt_path = os.path.join(load_dir, "model_state.pdopt")
+            meta_path = os.path.join(load_dir, "meta_state.pdopt")
+
             if os.path.exists(model_path):
                 model_dict = paddle.load(model_path)
                 self._module.model.set_state_dict(model_dict)
             else:
-                logger.warning("No optimizer checkpoint file found in %s." %
-                               model_path)
+                raise ValueError("No optimizer checkpoint file found in %s." %
+                                 model_path)
 
             if os.path.exists(opt_path):
                 opt_dict = paddle.load(opt_path)
                 self._module.optimizer.set_state_dict(opt_dict)
             else:
-                logger.warning("No optimizer checkpoint file found in %s." %
-                               opt_path)
+                raise ValueError("No optimizer checkpoint file found in %s." %
+                                 opt_path)
+
+            if os.path.exists(meta_path):
+                meta_dict = paddle.load(meta_path)
+                resume_step = int(self._ckpt_dir.strip("/").split("_")[-1])
+
+                if resume_step != meta_dict["global_step"]:
+                    raise ValueError(
+                        "Warning: resume_step is {}, but the step of checkpoint is {}.".
+                        format(resume_step, state_dict["global_step"]))
+
+                self._module.global_step = resume_step
+            else:
+                raise ValueError("No meta checkpoint file found in %s." %
+                                 meta_path)
+
+            logger.info("successfully load checkpoints")
         else:
             raise TypeError("`load` requires a valid value of `ckpt_dir`.")
