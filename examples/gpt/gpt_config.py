@@ -104,6 +104,19 @@ class GPTConfig(dict):
             'grad_clip': 0.0,
         }
 
+        self.Generation = {
+            'top_k': 5,
+            'temperature': 1.0,
+            'top_p': 1.0,
+            'num_beams': 0,
+            'length_penalty': 1.0,
+            'early_stopping': False,
+            'min_dec_len': 1,
+            'max_dec_len': 16,
+            'num_return_sequences': 1,
+            'decode_strategy': "sampling"
+        }
+
         self._update(yaml_dict)
 
     def _update(self, yaml_dict):
