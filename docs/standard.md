@@ -7,7 +7,7 @@ FleetX是飞桨分布式训练示例代码库，是对飞桨PaddlePaddle的分�
 
 
 <div align="center">
-<img src="./images/fleetx_arc.png"  alt>
+<img src="./images/fleetx_arc.png"  alt="drawing" width="500">
 
 <em> FleetX与Paddle的关系 </em>
 </div>
@@ -46,13 +46,6 @@ fleetx
 ├── README.md
 └── requirements.txt
 ```
-
-<!-- 
-### 3.FleetX模块
-以GPT模型为例，描述FleetX各个模块的函数方法之间的调用关系。
-
-
- -->
 
 ### 3.模型接入方法
 
