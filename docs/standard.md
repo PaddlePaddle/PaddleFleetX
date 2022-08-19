@@ -184,68 +184,105 @@ with paddle.no_grad():
 1、构建组网文件，放置在fleex/models目录下。
 
 ```python
-from paddle.fluid.dygraph import Linear
-class TestModel(nn.Layer):
-    def __init__(self, input_size, output_size, global_dtype):
-        super(TestModel, self).__init__()
-        self.linear = Linear(20, 40)
+class SimpleNet(nn.Layer):
+    def __init__(self):
+        super(SimpleNet, self).__init__()
+        self.fc1 = nn.Linear(IMAGE_SIZE, IMAGE_SIZE)
+        self.fc2 = nn.Linear(IMAGE_SIZE, IMAGE_SIZE)
+        self.fc3 = nn.Linear(IMAGE_SIZE, IMAGE_SIZE)
+        self.fc4 = nn.Linear(IMAGE_SIZE, IMAGE_SIZE)
+        self.fc5 = nn.Linear(IMAGE_SIZE, CLASS_NUM)
+    def forward(self, image, label=None):
+        output = self.fc1(image)
+        output = self.fc2(output)
+        output = self.fc3(output)
+        output = self.fc4(output)
+        return self.fc5(output)
 
-    def forward(self, x):
-        output = self.linear(x)
-        return output
+class LossLayer(nn.Layer):
+    def __init__(self):
+        super(LossLayer, self).__init__()
+    def forward(self, image, label=None):
+        return F.cross_entropy(image, label)
 ```
 
 2、构建BasicModule，设置符合要求的组网形式，放置在fleetx/example目录下。
 
 ```python
-from fleetx.core.module.basic_module import BasicModule
 class TestModule(BasicModule):
-    def __init__(self, args):
+    def __init__(self):
         super().__init__()
-        self.args = args
-        self.model = TestModel(args)
-        self.loss_fn = paddle.nn.loss.MSELoss()
-
+        self.model = SimpleNet()
+        self.loss_fn = LossLayer()
     def forward(self, x):
         return self.model(x)
-
     def training_step(self, batch):
-        # 设置training step，规范化训练集前向执行
-        data, labels = batch
-        preds = self(data)
-        loss = self.loss_fn(preds, labels)
+        x, y = batch
+        loss = self.loss_fn(self(x), y)
         return loss
-
-   def validation_step(self, batch):
-        # 设置validation step，规范化验证集前向执行
-        data, labels = batch
-        preds = self(data)
-        loss = self.loss_fn(preds, labels)
+    def training_step_end(self, loss, epoch, step, reader_cost, train_cost):
+        logger.info(
+            "[train] global step %d, epoch: %d, batch: %d, loss: %.9f, reader_cost: %.5f sec, batch_cost: %.5f sec"
+            % (self.global_step, epoch, step, loss, reader_cost, train_cost))
+    def validation_step(self, batch):
+        x, y = batch
+        loss = self.loss_fn(self(x), y)
         return loss
-
+    def validation_step_end(self, loss, epoch, step, eval_cost):
+        logger.info(
+            "[valid] global step %d, epoch: %d, batch: %d, loss: %.9f, eval_cost: %.5f sec"
+            % (self.global_step, epoch, step, loss, eval_cost))
+    def test_step(self, batch):
+        x, y = batch
+        loss = self.loss_fn(self(x), y)
+        return loss
+    def test_step_end(self, loss, epoch, step, test_cost):
+        logger.info(
+            "[test] global step %d, epoch: %d, batch: %d, loss: %.9f, test_cost: %.5f sec"
+            % (self.global_step, epoch, step, loss, test_cost))
     def configure_optimizers(self):
-        # 设置模型训练使用的优化器
-        sgd = paddle.optimizer.SGD(learning_rate=0.1, parameters=self.parameters(), weight_decay=0.01)
-        return sgd
+        return paddle.optimizer.SGD(learning_rate=1e-3,
+            parameters=self.model.parameters())
+
 ```
 
 3、根据实际模型，构造DataSet生成脚本，放置在fleex/data。构造DataLoader的代码脚本，放置在fleetx/dataset
 
 ```python
-train_data_loader, valid_data_loader, test_data_loader = create_pretrained_dataset(args, [data_file])
+
+# define a random dataset
+class RandomDataset(Dataset):
+    def __init__(self, num_samples):
+        self.num_samples = num_samples
+    def __getitem__(self, idx):
+        image = np.random.random([IMAGE_SIZE]).astype('float32')
+        label = np.random.randint(0, CLASS_NUM - 1, (1, )).astype('int64')
+        return image, label
+    def __len__(self):
+        return self.num_samples
+dataset = RandomDataset(BATCH_NUM * BATCH_SIZE)
+dataloader = DataLoader(dataset,
+                    batch_size=BATCH_SIZE,
+                    shuffle=True,
+                    drop_last=True,
+                    num_workers=2)
+
 ```
 
 4、构建执行代码文件，放置在fleetx/example目录下。其中初始化engine，调用fit/evaluate/predict等函数。
 
 ```python
-from fleetx.core.engine.eager_engine import EagerEngine
-module = TestModule(args)
-engine = EagerEngine(module=module, configs=configs)
-engine.fit(train_data_loader=train_data_loader,
-            valid_data_loader=valid_data_loader,
-            epoch=epoch)
-engine.evaluate(valid_data_loader=valid_data_loader, epoch=epoch)      
-engine.predict(test_data_loader=test_data_loader, epoch=epoch)
+configs = GPTConfig({})
+module = TestModule()
+engine = EagerEngine(module, configs)
+if engine._ckpt_dir is not None:
+    engine.load()
+for e in range(EPOCH_NUM):
+    engine.fit(epoch=e, train_data_loader=dataloader)
+    engine.evaluate(epoch=e, valid_data_loader=dataloader)
+    engine.predict(epoch=e, test_data_loader=dataloader)
+    if engine._output_dir is not None:
+        engine.save()
 ```
 
 5、运行模型相关的配置文件以及相应的运行脚本，放置在fleetx/example目录。
