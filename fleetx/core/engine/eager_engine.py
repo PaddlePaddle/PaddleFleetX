@@ -34,9 +34,52 @@ from fleetx.utils.tensor_fusion_helper import all_reduce_parameters
 
 class EagerEngine(BasicEngine):
     """
+    The common engine for all models that support single-card and distributed 
+    training, validation and test. Only used in eager dygraph mode.
     """
 
-    def __init__(self, module, configs=None):
+    def __init__(self, module, configs):
+        """
+        Initialize an engine depending on the user-defined module and configs.
+
+        Args:
+
+            module(BasicModule): user-defined module. After assigning computations 
+                and configurations of model/optimizers/lr Schedulers, engine can 
+                support the whole loop of training/validation/test.
+            
+            configs(dict): the configurations that engine needs for training/validation/test 
+                loop. Such as mix precision strategy, save&load and the infos of steps/epoches.
+        
+        Return:
+
+            An instance of `EagerEngine`.
+
+        Examples::
+
+            class TestModule(BasicModule):
+
+                def __init__(self):
+                    super().__init__()
+                    self.model = paddle.nn.Linear(28 * 28, 10)
+                    self.loss_fn = paddle.nn.MSELoss()
+
+                def forward(self, x):
+                    return paddle.relu(self.model(x.reshape(-1)))
+
+                def training_step(self, batch):
+                    x, y = batch
+                    loss = self.loss_fn(self(x), y)
+                    return loss
+
+                def configure_optimizers(self):
+                    return paddle.optimizer.Adam(
+                        parameters=self.model.parameters(), learning_rate=0.02)
+
+            module = TestModule()
+            engine = EagerEngine(module, configs)
+
+        """
         super().__init__()
 
         if not isinstance(module, BasicModule):
@@ -175,6 +218,18 @@ class EagerEngine(BasicEngine):
             self._scaler) if self._scaler is not None else self._scaler
 
     def fit(self, epoch=1, train_data_loader=None, valid_data_loader=None):
+        """
+        Run the full process of training/validation/save loop.
+
+        Args:
+
+            epoch(int): the epoch index.
+            
+            train_data_loader(DataLoader, None): a collection of :class:`paddle.io.DataLoader`, specifying training samples.
+
+            valid_data_loader(DataLoader, None): a collection of :class:`paddle.io.DataLoader`, specifying validation samples.
+
+        """
         self._module.model.train()
 
         # time count
@@ -299,6 +354,16 @@ class EagerEngine(BasicEngine):
 
     @paddle.no_grad()
     def evaluate(self, epoch=1, valid_data_loader=None):
+        """
+        run one evaluation epoch over the validation set.
+
+        Args:
+
+            epoch(int): the epoch index.
+
+            valid_data_loader(DataLoader, None): a collection of :class:`paddle.io.DataLoader`, specifying validation samples.
+
+        """
         self._module.model.eval()
 
         eval_start = time.time()
@@ -330,6 +395,16 @@ class EagerEngine(BasicEngine):
 
     @paddle.no_grad()
     def predict(self, epoch=1, test_data_loader=None):
+        """
+        run one evaluation epoch over the test set.
+
+        Args:
+
+            epoch(int): the epoch index.
+
+            test_data_loader(DataLoader, None): a collection of :class:`paddle.io.DataLoader`, specifying test samples.
+
+        """
         self._module.model.eval()
 
         test_start = time.time()
@@ -359,6 +434,9 @@ class EagerEngine(BasicEngine):
         return loss
 
     def save(self):
+        """
+        save the state dicts of model and optimizer into an checkpoint.
+        """
         if self._output_dir and isinstance(self._output_dir, str):
             output_dir = os.path.join(self._output_dir,
                                       "model_%d" % self._module.global_step)
@@ -377,6 +455,9 @@ class EagerEngine(BasicEngine):
             raise TypeError("`save` requires a valid value of `output_dir`.")
 
     def load(self):
+        """
+        load the saved checkpoint file and update the state dicts of model and optimizer.
+        """
         if self._ckpt_dir and isinstance(self._ckpt_dir, str):
             logger.info("Try to load checkpoint from %s " % self._ckpt_dir)
 
