@@ -22,7 +22,7 @@ from paddle.distributed import fleet
 sys.path.append("../../../")
 from examples.gpt.tools import parse_args, parse_yaml_auto
 from examples.gpt.gpt_module import GPTAutoModule
-from fleetx.core.engine.static_engine import StaticEngine
+from fleetx.core.engine import AutoEngine
 from fleetx.data.tokenizers import GPTTokenizer
 from fleetx.datasets.gpt import create_pretrained_dataset_auto, get_train_data_file
 
@@ -55,8 +55,7 @@ def do_train():
     tokenizer = GPTTokenizer.from_pretrained("gpt2")
 
     module = GPTAutoModule(configs)
-    engine = StaticEngine(
-        module=module, configs=configs, dist_strategy=dist_strategy)
+    engine = AutoEngine(module=module, configs=configs, strategy=dist_strategy)
     engine.load()
 
     for epoch in range(configs['Engine']['num_train_epochs']):
@@ -65,9 +64,14 @@ def do_train():
         num_files = len(files)
         for f_id in range(num_files):
             data_file = files[f_id]
-            train_data, _, _ = create_pretrained_dataset_auto(
+            train_data, valid_data, test_data = create_pretrained_dataset_auto(
                 configs, [data_file], tokenizer.eos_token_id)
             engine.fit(train_dataset=train_data, epoch=epoch)
+
+            # engine.fit(train_dataset=train_data, valid_dataset=valid_data, epoch=epoch)
+            # engine.evaluate(valid_dataset=valid_data)
+            # engine.predict(test_dataset=test_data)
+            # engine.save()
 
 
 if __name__ == "__main__":

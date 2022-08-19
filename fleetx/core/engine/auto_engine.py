@@ -19,6 +19,7 @@ import sys
 import paddle
 import paddle.nn as nn
 
+from paddle.static import InputSpec
 from paddle.distributed import fleet
 from paddle.distributed.auto_parallel.engine import Engine
 
@@ -29,8 +30,8 @@ from fleetx.core.engine.basic_engine import BasicEngine
 from fleetx.core.module.basic_module import BasicModule
 
 
-class StaticEngine(BasicEngine):
-    def __init__(self, module, configs=None, dist_strategy=None):
+class AutoEngine(BasicEngine):
+    def __init__(self, module, configs=None, strategy=None):
         super().__init__()
 
         if not isinstance(module, BasicModule):
@@ -77,26 +78,22 @@ class StaticEngine(BasicEngine):
 
         inputs_spec, labels_spec = self._gen_data_holder()
 
-        if not dist_strategy:
-            dist_strategy = fleet.DistributedStrategy()
-            dist_strategy.semi_auto = True
+        if not strategy:
+            strategy = fleet.DistributedStrategy()
+            strategy.semi_auto = True
 
         self._auto_engine = Engine(
-            module.model, inputs_spec, labels_spec, strategy=dist_strategy)
+            module.model, inputs_spec, labels_spec, strategy=strategy)
         self._auto_engine.prepare(optimizer, module.loss_fn)
 
     def _gen_data_holder(self):
         gbsz = self._data_configs['batch_size']['global_batch_size']
         max_seq_len = self._data_configs['dataset']['max_seq_len']
 
-        tokens = paddle.static.InputSpec([gbsz, max_seq_len], "int64",
-                                         "tokens")
-        position_ids = paddle.static.InputSpec([gbsz, max_seq_len], "int64",
-                                               "position_ids")
-        labels = paddle.static.InputSpec([gbsz, max_seq_len], "int64",
-                                         "labels")
-        loss_mask = paddle.static.InputSpec([gbsz, max_seq_len], "float32",
-                                            "loss_mask")
+        tokens = InputSpec([gbsz, max_seq_len], "int64", "tokens")
+        position_ids = InputSpec([gbsz, max_seq_len], "int64", "position_ids")
+        labels = InputSpec([gbsz, max_seq_len], "int64", "labels")
+        loss_mask = InputSpec([gbsz, max_seq_len], "float32", "loss_mask")
 
         return [tokens, position_ids], [labels, loss_mask]
 

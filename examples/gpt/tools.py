@@ -201,15 +201,42 @@ def parse_yaml_auto(yaml_file):
         yaml.load(
             open(yaml_file, 'rb'), Loader=yaml.Loader))
 
-    process_dist_configs(yaml_dict)
-    # process_data_configs(yaml_dict)
-    # process_fused_configs(yaml_dict)
-    # process_model_configs(yaml_dict)
-    # process_engine_configs(yaml_dict)
+    # process dist configs
+    dist_configs = yaml_dict['Distributed']
+    nranks = dist.get_world_size()
+    other_degree = dist_configs['mp_degree'] * dist_configs['pp_degree']
+    assert nranks % other_degree == 0, "Requires nranks should be divided by mp_degree*pp_degree."
+    if dist_configs['dp_degree'] * other_degree != nranks:
+        logger.warning('Mismatched configs using {} cards with dp_degree[{}], ' \
+            'mp_degree[{}], pp_degree[{}] and sharding_degree[{}]. So adaptively ' \
+            'adjust dp_degree to {}'.format(nranks, dist_configs['dp_degree'], dist_configs['mp_degree'],
+            dist_configs['pp_degree'], dist_configs['sharding']['sharding_degree'], nranks // other_degree))
+    dist_configs['dp_degree'] = nranks // other_degree
+    assert nranks % dist_configs[
+        'dp_degree'] == 0, "unreasonable configs of dist_strategy."
 
-    configs = yaml_dict['Engine']
-    configs['test_iters'] = configs['eval_iters'] * 10 if configs[
-        'test_iters'] is None else configs['test_iters']
+    # process data configs
+    dp_degree = yaml_dict['Distributed']['dp_degree']
+    sharding_degree = yaml_dict['Distributed']['sharding']['sharding_degree']
+    data_configs = yaml_dict['Data']['batch_size']
+    if data_configs['global_batch_size'] is None:
+        raise ValueError("global_batch_size should be set.")
+    elif data_configs['global_batch_size'] is not None:
+        assert data_configs['global_batch_size'] % dp_degree == 0, \
+            "global_batch_size[{}] should be divided by dp_degree[{}].".format(data_configs['global_batch_size'], dp_degree)
+        assert dp_degree % sharding_degree == 0, \
+            "dp_degree[{}] should be divided by sharding_degree[{}].".format(dp_degree, sharding_degree)
+
+    # process model configs
+    model_configs = yaml_dict['Model']
+    if model_configs['ffn_hidden_size'] is None:
+        model_configs['ffn_hidden_size'] = 4 * model_configs['hidden_size']
+
+    # process engine configs
+    engine_configs = yaml_dict['Engine']
+    engine_configs['test_iters'] = engine_configs[
+        'eval_iters'] * 10 if engine_configs[
+            'test_iters'] is None else engine_configs['test_iters']
 
     _print_args(yaml_dict)
     model_size(yaml_dict)
