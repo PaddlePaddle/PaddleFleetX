@@ -3,7 +3,7 @@
 本文讲述在FleetX repo接入一个新模型，该如何添加和修改文件，以及相应的规范化流程。
 
 ### 1.FleetX 介绍
-FleetX是飞桨分布式训练示例代码库，是对飞桨PaddlePaddle的分布式的补充。与Paddle.distributed、Paddle.fleet API的关系如下：
+FleetX是飞桨大模型训练推理一站式工具组件。。与Paddle.distributed、Paddle.fleet API的关系如下：
 
 
 <div align="center">
@@ -51,7 +51,7 @@ fleetx
 
 根据模型训练的阶段不同，整体分为两个阶段：组网阶段和执行阶段。
 #### 3.1 组网阶段
-根据模型大小，训练方式等不同，需要不同的分布式策略。参考FleetAPI介绍，调用相应的组网API实现
+需要不同的分布式策略，它们会调用github/PaddlePaddle/Paddle核心框架里面的分布式高层API（FleetAPI），参考：
 需要的并行方式。
 - [数据并行](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/guides/06_distributed_training/data_parallel/index_cn.html)
 - [张量模型并行](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/guides/06_distributed_training/model_parallel_cn.html
