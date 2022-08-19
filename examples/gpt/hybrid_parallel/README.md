@@ -209,7 +209,7 @@ Fused:
 | 6.7B     | fp16+sharding16+recompute | configs_6.7B_sharding16.yaml |
 | 175B     | fp16+mp8+pp16+recompute   | configs_175B_mp8_pp16.yaml   |
 
-若要在显存容量更小的16G V100环境下进行GPT模型单卡训练，可将对应yaml文件中的`Model`-`hidden size`值改为原来的1/2即可。
+若要在显存容量更小的16G V100环境下进行GPT大模型训练，可将对应yaml文件中的`Model`-`hidden size`值改为原来的1/2即可。
 
 ### 策略支持
 

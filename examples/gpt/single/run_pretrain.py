@@ -46,7 +46,9 @@ def do_train():
 
     # TODO(haohongxiang): Only need to send `configs['Engine']` into `EagerEngine`
     engine = EagerEngine(module=module, configs=configs)
-    engine.load()
+
+    if configs['Engine']['save_load']['ckpt_dir'] is not None:
+        engine.load()
 
     for epoch in range(configs['Engine']['num_train_epochs']):
         files = get_train_data_file(configs['Data']['dataset']['input_dir'])
