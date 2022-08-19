@@ -148,14 +148,72 @@ def model_size(yaml_dict):
     print('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 / 1000.0))
 
 
+def override(dl, ks, v):
+    """
+    Recursively replace dict of list
+    """
+
+    def str2num(v):
+        try:
+            return eval(v)
+        except Exception:
+            return v
+
+    assert isinstance(dl, (list, dict)), ("{} should be a list or a dict")
+    assert len(ks) > 0, ('lenght of keys should larger than 0')
+    if isinstance(dl, list):
+        k = str2num(ks[0])
+        if len(ks) == 1:
+            assert k < len(dl), ('index({}) out of range({})'.format(k, dl))
+            dl[k] = str2num(v)
+        else:
+            override(dl[k], ks[1:], v)
+    else:
+        if len(ks) == 1:
+            # assert ks[0] in dl, ('{} is not exist in {}'.format(ks[0], dl))
+            if not ks[0] in dl:
+                print('A new filed ({}) detected!'.format(ks[0], dl))
+            dl[ks[0]] = str2num(v)
+        else:
+            override(dl[ks[0]], ks[1:], v)
+
+
+def override_config(config, options=None):
+    """
+    Recursively override the config
+    """
+    if options is not None:
+        for opt in options:
+            assert isinstance(opt, str), (
+                "option({}) should be a str".format(opt))
+            assert "=" in opt, (
+                "option({}) should contain a ="
+                "to distinguish between key and value".format(opt))
+            pair = opt.split('=')
+            assert len(pair) == 2, ("there can be only a = in the option")
+            key, value = pair
+            keys = key.split('.')
+            override(config, keys, value)
+    return config
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--config", help="configuration file to use")
+    parser.add_argument(
+        '-o',
+        '--override',
+        action='append',
+        default=[],
+        help='config options to be overridden')
     return parser.parse_args()
 
 
-def parse_yaml(yaml_file):
-    yaml_dict = GPTConfig(yaml.load(open(yaml_file, 'rb'), Loader=yaml.Loader))
+def parse_yaml(yaml_args):
+    yaml_dict = GPTConfig(
+        yaml.load(
+            open(yaml_args.config, 'rb'), Loader=yaml.Loader))
+    override_config(yaml_dict, yaml_args.override)
 
     process_dist_configs(yaml_dict)
     process_data_configs(yaml_dict)
