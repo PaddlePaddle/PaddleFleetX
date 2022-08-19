@@ -254,10 +254,11 @@ def _print_args(yaml_dict):
         flush=True)
 
 
-def parse_yaml_auto(yaml_file):
+def parse_yaml_auto(yaml_args):
     yaml_dict = GPTAutoConfig(
         yaml.load(
-            open(yaml_file, 'rb'), Loader=yaml.Loader))
+            open(yaml_args.config, 'rb'), Loader=yaml.Loader))
+    override_config(yaml_dict, yaml_args.override)
 
     # process dist configs
     dist_configs = yaml_dict['Distributed']

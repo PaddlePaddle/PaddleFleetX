@@ -44,7 +44,7 @@ def generate_dist_strategy(configs):
 
 
 def do_train():
-    configs = parse_yaml_auto(parse_args().config)
+    configs = parse_yaml_auto(parse_args())
     seed = configs['Global']['seed']
     random.seed(seed)
     np.random.seed(seed)
