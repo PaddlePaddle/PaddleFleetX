@@ -138,6 +138,7 @@ Engine:
 其中module和engine函数方法的映射关系如下：
 
 - fit
+  
 ``fit``实现模型的训练，EagerEngine的内部调用伪代码如下：
 
 ```python
@@ -153,6 +154,7 @@ for batch in train_dataloader:
 ```
 
 - evaluate
+  
 ``evaluate``实现模型的评估，``EagerEngine``的内部调用伪代码如下：
 
 ```python
@@ -164,6 +166,7 @@ with paddle.no_grad():
 ```
 
 - test
+  
 `` predict``实现模型的预测，``EagerEngine``的内部调用伪代码如下：
 
 ```python
@@ -175,7 +178,8 @@ with paddle.no_grad():
 ```
 
 
-### 4.模型接入
+### 4.模型接入示例
+
 
 1、构建组网文件，放置在fleex/models目录下。
 
