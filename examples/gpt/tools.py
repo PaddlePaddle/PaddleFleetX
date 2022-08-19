@@ -28,8 +28,7 @@ import paddle.distributed as dist
 from paddle.fluid import core
 import argparse
 from functools import reduce
-from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
-from .gpt_config import GPTConfig
+from .gpt_config import GPTConfig, GPTAutoConfig
 
 
 def process_dist_configs(yaml_dict):
@@ -190,69 +189,61 @@ def _print_args(yaml_dict):
 
 
 def parse_yaml_auto(yaml_file):
-    global_config = yaml.load(open(yaml_file, 'rb'), Loader=yaml.Loader)
-    yaml_dict = {}
+    yaml_dict = GPTAutoConfig(
+        yaml.load(
+            open(yaml_file, 'rb'), Loader=yaml.Loader))
 
-    def add_dict(config, k, v):
-        if not isinstance(v, dict):
-            config[k] = v
-            return
-        for ik, iv in v.items():
-            add_dict(config, ik, iv)
+    process_dist_configs(yaml_dict)
+    # process_data_configs(yaml_dict)
+    # process_fused_configs(yaml_dict)
+    # process_model_configs(yaml_dict)
+    # process_engine_configs(yaml_dict)
 
-    add_dict(yaml_dict, "PreTraining", global_config["PreTraining"])
-    args = argparse.Namespace(**yaml_dict)
+    configs = yaml_dict['Engine']
+    configs['test_iters'] = configs['eval_iters'] * 10 if configs[
+        'test_iters'] is None else configs['test_iters']
 
-    args.test_iters = args.eval_iters * 10
-
-    # process process_mesh
-    process_mesh(args)
-
-    if args.ffn_hidden_size is None:
-        args.ffn_hidden_size = 4 * args.hidden_size
-
-    # _print_args(args)
-    # model_size(args)
-    return args, yaml_dict
-
-
-def process_mesh(args):
-    args.mesh = Mesh(args)
+    _print_args(yaml_dict)
+    model_size(yaml_dict)
+    return yaml_dict
 
 
 class Mesh:
-    def __init__(self, args):
+    def __init__(self, configs):
         self.dp_idx = -1
         self.mp_idx = -1
         self.process_mesh = None
-        self.args = args
+        self.configs = configs['Distributed']
 
         topology = list(
-            filter(lambda x: x > 1,
-                   [args.dp_degree, args.mp_degree, args.pp_degree]))
+            filter(lambda x: x > 1, [
+                self.configs['dp_degree'], self.configs['mp_degree'],
+                self.configs['pp_degree']
+            ]))
         num_proc = 1 if not topology else reduce(lambda x, y: x * y, topology)
         processes = [i for i in range(num_proc)]
 
-        if args.pp_degree > 1:
+        if self.configs['pp_degree'] > 1:
             if len(topology) > 1:
                 # dpmppp, dppp, mppp
                 process_mesh_shape = topology[:-1]
-                per_process_mesh_group = num_proc // args.pp_degree
+                per_process_mesh_group = num_proc // self.configs['pp_degree']
                 self.process_mesh = [
                     np.array(processes[i * per_process_mesh_group:(i + 1) *
                                        per_process_mesh_group]).reshape(
                                            process_mesh_shape).tolist()
-                    for i in range(args.pp_degree)
+                    for i in range(self.configs['pp_degree'])
                 ]
                 if len(process_mesh_shape) > 1:
                     self.dp_idx = 0
                     self.mp_idx = 1
                 else:
-                    self.dp_idx = 0 if args.dp_degree > 1 else -1
-                    self.mp_idx = 0 if args.mp_degree > 1 else -1
+                    self.dp_idx = 0 if self.configs['dp_degree'] > 1 else -1
+                    self.mp_idx = 0 if self.configs['mp_degree'] > 1 else -1
             elif len(topology) == 1:
                 # pp
-                self.process_mesh = [[i] for i in range(args.pp_degree)]
+                self.process_mesh = [[i]
+                                     for i in range(self.configs['pp_degree'])]
         else:
             if len(topology) > 1:
                 # dpmp
@@ -264,18 +255,18 @@ class Mesh:
             else:
                 # dp, mp, serial
                 self.process_mesh = [processes]
-                self.dp_idx = 0 if args.dp_degree > 1 else -1
-                self.mp_idx = 0 if args.mp_degree > 1 else -1
+                self.dp_idx = 0 if self.configs['dp_degree'] > 1 else -1
+                self.mp_idx = 0 if self.configs['mp_degree'] > 1 else -1
 
     def __getitem__(self, idx):
-        if self.args.pp_degree > 1:
-            assert self.args.pp_degree == len(self.process_mesh)
+        if self.configs['pp_degree'] > 1:
+            assert self.configs['pp_degree'] == len(self.process_mesh)
 
         assert idx < len(self.process_mesh)
         return self.process_mesh[idx]
 
     def stages(self, num_layers):
-        layer_per_stage = num_layers // self.args.pp_degree
+        layer_per_stage = num_layers // self.configs['pp_degree']
         return [i // layer_per_stage for i in range(num_layers)]
 
     @property

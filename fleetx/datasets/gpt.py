@@ -49,7 +49,7 @@ def get_train_data_file(input_dir):
     return files
 
 
-def create_pretrained_dataset_auto(args, input_path, eos_id):
+def create_pretrained_dataset_auto(configs, input_path, eos_id):
 
     local_rank = int(os.getenv("PADDLE_RANK_IN_NODE", 0))
     if local_rank == 0:
@@ -91,7 +91,8 @@ def create_pretrained_dataset_auto(args, input_path, eos_id):
     # The sum(sample_lens) should equal len(sample_ids)
     sample_lens = process_data["lens"]
 
-    splits = get_train_valid_test_split_(args.split, len(sample_lens))
+    splits = get_train_valid_test_split_(configs['Data']['dataset']['split'],
+                                         len(sample_lens))
     assert len(sample_lens) >= splits[
         -1], "The document nums should larger than max of splits, but %s < %s" % (
             len(sample_lens), splits[-1])
@@ -101,23 +102,25 @@ def create_pretrained_dataset_auto(args, input_path, eos_id):
             file_path=input_prefix,
             build_data_file=local_rank == 0,
             name="gpt_" + name,
-            max_seq_len=args.max_seq_len,
+            max_seq_len=configs['Data']['dataset']['max_seq_len'],
             num_samples=num_samples,
             documents=np.arange(splits[index], splits[index + 1]),
             sample_ids=sample_ids,
             sample_lens=sample_lens,
             eos_id=eos_id,
-            seed=args.seed)
+            seed=configs['Global']['seed'])
         return dataset
 
-    train_dataset = build_dataset(0, "train",
-                                  args.global_batch_size * args.max_steps)
+    gbsz = configs['Data']['batch_size']['global_batch_size']
+    max_steps = configs['Engine']['max_steps']
+    eval_freq = configs['Engine']['eval_freq']
+    eval_iters = configs['Engine']['eval_iters']
+    test_iters = configs['Engine']['test_iters']
 
-    valid_dataset = build_dataset(1, "valid", args.global_batch_size *
-                                  (args.max_steps // args.eval_freq + 1) *
-                                  args.eval_iters)
-    test_dataset = build_dataset(2, "test",
-                                 args.global_batch_size * args.test_iters)
+    train_dataset = build_dataset(0, "train", gbsz * max_steps)
+    valid_dataset = build_dataset(1, "valid", gbsz *
+                                  (max_steps // eval_freq + 1) * eval_iters)
+    test_dataset = build_dataset(2, "test", gbsz * test_iters)
 
     return train_dataset, valid_dataset, test_dataset
 

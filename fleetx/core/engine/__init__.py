@@ -14,3 +14,4 @@
 
 from .basic_engine import BasicEngine
 from .eager_engine import EagerEngine
+from .static_engine import StaticEngine

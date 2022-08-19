@@ -158,3 +158,60 @@ class GPTHybridModule(GPTModule):
                1. / speed, speed, speed * default_global_tokens_num,
                speed * default_global_tokens_num / self.nranks,
                self.optimizer.get_lr()))
+
+
+class GPTAutoModule(BasicModule):
+    def __init__(self, configs):
+        super().__init__()
+        self.configs = configs
+        self.nranks = paddle.distributed.get_world_size()
+
+        from examples.gpt.tools import Mesh
+        from fleetx.models.gpt_model.modeling_auto import GPTModel, GPTForPretraining, GPTPretrainingCriterion
+        configs['Model']['mesh'] = Mesh(configs)
+
+        self.model = GPTForPretraining(GPTModel(configs['Model']))
+        self.loss_fn = GPTPretrainingCriterion()
+
+        del configs['Model']['mesh']
+        print('>> total parameters: ', len(self.model.parameters()))
+
+    def forward(self, tokens, ids):
+        tokens.stop_gradient = True
+        ids.stop_gradient = True
+
+        return self.model(tokens, ids)
+
+    def configure_optimizers(self):
+
+        opt_configs = self.configs['Optimizer']
+        warmup_step = opt_configs['lr']['warmup_rate'] * opt_configs['lr'][
+            'decay_steps']
+        lr_scheduler = lr.CosineAnnealingWithWarmupDecay(
+            max_lr=opt_configs['lr']['max_lr'],
+            min_lr=opt_configs['lr']['min_lr'],
+            warmup_step=warmup_step,
+            decay_step=opt_configs['lr']['decay_steps'])
+
+        clip = paddle.nn.ClipGradByGlobalNorm(clip_norm=opt_configs[
+            'grad_clip']) if opt_configs['grad_clip'] > 0 else None
+
+        # Generate parameter names needed to perform weight decay.
+        # All bias and LayerNorm parameters are excluded.
+        decay_params = [
+            p.name for n, p in self.model.named_parameters()
+            if not any(nd in n for nd in ["bias", "norm"])
+        ]
+
+        optimizer = paddle.optimizer.AdamW(
+            learning_rate=lr_scheduler
+            if lr_scheduler is not None else opt_configs['lr']['max_lr'],
+            beta1=opt_configs['adam_beta1'],
+            beta2=opt_configs['adam_beta2'],
+            epsilon=opt_configs['adam_epsilon'],
+            parameters=self.model.parameters(),
+            weight_decay=opt_configs['weight_decay'],
+            grad_clip=clip,
+            apply_decay_param_fun=lambda x: x in decay_params)
+
+        return optimizer
