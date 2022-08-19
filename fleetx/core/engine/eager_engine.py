@@ -38,7 +38,7 @@ class EagerEngine(BasicEngine):
     training, validation and test. Only used in eager dygraph mode.
     """
 
-    def __init__(self, module, configs):
+    def __init__(self, module, configs, mode='train'):
         """
         Initialize an engine depending on the user-defined module and configs.
 
@@ -82,6 +82,8 @@ class EagerEngine(BasicEngine):
         """
         super().__init__()
 
+        self.mode = mode
+
         if not isinstance(module, BasicModule):
             raise TypeError(
                 "'module' must be sub classes of `BasicModule`, but got: {model.__class__.__name__}."
@@ -95,11 +97,12 @@ class EagerEngine(BasicEngine):
                 "'model' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.model.__class__.__name__}."
             )
 
-        if module.loss_fn and not isinstance(
-                module.loss_fn, nn.Layer) and not callable(module.loss_fn):
-            raise TypeError(
-                "'loss_fn' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.loss_fn.__class__.__name__}."
-            )
+        if mode == 'train':
+            if module.loss_fn and not isinstance(
+                    module.loss_fn, nn.Layer) and not callable(module.loss_fn):
+                raise TypeError(
+                    "'loss_fn' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.loss_fn.__class__.__name__}."
+                )
 
         # engine configs
         self._configs = configs['Engine']
@@ -136,36 +139,40 @@ class EagerEngine(BasicEngine):
         self._use_recompute = configs['Model']['use_recompute']
 
         if self._use_pure_fp16:
-            self._scaler = paddle.amp.GradScaler(
-                init_loss_scaling=self._scale_loss)
+            if mode == 'train':
+                self._scaler = paddle.amp.GradScaler(
+                    init_loss_scaling=self._scale_loss)
             self._module.model = paddle.amp.decorate(
-                models=self._module.model, level='O2', save_dtype='float32')
+                models=self._module.model, level='O2')
         else:
             self._scaler = None
 
-        optimizers = module.configure_optimizers()
+        if mode == 'train':
+            optimizers = module.configure_optimizers()
 
-        if optimizers and isinstance(optimizers, (
-                paddle.optimizer.Optimizer, paddle.fluid.optimizer.Optimizer)):
-            self._module.optimizer = optimizers
-            self._module.lr_scheduler = None
-        elif optimizers and isinstance(optimizers,
-                                       tuple) and len(optimizers) == 2:
-            if optimizers[0] and not isinstance(
-                    optimizers[0], (paddle.optimizer.Optimizer,
-                                    paddle.fluid.optimizer.Optimizer)):
-                raise TypeError("'optimizer' must be object of class `paddle.optimizer.Optimizer`" \
-                            " or `paddle.fluid.optimizer.Optimizer`, but got: {optimizers[0].__class__.__name__}.")
-            self._module.optimizer = optimizers[0]
+            if optimizers and isinstance(optimizers,
+                                         (paddle.optimizer.Optimizer,
+                                          paddle.fluid.optimizer.Optimizer)):
+                self._module.optimizer = optimizers
+                self._module.lr_scheduler = None
+            elif optimizers and isinstance(optimizers,
+                                           tuple) and len(optimizers) == 2:
+                if optimizers[0] and not isinstance(
+                        optimizers[0], (paddle.optimizer.Optimizer,
+                                        paddle.fluid.optimizer.Optimizer)):
+                    raise TypeError("'optimizer' must be object of class `paddle.optimizer.Optimizer`" \
+                                " or `paddle.fluid.optimizer.Optimizer`, but got: {optimizers[0].__class__.__name__}.")
+                self._module.optimizer = optimizers[0]
 
-            if optimizers[1] and not isinstance(optimizers[1], (LRScheduler)):
-                raise TypeError("'lr_scheduler' must be object of class `paddle.optimizer.lr.LRScheduler`" \
-                            ", but got: {optimizers[1].__class__.__name__}.")
-            self._module.lr_scheduler = optimizers[1]
-        else:
-            raise TypeError(
-                "Only support optimizer or/and lr_scheduler as outputs of `configure_optimizers`."
-            )
+                if optimizers[1] and not isinstance(optimizers[1],
+                                                    (LRScheduler)):
+                    raise TypeError("'lr_scheduler' must be object of class `paddle.optimizer.lr.LRScheduler`" \
+                                ", but got: {optimizers[1].__class__.__name__}.")
+                self._module.lr_scheduler = optimizers[1]
+            else:
+                raise TypeError(
+                    "Only support optimizer or/and lr_scheduler as outputs of `configure_optimizers`."
+                )
 
         # distributed configs
         self._distributed = dist.is_initialized()
@@ -394,44 +401,30 @@ class EagerEngine(BasicEngine):
         return loss
 
     @paddle.no_grad()
-    def predict(self, epoch=1, test_data_loader=None):
+    def predict(self, inputs):
         """
-        run one evaluation epoch over the test set.
+        run one predict for inputs.
 
         Args:
 
-            epoch(int): the epoch index.
-
-            test_data_loader(DataLoader, None): a collection of :class:`paddle.io.DataLoader`, specifying test samples.
+            inputs: the inputs can be process by model
 
         """
         self._module.model.eval()
 
-        test_start = time.time()
-        for test_step, batch in enumerate(test_data_loader):
-            self._module.global_step += 1
-            loss = self._predict_impl(batch)
+        predict_start = time.time()
+        ret = self._predict_impl(inputs)
 
-            paddle.device.cuda.synchronize()
-            test_cost = time.time() - test_start
+        paddle.device.cuda.synchronize()
+        predict_cost = time.time() - predict_start
 
-            if self._module.global_step % self._logging_freq == 0:
-                self._module.test_step_end(loss, epoch, test_step, test_cost)
-                test_start = time.time()
-
-            if self._module.global_step >= self._max_steps:
-                logger.info("The predicting process is complete.")
-                del test_data_loader
-                return
+        # logger.info("The predicting process is complete.")
+        return ret
 
     @paddle.no_grad()
-    def _predict_impl(self, batch):
-        batch = self._module.pretreating_batch(batch)
-        if self._pp_degree == 1:
-            loss = self._module.test_step(batch)
-        else:
-            loss = self._module.model.eval_batch(batch, compute_loss=True)
-        return loss
+    def _predict_impl(self, inputs):
+        ret = self._module(inputs)
+        return ret
 
     def save(self):
         """
@@ -473,11 +466,12 @@ class EagerEngine(BasicEngine):
                 logger.warning("No optimizer checkpoint file found in %s." %
                                model_path)
 
-            if os.path.exists(opt_path):
-                opt_dict = paddle.load(opt_path)
-                self._module.optimizer.set_state_dict(opt_dict)
-            else:
-                logger.warning("No optimizer checkpoint file found in %s." %
-                               opt_path)
+            if self.mode == 'train':
+                if os.path.exists(opt_path):
+                    opt_dict = paddle.load(opt_path)
+                    self._module.optimizer.set_state_dict(opt_dict)
+                else:
+                    logger.warning(
+                        "No optimizer checkpoint file found in %s." % opt_path)
         else:
             raise TypeError("`load` requires a valid value of `ckpt_dir`.")

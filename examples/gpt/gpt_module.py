@@ -22,6 +22,7 @@ from fleetx.utils import logger
 from fleetx.optim import lr_scheduler as lr
 from fleetx.core.module.basic_module import BasicModule
 from fleetx.utils.tensor_fusion_helper import fused_parameters
+from fleetx.data.tokenizers import GPTTokenizer
 
 
 class GPTModule(BasicModule):
@@ -171,6 +172,96 @@ class GPTHybridModule(GPTModule):
                1. / speed, speed, speed * default_global_tokens_num,
                speed * default_global_tokens_num / self.nranks,
                self.optimizer.get_lr()))
+
+
+class GPTGenerationModule(BasicModule):
+    def __init__(self, configs):
+        super().__init__()
+        self.global_configs = configs
+        self.configs = configs['Generation']
+        self.nranks = paddle.distributed.get_world_size()
+
+        if self.nranks == 1:
+            from fleetx.models.gpt_model.modeling import GPTModel, GPTForGeneration
+            self.model = GPTForGeneration(GPTModel(configs['Model']))
+        else:
+            raise NotImplementedError
+
+        self.configs['max_dec_len'] = self.adjust_length_to_model(
+            self.configs['max_dec_len'], 512)
+
+        self.tokenizer = GPTTokenizer.from_pretrained("gpt2")
+
+    def adjust_length_to_model(self, length, max_sequence_length):
+        if length < 0 or length > max_sequence_length:
+            length = max_sequence_length
+        return length
+
+    def left_padding(self, inputs, pad_id, padding="longest"):
+        assert "input_ids" in inputs, "input_ids should be in inputs!"
+        max_length = 0
+        for ids in inputs["input_ids"]:
+            max_length = max(max_length, len(ids))
+
+        def extend_max_lenth(value, max_length, to_pad_id):
+            return [to_pad_id] * (max_length - len(value)) + value
+
+        def extend_filed(name, max_length, to_pad_id):
+            values = inputs[name]
+            res = []
+            for index, value in enumerate(values):
+                res.append(extend_max_lenth(value, max_length, to_pad_id))
+            inputs[name] = res
+
+        extend_filed("input_ids", max_length, pad_id)
+        if "attention_mask" in inputs:
+            extend_filed("attention_mask", max_length, 0)
+        if "position_ids" in inputs:
+            extend_filed("position_ids", max_length, 0)
+
+        return inputs
+
+    def forward(self, input_text):
+        input_ids = self.tokenizer.encode(input_text)
+        inputs = {'input_ids': [input_ids]}
+
+        inputs = self.left_padding(inputs, self.tokenizer.eos_token_id)
+        input_ids = inputs['input_ids']
+
+        if len(input_ids) == 0:
+            input_ids = None
+        else:
+            # [1, seq_len]
+            input_ids = paddle.to_tensor(input_ids, dtype='int64')
+
+        ids, scores = self.model(
+            input_ids=input_ids,
+            max_length=self.configs['max_dec_len'],
+            min_length=self.configs['min_dec_len'],
+            bos_token_id=self.tokenizer.eos_token_id,
+            eos_token_id=self.tokenizer.eos_token_id,
+            pad_token_id=self.tokenizer.eos_token_id,
+            decode_strategy=self.configs['decode_strategy'],
+            temperature=self.configs['temperature'],
+            top_k=self.configs['top_k'],
+            top_p=self.configs['top_p'],
+            num_beams=self.configs['num_beams'],
+            length_penalty=self.configs['length_penalty'],
+            early_stopping=self.configs['early_stopping'],
+            num_return_sequences=self.configs['num_return_sequences'])
+
+        generated_sequences = []
+        for i, generated_ids in enumerate(ids):
+            # print("*" * 10 + " GENERATED SEQUENCE {} ".format(i) + "*" * 10)
+            generated_ids = generated_ids.numpy().tolist()
+            # Decode text
+            text = self.tokenizer.convert_ids_to_string(generated_ids)
+            # Add the prompt at the beginning of the sequence.
+            sequence = input_text[i] + text
+            generated_sequences.append(sequence)
+            # print(sequence)
+
+        return generated_sequences
 
 
 class GPTAutoModule(BasicModule):

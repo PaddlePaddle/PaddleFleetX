@@ -23,10 +23,11 @@ cd FleetX
 
 ## 环境依赖
 
- - python 3.7+
- - tqdm
- - numpy
- - pybind11
+ - paddlepaddle-gpu>=2.3.0
+ - python==3.7
+ - tqdm==4.54.1
+ - numpy==1.20.1
+ - pybind11==2.10.0
 
 安装命令`pip install -r requirements.txt`。
 
@@ -36,7 +37,7 @@ cd FleetX
 |步骤|阶段|数据格式| 样例|
 |-|-|-|-|
 | 原始数据清洗 | 原始数据准备|原始数据： <br/> 每个doc之间用空行间隔开 <br/> - 中文，默认每句换行符，作为句子结束。<br/> - 英文，默认使用nltk判断句子结束。doc是又一段或多端文字组成，每段文字由一句或多句话文字组成。  | ```飞桨是功能完备、开源开放的产业级深度学习平台。``` <br/> ```飞桨拥有核心训练和推理框架、基础模型库。``` <br/><br/> ```PaddleNLP是自然语言处理领域的优秀工具。```  |
-|原始数据转换<br/>`trans_to_json.py`|预处理|jsonl格式：每个doc对应一行json字符串| ```{"text": "飞桨是功能完备、开源开放的产业级深度学习平台。飞桨拥有..."}```<br/>```{"text": "PaddleNLP是自然语言..."}```
+|原始数据转换<br/>`raw_trans_to_json.py`|预处理|jsonl格式：每个doc对应一行json字符串| ```{"text": "飞桨是功能完备、开源开放的产业级深度学习平台。飞桨拥有..."}```<br/>```{"text": "PaddleNLP是自然语言..."}```
 |数据ID化<br/>`preprocess_data.py`|预处理| npy格式：数据id化后的token id <br/>npz格式：数据句子、文章位置索引 | -
 
 
