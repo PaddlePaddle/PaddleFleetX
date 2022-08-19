@@ -247,12 +247,8 @@ class EagerEngine(BasicEngine):
         train_start = time.time()
 
         for step, batch in enumerate(train_data_loader()):
-            print("1 batch :", step, "    global step :",
-                  self._module.global_step)
             if step < self._module.global_step:
                 continue
-            print("2 batch :", step, "    global step :",
-                  self._module.global_step)
 
             self._module.global_step += 1
             loss = self._fit_impl(batch)
