@@ -492,6 +492,11 @@ class GPTModel(nn.Layer):
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
+
+        if not mesh:
+            raise RuntimeError(
+                "AutoPrallel modeling need `mesh` to annotate distributed attribute."
+            )
         self.mesh = mesh
 
         self.embeddings = GPTEmbeddings(
@@ -528,17 +533,18 @@ class GPTModel(nn.Layer):
     @classmethod
     def from_config(cls, cfg):
         return {
-            "vocab_size": cfg.vocab_size,
-            "hidden_size": cfg.hidden_size,
-            "num_layers": cfg.num_layers,
-            "num_attention_heads": cfg.num_attention_heads,
-            "ffn_hidden_size": cfg.ffn_hidden_size,
-            "hidden_dropout_prob": cfg.hidden_dropout_prob,
-            "attention_probs_dropout_prob": cfg.attention_probs_dropout_prob,
-            "max_position_embeddings": cfg.max_position_embeddings,
-            "type_vocab_size": cfg.type_vocab_size,
-            "initializer_range": cfg.initializer_range,
-            "mesh": cfg.mesh,
+            "vocab_size": cfg['vocab_size'],
+            "hidden_size": cfg['hidden_size'],
+            "num_layers": cfg['num_layers'],
+            "num_attention_heads": cfg['num_attention_heads'],
+            "ffn_hidden_size": cfg['ffn_hidden_size'],
+            "hidden_dropout_prob": cfg['hidden_dropout_prob'],
+            "attention_probs_dropout_prob":
+            cfg['attention_probs_dropout_prob'],
+            "max_position_embeddings": cfg['max_position_embeddings'],
+            "type_vocab_size": cfg['type_vocab_size'],
+            "initializer_range": cfg['initializer_range'],
+            "mesh": cfg['mesh'],
         }
 
     def forward(self,
@@ -562,21 +568,6 @@ class GPTModel(nn.Layer):
                                                          input_ids)
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
-
-        # TODO, use registered buffer
-        # causal_mask = paddle.tensor.triu(
-        #     paddle.ones((paddle.shape(input_ids)[-1],
-        #                  paddle.shape(input_ids)[-1])) * -1e4,
-        #     diagonal=1)
-
-        # if attention_mask is not None:
-        #     if len(attention_mask.shape) == 2:
-        #         attention_mask = attention_mask[:, None, None, :]
-        #     attention_mask = attention_mask + causal_mask
-        # else:
-        #     attention_mask = causal_mask
-        # # The tensor returned by triu not in static graph.
-        # attention_mask.stop_gradient = True
 
         encoder_outputs = self.decoder(
             embedding_output,

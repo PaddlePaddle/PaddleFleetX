@@ -209,7 +209,7 @@ Fused:
 | 6.7B     | fp16+sharding16+recompute | configs_6.7B_sharding16.yaml |
 | 175B     | fp16+mp8+pp16+recompute   | configs_175B_mp8_pp16.yaml   |
 
-若要在显存容量更小的16G V100环境下进行GPT模型单卡训练，可将对应yaml文件中的`Model`-`hidden size`值改为原来的1/2即可。
+若要在显存容量更小的16G V100环境下进行GPT大模型训练，可将对应yaml文件中的`Model`-`hidden size`值改为原来的1/2即可。
 
 ### 策略支持
 
@@ -225,7 +225,7 @@ Fused:
 
 ### 单机训练
 
-以单机1.3B模型数据并行训练为例，通过``paddle.distributed.launch``启动多进程训练。
+以单机1.3B模型数据并行训练为例，通过``paddle.distributed.launch``启动多进程训练，该gpt程序需要8卡32G V100以运行。
 
 **启动命令**
 ```shell
@@ -233,6 +233,17 @@ log_dir=log_dp8
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
     -c ./configs_1.3B_dp8.yaml
 ```
+
+若要在显存容量更小的16G V100环境下进行GPT模型单机训练，可通过减小`Model.hidden_size`调整模型规模至合适大小再启动训练，命令如下：
+
+**启动命令**
+```shell
+log_dir=log_dp8
+python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
+    -c ./configs_1.3B_dp8.yaml -o Model.hidden_size=1024
+```
+
+每张GPU的运行日志`workerlog.x`可在launch命令中指定的`log_dir`路径下找到；若未指定，日志路径为`log/workerlog.x`。运行日志具体内容如下：
 
 **运行日志**
 
@@ -252,7 +263,7 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
 
 若需要在更多机器上进行大模型训练，则需要在每个参与训练的节点上设置master节点ip/port信息后执行启动命令（master节点ip为训练所用某一台机器的ip即可）。
 
-以2机6.7B模型分组切分并行训练为例，启动命令为：
+以2机16卡32G V100上的6.7B模型分组切分并行训练为例，启动命令为：
 
 ```shell
 master_ip=master节点ip
@@ -263,7 +274,19 @@ python -m paddle.distributed.launch --log_dir $log_dir --master=$master_ip:$mast
     -c ./configs_6.7B_sharding16.yaml
 ```
 
-若要执行16机175B大模型混合并行训练，启动命令为：
+若要在显存容量更小的16G V100环境下进行GPT模型两机训练，也可通过减小`Model.hidden_size`调整模型规模至合适大小再启动训练，命令如下：
+
+```
+master_ip=master节点ip
+master_port=可用的空闲端口号
+
+log_dir=log_sharding16
+python -m paddle.distributed.launch --log_dir $log_dir --master=$master_ip:$master_port --nnodes=2 --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
+    -c ./configs_6.7B_sharding16.yaml \
+    -o Model.hidden_size=2048
+```
+
+若要执行16机175B大模型混合并行训练，以运行启动命令为：
 
 ```shell
 master_ip=master节点ip

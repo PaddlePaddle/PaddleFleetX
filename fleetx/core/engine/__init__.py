@@ -14,4 +14,4 @@
 
 from .basic_engine import BasicEngine
 from .eager_engine import EagerEngine
-from .inference_engine import InferenceEngine
+from .auto_engine import AutoEngine
