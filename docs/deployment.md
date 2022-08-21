@@ -18,7 +18,7 @@
 
 #### Docker 环境安装
 
-使用 Docker 首先需要安装 Docker  环境安装的完整流程请参考[文档](https://docs.docker.com/engine/install/)，基础安装流程如下所述。
+使用 Docker 首先需要安装 Docker  环境，安装的完整流程请参考[文档](https://docs.docker.com/engine/install/)，基础安装流程如下所述。
 另外在 Docker 中使用 GPU 还需要安装 [nvida-container-runtime](https://github.com/NVIDIA/nvidia-container-runtime)。
 
 **Ubuntu**
@@ -278,7 +278,7 @@ LAUNCH INFO 2022-07-20 09:46:57,085 Exit code 0
 
 则表示分布式环境配置正常，多机分布式训练可以成功运行。
 
-> 如果其他节点执行命令后各个节点没有后续输出或输出不符合预期请参考 [FAQ](#FAQ) 部分解决。
+> 如果其他节点执行命令后各个节点没有后续输出或输出不符合预期请参考 [FAQ](#5-faq) 部分解决。
 
 **实际分布式训练任务验证**
 
@@ -425,7 +425,7 @@ LAUNCH INFO 2022-07-20 12:10:25,883 Watching Pod: bpdjev, replicas 2, status run
 其中，每行对应的具体含义解释如下：
 
 * 因为未设置 job_id，使用默认名称 default，启动的是 collective 模式，总共 2 个节点的分布式任务，不支持弹性（即节点数不可变）。
-* 节点短暂处于等待其他节点启动的状态，如果其他节点已启动但日志长期处于等待状态，请根据 [FAQ](#FAQ) 进行排查。
+* 节点短暂处于等待其他节点启动的状态，如果其他节点已启动但日志长期处于等待状态，请根据 [FAQ](#51-网络问题排查) 进行排查。
 * 任务准备启动，当前节点名为 bpdjev（该名称为随机生成）处于 ready 状态，当前节点包含 2 个进程（1 个进程对应 1 个 GPU）。
 * 节点已启动，正在监控进程健康状态。
 
@@ -497,7 +497,7 @@ LAUNCH INFO 2022-07-21 11:59:00,655 Exit code -15
 * 具体的错误信息 trace，该部分取决于业务代码错误内容。
 * 最后打印错误退出码 Exit code -15.
 
-请根据报错信息进行排查，部分错误请参考 [FAQ](#FAQ)。
+请根据报错信息进行排查，部分错误请参考 [FAQ](#5-faq)。
 
 ### 5. FAQ
 
