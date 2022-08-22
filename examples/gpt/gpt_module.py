@@ -158,20 +158,18 @@ class GPTHybridModule(GPTModule):
         else:
             return batch
 
-    def training_step_end(self, loss, epoch, step, reader_cost, train_cost):
-        avg_loss = loss.numpy()
-        speed = self.configs['Engine']['logging_freq'] / (
-            reader_cost + train_cost)
-        avg_reader_cost = reader_cost / self.configs['Engine']['logging_freq']
+    def training_step_end(self, log_dict):
+
+        speed = self.configs['Engine']['logging_freq'] / log_dict['train_cost']
         default_global_tokens_num = self.configs['Data']['batch_size']['global_batch_size'] * \
             self.configs['Data']['dataset']['max_seq_len']
 
         logger.info(
-            "[train] global step %d, epoch: %d, batch: %d, loss: %.9f, avg_reader_cost: %.5f sec, avg_batch_cost: %.5f sec, speed: %.2f step/s, ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
-            % (self.global_step, epoch, step, avg_loss, avg_reader_cost,
-               1. / speed, speed, speed * default_global_tokens_num,
-               speed * default_global_tokens_num / self.nranks,
-               self.optimizer.get_lr()))
+            "[train] global step %d, epoch: %d, batch: %d, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
+            % (self.global_step, log_dict['epoch'], log_dict['batch'],
+               log_dict['loss'], 1. / speed, speed, speed *
+               default_global_tokens_num, speed * default_global_tokens_num /
+               self.nranks, self.optimizer.get_lr()))
 
 
 class GPTGenerationModule(BasicModule):
