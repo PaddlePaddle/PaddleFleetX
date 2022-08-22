@@ -168,11 +168,7 @@ class MultiHeadAttention(nn.Layer):
             # incremental_state with initial value, mainly for usage like UniLM
             return self.Cache(key, value)
 
-    def core_attn(self, q, k, v, transpose=False):
-        if transpose:
-            q = paddle.transpose(q, [0, 2, 1, 3])
-            k = paddle.transpose(k, [0, 2, 1, 3])
-            v = paddle.transpose(v, [0, 2, 1, 3])
+    def core_attn(self, q, k, v):
         # scale dot product attention
         product = layers.matmul(
             x=q, y=k, transpose_y=True, alpha=self.head_dim ** -0.5)
@@ -222,9 +218,9 @@ class MultiHeadAttention(nn.Layer):
                                                cache)
 
         if self.use_recompute and self.recompute_granularity == "core_attn":
-            out, weights = recompute(self.core_attn, q, k, v, self.fuse)
+            out, weights = recompute(self.core_attn, q, k, v)
         else:
-            out, weights = self.core_attn(q, k, v, self.fuse)
+            out, weights = self.core_attn(q, k, v)
 
         # project to output
         out = self.out_proj(out)
