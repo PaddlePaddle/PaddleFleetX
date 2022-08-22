@@ -113,9 +113,9 @@ def process_model_configs(yaml_dict):
         configs['ffn_hidden_size'] = 4 * configs['hidden_size']
 
     if configs['use_recompute']:
-        assert configs['recompute_granularity'] in ["full", "only_attn"], \
+        assert configs['recompute_granularity'] in ["full", "full_attn", "core_attn"], \
                 "recompute_granularity can be only chosen from " \
-                "'full' or 'only_attn', but received '{}'".format(configs['recompute_granularity'])
+                "'full', 'full_attn' or 'core_attn', but received '{}'".format(configs['recompute_granularity'])
 
     if configs['fused_linear'] and not is_fused_matmul_bias_supported():
         configs['fused_linear'] = False
