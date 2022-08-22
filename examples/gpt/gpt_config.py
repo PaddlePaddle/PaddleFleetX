@@ -105,18 +105,13 @@ class GPTConfig(dict):
         }
 
         self.Quantization = {
-            'weight_preprocess_type': None,
             'weight_quantize_type': 'abs_max',
-            'activation_preprocess_type': None,
             'activation_quantize_type': 'moving_average_abs_max',
             'weight_bits': 8,
             'activation_bits': 8,
             'not_quant_pattern': ['skip_quant'],
             'quantizable_layer_type':
             ['Conv2D', 'Linear', 'ColumnParallelLinear', 'RowParallelLinear'],
-            'dtype': 'int8',
-            'window_size': 10000,
-            'moving_rate': 0.9,
             'for_tensorrt': False,
             'is_full_quantize': False,
             'onnx_format': False,
