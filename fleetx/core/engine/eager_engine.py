@@ -30,6 +30,7 @@ from fleetx.utils import logger
 from fleetx.core.engine.basic_engine import BasicEngine
 from fleetx.core.module.basic_module import BasicModule
 from fleetx.utils.tensor_fusion_helper import all_reduce_parameters
+from fleetx.utils.version import version_check
 
 
 class EagerEngine(BasicEngine):
@@ -81,6 +82,7 @@ class EagerEngine(BasicEngine):
 
         """
         super().__init__()
+        version_check()
 
         self.mode = mode
 
@@ -492,8 +494,8 @@ class EagerEngine(BasicEngine):
                     opt_dict = paddle.load(opt_path)
                     self._module.optimizer.set_state_dict(opt_dict)
                 else:
-                    raise ValueError("No optimizer checkpoint file found in %s." %
-                                    opt_path)
+                    raise ValueError(
+                        "No optimizer checkpoint file found in %s." % opt_path)
 
                 if os.path.exists(meta_path):
                     meta_dict = paddle.load(meta_path)
@@ -507,7 +509,7 @@ class EagerEngine(BasicEngine):
                     self._module.global_step = resume_step
                 else:
                     raise ValueError("No meta checkpoint file found in %s." %
-                                    meta_path)
+                                     meta_path)
 
             logger.info("successfully load checkpoints")
         else:
