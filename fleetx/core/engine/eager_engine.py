@@ -451,12 +451,15 @@ class EagerEngine(BasicEngine):
             output_dir = os.path.join(self._output_dir,
                                       "step_%d" % self._module.global_step)
             if not os.path.exists(output_dir):
-                os.makedirs(output_dir)
+                os.makedirs(output_dir, exist_ok=True)
             logger.info("Save model to %s" % output_dir)
 
             save_dir = "{}/mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}".format(
                 output_dir, self._mp_rank, self._sharding_rank,
                 self._pp_rank) if self._distributed else output_dir
+
+            if self._sharding_stage == 3:
+                self._module.model.get_all_parameters(convert2cpu=False)
             paddle.save(self._module.model.state_dict(),
                         os.path.join(save_dir, "model.pdparams"))
             paddle.save(self._module.optimizer.state_dict(),
