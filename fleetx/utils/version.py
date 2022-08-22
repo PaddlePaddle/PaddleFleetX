@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .basic_engine import BasicEngine
-from .eager_engine import EagerEngine
-from .auto_engine import AutoEngine
+import paddle
+
+
+def version_check():
+    version = paddle.version.full_version
+    if version != '0.0.0':
+        paddle.utils.require_version(min_version='2.3.0')

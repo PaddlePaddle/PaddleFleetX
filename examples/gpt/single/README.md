@@ -34,7 +34,7 @@ Data:
 
 ### 模型网络
 
-网络部分完成了网络的组网操作，GPT在[FleetX/fleetx/models/gpt_model/modeling.py]([](https://github.com/PaddlePaddle/FleetX/tree/develop/fleetx/models/gpt_model))下。 
+网络部分完成了网络的组网操作，GPT在[FleetX/fleetx/models/gpt_model/modeling.py]((https://github.com/PaddlePaddle/FleetX/tree/develop/fleetx/models/gpt_model/modeling.py))下。 
 可以使用配置文件配置模型的规模，如：
 
 ```yaml

@@ -29,7 +29,8 @@ from paddle.fluid import core
 import argparse
 from functools import reduce
 from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
-from .gpt_config import GPTConfig
+from .gpt_config import GPTConfig, GPTAutoConfig
+from fleetx.utils import logger
 
 
 def process_dist_configs(yaml_dict):
@@ -42,6 +43,12 @@ def process_dist_configs(yaml_dict):
     other_degree = configs['mp_degree'] * configs['pp_degree'] * configs[
         'sharding']['sharding_degree']
     assert nranks % other_degree == 0, "unreasonable configs of dist_strategy."
+
+    if configs['dp_degree'] * other_degree != nranks:
+        logger.warning('Mismatched configs using {} cards with dp_degree[{}], ' \
+            'mp_degree[{}], pp_degree[{}] and sharding_degree[{}]. So adaptively ' \
+            'adjust dp_degree to {}'.format(nranks, configs['dp_degree'], configs['mp_degree'],
+            configs['pp_degree'], configs['sharding']['sharding_degree'], nranks // other_degree))
 
     configs['dp_degree'] = nranks // other_degree
     assert nranks % configs[
@@ -148,14 +155,73 @@ def model_size(yaml_dict):
     print('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 / 1000.0))
 
 
+def override(dl, ks, v):
+    """
+    Recursively replace dict of list
+    """
+
+    def str2num(v):
+        try:
+            return eval(v)
+        except Exception:
+            return v
+
+    assert isinstance(dl, (list, dict)), ("{} should be a list or a dict")
+    assert len(ks) > 0, ('lenght of keys should larger than 0')
+    if isinstance(dl, list):
+        k = str2num(ks[0])
+        if len(ks) == 1:
+            assert k < len(dl), ('index({}) out of range({})'.format(k, dl))
+            dl[k] = str2num(v)
+        else:
+            override(dl[k], ks[1:], v)
+    else:
+        if len(ks) == 1:
+            # assert ks[0] in dl, ('{} is not exist in {}'.format(ks[0], dl))
+            if not ks[0] in dl:
+                print('A new filed ({}) detected!'.format(ks[0], dl))
+            dl[ks[0]] = str2num(v)
+        else:
+            override(dl[ks[0]], ks[1:], v)
+
+
+def override_config(config, options=None):
+    """
+    Recursively override the config
+    """
+    if options is not None:
+        for opt in options:
+            assert isinstance(opt, str), (
+                "option({}) should be a str".format(opt))
+            assert "=" in opt, (
+                "option({}) should contain a ="
+                "to distinguish between key and value".format(opt))
+            pair = opt.split('=')
+            assert len(pair) == 2, ("there can be only a = in the option")
+            key, value = pair
+            keys = key.split('.')
+            override(config, keys, value)
+    return config
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--config", help="configuration file to use")
+    parser.add_argument(
+        '-o',
+        '--override',
+        action='append',
+        default=[],
+        help='config options to be overridden')
     return parser.parse_args()
 
 
-def parse_yaml(yaml_file):
-    yaml_dict = GPTConfig(yaml.load(open(yaml_file, 'rb'), Loader=yaml.Loader))
+def parse_yaml(yaml_args):
+    yaml_dict = GPTConfig(
+        yaml.load(
+            open(yaml_args.config, 'rb'), Loader=yaml.Loader))
+    override_config(yaml_dict, yaml_args.override)
+
     process_dist_configs(yaml_dict)
     process_data_configs(yaml_dict)
     process_fused_configs(yaml_dict)
@@ -196,70 +262,90 @@ def _print_args(yaml_dict):
         flush=True)
 
 
-def parse_yaml_auto(yaml_file):
-    global_config = yaml.load(open(yaml_file, 'rb'), Loader=yaml.Loader)
-    yaml_dict = {}
+def parse_yaml_auto(yaml_args):
+    yaml_dict = GPTAutoConfig(
+        yaml.load(
+            open(yaml_args.config, 'rb'), Loader=yaml.Loader))
+    override_config(yaml_dict, yaml_args.override)
 
-    def add_dict(config, k, v):
-        if not isinstance(v, dict):
-            config[k] = v
-            return
-        for ik, iv in v.items():
-            add_dict(config, ik, iv)
+    # process dist configs
+    dist_configs = yaml_dict['Distributed']
+    nranks = dist.get_world_size()
+    other_degree = dist_configs['mp_degree'] * dist_configs['pp_degree']
+    assert nranks % other_degree == 0, "Requires nranks should be divided by mp_degree*pp_degree."
+    if dist_configs['dp_degree'] * other_degree != nranks:
+        logger.warning('Mismatched configs using {} cards with dp_degree[{}], ' \
+            'mp_degree[{}], pp_degree[{}] and sharding_degree[{}]. So adaptively ' \
+            'adjust dp_degree to {}'.format(nranks, dist_configs['dp_degree'], dist_configs['mp_degree'],
+            dist_configs['pp_degree'], dist_configs['sharding']['sharding_degree'], nranks // other_degree))
+    dist_configs['dp_degree'] = nranks // other_degree
+    assert nranks % dist_configs[
+        'dp_degree'] == 0, "unreasonable configs of dist_strategy."
 
-    add_dict(yaml_dict, "PreTraining", global_config["PreTraining"])
-    args = argparse.Namespace(**yaml_dict)
+    # process data configs
+    dp_degree = yaml_dict['Distributed']['dp_degree']
+    sharding_degree = yaml_dict['Distributed']['sharding']['sharding_degree']
+    data_configs = yaml_dict['Data']['batch_size']
+    if data_configs['global_batch_size'] is None:
+        raise ValueError("global_batch_size should be set.")
+    elif data_configs['global_batch_size'] is not None:
+        assert data_configs['global_batch_size'] % dp_degree == 0, \
+            "global_batch_size[{}] should be divided by dp_degree[{}].".format(data_configs['global_batch_size'], dp_degree)
+        assert dp_degree % sharding_degree == 0, \
+            "dp_degree[{}] should be divided by sharding_degree[{}].".format(dp_degree, sharding_degree)
 
-    args.test_iters = args.eval_iters * 10
+    # process model configs
+    model_configs = yaml_dict['Model']
+    if model_configs['ffn_hidden_size'] is None:
+        model_configs['ffn_hidden_size'] = 4 * model_configs['hidden_size']
 
-    # process process_mesh
-    process_mesh(args)
+    # process engine configs
+    engine_configs = yaml_dict['Engine']
+    engine_configs['test_iters'] = engine_configs[
+        'eval_iters'] * 10 if engine_configs[
+            'test_iters'] is None else engine_configs['test_iters']
 
-    if args.ffn_hidden_size is None:
-        args.ffn_hidden_size = 4 * args.hidden_size
-
-    # _print_args(args)
-    # model_size(args)
-    return args, yaml_dict
-
-
-def process_mesh(args):
-    args.mesh = Mesh(args)
+    _print_args(yaml_dict)
+    model_size(yaml_dict)
+    return yaml_dict
 
 
 class Mesh:
-    def __init__(self, args):
+    def __init__(self, configs):
         self.dp_idx = -1
         self.mp_idx = -1
         self.process_mesh = None
-        self.args = args
+        self.configs = configs['Distributed']
 
         topology = list(
-            filter(lambda x: x > 1,
-                   [args.dp_degree, args.mp_degree, args.pp_degree]))
+            filter(lambda x: x > 1, [
+                self.configs['dp_degree'], self.configs['mp_degree'],
+                self.configs['pp_degree']
+            ]))
         num_proc = 1 if not topology else reduce(lambda x, y: x * y, topology)
         processes = [i for i in range(num_proc)]
 
-        if args.pp_degree > 1:
+        if self.configs['pp_degree'] > 1:
             if len(topology) > 1:
                 # dpmppp, dppp, mppp
                 process_mesh_shape = topology[:-1]
-                per_process_mesh_group = num_proc // args.pp_degree
+                per_process_mesh_group = num_proc // self.configs['pp_degree']
                 self.process_mesh = [
                     np.array(processes[i * per_process_mesh_group:(i + 1) *
                                        per_process_mesh_group]).reshape(
                                            process_mesh_shape).tolist()
-                    for i in range(args.pp_degree)
+                    for i in range(self.configs['pp_degree'])
                 ]
                 if len(process_mesh_shape) > 1:
                     self.dp_idx = 0
                     self.mp_idx = 1
                 else:
-                    self.dp_idx = 0 if args.dp_degree > 1 else -1
-                    self.mp_idx = 0 if args.mp_degree > 1 else -1
+                    self.dp_idx = 0 if self.configs['dp_degree'] > 1 else -1
+                    self.mp_idx = 0 if self.configs['mp_degree'] > 1 else -1
             elif len(topology) == 1:
                 # pp
-                self.process_mesh = [[i] for i in range(args.pp_degree)]
+                self.process_mesh = [[i]
+                                     for i in range(self.configs['pp_degree'])]
         else:
             if len(topology) > 1:
                 # dpmp
@@ -271,18 +357,18 @@ class Mesh:
             else:
                 # dp, mp, serial
                 self.process_mesh = [processes]
-                self.dp_idx = 0 if args.dp_degree > 1 else -1
-                self.mp_idx = 0 if args.mp_degree > 1 else -1
+                self.dp_idx = 0 if self.configs['dp_degree'] > 1 else -1
+                self.mp_idx = 0 if self.configs['mp_degree'] > 1 else -1
 
     def __getitem__(self, idx):
-        if self.args.pp_degree > 1:
-            assert self.args.pp_degree == len(self.process_mesh)
+        if self.configs['pp_degree'] > 1:
+            assert self.configs['pp_degree'] == len(self.process_mesh)
 
         assert idx < len(self.process_mesh)
         return self.process_mesh[idx]
 
     def stages(self, num_layers):
-        layer_per_stage = num_layers // self.args.pp_degree
+        layer_per_stage = num_layers // self.configs['pp_degree']
         return [i // layer_per_stage for i in range(num_layers)]
 
     @property
