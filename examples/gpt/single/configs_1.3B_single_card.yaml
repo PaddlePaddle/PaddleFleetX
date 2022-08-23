@@ -73,8 +73,8 @@ Optimizer:
   lr:
     decay_steps: 360000
     warmup_rate: 0.01
-    max_lr: 1.0e-5
-    min_lr: 5.0e-5
+    max_lr: 5.0e-5
+    min_lr: 1.0e-5
   grad_clip: 1.0
 
 Inference:

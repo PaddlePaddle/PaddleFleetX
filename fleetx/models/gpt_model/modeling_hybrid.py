@@ -33,6 +33,13 @@ import sys
 from .config import configurable
 
 
+def get_attr(layer, name):
+    if getattr(layer, name, None) is not None:
+        return getattr(layer, name, None)
+    else:
+        return get_attr(layer._layer, name)
+
+
 def parallel_matmul(lm_output, logit_weights, parallel_output):
     """
     """
@@ -79,7 +86,9 @@ class MultiHeadAttention(nn.Layer):
                  bias_attr=None,
                  fuse=True,
                  num_partitions=1,
-                 fused_linear=False):
+                 fused_linear=False,
+                 use_recompute=False,
+                 recompute_granularity="full"):
         super(MultiHeadAttention, self).__init__()
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
@@ -88,6 +97,8 @@ class MultiHeadAttention(nn.Layer):
         self.dropout = dropout
         self.need_weights = need_weights
         self.fuse = fuse
+        self.use_recompute = use_recompute
+        self.recompute_granularity = recompute_granularity
 
         self.head_dim = embed_dim // num_heads
         assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
@@ -140,13 +151,25 @@ class MultiHeadAttention(nn.Layer):
             input_is_parallel=True,
             fuse_matmul_bias=fused_linear)
 
-    def _fuse_prepare_qkv(self, query):
+    def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
         mix_layer = self.qkv_proj(query)
         mix_layer = paddle.reshape_(mix_layer,
                                     [0, 0, self.num_heads, 3 * self.head_dim])
         mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
         q, k, v = paddle.split(mix_layer, num_or_sections=3, axis=-1)
-        return q, k, v
+
+        assert not isinstance(
+            cache, self.StaticCache
+        ), "cache currently does not support the StaticCache type"
+
+        if isinstance(cache, self.Cache):
+            # for decoder self-attention in inference
+            k = tensor.concat([cache.k, k], axis=2)
+            v = tensor.concat([cache.v, v], axis=2)
+        if use_cache is True:
+            cache = self.Cache(k, v)
+
+        return (q, k, v) if use_cache is False else (q, k, v, cache)
 
     def _prepare_qkv(self, query, key, value, use_cache=False, cache=None):
         r"""
@@ -219,29 +242,7 @@ class MultiHeadAttention(nn.Layer):
             # incremental_state with initial value, mainly for usage like UniLM
             return self.Cache(key, value)
 
-    def forward(self,
-                query,
-                key,
-                value,
-                attn_mask=None,
-                use_cache=False,
-                cache=None):
-        r"""
-        Applies multi-head attention to map queries and a set of key-value pairs
-        to outputs.
-        """
-        key = query if key is None else key
-        value = query if value is None else value
-        # compute q ,k ,v
-        if use_cache is False:
-            if self.fuse:
-                q, k, v = self._fuse_prepare_qkv(query)
-            else:
-                q, k, v = self._prepare_qkv(query, key, value, use_cache,
-                                            cache)
-        else:
-            q, k, v, cache = self._prepare_qkv(query, key, value, use_cache,
-                                               cache)
+    def core_attn(self, q, k, v):
         # scale dot product attention
         product = layers.matmul(
             x=q, y=k, transpose_y=True, alpha=self.head_dim**-0.5)
@@ -266,6 +267,41 @@ class MultiHeadAttention(nn.Layer):
         # combine heads
         out = tensor.transpose(out, perm=[0, 2, 1, 3])
         out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
+
+        return out, weights
+
+    def forward(self,
+                query,
+                key,
+                value,
+                attn_mask=None,
+                use_cache=False,
+                cache=None):
+        r"""
+        Applies multi-head attention to map queries and a set of key-value pairs
+        to outputs.
+        """
+        key = query if key is None else key
+        value = query if value is None else value
+        # compute q ,k ,v
+        if use_cache is False:
+            if self.fuse:
+                q, k, v = self._fuse_prepare_qkv(query, use_cache, cache)
+            else:
+                q, k, v = self._prepare_qkv(query, key, value, use_cache,
+                                            cache)
+        else:
+            if self.fuse:
+                q, k, v, cache = self._fuse_prepare_qkv(query, use_cache,
+                                                        cache)
+            else:
+                q, k, v, cache = self._prepare_qkv(query, key, value,
+                                                   use_cache, cache)
+
+        if self.use_recompute and self.recompute_granularity == "core_attn":
+            out, weights = recompute(self.core_attn, q, k, v)
+        else:
+            out, weights = self.core_attn(q, k, v)
 
         # project to output
         out = self.out_proj(out)
@@ -380,7 +416,9 @@ class TransformerDecoderLayer(nn.Layer):
                  bias_attr=None,
                  num_partitions=1,
                  fused_linear=False,
-                 recompute_attn=False):
+                 recompute_attn=False,
+                 use_recompute=False,
+                 recompute_granularity="full"):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
@@ -389,7 +427,8 @@ class TransformerDecoderLayer(nn.Layer):
         attn_dropout = dropout if attn_dropout is None else attn_dropout
         act_dropout = dropout if act_dropout is None else act_dropout
         self.normalize_before = normalize_before
-        self.recompute_attn = recompute_attn
+        self.use_recompute = use_recompute
+        self.recompute_granularity = recompute_granularity
 
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
@@ -401,7 +440,9 @@ class TransformerDecoderLayer(nn.Layer):
             weight_attr=weight_attrs[0],
             bias_attr=bias_attrs[0],
             num_partitions=num_partitions,
-            fused_linear=fused_linear)
+            fused_linear=fused_linear,
+            use_recompute=use_recompute,
+            recompute_granularity=recompute_granularity)
 
         self.linear1 = fleet.meta_parallel.ColumnParallelLinear(
             d_model,
@@ -437,7 +478,7 @@ class TransformerDecoderLayer(nn.Layer):
             tgt = self.norm1(tgt)
 
         if use_cache is False:
-            if self.recompute_attn:
+            if self.use_recompute and self.recompute_granularity == "full_attn":
                 tgt = recompute(self.self_attn, tgt, None, None, tgt_mask,
                                 use_cache, cache)
             else:
@@ -535,8 +576,6 @@ class GPTModel(nn.Layer):
 
         super(GPTModel, self).__init__()
 
-        recompute_attn = use_recompute and recompute_granularity == "only_attn"
-
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
@@ -562,7 +601,8 @@ class GPTModel(nn.Layer):
                     bias_attr=None,
                     num_partitions=num_partitions,
                     fused_linear=fused_linear,
-                    recompute_attn=recompute_attn))
+                    use_recompute=use_recompute,
+                    recompute_granularity=recompute_granularity))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
@@ -639,7 +679,9 @@ class GPTForPretraining(nn.Layer):
         super(GPTForPretraining, self).__init__()
         self.gpt = gpt
         # extra_parameters using for sharding stage3 to register extra_parameters
-        self.extra_parameters = [self.gpt.embeddings.word_embeddings.weight]
+        self.extra_parameters = [
+            get_attr(self.gpt.embeddings.word_embeddings, "weight")
+        ]
 
     def forward(self,
                 input_ids,
@@ -660,7 +702,8 @@ class GPTForPretraining(nn.Layer):
             encoder_outputs = outputs
 
         logits = parallel_matmul(
-            encoder_outputs, self.gpt.embeddings.word_embeddings.weight, True)
+            encoder_outputs,
+            get_attr(self.gpt.embeddings.word_embeddings, "weight"), True)
 
         if use_cache:
             return logits, cached_kvs
@@ -730,7 +773,7 @@ class EmbeddingPipe(GPTEmbeddings):
 
     @property
     def embedding_weight(self):
-        return self.word_embeddings.weight
+        return get_attr(self.word_embeddings, "weight")
 
     def forward(self, tensors):
         input_ids, position_ids = tensors
@@ -765,8 +808,6 @@ class GPTForPretrainingPipe(PipelineLayer):
                  fused_linear=False,
                  recompute_granularity="full"):
 
-        recompute_attn = use_recompute and recompute_granularity == "only_attn"
-
         # forward desc
         self.descs = []
 
@@ -799,7 +840,8 @@ class GPTForPretrainingPipe(PipelineLayer):
                     bias_attr=None,
                     num_partitions=num_partitions,
                     fused_linear=fused_linear,
-                    recompute_attn=recompute_attn))
+                    use_recompute=use_recompute,
+                    recompute_granularity=recompute_granularity))
 
         self.descs.append(
             LayerDesc(
@@ -822,7 +864,7 @@ class GPTForPretrainingPipe(PipelineLayer):
                 initializer_range=0.02))
 
         recompute_interval = 0
-        if recompute and not recompute_attn:
+        if recompute and recompute_granularity == "full":
             recompute_interval = 1
 
         super().__init__(

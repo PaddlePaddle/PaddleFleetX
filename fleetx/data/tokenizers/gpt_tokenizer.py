@@ -127,7 +127,8 @@ class GPTTokenizer(object):
             resolved_vocab_file = cached_path(vocab_file, cache_dir=cache_dir)
             resolved_merges_file = cached_path(
                 merges_file, cache_dir=cache_dir)
-        except EnvironmentError:
+        except Exception as e:
+            logger.info(e)
             logger.error(
                 "Model name '{}' was not found in model name list ({}). "
                 "We assumed '{}' was a path or url but couldn't find files {} and {} "
@@ -288,6 +289,27 @@ class GPTTokenizer(object):
                 " sequence through the model will result in indexing errors".
                 format(len(ids), self.max_len))
         return ids
+
+    def convert_ids_to_string(self, ids):
+        """
+        Converts a single index or a sequence of indices to texts.
+        Args:
+            ids (int|List[int]):
+                The token id (or token ids) to be converted to text.
+        Returns:
+            str: The decoded text.
+        Example:
+            .. code-block::
+                from paddlenlp.transformers import GPTTokenizer
+                tokenizer = GPTTokenizer.from_pretrained('gpt2-medium-en')
+                print(tokenizer.convert_ids_to_string(tokenizer.convert_ids_to_string([14618, 284, 779, 350, 37382, 47, 37382, 290, 350, 37382, 45, 19930]))
+                # 'Welcome to use PaddlePaddle and PaddleNLP'
+        """
+
+        text = ''.join([self.decoder[id] for id in ids])
+        text = bytearray([self.byte_decoder[c] for c in text]).decode(
+            'utf-8', errors=self.errors)
+        return text
 
     def convert_ids_to_tokens(self, ids, skip_special_tokens=False):
         """Converts a sequence of ids in BPE tokens using the vocab."""

@@ -80,13 +80,25 @@ class MultiHeadAttention(nn.Layer):
         self.out_proj = nn.Linear(
             embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
 
-    def _fuse_prepare_qkv(self, query):
+    def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
         mix_layer = self.qkv_proj(query)
         mix_layer = paddle.reshape_(mix_layer,
                                     [0, 0, self.num_heads, 3 * self.head_dim])
         mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
         q, k, v = paddle.split(mix_layer, num_or_sections=3, axis=-1)
-        return q, k, v
+
+        assert not isinstance(
+            cache, self.StaticCache
+        ), "cache currently does not support the StaticCache type"
+
+        if isinstance(cache, self.Cache):
+            # for decoder self-attention in inference
+            k = tensor.concat([cache.k, k], axis=2)
+            v = tensor.concat([cache.v, v], axis=2)
+        if use_cache is True:
+            cache = self.Cache(k, v)
+
+        return (q, k, v) if use_cache is False else (q, k, v, cache)
 
     def _prepare_qkv(self, query, key, value, use_cache=False, cache=None):
         r"""
@@ -194,13 +206,18 @@ class MultiHeadAttention(nn.Layer):
         # compute q ,k ,v
         if use_cache is False:
             if self.fuse:
-                q, k, v = self._fuse_prepare_qkv(query)
+                q, k, v = self._fuse_prepare_qkv(query, use_cache, cache)
             else:
                 q, k, v = self._prepare_qkv(query, key, value, use_cache,
                                             cache)
         else:
-            q, k, v, cache = self._prepare_qkv(query, key, value, use_cache,
-                                               cache)
+            if self.fuse:
+                q, k, v, cache = self._fuse_prepare_qkv(query, use_cache,
+                                                        cache)
+            else:
+                q, k, v, cache = self._prepare_qkv(query, key, value,
+                                                   use_cache, cache)
+
         # scale dot product attention
         product = layers.matmul(
             x=q, y=k, transpose_y=True, alpha=self.head_dim**-0.5)
@@ -492,6 +509,11 @@ class GPTModel(nn.Layer):
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
+
+        if not mesh:
+            raise RuntimeError(
+                "AutoPrallel modeling need `mesh` to annotate distributed attribute."
+            )
         self.mesh = mesh
 
         self.embeddings = GPTEmbeddings(
@@ -528,17 +550,18 @@ class GPTModel(nn.Layer):
     @classmethod
     def from_config(cls, cfg):
         return {
-            "vocab_size": cfg.vocab_size,
-            "hidden_size": cfg.hidden_size,
-            "num_layers": cfg.num_layers,
-            "num_attention_heads": cfg.num_attention_heads,
-            "ffn_hidden_size": cfg.ffn_hidden_size,
-            "hidden_dropout_prob": cfg.hidden_dropout_prob,
-            "attention_probs_dropout_prob": cfg.attention_probs_dropout_prob,
-            "max_position_embeddings": cfg.max_position_embeddings,
-            "type_vocab_size": cfg.type_vocab_size,
-            "initializer_range": cfg.initializer_range,
-            "mesh": cfg.mesh,
+            "vocab_size": cfg['vocab_size'],
+            "hidden_size": cfg['hidden_size'],
+            "num_layers": cfg['num_layers'],
+            "num_attention_heads": cfg['num_attention_heads'],
+            "ffn_hidden_size": cfg['ffn_hidden_size'],
+            "hidden_dropout_prob": cfg['hidden_dropout_prob'],
+            "attention_probs_dropout_prob":
+            cfg['attention_probs_dropout_prob'],
+            "max_position_embeddings": cfg['max_position_embeddings'],
+            "type_vocab_size": cfg['type_vocab_size'],
+            "initializer_range": cfg['initializer_range'],
+            "mesh": cfg['mesh'],
         }
 
     def forward(self,
@@ -562,21 +585,6 @@ class GPTModel(nn.Layer):
                                                          input_ids)
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
-
-        # TODO, use registered buffer
-        # causal_mask = paddle.tensor.triu(
-        #     paddle.ones((paddle.shape(input_ids)[-1],
-        #                  paddle.shape(input_ids)[-1])) * -1e4,
-        #     diagonal=1)
-
-        # if attention_mask is not None:
-        #     if len(attention_mask.shape) == 2:
-        #         attention_mask = attention_mask[:, None, None, :]
-        #     attention_mask = attention_mask + causal_mask
-        # else:
-        #     attention_mask = causal_mask
-        # # The tensor returned by triu not in static graph.
-        # attention_mask.stop_gradient = True
 
         encoder_outputs = self.decoder(
             embedding_output,

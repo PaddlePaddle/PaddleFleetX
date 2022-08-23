@@ -46,7 +46,7 @@ def cached_path(url_or_path, cache_dir=None):
     cache_dir = os.path.expanduser(cache_dir)
 
     if not os.path.exists(cache_dir):
-        os.makedirs(cache_dir)
+        os.makedirs(cache_dir, exist_ok=True)
 
     if is_url(url_or_path):
         path = _map_path(url_or_path, cache_dir)
@@ -116,7 +116,8 @@ def _download(url, fullname):
 def download(url, path):
     local_rank = 0
     world_size = 1
-    if paddle.fluid.core.is_compiled_with_dist():
+    if paddle.fluid.core.is_compiled_with_dist(
+    ) and paddle.distributed.get_world_size() > 1:
         local_rank = paddle.distributed.ParallelEnv().dev_id
         world_size = paddle.distributed.get_world_size()
     if world_size > 1 and local_rank != 0:

@@ -67,10 +67,16 @@ wget -O data/gpt_en_dataset_300m_ids.npy https://bj.bcebos.com/paddlenlp/models/
 wget -O data/gpt_en_dataset_300m_idx.npz https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_idx.npz
 ```
 
-然后使用以下命令运行单机多卡程序，该gpt程序需要8卡32G V100以运行，如单机无法满足要求可以使用[多机](#4-多机多卡训练)启动命令，满足启动总卡数为8即可；若要在显存容量更小的16G V100环境下进行GPT模型单卡训练，可将对应yaml文件中的`Model`-`hidden size`值改为原来的1/2即可。
+然后使用以下命令运行单机多卡程序，该gpt程序需要8卡32G V100以运行，如单机无法满足要求可以使用[多机](#4-多机多卡训练)启动命令，满足启动总卡数为8即可。
 
 ```
 python -m paddle.distributed.launch run_pretrain.py -c ./configs_1.3B_dp8.yaml
+```
+
+若要在显存容量更小的16G V100环境下进行GPT模型单机训练，可通过减小`Model.hidden_size`调整模型规模至合适大小再启动训练，命令如下：
+
+```
+python -m paddle.distributed.launch run_pretrain.py -c ./configs_1.3B_dp8.yaml -o Model.hidden_size=1024
 ```
 
 > 更多 launch 启动参数和用法请参考 [API 文档](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/api/paddle/distributed/launch_cn.html)。
@@ -128,3 +134,11 @@ python -m paddle.distributed.launch --master=10.10.10.1:8099 --nnodes=2 run_pret
 
 
 成功则开始多机训练过程，日志和单机多卡类似，日志异常时请按照[文档](deployment.md#4-分布式环境验证)进行环境验证和问题排查。
+
+若要在显存容量更小的16G V100环境下进行GPT模型多机训练，也可通过减小`Model.hidden_size`调整模型规模至合适大小再启动训练，命令如下：
+
+```
+python -m paddle.distributed.launch --master=10.10.10.1:8099 --nnodes=2 run_pretrain.py -c ./configs_6.7B_sharding16.yaml -o Model.hidden_size=2048
+```
+
+更多大模型多机训练内容可见[文档](../examples/gpt/hybrid_parallel/README.md)。

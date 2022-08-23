@@ -49,11 +49,10 @@ def set_hyrbid_parallel_seed(basic_seed, data_world_rank, mp_rank, pp_rank):
 
 
 def do_train():
-    configs = parse_yaml(parse_args().config)
+    configs = parse_yaml(parse_args())
 
     paddle.set_device(configs['Global']['device'])
 
-    nranks = paddle.distributed.get_world_size()
     strategy = fleet.DistributedStrategy()
     strategy.hybrid_configs = {
         "dp_degree": configs['Distributed']['dp_degree'],

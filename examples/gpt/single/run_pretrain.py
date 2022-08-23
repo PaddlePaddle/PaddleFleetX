@@ -31,7 +31,7 @@ from fleetx.core.engine.eager_engine import EagerEngine
 
 
 def do_train():
-    configs = parse_yaml(parse_args().config)
+    configs = parse_yaml(parse_args())
 
     paddle.set_device(configs['Global']['device'])
 
