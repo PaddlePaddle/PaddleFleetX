@@ -40,10 +40,10 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 PRETRAINED_VOCAB_ARCHIVE_MAP = {
-    'gpt2': "https://fleet.bj.bcebos.com/datasets/gpt/gpt2-vocab.json",
+    'gpt2': "http://fleet.bj.bcebos.com/datasets/gpt/gpt2-vocab.json",
 }
 PRETRAINED_MERGES_ARCHIVE_MAP = {
-    'gpt2': "https://fleet.bj.bcebos.com/datasets/gpt/gpt2-merges.txt",
+    'gpt2': "http://fleet.bj.bcebos.com/datasets/gpt/gpt2-merges.txt",
 }
 PRETRAINED_VOCAB_POSITIONAL_EMBEDDINGS_SIZE_MAP = {'gpt2': 1024, }
 VOCAB_NAME = 'vocab.json'
@@ -288,6 +288,27 @@ class GPTTokenizer(object):
                 " sequence through the model will result in indexing errors".
                 format(len(ids), self.max_len))
         return ids
+
+    def convert_ids_to_string(self, ids):
+        """
+        Converts a single index or a sequence of indices to texts.
+        Args:
+            ids (int|List[int]):
+                The token id (or token ids) to be converted to text.
+        Returns:
+            str: The decoded text.
+        Example:
+            .. code-block::
+                from paddlenlp.transformers import GPTTokenizer
+                tokenizer = GPTTokenizer.from_pretrained('gpt2-medium-en')
+                print(tokenizer.convert_ids_to_string(tokenizer.convert_ids_to_string([14618, 284, 779, 350, 37382, 47, 37382, 290, 350, 37382, 45, 19930]))
+                # 'Welcome to use PaddlePaddle and PaddleNLP'
+        """
+
+        text = ''.join([self.decoder[id] for id in ids])
+        text = bytearray([self.byte_decoder[c] for c in text]).decode(
+            'utf-8', errors=self.errors)
+        return text
 
     def convert_ids_to_tokens(self, ids, skip_special_tokens=False):
         """Converts a sequence of ids in BPE tokens using the vocab."""

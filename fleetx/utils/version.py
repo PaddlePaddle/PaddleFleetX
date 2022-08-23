@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# 345M
-python run_pretrain.py -c ./configs_345m_single_card.yaml
+import paddle
 
-# 1.3B
-# python run_pretrain.py -c ./configs_1.3B_single_card.yaml
+
+def version_check():
+    version = paddle.version.full_version
+    if version != '0.0.0':
+        paddle.utils.require_version(min_version='2.3.0')

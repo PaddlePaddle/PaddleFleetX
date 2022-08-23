@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# 345M
-python run_pretrain.py -c ./configs_345m_single_card.yaml
+log_dir=log_auto
+rm -rf $log_dir
 
-# 1.3B
-# python run_pretrain.py -c ./configs_1.3B_single_card.yaml
+# 345M+dp8
+python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
+    -c ./configs_345M_dp8.yaml

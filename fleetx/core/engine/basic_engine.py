@@ -12,11 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-export PYTHONPATH=$PYTHONPATH:../../../
 
-log_dir=sharding8
-rm -rf $log_dir
+class BasicEngine:
+    """
+    """
 
-# 6.7B
-python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
-    -c ./configs.yaml
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def fit(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def evaluate(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def predict(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def save(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def load(self, *args, **kwargs):
+        raise NotImplementedError

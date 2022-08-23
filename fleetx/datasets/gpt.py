@@ -25,10 +25,10 @@ from fleetx.data.sampler import DistributedBatchSampler
 from fleetx.data.sampler import Stack, Tuple
 
 
-def get_train_data_file(args):
+def get_train_data_file(input_dir):
     files = [
-        os.path.join(args.input_dir, f) for f in os.listdir(args.input_dir)
-        if (os.path.isfile(os.path.join(args.input_dir, f)) and str(f)
+        os.path.join(input_dir, f) for f in os.listdir(input_dir)
+        if (os.path.isfile(os.path.join(input_dir, f)) and str(f)
             .endswith("_idx.npz"))
     ]
     files = [x.replace("_idx.npz", "") for x in files]
@@ -40,8 +40,8 @@ def get_train_data_file(args):
         return files
 
     files = [
-        os.path.join(args.input_dir, f) for f in os.listdir(args.input_dir)
-        if (os.path.isfile(os.path.join(args.input_dir, f)) and str(f)
+        os.path.join(input_dir, f) for f in os.listdir(input_dir)
+        if (os.path.isfile(os.path.join(input_dir, f)) and str(f)
             .endswith("_ids.npz"))
     ]
 
@@ -49,7 +49,83 @@ def get_train_data_file(args):
     return files
 
 
-def create_pretrained_dataset(args,
+def create_pretrained_dataset_auto(configs, input_path, eos_id):
+
+    local_rank = int(os.getenv("PADDLE_RANK_IN_NODE", 0))
+    if local_rank == 0:
+        try:
+            import fleetx.data.data_tools.cpp.fast_index_map_helpers
+        except Exception as e:
+            start_time = time.time()
+            print('> compiling dataset index builder ...')
+            from fleetx.data.data_tools.cpp.compile import compile_helper
+            compile_helper()
+            print(
+                '>>> done with dataset index builder. Compilation time: {:.3f} '
+                'seconds'.format(time.time() - start_time),
+                flush=True)
+
+    device_world_size = paddle.distributed.get_world_size()
+    if device_world_size > 1 and local_rank != 0:
+        while True:
+            try:
+                import fleetx.data.data_tools.cpp.fast_index_map_helpers
+                break
+            except Exception as e:
+                print("> wait for helpers to be compiled!")
+                time.sleep(1)
+
+    assert len(input_path) == 1, "GPT only support one dataset for now."
+
+    input_prefix = input_path[0]
+    for suffix in ["_ids.npy", "_idx.npz"]:
+        if not os.path.isfile(input_prefix + suffix):
+            raise ValueError("File Not found, %s" % (input_prefix + suffix))
+
+    sample_ids = np.load(
+        input_prefix + "_ids.npy", mmap_mode="r", allow_pickle=True)
+    # All documment ids, extend as 1-D array.
+
+    process_data = np.load(input_prefix + "_idx.npz")
+    # The len(sample_lens) num of docs
+    # The sum(sample_lens) should equal len(sample_ids)
+    sample_lens = process_data["lens"]
+
+    splits = get_train_valid_test_split_(configs['Data']['dataset']['split'],
+                                         len(sample_lens))
+    assert len(sample_lens) >= splits[
+        -1], "The document nums should larger than max of splits, but %s < %s" % (
+            len(sample_lens), splits[-1])
+
+    def build_dataset(index, name, num_samples):
+        dataset = GPTDataset(
+            file_path=input_prefix,
+            build_data_file=local_rank == 0,
+            name="gpt_" + name,
+            max_seq_len=configs['Data']['dataset']['max_seq_len'],
+            num_samples=num_samples,
+            documents=np.arange(splits[index], splits[index + 1]),
+            sample_ids=sample_ids,
+            sample_lens=sample_lens,
+            eos_id=eos_id,
+            seed=configs['Global']['seed'])
+        return dataset
+
+    gbsz = configs['Data']['batch_size']['global_batch_size']
+    max_steps = configs['Engine']['max_steps']
+    eval_freq = configs['Engine']['eval_freq']
+    eval_iters = configs['Engine']['eval_iters']
+    test_iters = configs['Engine']['test_iters']
+
+    train_dataset = build_dataset(0, "train", gbsz * max_steps)
+    valid_dataset = build_dataset(1, "valid", gbsz *
+                                  (max_steps // eval_freq + 1) * eval_iters)
+    test_dataset = build_dataset(2, "test", gbsz * test_iters)
+
+    return train_dataset, valid_dataset, test_dataset
+
+
+def create_pretrained_dataset(configs,
                               input_path,
                               local_rank,
                               data_world_rank,
@@ -105,7 +181,8 @@ def create_pretrained_dataset(args,
     # The sum(sample_lens) should equal len(sample_ids)
     sample_lens = process_data["lens"]
 
-    splits = get_train_valid_test_split_(args.split, len(sample_lens))
+    splits = get_train_valid_test_split_(configs['Data']['dataset']['split'],
+                                         len(sample_lens))
     assert len(sample_lens) >= splits[
         -1], "The document nums should larger than max of splits, but %s < %s" % (
             len(sample_lens), splits[-1])
@@ -121,11 +198,11 @@ def create_pretrained_dataset(args,
             sample_ids=sample_ids,
             sample_lens=sample_lens,
             eos_id=eos_id,
-            seed=args.seed)
+            seed=configs['Global']['seed'])
 
         batch_sampler = DistributedBatchSampler(
             dataset,
-            batch_size=args.local_batch_size,
+            batch_size=configs['Data']['batch_size']['local_batch_size'],
             num_replicas=data_world_size,
             rank=data_world_rank,
             shuffle=False,
@@ -144,14 +221,17 @@ def create_pretrained_dataset(args,
 
     # Note, data should be broardcast to all devices.
     # for train, valid, test, the distinct data num is data_world_size
-    train_data_loader = build_dataset(0, "train", args.local_batch_size *
-                                      args.max_steps * data_world_size)
+    train_data_loader = build_dataset(
+        0, "train", configs['Data']['batch_size']['local_batch_size'] *
+        configs['Engine']['max_steps'] * data_world_size)
 
-    valid_data_loader = build_dataset(1, "valid", args.local_batch_size *
-                                      (args.max_steps // args.eval_freq + 1) *
-                                      args.eval_iters * data_world_size)
-    test_data_loader = build_dataset(2, "test", args.local_batch_size *
-                                     args.test_iters * data_world_size)
+    valid_data_loader = build_dataset(
+        1, "valid", configs['Data']['batch_size']['local_batch_size'] *
+        (configs['Engine']['max_steps'] // configs['Engine']['eval_freq'] + 1)
+        * configs['Engine']['eval_iters'] * data_world_size)
+    test_data_loader = build_dataset(
+        2, "test", configs['Data']['batch_size']['local_batch_size'] *
+        configs['Engine']['test_iters'] * data_world_size)
 
     return train_data_loader, valid_data_loader, test_data_loader
 
@@ -436,7 +516,7 @@ class GPTDataset(paddle.io.Dataset):
         # attention_mask = (attention_mask - 1.0) * 1e9
         # attention_mask = attention_mask.astype("float32")
         # return [tokens, loss_mask, attention_mask, position_ids, labels]
-        return [tokens, loss_mask, position_ids, labels]
+        return [tokens, position_ids, labels, loss_mask]
 
     def _get_single_sample_from_idx(self, doc_index_f, doc_index_l, offset_f,
                                     offset_l):

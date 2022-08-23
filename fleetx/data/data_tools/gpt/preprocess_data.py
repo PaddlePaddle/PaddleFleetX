@@ -21,7 +21,7 @@ import multiprocessing
 import sys
 import time
 
-sys.path.append('../../../../')
+sys.path.append('.')
 
 import numpy as np
 from tqdm import tqdm
@@ -300,6 +300,10 @@ def main():
         for root, _, fs in os.walk(args.input_path):
             for f in fs:
                 file_paths.append(os.path.join(root, f))
+    if len(file_paths) == 0:
+        print("No input file found!")
+        exit(-1)
+
     convert = Converter(args)
 
     # Try tokenizer is availiable

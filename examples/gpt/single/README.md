@@ -1,114 +1,198 @@
-# GPT-3 千亿参数模型训练
-
-## 模型介绍
-GPT-[3](https://arxiv.org/pdf/2005.14165.pdf) 是以[Transformer](https://arxiv.org/abs/1706.03762) 为基础的语言生成模型。GPT-3模型的最大参数量可以达到170B，如此大规模参数的模型对于训练使用的深度学习框架是一个巨大的挑战。
+# GPT 单卡模型训练
 
 
-## 使用方法
+## 参数释义
 
-### 环境依赖
+### 数据集
+数据集参数指定训练的batch size，以及数据的目录。
 
-- regex
-- sentencepiece >= 0.1.94
-- paddlepaddle-gpu >= 2.2rc
+```yaml
+Data:
+  batch_size:
+    global_batch_size: 8
+    local_batch_size: 8
+    micro_batch_size: 8
 
-安装命令 `pip install regex sentencepiece tqdm visualdl`。
-注：需要PaddlePaddle版本大于等于2.2rc，或者使用最新develop版本，安装方法请参见Paddle[官网](https://www.paddlepaddle.org.cn)。
+  dataset:
+    input_dir: ./data
+    split: '949,50,1'
+    max_seq_len: 1024
+```
 
 
-### 数据获取与制作
+其中参数对应的释义如下：
+| **参数名**                      | **参数释义**               |
+|------------------------------|------------------------|
+| global_batch_size | 全局的batch size大小，即一次参数更新等效的batch size |
+| local_batch_size  | 每个进程训练的batch size大小                  |
+| micro_batch_size  | 每次前向计算的batch size大小                  |
+| input_dir         | 指定输入文件，可以使用目录，指定目录时将包括目录中的所有文件       |
+| split             | 训练集，验证集和测试集的切分比例                     |
+| max_seq_len       | 输入文本序列的长度                            |
 
-[OpenWebTextCorpus](https://skylion007.github.io/OpenWebTextCorpus/)是一个开源的英文网页文本数据集，数据来源于Reddit，经过去重、清洗、提取，最终包含800多万个文档。
-本示例采用EleutherAI清洗好的[OpenWebText2数据](https://openwebtext2.readthedocs.io/en/latest/index.html#download-plug-and-play-version)
 
-下载以后通过以下命令解压：
 
+### 模型网络
+
+网络部分完成了网络的组网操作，GPT在[FleetX/fleetx/models/gpt_model/modeling.py]((https://github.com/PaddlePaddle/FleetX/tree/develop/fleetx/models/gpt_model/modeling.py))下。 
+可以使用配置文件配置模型的规模，如：
+
+```yaml
+  Model:
+    vocab_size: 50304
+    hidden_size: 1024
+    num_layers: 24
+    num_attention_heads: 16
+    ffn_hidden_size:
+    hidden_dropout_prob: 0.1
+    attention_probs_dropout_prob: 0.1
+    max_position_embeddings: 1024
+    type_vocab_size: 16
+    initializer_range: 0.02
+    use_recompute: True
+    recompute_granularity:
+    fused_linear: True
+```
+
+其中参数对应的释义如下：
+| **参数名**                      | **参数释义**               |
+|------------------------------|------------------------|
+| vocab_size                   | 训练词表大小                 |
+| hidden_size                  | 隐藏层大小                  |
+| num_layers                   | transformer层数          |
+| num_attention_heads          | attention head的数量      |
+| max_seq_len                  | 输入文本序列的长度              |
+| ffn_hidden_size              | ffn层大小，一般为隐藏层的四倍       |
+| attention_probs_dropout_prob | attention中的dropout的失活率 |
+| max_position_embeddings      | position embedding的长度  |
+| type_vocab_size              | 词表类型                   |
+| initializer_range            | 参数初始化的范围               |
+| use_recompute     | 是否使用recompute训练                      |
+| recompute_granularity | recompute训练的粒度，可选 `full` `full_attn` `core_attn`，full即recompute全部transformer，full_attn表明只recompute所有self attention部分，core_attn表明只recompute `softmax(qkT)v` 部分。注：显存占用方面，`core_attn` > `full_attn` > `full`，若所选策略产生OOM错误，可以适当更改recompute_granularity |
+| fused_linear      | 是否使用fused_linear代替传统Linear加速训练。注：该功能需要cuda 11.6及以上编译的paddle支持。       |
+
+### 优化器
+
+
+GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过配置文件配置优化器的参数，如：
+
+```yaml
+  Optimizer:
+    # name: Adam
+    weight_decay: 0.01
+    adam_beta1: 0.9
+    adam_beta2: 0.999
+    adam_epsilon: 1.0e-8
+    lr:
+      # name: consine
+      decay_steps: 360000
+      # max_steps: 500000
+      warmup_rate: 0.01
+      max_lr: 1.0e-5
+      min_lr: 5.0e-5
+    grad_clip: 1.0
+```
+
+其中参数说明：
+
+| **参数名**      | **参数释义**                  |
+|--------------|---------------------------|
+| weight_decay | weight的衰减率                |
+| adam_beta1   | 一阶矩估计的指数衰减率               |
+| adam_beta2   | 二阶矩估计的指数衰减率               |
+| adam_epsilon | 指定优化器需要优化的参数              |
+| decay_steps  | 衰减的步长                     |
+| warmup_rate  | warmup 率                  |
+| max_lr       | Adam 的初始最大学习率             |
+| min_lr       | Adam 的初始最小学习率             |
+| grad_clip    | 梯度裁剪范围，使用的是GlobalNorm梯度裁剪 |
+
+### Engine训练控制
+
+Engine训练设置完成模型训练/验证/推理等过程中的参数设置，是fleetX的EagerEngine的必要参数，所有使用该Engine都必须指定该配置。 其中包含的参数有：
+
+```yaml
+  Engine:
+    max_steps: 500000
+    num_train_epochs: 1
+    accumulate_steps: 
+    logging_freq: 1
+    eval_freq: 500
+    eval_iters: 10
+    mix_precision:
+      use_pure_fp16: True
+      scale_loss: 32768.0
+      custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
+      custom_white_list: ["lookup_table", "lookup_table_v2"]
+    save_load:
+      save_steps: 1000
+      output_dir: ./output
+      ckpt_dir:
+```
+其中参数对应的释义如下：
+
+| **参数名**                      | **参数释义**               |
+|------------------------------|------------------------|
+| max_steps         | 最大训练步数                               |
+| num_train_epochs  | 训练的epoch数量                           |
+| accumulate_steps  | 梯度累加次数                           |
+| logging_freq      | 训练日志打印的频率                            |
+| eval_freq         | 模型评估间隔                               |
+| eval_iters        | 模型评估时训练评估测试集的轮数                      |
+| use_pure_fp16     | 是否使用purefp16精度训练                     |
+| scale_loss        | 使用fp16精度下，loss的放缩比例                  |
+| custom_black_list | 自定义算子黑名单。这个名单中的算子在支持float16计算时会被认为是数值危险的，它们的影响也可能会在下游操作中观察到。这些算子通常不会转为float16计算。 |
+| custom_white_list | 自定义算子白名单。这个名单中的算子在支持float16计算时会被认为是数值安全的，并且对性能至关重要。如果设置了白名单，该名单中的算子会使用float16计算。|
+| save_steps        | 保存模型间隔                               |
+| output_dir        | 指定输出文件                               |
+| ckpt_dir          | checkpoint的加载目录                      |
+
+
+### 性能优化
+性能优化这里采用部分fuse op优化方式，可以选择是否fuse。
+
+```yaml
+Fused:
+  tensor_fusion: False
+```
+
+其中参数说明：
+
+| **参数名**           | **参数释义**                             |
+|-------------------|--------------------------------------|
+| tensor_fusion | 是否使用tensor_fustion功能加速训练 |
+
+
+## 运行方式
+
+本目录中按照345M和1.3B规模大小，给出32G V100环境下GPT模型单卡训练的策略配置如下：
+
+| 模型规模 | 训练策略       | yaml文件                    | 显存占用 |
+|----------|----------------|-------------------------------|----------|
+| 345M     | fp16           | configs_345m_single_card.yaml | 30.9GB   |
+| 1.3B     | fp16+recompute | configs_1.3B_single_card.yaml | 26.0GB   |
+
+**启动命令**
 ```shell
-wget https://mystic.the-eye.eu/public/AI/pile_preliminary_components/openwebtext2.jsonl.zst.tar
-tar -xvf openwebtext2.json.zst.tar -C  /path/to/openwebtext
+# 345M
+python run_pretrain.py -c ./configs_345m_single_card.yaml
+
+# 1.3B
+python run_pretrain.py -c ./configs_1.3B_single_card.yaml
 ```
 
-然后使用[data_tools](./data_tools)工具下的`create_pretraining_data.py`脚本进行数据集制作：
-```
-python -u  create_pretraining_data.py \
-    --model_name gpt2-en \
-    --tokenizer_name GPTTokenizer \
-    --data_format JSON \
-    --input_path /path/to/openwebtext/ \
-    --append_eos \
-    --output_prefix gpt_openwebtext  \
-    --workers 40 \
-    --log_interval 10000
-```
-处理时间约一个小时左右，就可以得到我们需要的`gpt_openwebtext_ids.npy`, `gpt_openwebtext_idx.npz`数据集文件。
+若要在显存容量更小的16G V100环境下进行GPT模型单卡训练，可将对应yaml文件中的`Model`-`hidden size`值改为原来的1/2即可。
 
-为了方便用户运行测试本模型，本项目提供了处理好的300M的训练样本：
-```shell
-wget https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_ids.npy
-wget https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_idx.npz
-```
-
-将所有预处理得到的文件统一放入一个文件夹中，以备训练使用：
+**运行日志**
 
 ```
-mkdir data
-mv gpt_en_dataset_300m_ids.npy ./data
-mv gpt_en_dataset_300m_idx.npz ./data
+[2022-07-27 12:42:46,601] [    INFO] - global step 1, epoch: 0, batch: 0, loss: 11.052017212, avg_reader_cost: 0.05710 sec, avg_batch_cost: 1.59627 sec, speed: 0.63 step/s, ips_total: 5132 tokens/s, ips: 5132 tokens/s, learning rate: 5.55556e-09
+[2022-07-27 12:42:47,102] [    INFO] - global step 2, epoch: 0, batch: 1, loss: 11.030861855, avg_reader_cost: 0.00016 sec, avg_batch_cost: 0.50125 sec, speed: 2.00 step/s, ips_total: 16343 tokens/s, ips: 16343 tokens/s, learning rate: 8.33333e-09
+[2022-07-27 12:42:47,600] [    INFO] - global step 3, epoch: 0, batch: 2, loss: 11.054017067, avg_reader_cost: 0.00015 sec, avg_batch_cost: 0.49697 sec, speed: 2.01 step/s, ips_total: 16484 tokens/s, ips: 16484 tokens/s, learning rate: 1.11111e-08
+[2022-07-27 12:42:48,096] [    INFO] - global step 4, epoch: 0, batch: 3, loss: 11.027174950, avg_reader_cost: 0.00014 sec, avg_batch_cost: 0.49582 sec, speed: 2.02 step/s, ips_total: 16522 tokens/s, ips: 16522 tokens/s, learning rate: 1.38889e-08
+[2022-07-27 12:42:48,591] [    INFO] - global step 5, epoch: 0, batch: 4, loss: 11.037425041, avg_reader_cost: 0.00014 sec, avg_batch_cost: 0.49529 sec, speed: 2.02 step/s, ips_total: 16540 tokens/s, ips: 16540 tokens/s, learning rate: 1.66667e-08
+[2022-07-27 12:42:49,088] [    INFO] - global step 6, epoch: 0, batch: 5, loss: 11.038356781, avg_reader_cost: 0.00015 sec, avg_batch_cost: 0.49619 sec, speed: 2.02 step/s, ips_total: 16510 tokens/s, ips: 16510 tokens/s, learning rate: 1.94444e-08
+[2022-07-27 12:42:49,582] [    INFO] - global step 7, epoch: 0, batch: 6, loss: 11.032723427, avg_reader_cost: 0.00014 sec, avg_batch_cost: 0.49402 sec, speed: 2.02 step/s, ips_total: 16582 tokens/s, ips: 16582 tokens/s, learning rate: 2.22222e-08
+[2022-07-27 12:42:50,086] [    INFO] - global step 8, epoch: 0, batch: 7, loss: 11.025435448, avg_reader_cost: 0.00014 sec, avg_batch_cost: 0.50364 sec, speed: 1.99 step/s, ips_total: 16266 tokens/s, ips: 16266 tokens/s, learning rate: 2.50000e-08
+[2022-07-27 12:42:50,583] [    INFO] - global step 9, epoch: 0, batch: 8, loss: 11.047873497, avg_reader_cost: 0.00015 sec, avg_batch_cost: 0.49669 sec, speed: 2.01 step/s, ips_total: 16493 tokens/s, ips: 16493 tokens/s, learning rate: 2.77778e-08
 ```
-
-
-```shell
-cd static # 或者 cd dygraph
-# 下载样例数据
-mkdir data && cd data
-wget https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_ids.npy
-wget https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_idx.npz
-cd ..
-# 运行pretrian 脚本
-sh run.sh
-```
-下面以静态图的运行脚本为例，说明训练参数的具体作用：
-```shell
-python run_pretrain.py \
-    --input_dir "./data"\
-    --output_dir "output"\
-    --vocab_size 50304\
-    --hidden_size 1024\
-    --num_layers 16\
-    --num_attention_heads 8\
-    --max_seq_len 1024\
-    --weight_decay 0.01\
-    --grad_clip 1.0\
-    --max_steps 500000\
-    --save_steps 100000\
-    --decay_steps 320000\
-    --device gpu\
-    --eval_freq 1000\
-    --warmup_rate 0.01\
-    --scale_loss 32768\
-    --global_batch_size 16\
-    --micro_batch_size 8\
-    --use_pure_fp16 True
-```
-
-其中参数释义如下：
-- `input_dir` 指定输入文件，可以使用目录，指定目录时将包括目录中的所有文件。
-- `output_dir` 指定输出文件。
-- `vocab_size` 训练词表大小。
-- `hidden_size` 隐藏层大小。
-- `num_layers` transformer层数
-- `num_attention_heads` attention head的数量。
-- `max_seq_len` 输入文本序列的长度。
-- `micro_batch_size` 单卡单次的 batch size大小。即单张卡运行一次前向网络的 batch size大小。
-- `global_batch_size` 全局的batch size大小，即一次参数更新等效的batch size。
-- `max_lr` 训练学习率。
-- `min_lr` 学习率衰减的最小值。
-- `max_steps` 最大训练步数。
-- `save_steps` 保存模型间隔。
-- `weight_decay` 权重衰减参数。
-- `warmup_rate` 学习率warmup参数。
-- `grad_clip` 梯度裁剪范围。
-- `logging_freq` 日志输出间隔。
-- `eval_freq` 模型评估间隔。
-- `device` 训练设备。
-- `use_pure_fp16` 使用pureFp16训练。
