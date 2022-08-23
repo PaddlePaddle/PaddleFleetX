@@ -479,7 +479,10 @@ class EagerEngine(BasicEngine):
             paddle.save(self._module.optimizer.state_dict(),
                         os.path.join(save_dir, "model_state.pdopt"))
 
-            meta_dict = {"global_step": self._module.global_step}
+            meta_dict = {
+                "global_step": self._module.global_step,
+                "cuda_rng_state": paddle.get_cuda_rng_state()
+            }
             paddle.save(meta_dict, os.path.join(save_dir, "meta_state.pdopt"))
 
         else:
@@ -516,6 +519,9 @@ class EagerEngine(BasicEngine):
 
                 if os.path.exists(meta_path):
                     meta_dict = paddle.load(meta_path)
+                    cuda_rng_state = meta_dict["cuda_rng_state"]
+                    paddle.set_cuda_rng_state(cuda_rng_state)
+
                     resume_step = int(self._ckpt_dir.strip("/").split("_")[-1])
 
                     if resume_step != meta_dict["global_step"]:
