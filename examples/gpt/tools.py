@@ -139,7 +139,10 @@ def process_quant_configs(yaml_dict):
     """
     process engine configs for hybrid parallel
     """
-    configs = yaml_dict['Quantization']
+    pp_degree = yaml_dict['Distributed']['pp_degree']
+    sharding_degree = yaml_dict['Distributed']['sharding']['sharding_degree']
+    if pp_degree > 1 or sharding_degree > 1:
+        del yaml_dict['Quantization']
 
 
 def model_size(yaml_dict):
