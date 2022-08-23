@@ -32,8 +32,6 @@ from paddle.io import Dataset, DataLoader
 from paddle.distributed import get_world_size
 from paddle.vision import transforms as T
 
-import packages.misc as misc
-
 
 def collate_imagen_base64(batch, tokenizer=None):
     """ collate for imagen base64 """
