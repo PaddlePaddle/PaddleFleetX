@@ -16,6 +16,7 @@ import time
 import os
 
 import random
+import base64
 import numpy as np
 import blobfile as bf
 
@@ -191,6 +192,13 @@ class ImagenEmbedPairDataset(Dataset):
         return np.load(os.path.join(filepath, filename), mmap_mode='r')
 
     @staticmethod
+    def base64_to_image(base64_str):
+        byte_data = base64.b64decode(base64_str)
+        image_data = BytesIO(byte_data)
+        img = Image.open(image_data)
+        return img
+
+    @staticmethod
     def get_line(filename, indexes):
         offset, n = indexes
         with open(filename, 'r', encoding='utf-8') as f:
@@ -209,7 +217,7 @@ class ImagenEmbedPairDataset(Dataset):
         data = data.strip().split('\t')
         text_embed = self.load_file(data_dir, data[1])
         attn_mask = self.load_file(data_dir, data[2])
-        image = misc.base64_to_image(data[3])
+        image = self.base64_to_image(data[3])
         image = data_augmentation_for_imagen(image, self.image_size)
 
         return image, paddle.to_tensor(
