@@ -151,7 +151,7 @@ class MultiHeadAttention(nn.Layer):
             input_is_parallel=True,
             fuse_matmul_bias=fused_linear)
 
-    def _fuse_prepare_qkv(self, query):
+    def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
         mix_layer = self.qkv_proj(query)
         mix_layer = paddle.reshape_(mix_layer,
                                     [0, 0, self.num_heads, 3 * self.head_dim])
