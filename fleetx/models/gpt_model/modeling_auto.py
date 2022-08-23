@@ -86,7 +86,19 @@ class MultiHeadAttention(nn.Layer):
                                     [0, 0, self.num_heads, 3 * self.head_dim])
         mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
         q, k, v = paddle.split(mix_layer, num_or_sections=3, axis=-1)
-        return q, k, v
+
+        assert not isinstance(
+            cache, self.StaticCache
+        ), "cache currently does not support the StaticCache type"
+
+        if isinstance(cache, self.Cache):
+            # for decoder self-attention in inference
+            k = tensor.concat([cache.k, k], axis=2)
+            v = tensor.concat([cache.v, v], axis=2)
+        if use_cache is True:
+            cache = self.Cache(k, v)
+
+        return (q, k, v) if use_cache is False else (q, k, v, cache)
 
     def _prepare_qkv(self, query, key, value, use_cache=False, cache=None):
         r"""
@@ -194,13 +206,18 @@ class MultiHeadAttention(nn.Layer):
         # compute q ,k ,v
         if use_cache is False:
             if self.fuse:
-                q, k, v = self._fuse_prepare_qkv(query)
+                q, k, v = self._fuse_prepare_qkv(query, use_cache, cache)
             else:
                 q, k, v = self._prepare_qkv(query, key, value, use_cache,
                                             cache)
         else:
-            q, k, v, cache = self._prepare_qkv(query, key, value, use_cache,
-                                               cache)
+            if self.fuse:
+                q, k, v, cache = self._fuse_prepare_qkv(query, use_cache,
+                                                        cache)
+            else:
+                q, k, v, cache = self._prepare_qkv(query, key, value,
+                                                   use_cache, cache)
+
         # scale dot product attention
         product = layers.matmul(
             x=q, y=k, transpose_y=True, alpha=self.head_dim**-0.5)
