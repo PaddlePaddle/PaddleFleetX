@@ -136,12 +136,9 @@ def data_augmentation_for_imagen(img, resolution):
     crop_y = (arr.shape[0] - resolution) // 2
     crop_x = (arr.shape[1] - resolution) // 2
     arr = arr[crop_y:crop_y + resolution, crop_x:crop_x + resolution]
-    arr = arr.astype(np.float32) / 127.5 - 1
+    arr = arr.astype(np.float32)
     arr = np.transpose(arr, [2, 0, 1])
     return paddle.to_tensor(arr)
-
-
-# -------- base64 with textual embeddings dataset -------- #
 
 
 class ImagenEmbedPairDataset(Dataset):
@@ -202,59 +199,22 @@ class ImagenEmbedPairDataset(Dataset):
 
     def __getitem__(self, index):
         num_col = 4 if self.cc else 5
-        try:
-            if not isinstance(self.filename, list):
-                data_dir = os.path.dirname(self.filename)
-                data = self.get_line(self.filename, self.indexes[index])
-            else:
-                data_dir = os.path.dirname(self.filename[self.indexes[index][
-                    1]])
-                data = self.get_line(self.filename[self.indexes[index][1]],
-                                     self.indexes[index][0])
-            data = data.strip().split('\t')
-            #print(data[1])
-            if len(data) < num_col:
-                print('Error line: {}, filename: {}, line index: {}'.format(
-                    data[:2], self.filename, index))
-                index = random.choice(self.legacy_index)
-                data = self.get_line(self.filename[self.indexes[index][1]],
-                                     self.indexes[index][0])
-            text_embed = self.load_file(data_dir, data[1])
-            attn_mask = self.load_file(data_dir, data[2])
-            image = misc.base64_to_image(data[3])
-            image = data_augmentation_for_imagen(image, self.image_size)
-
-            if len(self.
-                   legacy_index) < 1000 and index not in self.legacy_index:
-                self.legacy_index.append(index)
-            return image, paddle.to_tensor(
-                text_embed, dtype='float32'), paddle.to_tensor(
-                    attn_mask, dtype='int64')
-
-        except Exception as e:
-            print(e)
-            self.skip += 1
-            if self.skip % 10000 == 0:
-                logging.info('skip lines : {}'.format(str(self.skip)))
-            if len(self.legacy_index) > 0:
-                self.legacy_index.pop()
-            if len(self.legacy_index) > 0:
-                random.shuffle(self.legacy_index)
-                index = random.choice(self.legacy_index)
+        if not isinstance(self.filename, list):
+            data_dir = os.path.dirname(self.filename)
+            data = self.get_line(self.filename, self.indexes[index])
+        else:
             data_dir = os.path.dirname(self.filename[self.indexes[index][1]])
             data = self.get_line(self.filename[self.indexes[index][1]],
                                  self.indexes[index][0])
-            data = data.strip().split('\t')
-            text_embed = self.load_file(data_dir, data[1])
-            attn_mask = self.load_file(data_dir, data[2])
-            image = misc.base64_to_image(data[3])
-            image = data_augmentation_for_imagen(
-                image, self.image_size,
-                self.filename[self.indexes[index][1]] + data[1],
-                self.transform)
-            return image, paddle.to_tensor(
-                text_embed, dtype='float32'), paddle.to_tensor(
-                    attn_mask, dtype='int64')
+        data = data.strip().split('\t')
+        text_embed = self.load_file(data_dir, data[1])
+        attn_mask = self.load_file(data_dir, data[2])
+        image = misc.base64_to_image(data[3])
+        image = data_augmentation_for_imagen(image, self.image_size)
+
+        return image, paddle.to_tensor(
+            text_embed, dtype='float32'), paddle.to_tensor(
+                attn_mask, dtype='int64')
 
     def __len__(self):
         return len(self.indexes)
