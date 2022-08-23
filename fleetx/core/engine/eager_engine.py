@@ -411,10 +411,17 @@ class EagerEngine(BasicEngine):
     @paddle.no_grad()
     def _evaluate_impl(self, batch):
         batch = self._module.pretreating_batch(batch)
-        if self._pp_degree == 1:
-            loss = self._module.validation_step(batch)
-        else:
-            loss = self._module.model.eval_batch(batch, compute_loss=True)
+
+        with paddle.amp.auto_cast(
+                self._use_pure_fp16,
+                custom_black_list=self._custom_black_list,
+                custom_white_list=self._custom_white_list,
+                level='O2'):
+            if self._pp_degree == 1:
+                loss = self._module.validation_step(batch)
+            else:
+                loss = self._module.model.eval_batch(batch, compute_loss=True)
+
         return loss
 
     @paddle.no_grad()
@@ -440,7 +447,13 @@ class EagerEngine(BasicEngine):
             test_cost = time.time() - test_start
 
             if self._module.global_step % self._logging_freq == 0:
-                self._module.test_step_end(loss, epoch, test_step, test_cost)
+                log_dict = {
+                    'loss': loss.numpy(),
+                    'epoch': epoch,
+                    'batch': test_step,
+                    'test_cost': test_cost,
+                }
+                self._module.test_step_end(log_dict)
                 test_start = time.time()
 
             if self._module.global_step >= self._max_steps:
@@ -451,10 +464,17 @@ class EagerEngine(BasicEngine):
     @paddle.no_grad()
     def _predict_impl(self, batch):
         batch = self._module.pretreating_batch(batch)
-        if self._pp_degree == 1:
-            loss = self._module.test_step(batch)
-        else:
-            loss = self._module.model.eval_batch(batch, compute_loss=True)
+
+        with paddle.amp.auto_cast(
+                self._use_pure_fp16,
+                custom_black_list=self._custom_black_list,
+                custom_white_list=self._custom_white_list,
+                level='O2'):
+            if self._pp_degree == 1:
+                loss = self._module.test_step(batch)
+            else:
+                loss = self._module.model.eval_batch(batch, compute_loss=True)
+
         return loss
 
     def save(self):
