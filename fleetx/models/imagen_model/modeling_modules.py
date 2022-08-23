@@ -21,12 +21,9 @@ import paddle.nn.functional as F
 from paddle import nn, einsum
 from paddle import expm1
 
-from packages.misc import (EinopsToAndFrom, Rearrange, rearrange,
-                           rearrange_many, repeat, repeat_many, reduce)
-
 __all__ = [
-    'GaussianDiffusion', 'GaussianDiffusionContinuousTimes', 'Unet',
-    'pad_tuple_to_length', 'exists', 'resize_image_to', 'cast_tuple'
+    'GaussianDiffusionContinuousTimes', 'Unet', 'pad_tuple_to_length',
+    'exists', 'resize_image_to', 'cast_tuple'
 ]
 
 zeros_ = nn.initializer.Constant(value=0.)
@@ -185,147 +182,6 @@ def prob_mask_like(shape, prob):
         return paddle.zeros(shape, dtype=paddle.bool)
     else:
         return paddle.zeros(shape).cast('float32').uniform_(0, 1) < prob
-
-
-# gaussian diffusion helper functions
-
-
-def extract(a, t, x_shape):
-    b, *_ = t.shape
-    out = a.take_along_axis(-1, t)
-    return out.reshape([b, *((1, ) * (len(x_shape) - 1))])
-
-
-def cosine_beta_schedule(timesteps, s=0.008, thres=0.999):
-    """
-    cosine schedule
-    as proposed in https://openreview.net/forum?id=-NEXDKk8gZ
-    """
-    pi = paddle.acos(paddle.zeros([1])).item() * 2
-    steps = timesteps + 1
-    x = paddle.linspace(0, timesteps, steps, dtype=paddle.float64)
-    alphas_cumprod = paddle.cos(((x / timesteps) + s) / (1 + s) * pi * 0.5)**2
-    alphas_cumprod = alphas_cumprod / alphas_cumprod[0]
-    betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
-    return paddle.clip(betas, 0, thres)
-
-
-def linear_beta_schedule(timesteps):
-    scale = 1000 / timesteps
-    beta_start = scale * 0.0001
-    beta_end = scale * 0.02
-    return paddle.linspace(
-        beta_start, beta_end, timesteps, dtype=paddle.float64)
-
-
-class GaussianDiffusion(nn.Layer):
-    def __init__(self, *, noise_schedule, timesteps):
-        super().__init__()
-
-        if noise_schedule == "cosine":
-            betas = cosine_beta_schedule(timesteps)
-        elif noise_schedule == "linear":
-            betas = linear_beta_schedule(timesteps)
-        else:
-            raise NotImplementedError()
-
-        alphas = 1. - betas
-        alphas_cumprod = paddle.cumprod(alphas, axis=0)
-        alphas_cumprod_prev = F.pad(alphas_cumprod[:-1], (1, 0), value=1.)
-
-        timesteps, = betas.shape
-        self.num_timesteps = int(timesteps)
-
-        # register buffer helper function to cast double back to float
-
-        register_buffer = lambda name, val: self.register_buffer(name, val.cast('float32'), persistable=False)
-
-        register_buffer('betas', betas)
-        register_buffer('alphas_cumprod', alphas_cumprod)
-        register_buffer('alphas_cumprod_prev', alphas_cumprod_prev)
-
-        # calculations for diffusion q(x_t | x_{t-1}) and others
-
-        register_buffer('sqrt_alphas_cumprod', paddle.sqrt(alphas_cumprod))
-        register_buffer('sqrt_one_minus_alphas_cumprod',
-                        paddle.sqrt(1. - alphas_cumprod))
-        register_buffer('log_one_minus_alphas_cumprod',
-                        paddle.log(1. - alphas_cumprod))
-        register_buffer('sqrt_recip_alphas_cumprod',
-                        paddle.sqrt(1. / alphas_cumprod))
-        register_buffer('sqrt_recipm1_alphas_cumprod',
-                        paddle.sqrt(1. / alphas_cumprod - 1))
-
-        # calculations for posterior q(x_{t-1} | x_t, x_0)
-
-        posterior_variance = betas * (1. - alphas_cumprod_prev) / (
-            1. - alphas_cumprod)
-
-        # above: equal to 1. / (1. / (1. - alpha_cumprod_tm1) + alpha_t / beta_t)
-
-        register_buffer('posterior_variance', posterior_variance)
-
-        # below: log calculation clipped because the posterior variance is 0 at the beginning of the diffusion chain
-
-        register_buffer(
-            'posterior_log_variance_clipped',
-            log(posterior_variance, eps=1e-20))
-        register_buffer('posterior_mean_coef1',
-                        betas * paddle.sqrt(alphas_cumprod_prev) /
-                        (1. - alphas_cumprod))
-        register_buffer('posterior_mean_coef2', (1. - alphas_cumprod_prev) *
-                        paddle.sqrt(alphas) / (1. - alphas_cumprod))
-
-    def get_times(self, batch_size, noise_level):
-        return paddle.full(
-            (batch_size, ),
-            int(self.num_timesteps * noise_level),
-            dtype=paddle.int64)
-
-    def sample_random_times(self, batch_size):
-        return paddle.randint(
-            0, self.num_timesteps, (batch_size, ), dtype=paddle.int64)
-
-    def get_condition(self, times):
-        return times
-
-    def get_sampling_timesteps(self, batch):
-        time_transitions = []
-
-        for i in reversed(range(self.num_timesteps)):
-            time_transitions.append((paddle.full(
-                (batch, ), i, dtype=paddle.int64), None))
-
-        return time_transitions
-
-    def q_posterior(self, x_start, x_t, t, **kwargs):
-        posterior_mean = (
-            extract(self.posterior_mean_coef1, t, x_t.shape) * x_start +
-            extract(self.posterior_mean_coef2, t, x_t.shape) * x_t)
-        posterior_variance = extract(self.posterior_variance, t, x_t.shape)
-        posterior_log_variance_clipped = extract(
-            self.posterior_log_variance_clipped, t, x_t.shape)
-        return posterior_mean, posterior_variance, posterior_log_variance_clipped
-
-    def q_sample(self, x_start, t, noise=None):
-        if isinstance(t, int):
-            batch = x_start.shape[0]
-            t = paddle.full((batch, ), t)
-        noise = default(noise, lambda: paddle.randn(shape=x_start.shape, dtype=x_start.dtype))
-
-        noised = (extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
-                  + extract(self.sqrt_one_minus_alphas_cumprod, t,
-                            x_start.shape) * noise)
-
-        alphas_cumprod = extract(self.alphas_cumprod, t, t.shape)
-        log_snr = -log(1. / alphas_cumprod - 1)
-
-        return noised, log_snr
-
-    def predict_start_from_noise(self, x_t, t, noise):
-        return (
-            extract(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t -
-            extract(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * noise)
 
 
 # gaussian diffusion with continuous time helper functions and classes
@@ -1942,3 +1798,133 @@ class Unet(nn.Layer):
             x = paddle.concat((x, lowres_cond_img), axis=1)
 
         return self.final_conv(x)
+
+
+def rearrange(tensor,
+              pattern: str,
+              b: int=-1,
+              h: int=-1,
+              w: int=-1,
+              c: int=-1,
+              x: int=-1,
+              y: int=-1,
+              n: int=-1):
+    if pattern == 'b n (h d) -> b h n d':
+        B, N, _ = tensor.shape
+        return tensor.reshape([B, N, h, -1]).transpose([0, 2, 1, 3])
+    elif pattern == 'b n (h d) -> (b h) n d':
+        B, N, _ = tensor.shape
+        return tensor.reshape([B, N, h, -1]).transpose([0, 2, 1, 3]).reshape(
+            [B * h, N, -1])
+    elif pattern == 'b (h c) x y -> (b h) (x y) c':
+        B, _, _, _ = tensor.shape
+        return tensor.reshape([B, h, -1, x, y]).transpose(
+            [0, 1, 3, 4, 2]).reshape([B * h, x * y, -1])
+    elif pattern == 'b n ... -> b n (...)':
+        B, N = tensor.shape[:2]
+        return tensor.reshape([B, N, -1])
+    elif pattern == 'b ... -> b (...)':
+        B = tensor.shape[0]
+        return tensor.reshape([B, -1])
+    elif pattern == 'b j -> b 1 1 j':
+        return tensor[:, None, None, :]
+    elif pattern == 'b h n d -> b n (h d)':
+        B, H, N, D = tensor.shape
+        return tensor.transpose([0, 2, 1, 3]).reshape([B, N, -1])
+    elif pattern == '(b h) (x y) d -> b (h d) x y':
+        _, _, D = tensor.shape
+        return tensor.reshape([-1, h, x, y, D]).transpose(
+            [0, 1, 4, 2, 3]).reshape([-1, h * D, x, y])
+    elif pattern == '(b h) n d -> b n (h d)':
+        _, N, D = tensor.shape
+        return tensor.reshape([-1, h, N, D]).transpose([0, 2, 1, 3]).reshape(
+            [-1, N, h * D])
+    elif pattern == 'b n -> b n 1':
+        return tensor[:, :, None]
+    elif pattern == 'b c h w -> b (h w) c':
+        B, C, H, W = tensor.shape
+        return tensor.transpose([0, 2, 3, 1]).reshape([B, -1, C])
+    elif pattern == 'b (h w) c -> b c h w':
+        B, _, C = tensor.shape
+        return tensor.reshape([B, h, w, C]).transpose([0, 3, 1, 2])
+    elif pattern == 'b (n d) -> b n d':
+        B, _ = tensor.shape
+        return tensor.reshape([B, n, -1])
+
+
+def rearrange_many(tensors, pattern: str, h: int=-1, x: int=-1, y: int=-1):
+    assert isinstance(tensors, (
+        list, tuple)), "rearrange_many type must be list or tuple"
+    if isinstance(tensors, tuple):
+        tensors = list(tensors)
+    if len(tensors) == 0:
+        raise TypeError("Rearrange can't be applied to an empty list")
+    for i, tensor in enumerate(tensors):
+        tensors[i] = rearrange(tensor, pattern, h=h, x=x, y=y)
+    return tensors
+
+
+def repeat(tensor, pattern: str, h: int=-1, b: int=-1):
+    if pattern == '1 -> b':
+        return paddle.tile(tensor, repeat_times=b)
+    elif pattern == 't -> b t':
+        tensor = tensor[None, :]
+        return paddle.tile(tensor, repeat_times=(b, 1))
+    elif pattern == 'n d -> b n d':
+        tensor = tensor[None, :]
+        return paddle.tile(tensor, repeat_times=(b, 1, 1))
+    elif pattern == 'o ... -> (o 4) ...':
+        return paddle.tile(tensor, repeat_times=(4, 1, 1, 1))
+    elif pattern == 'd -> b h 1 d':
+        tensor = tensor[None, None, None, :]
+        return paddle.tile(tensor, repeat_times=(b, h, 1, 1))
+    elif pattern == 'd -> b 1 d':
+        tensor = tensor[None, None, :]
+        return paddle.tile(tensor, repeat_times=(b, 1, 1))
+
+
+def repeat_many(tensors, pattern: str, h: int=-1, b: int=-1):
+    assert isinstance(tensors, (list, tuple))
+    if isinstance(tensors, tuple):
+        tensors = list(tensors)
+    if len(tensors) == 0:
+        raise TypeError("Rearrange can't be applied to an empty list")
+    for i, tensor in enumerate(tensors):
+        tensors[i] = repeat(tensor, pattern, h=h, b=b)
+    return tensors
+
+
+def reduce(losses, pattern: str, reduction: str='mean'):
+    if pattern == 'b ... -> b':
+        axes = list(range(1, len(losses.shape)))
+        return losses.mean(axes)
+
+
+class EinopsToAndFrom(nn.Layer):
+    def __init__(self, from_einops, to_einops, fn):
+        super().__init__()
+        self.from_einops = from_einops
+        self.to_einops = to_einops
+        self.fn = fn
+
+    def forward(self, x, **kwargs):
+        shape = x.shape
+        reconstitute_kwargs = dict(
+            tuple(zip(self.from_einops.split(' '), shape)))
+        x = rearrange(x, f'{self.from_einops} -> {self.to_einops}')
+        x = self.fn(x, **kwargs)
+        x = rearrange(x, f'{self.to_einops} -> {self.from_einops}',
+                      **reconstitute_kwargs)
+        return x
+
+
+class Rearrange(nn.Layer):
+    def __init__(self, pattern, n):
+        super().__init__()
+        self.pattern = pattern
+        self.n = n
+
+    def forward(self, x, **kwargs):
+        shape = x.shape
+        x = rearrange(x, f'{self.pattern}', n=self.n)
+        return x
