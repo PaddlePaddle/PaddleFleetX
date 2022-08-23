@@ -22,10 +22,8 @@ import yaml
 import numpy as np
 
 import paddle
-sys.path.append("../../../")
 from examples.gpt.gpt_module import GPTGenerationModule
 from examples.gpt.tools import parse_args, parse_yaml
-from fleetx.core.engine.eager_engine import EagerEngine
 
 
 def do_generation():
@@ -41,12 +39,15 @@ def do_generation():
 
     module = GPTGenerationModule(configs)
 
-    engine = EagerEngine(module=module, configs=configs, mode='predict')
-    engine.load()
+    ckpt_dir = configs['Engine']['save_load']['ckpt_dir']
+
+    model_path = os.path.join(ckpt_dir, "model.pdparams")
+    model_dict = paddle.load(model_path)
+
+    module.model.set_state_dict(model_dict)
 
     input_text = 'Where are you from?'
-
-    result = engine.predict(input_text)
+    result = module.generate(input_text)
 
     print(result[0])
 

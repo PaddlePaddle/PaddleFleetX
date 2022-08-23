@@ -46,7 +46,7 @@ def cached_path(url_or_path, cache_dir=None):
     cache_dir = os.path.expanduser(cache_dir)
 
     if not os.path.exists(cache_dir):
-        os.makedirs(cache_dir)
+        os.makedirs(cache_dir, exist_ok=True)
 
     if is_url(url_or_path):
         path = _map_path(url_or_path, cache_dir)

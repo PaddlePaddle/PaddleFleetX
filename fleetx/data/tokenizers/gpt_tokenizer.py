@@ -127,7 +127,8 @@ class GPTTokenizer(object):
             resolved_vocab_file = cached_path(vocab_file, cache_dir=cache_dir)
             resolved_merges_file = cached_path(
                 merges_file, cache_dir=cache_dir)
-        except EnvironmentError:
+        except Exception as e:
+            logger.info(e)
             logger.error(
                 "Model name '{}' was not found in model name list ({}). "
                 "We assumed '{}' was a path or url but couldn't find files {} and {} "

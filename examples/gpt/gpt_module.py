@@ -219,6 +219,9 @@ class GPTGenerationModule(BasicModule):
 
         return inputs
 
+    def generate(self, input_text):
+        return self(input_text)
+
     def forward(self, input_text):
         input_ids = self.tokenizer.encode(input_text)
         inputs = {'input_ids': [input_ids]}

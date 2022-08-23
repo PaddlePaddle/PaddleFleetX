@@ -418,30 +418,44 @@ class EagerEngine(BasicEngine):
         return loss
 
     @paddle.no_grad()
-    def predict(self, inputs):
+    def predict(self, epoch=1, test_data_loader=None):
         """
-        run one predict for inputs.
+        run one evaluation epoch over the test set.
 
         Args:
 
-            inputs: the inputs can be process by model
+            epoch(int): the epoch index.
+            
+            test_data_loader(DataLoader, None): a collection of :class:`paddle.io.DataLoader`, specifying test samples.
 
         """
         self._module.model.eval()
 
-        predict_start = time.time()
-        ret = self._predict_impl(inputs)
+        test_start = time.time()
+        for test_step, batch in enumerate(test_data_loader):
+            self._module.global_step += 1
+            loss = self._predict_impl(batch)
 
-        paddle.device.cuda.synchronize()
-        predict_cost = time.time() - predict_start
+            paddle.device.cuda.synchronize()
+            test_cost = time.time() - test_start
 
-        # logger.info("The predicting process is complete.")
-        return ret
+            if self._module.global_step % self._logging_freq == 0:
+                self._module.test_step_end(loss, epoch, test_step, test_cost)
+                test_start = time.time()
+
+            if self._module.global_step >= self._max_steps:
+                logger.info("The predicting process is complete.")
+                del test_data_loader
+                return
 
     @paddle.no_grad()
-    def _predict_impl(self, inputs):
-        ret = self._module(inputs)
-        return ret
+    def _predict_impl(self, batch):
+        batch = self._module.pretreating_batch(batch)
+        if self._pp_degree == 1:
+            loss = self._module.test_step(batch)
+        else:
+            loss = self._module.model.eval_batch(batch, compute_loss=True)
+        return loss
 
     def save(self):
         """
