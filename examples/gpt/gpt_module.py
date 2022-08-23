@@ -34,6 +34,8 @@ class GPTModule(BasicModule):
         if self.nranks == 1:
             from fleetx.models.gpt_model.modeling import GPTModel, GPTForPretraining, GPTPretrainingCriterion
             self.model = GPTForPretraining(GPTModel(configs['Model']))
+            if 'Quantization' in self.configs:
+                self.qat_model()
             self.loss_fn = GPTPretrainingCriterion()
         else:
             from fleetx.models.gpt_model.modeling_hybrid import GPTModel, GPTForPretraining, GPTPretrainingCriterion, GPTForPretrainingPipe
@@ -43,6 +45,8 @@ class GPTModule(BasicModule):
                 self.model = GPTForPretraining(GPTModel(configs['Model']))
             else:
                 self.model = GPTForPretrainingPipe(configs['Model'])
+            if 'Quantization' in self.configs:
+                self.qat_model()
             self.loss_fn = GPTPretrainingCriterion()
             del configs['Model']['topology']
 
@@ -147,6 +151,13 @@ class GPTModule(BasicModule):
             "[test] epoch: %d, batch: %d, loss: %.9f, avg_test_cost: %.5f sec, speed: %.2f step/s"
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
                1. / speed, speed))
+
+    def qat_model(self):
+        from paddle.utils import try_import
+        paddleslim = try_import('paddleslim')
+        quanter = paddleslim.dygraph.quant.QAT(
+            config=self.configs['Quantization'])
+        self.model = quanter.quantize(self.model)
 
 
 class GPTHybridModule(GPTModule):

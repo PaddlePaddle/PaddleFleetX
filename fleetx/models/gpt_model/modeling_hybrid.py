@@ -33,6 +33,13 @@ import sys
 from .config import configurable
 
 
+def get_attr(layer, name):
+    if getattr(layer, name, None) is not None:
+        return getattr(layer, name, None)
+    else:
+        return get_attr(layer._layer, name)
+
+
 def parallel_matmul(lm_output, logit_weights, parallel_output):
     """
     """
@@ -655,7 +662,9 @@ class GPTForPretraining(nn.Layer):
         super(GPTForPretraining, self).__init__()
         self.gpt = gpt
         # extra_parameters using for sharding stage3 to register extra_parameters
-        self.extra_parameters = [self.gpt.embeddings.word_embeddings.weight]
+        self.extra_parameters = [
+            get_attr(self.gpt.embeddings.word_embeddings, "weight")
+        ]
 
     def forward(self,
                 input_ids,
@@ -676,7 +685,8 @@ class GPTForPretraining(nn.Layer):
             encoder_outputs = outputs
 
         logits = parallel_matmul(
-            encoder_outputs, self.gpt.embeddings.word_embeddings.weight, True)
+            encoder_outputs,
+            get_attr(self.gpt.embeddings.word_embeddings, "weight"), True)
 
         if use_cache:
             return logits, cached_kvs
@@ -746,7 +756,7 @@ class EmbeddingPipe(GPTEmbeddings):
 
     @property
     def embedding_weight(self):
-        return self.word_embeddings.weight
+        return get_attr(self.word_embeddings, "weight")
 
     def forward(self, tensors):
         input_ids, position_ids = tensors
