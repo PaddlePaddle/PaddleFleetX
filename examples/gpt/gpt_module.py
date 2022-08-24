@@ -16,6 +16,7 @@ import sys
 
 import paddle
 from paddle.distributed import fleet
+from paddle.jit import to_static
 
 sys.path.append("../../../")
 from fleetx.utils import logger
@@ -246,21 +247,29 @@ class GPTGenerationModule(BasicModule):
             # [1, seq_len]
             input_ids = paddle.to_tensor(input_ids, dtype='int64')
 
-        ids, scores = self.model(
-            input_ids=input_ids,
-            max_length=self.configs['max_dec_len'],
-            min_length=self.configs['min_dec_len'],
-            bos_token_id=self.tokenizer.eos_token_id,
-            eos_token_id=self.tokenizer.eos_token_id,
-            pad_token_id=self.tokenizer.eos_token_id,
-            decode_strategy=self.configs['decode_strategy'],
-            temperature=self.configs['temperature'],
-            top_k=self.configs['top_k'],
-            top_p=self.configs['top_p'],
-            num_beams=self.configs['num_beams'],
-            length_penalty=self.configs['length_penalty'],
-            early_stopping=self.configs['early_stopping'],
-            num_return_sequences=self.configs['num_return_sequences'])
+        from fleetx.models.gpt_model.modeling import GPTModel, GPTForGeneration
+        if isinstance(self.model, GPTForGeneration):
+            ret = self.model(
+                input_ids=input_ids,
+                max_length=1,
+                min_length=self.configs['min_dec_len'],
+                bos_token_id=self.tokenizer.eos_token_id,
+                eos_token_id=self.tokenizer.eos_token_id,
+                pad_token_id=self.tokenizer.eos_token_id,
+                decode_strategy=self.configs['decode_strategy'],
+                temperature=self.configs['temperature'],
+                top_k=self.configs['top_k'],
+                top_p=self.configs['top_p'],
+                num_beams=self.configs['num_beams'],
+                length_penalty=self.configs['length_penalty'],
+                early_stopping=self.configs['early_stopping'],
+                num_return_sequences=self.configs['num_return_sequences'])
+            print ("Generated scores:", ret)
+            return ["XIONGKUN FOR TEST", ""]
+        else: 
+            ret = self.model(input_ids)
+            print (ret)
+            return ["XIONGKUN FOR TEST", ""]
 
         generated_sequences = []
         for i, generated_ids in enumerate(ids):

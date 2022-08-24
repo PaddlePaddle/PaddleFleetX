@@ -229,7 +229,7 @@ def parse_yaml(yaml_args):
     process_engine_configs(yaml_dict)
     process_quant_configs(yaml_dict)
 
-    _print_args(yaml_dict)
+    #_print_args(yaml_dict)
     model_size(yaml_dict)
     return yaml_dict
 

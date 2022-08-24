@@ -819,7 +819,6 @@ class GPTForGeneration(nn.Layer):
             "input_ids": input_ids,
             "position_ids": position_ids,
             "attention_mask": attention_mask,
-            "use_cache": use_cache,
             "cache": cache
         }
 
@@ -942,23 +941,32 @@ class GPTForGeneration(nn.Layer):
         scores = paddle.full(
             [batch_size, 1], 0.0, dtype=paddle.get_default_dtype())
 
+        # use_cache is immutable, we split it off other mutable kwargs.
+        immutable = {'use_cache': model_kwargs['use_cache']}
+        del model_kwargs['use_cache']
         # Pre-while call for inference,
         # the value in model_kwargs should be tensor before while loop
+        def _forward_(**args):
+            model_inputs = self.prepare_inputs_for_generation(
+                input_ids, **args, **immutable)
+            return self.gpt(**model_inputs, **immutable)
+
         if cur_len < max_length:
-            model_inputs = self.prepare_inputs_for_generation(input_ids,
-                                                              **model_kwargs)
-            outputs = self.gpt(**model_inputs)
+            outputs = _forward_(**model_kwargs)
+
+
+        am = model_kwargs['attention_mask'] 
+        # make the shape of attention_mask = (-1, -1, -1, -1) in dy2static.
+        model_kwargs['attention_mask'] = paddle.reshape(am, paddle.shape(am))
+        model_kwargs['cache'] = outputs[1] if isinstance(outputs, tuple) else None
 
         while cur_len < max_length:
             # prepare model inputs & get model output
             # skip first step for pre-while call
             if cur_len > origin_len:
-                model_inputs = self.prepare_inputs_for_generation(
-                    input_ids, **model_kwargs)
-                outputs = self.gpt(**model_inputs)
+                outputs = _forward_(**model_kwargs)
 
             logits = outputs[0] if isinstance(outputs, tuple) else outputs
-
             logits = paddle.matmul(
                 logits,
                 self.gpt.embeddings.word_embeddings.weight,
@@ -1086,8 +1094,9 @@ class GPTForGeneration(nn.Layer):
                     expand_size=num_return_sequences,
                     **model_kwargs)
 
-            return self.sample(input_ids, logits_processors, max_length,
+            ret = self.sample(input_ids, logits_processors, max_length,
                                pad_token_id, eos_token_id, top_k, top_p,
                                temperature, **model_kwargs)
         else:
             raise ValueError(f'Not support {decoding_strategy} strategy yet!')
+        return ret

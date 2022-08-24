@@ -26,7 +26,36 @@ from examples.gpt.gpt_module import GPTGenerationModule
 from examples.gpt.tools import parse_args, parse_yaml
 
 
-def do_generation():
+def jit_export_GPT(module, model_path, configs): 
+    from paddle.jit import save, load
+    args = configs
+    save(module.model, model_path, input_spec=[
+        paddle.static.InputSpec(name='input_ids', shape=[-1, -1], dtype="int64"), 
+        #args['max_dec_len'],
+        1,
+        args['min_dec_len'],
+        args['decode_strategy'],
+        args['temperature'],
+        args['top_k'],
+        args['top_p'],
+        1.0,
+        args['num_beams'],
+        1,
+        args['length_penalty'],
+        args['early_stopping'],
+        module.tokenizer.eos_token_id,
+        module.tokenizer.eos_token_id,
+        module.tokenizer.eos_token_id,
+        None,
+        None,
+        None,
+        args['num_return_sequences'],
+        0.0,
+        True,]
+    )
+    return None
+
+def do_generation(to_static=True):
     configs = parse_yaml(parse_args())
 
     paddle.set_device(configs['Global']['device'])
@@ -37,20 +66,24 @@ def do_generation():
     np.random.seed(seed)
     paddle.seed(seed)
 
+
     module = GPTGenerationModule(configs)
-
-    ckpt_dir = configs['Engine']['save_load']['ckpt_dir']
-
-    model_path = os.path.join(ckpt_dir, "model.pdparams")
-    model_dict = paddle.load(model_path)
-
+    model_dict = paddle.load("weights")
     module.model.set_state_dict(model_dict)
+
+    #paddle.save(module.model.state_dict(), "weights")
+
+    if to_static: 
+        jit_export_GPT(module, "model_", module.configs)
+        module.model = paddle.jit.load("model_")
+        #module.model = paddle.jit.to_static(module.model)
 
     input_text = 'Where are you from?'
     result = module.generate(input_text)
 
-    print(result[0])
+    print("OutputIs", result[0])
 
 
 if __name__ == "__main__":
-    do_generation()
+    do_generation(False)
+    do_generation(True)

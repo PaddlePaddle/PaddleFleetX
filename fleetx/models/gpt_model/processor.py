@@ -54,10 +54,10 @@ class MinLengthLogitsProcessor(LogitsProcessor):
     """
 
     def __init__(self, min_length, eos_token_id):
-        if not isinstance(min_length, int) or min_length < 0:
-            raise ValueError(
-                "`min_length` should be a positive integer, but get {}".format(
-                    min_length))
+        #if not isinstance(min_length, int) or min_length < 0:
+            #raise ValueError(
+                #"`min_length` should be a positive integer, but get {}".format(
+                    #min_length))
 
         if not isinstance(eos_token_id, int) or eos_token_id < 0:
             raise ValueError(
