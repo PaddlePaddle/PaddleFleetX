@@ -16,6 +16,7 @@ import sys
 
 import paddle
 from paddle.distributed import fleet
+import paddleslim
 
 sys.path.append("../../../")
 from fleetx.utils import logger
@@ -153,8 +154,6 @@ class GPTModule(BasicModule):
                1. / speed, speed))
 
     def qat_model(self):
-        from paddle.utils import try_import
-        paddleslim = try_import('paddleslim')
         quanter = paddleslim.dygraph.quant.QAT(
             config=self.configs['Quantization'])
         self.model = quanter.quantize(self.model)
