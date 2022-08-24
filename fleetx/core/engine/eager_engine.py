@@ -33,7 +33,6 @@ from fleetx.inference.inference_engine import InferenceEngine
 from fleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from fleetx.utils.version import version_check
 
-
 class EagerEngine(BasicEngine):
     """
     The common engine for all models that support single-card and distributed 
@@ -203,6 +202,21 @@ class EagerEngine(BasicEngine):
         self._inference_configs = configs['Inference']
         self._inference_init = False
         self._inference_engine = None
+        self.profiler = None
+        if 'Profiler' in configs and configs.get('Profiler', {}).get('enable', False):
+            self.profiler_config = configs['Profiler']
+
+            scheduler = self.profiler_config.get('scheduler', None)
+            profiler_log = self.profiler_config.get('profiler_log', './profiler_log')
+            record_shapes = self.profiler_config.get('record_shapes', True)
+            profile_memory = self.profiler_config.get('profile_memory', True)
+            self.profiler = paddle.profiler.Profiler(targets=[paddle.profiler.ProfilerTarget.CPU, paddle.profiler.ProfilerTarget.GPU],
+                                        scheduler=scheduler,
+                                        on_trace_ready=paddle.profiler.export_chrome_tracing(profiler_log),
+                                        #record_shapes=record_shapes,
+                                        profile_memory=profile_memory)
+            self.profiler.start()
+            logger.warning("Profiler is enabled, do not enable it in production.")
 
     def _wrap_with_fleet(self):
         if self._sharding_stage in [2, 3]:
@@ -311,7 +325,17 @@ class EagerEngine(BasicEngine):
             if self._module.global_step >= self._max_steps:
                 logger.info("The training process is complete.")
                 del train_data_loader
+
+                if self.profiler:
+                    self._profiler_done()
+
                 return
+
+            if self.profiler:
+                self.profiler.step()
+
+        if self.profiler:
+            self._profiler_done()
 
     def _fit_impl(self, batch):
         batch = self._module.pretreating_batch(batch)
@@ -565,3 +589,51 @@ class EagerEngine(BasicEngine):
                 self._inference_configs['mp_degree'])
 
         return self._inference_engine.predict(data)
+
+    def _print_summary(self):
+        from paddle.profiler import SummaryView
+        views_dict = {
+                    SummaryView.DeviceView : 'device',
+                    SummaryView.OverView : 'overview',
+                    SummaryView.ModelView : 'model',
+                    SummaryView.DistributedView : 'dist',
+                    SummaryView.KernelView : 'kernel',
+                    SummaryView.OperatorView : 'op',
+                    SummaryView.MemoryView : 'mem',
+                    SummaryView.MemoryManipulationView : 'memcpy',
+                    SummaryView.UDFView : 'udf',
+                }
+
+        def gen_views(cfg):
+            # print all summary view is detailed True
+            if self.profiler_config.get('detailed', False):
+                return None
+
+            default_views = ['overview', 'model', 'kernel', 'op']
+            views = []
+            # override default view with user defined is detailed False
+            for view in SummaryView:
+                v = self.profiler_config.get('summary', {}).get(views_dict[view], None)
+                if v is True or (v is None and v in default_views):
+                    views.append(view)
+
+            print(views)
+            return views or None
+
+        self.profiler.summary(sorted_by=paddle.profiler.SortedKeys.GPUTotal, 
+                views=gen_views(self.profiler_config))
+
+    def _profiler_done(self):
+        logger.info("Profiler finished, prepare to print summary...")
+
+        if not self.profiler:
+            return
+
+        self.profiler.stop()
+
+        self._print_summary()
+        profiler_log = self.profiler_config.get('profiler_log', './profiler_log')
+        print("For more information please install visualdl and run it with following command:")
+        print("-------------------------------------------------------------------------------")
+        print(f"visualdl --logdir --host 0.0.0.0 {profiler_log}")
+        print("-------------------------------------------------------------------------------")
