@@ -34,7 +34,7 @@ from examples.gpt.tools import parse_args, parse_yaml
 
 
 def do_inference():
-    configs = parse_yaml(parse_args().config)
+    configs = parse_yaml(parse_args())
 
     paddle.set_device(configs['Global']['device'])
 
