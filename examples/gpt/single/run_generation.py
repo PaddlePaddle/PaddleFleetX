@@ -32,7 +32,7 @@ def jit_export_GPT(module, model_path, configs):
     save(module.model, model_path, input_spec=[
         paddle.static.InputSpec(name='input_ids', shape=[-1, -1], dtype="int64"), 
         #args['max_dec_len'],
-        1,
+        args['max_dec_len'],
         args['min_dec_len'],
         args['decode_strategy'],
         args['temperature'],
@@ -70,6 +70,7 @@ def do_generation(to_static=True):
     module = GPTGenerationModule(configs)
     model_dict = paddle.load("weights")
     module.model.set_state_dict(model_dict)
+    module.model.eval()
 
     #paddle.save(module.model.state_dict(), "weights")
 

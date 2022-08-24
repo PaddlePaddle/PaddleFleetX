@@ -249,9 +249,9 @@ class GPTGenerationModule(BasicModule):
 
         from fleetx.models.gpt_model.modeling import GPTModel, GPTForGeneration
         if isinstance(self.model, GPTForGeneration):
-            ret = self.model(
+            ids, scores = self.model(
                 input_ids=input_ids,
-                max_length=1,
+                max_length=self.configs['max_dec_len'],
                 min_length=self.configs['min_dec_len'],
                 bos_token_id=self.tokenizer.eos_token_id,
                 eos_token_id=self.tokenizer.eos_token_id,
@@ -264,12 +264,8 @@ class GPTGenerationModule(BasicModule):
                 length_penalty=self.configs['length_penalty'],
                 early_stopping=self.configs['early_stopping'],
                 num_return_sequences=self.configs['num_return_sequences'])
-            print ("Generated scores:", ret)
-            return ["XIONGKUN FOR TEST", ""]
         else: 
-            ret = self.model(input_ids)
-            print (ret)
-            return ["XIONGKUN FOR TEST", ""]
+            ids, scores = self.model(input_ids)
 
         generated_sequences = []
         for i, generated_ids in enumerate(ids):
