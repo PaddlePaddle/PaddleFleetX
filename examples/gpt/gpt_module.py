@@ -188,13 +188,22 @@ class GPTGenerationModule(BasicModule):
         super().__init__()
         self.global_configs = configs
         self.configs = configs['Generation']
-        self.nranks = paddle.distributed.get_world_size()
+        nranks = paddle.distributed.get_world_size()
 
-        if self.nranks == 1:
+        if nranks == 1:
             from fleetx.models.gpt_model.modeling import GPTModel, GPTForGeneration
             self.model = GPTForGeneration(GPTModel(configs['Model']))
         else:
-            raise NotImplementedError
+            hcg = fleet.get_hybrid_communicate_group()
+            model_configs = deepcopy(self.global_configs['Model'])
+            model_configs['topology'] = hcg.topology()
+            if self.global_configs['Distributed']['pp_degree'] == 1:
+                from fleetx.models.gpt_model.modeling_hybrid import GPTModel, GPTForGeneration
+                self.model = GPTForGeneration(GPTModel(model_configs['Model']))
+            else:
+                raise NotImplementedError
+                # from fleetx.models.gpt_model.modeling_hybrid import GPTForGenerationPipe
+                # self.model = GPTForGenerationPipe(model_configs['Model'])
 
         self.configs['max_dec_len'] = self.adjust_length_to_model(
             self.configs['max_dec_len'], 512)
@@ -269,7 +278,7 @@ class GPTGenerationModule(BasicModule):
             # Decode text
             text = self.tokenizer.convert_ids_to_string(generated_ids)
             # Add the prompt at the beginning of the sequence.
-            sequence = input_text[i] + text
+            sequence = input_text + text
             generated_sequences.append(sequence)
             # print(sequence)
 

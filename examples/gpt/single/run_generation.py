@@ -22,6 +22,8 @@ import yaml
 import numpy as np
 
 import paddle
+
+sys.path.append("../../../")
 from examples.gpt.gpt_module import GPTGenerationModule
 from examples.gpt.tools import parse_args, parse_yaml
 
@@ -38,6 +40,7 @@ def do_generation():
     paddle.seed(seed)
 
     module = GPTGenerationModule(configs)
+    module.eval()
 
     ckpt_dir = configs['Engine']['save_load']['ckpt_dir']
 
