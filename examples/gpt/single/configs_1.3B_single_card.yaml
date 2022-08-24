@@ -76,3 +76,7 @@ Optimizer:
     max_lr: 5.0e-5
     min_lr: 1.0e-5
   grad_clip: 1.0
+
+Inference:
+  model_dir: ./output
+  mp_degree: 1

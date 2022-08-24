@@ -75,7 +75,7 @@ def do_train():
 
             # engine.evaluate(valid_data_loader=valid_data_loader, epoch=epoch)      
             # engine.predict(test_data_loader=test_data_loader, epoch=epoch)
-            # engine.save()
+            engine.save()
 
 
 if __name__ == "__main__":

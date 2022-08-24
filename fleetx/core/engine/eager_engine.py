@@ -29,6 +29,7 @@ sys.path.append("../../../")
 from fleetx.utils import logger
 from fleetx.core.engine.basic_engine import BasicEngine
 from fleetx.core.module.basic_module import BasicModule
+from fleetx.inference.inference_engine import InferenceEngine
 from fleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from fleetx.utils.version import version_check
 
@@ -198,6 +199,10 @@ class EagerEngine(BasicEngine):
             self._dp_rank = 0
 
         self._module.global_step = 0
+
+        self._inference_configs = configs['Inference']
+        self._inference_init = False
+        self._inference_engine = None
 
     def _wrap_with_fleet(self):
         if self._sharding_stage in [2, 3]:
@@ -550,4 +555,13 @@ class EagerEngine(BasicEngine):
 
             logger.info("successfully load checkpoints")
         else:
+            logger.warning("`load` requires a valid value of `ckpt_dir`.")
             raise TypeError("`load` requires a valid value of `ckpt_dir`.")
+
+    def inference(self, data):
+        if not self._inference_init:
+            self._inference_engine = InferenceEngine(
+                self._inference_configs['model_dir'],
+                self._inference_configs['mp_degree'])
+
+        return self._inference_engine.predict(data)

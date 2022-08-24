@@ -104,6 +104,8 @@ class GPTConfig(dict):
             'grad_clip': 0.0,
         }
 
+        self.Inference = {'model_dir': './output', 'mp_degree': 1}
+
         self.Quantization = {
             'weight_quantize_type': 'abs_max',
             'activation_quantize_type': 'moving_average_abs_max',

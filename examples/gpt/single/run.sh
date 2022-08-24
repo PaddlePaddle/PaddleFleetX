@@ -12,8 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# 1. run pretrain
+
 # 345M
-python run_pretrain.py -c ./configs_345m_single_card.yaml
+# python run_pretrain.py -c ./configs_345m_single_card.yaml
 
 # 1.3B
 # python run_pretrain.py -c ./configs_1.3B_single_card.yaml
+
+
+# 2. run inference
+
+# 345M
+python3.7 run_inference.py -c ./configs_345m_single_card.yaml
+
+# 1.3B
+# python run_inference.py -c ./configs_1.3B_single_card.yaml
