@@ -202,6 +202,7 @@ class EagerEngine(BasicEngine):
         self._inference_configs = configs['Inference']
         self._inference_init = False
         self._inference_engine = None
+
         self.profiler = None
         if 'Profiler' in configs and configs.get('Profiler', {}).get('enable', False):
             self.profiler_config = configs['Profiler']
@@ -213,6 +214,7 @@ class EagerEngine(BasicEngine):
             self.profiler = paddle.profiler.Profiler(targets=[paddle.profiler.ProfilerTarget.CPU, paddle.profiler.ProfilerTarget.GPU],
                                         scheduler=scheduler,
                                         on_trace_ready=paddle.profiler.export_chrome_tracing(profiler_log),
+                                        #TODO(kzq) uncomment after bugfix
                                         #record_shapes=record_shapes,
                                         profile_memory=profile_memory)
             self.profiler.start()
@@ -591,6 +593,7 @@ class EagerEngine(BasicEngine):
         return self._inference_engine.predict(data)
 
     def _print_summary(self):
+        #TODO(kzq) move above
         from paddle.profiler import SummaryView
         views_dict = {
                     SummaryView.DeviceView : 'device',
@@ -605,29 +608,28 @@ class EagerEngine(BasicEngine):
                 }
 
         def gen_views(cfg):
-            # print all summary view is detailed True
+            # print all summary view if detailed=True
             if self.profiler_config.get('detailed', False):
                 return None
 
             default_views = ['overview', 'model', 'kernel', 'op']
             views = []
-            # override default view with user defined is detailed False
+            # override default view with user defined value if detailed=False
             for view in SummaryView:
                 v = self.profiler_config.get('summary', {}).get(views_dict[view], None)
                 if v is True or (v is None and v in default_views):
                     views.append(view)
 
-            print(views)
             return views or None
 
         self.profiler.summary(sorted_by=paddle.profiler.SortedKeys.GPUTotal, 
                 views=gen_views(self.profiler_config))
 
     def _profiler_done(self):
-        logger.info("Profiler finished, prepare to print summary...")
-
         if not self.profiler:
             return
+
+        logger.info("Profiler finished, prepare to print summary...")
 
         self.profiler.stop()
 

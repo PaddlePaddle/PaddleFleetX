@@ -1,10 +1,10 @@
 # Profiler
 
-本文档主要包括在 gpt 中开启 Profiler 并分析调试分析结果的方法，在模型开发中使用 Profiler 分析工具的方法请参考[教程](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/guides/performance_improving/profiling_model.html)和[API文档](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/api/paddle/profiler/Profiler_cn.html)。
+本文档主要包括在 GPT 中开启 Profiler 并分析调试分析结果的方法，在模型开发中使用 Profiler 分析工具的方法请参考[教程](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/guides/performance_improving/profiling_model.html)和[API文档](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/api/paddle/profiler/Profiler_cn.html)。
 
-## 配置
+## 参数配置
 
-使用 Profiler 功能需要在任务配置文件中添加 Profiler 配置信息并确保字段为 `enable: True`.
+使用 Profiler 功能需要在任务配置文件中添加 Profiler 配置信息并确保字段为 `enable: True` 以开启分析器。
 
 完整的可配置参数如下所示，可以根据使用场景调整配置。
 
@@ -12,7 +12,7 @@
 Profiler:
   enable: True
   scheduler: [1, 5]
-  profiler_log: plog
+  profiler_log: log_path
   detailed: True
   record_shapes: True
   profile_memory: True
@@ -32,29 +32,28 @@ Profiler:
 | **参数名**                      | **参数释义**               |  **默认值** |
 |------------------------------|------------------------|------------------------|
 |  enable |   是否开启 Profiler | False |
-|  scheduler  | 定义分析区间 | None |
+|  scheduler  | 定义分析区间，如 [1, 5] 记录 step 1 到 step 4 的分析数据 | None |
 |  profiler_log  | 日志文件目录 |   profiler_log |
-|  detailed  | 显示详细信息 |   False |
+|  detailed  | 是否显示详细信息 |   False |
 |  record_shapes  |   是否记录 tensor shape 相关信息 | True |
 |  profile_memory |   是否统计 memory 相关信息 | True |
-|  summary.overview | 显示 profiler 摘要信息 |  True |
-|  summary.device | 显示设备信息 |  False |
-|  summary.model  | 显示模型信息 |  True |
-|  summary.dist  | 显示分布式信息 |  False |
-|  summary.kernel  | 显示内核信息 |  True |
-|  summary.op  | 显示 op 信息 |  True |
-|  summary.mem  | 显示内存/显存信息 |  False |
-|  summary.memcpy  | 显示内存/显存拷贝信息 | False |
 
+其中，当 detailed=True 时会打印所有 summary 表格数据，当 detailed=False 时用户可以根据以下说明定制需要展示的表格信息。
 
-注意：
+| **参数名**                      | **参数释义**               |  **默认值** |
+|------------------------------|------------------------|------------------------|
+|  summary.overview | 显示每种类型的 Event 时间消耗 |  True |
+|  summary.device | 显示 CPU 和 GPU 的平均利用率信息 |  False |
+|  summary.model  | 显示模型 dataloader、forward、backward、optimization 时间消耗 |  True |
+|  summary.dist  | 显示计算、通信以及重叠时间 |  False |
+|  summary.kernel  | 显示 GPU 执行的 kernel 信息 |  True |
+|  summary.op  | 显示框架中算子 (op) 的执行信息 |  True |
+|  summary.mem  | 显示内存/显存占用统计信息 |  False |
+|  summary.memcpy  | 显示框架中调用内存操作所花费的时间 | False |
 
-* 当使用 `detailed: True` 时，开启所有 summary 的展示, 使用 `detailed: False` 时，使用各自默认值，且优先根据具体设置。
-* scheduler 可以定义 profiler 的生效 step 区间，默认 None 会记录所有 step, 强烈建议 step 数不超过5.
+## 运行分析
 
-## 运行
-
-本节以 gpt/hybrid_parallel 为例，首先进入目录
+本节以 gpt/hybrid_parallel 为例，首先进入目录，
 
 ```
 cd FleetX/examples/gpt/hybrid_parallel
@@ -69,21 +68,21 @@ python -m paddle.distributed.launch run_pretrain.py -c ./configs_1.3B_dp8.yaml -
 
 ## 结果分析
 
-默认情况下会在训练结束后会有以下数据
+默认情况下会在训练结束后会有以下数据：
 
 * 根据配置信息在控制台打印 summary 表格
 * 在配置的 `profiler_log` 目录保存 profiler json 文件
 
-这里保存的 json 文件可以通过如下两种方式查看
+这里保存的 json 文件可以通过如下两种方式查看：
 
 * 在 chrome 浏览器中打开 chrome://tracing/，然后打开 json 文件查看
-* 根据控制台信息安装并启动 `visualdl --logdir profiler_log` 然后根据提示在浏览器中查看
+* 根据控制台信息安装并启动 `visualdl --logdir log_path` 然后根据提示在浏览器中查看
 
 具体的信息含义解释以及分析方法请参考[文档](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/guides/performance_improving/profiling_model.html)。
 
 ## 附录
 
-控制台打印的 summary 信息示例如下所示，
+控制台打印的 summary 信息示例如下所示。
 
 **Overview Summary**
 ```
