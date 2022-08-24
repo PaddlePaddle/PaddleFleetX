@@ -187,15 +187,16 @@ class MultiHeadAttention(nn.Layer):
             # incremental_state with initial value, mainly for usage like UniLM
             return self.Cache(key, value)
 
-    def core_attn(self, q, k, v):
+    def core_attn(self, q, k, v, attn_mask=None):
         # scale dot product attention
         product = layers.matmul(
             x=q, y=k, transpose_y=True, alpha=self.head_dim**-0.5)
 
-        # TODO(liuyuang): support softmax_mask_fuse_upper_triangle for generation task
-        weights = F.softmax(product)
-
-        # weights = incubate.softmax_mask_fuse_upper_triangle(product)
+        if attn_mask is not None:
+            product = product + attn_mask
+            weights = F.softmax(product)
+        else:
+            weights = incubate.softmax_mask_fuse_upper_triangle(product)
 
         if self.dropout:
             weights = F.dropout(
@@ -241,9 +242,10 @@ class MultiHeadAttention(nn.Layer):
                                                    use_cache, cache)
 
         if self.use_recompute and self.recompute_granularity == "core_attn":
-            out, weights = recompute(self.core_attn, q, k, v)
+            out, weights = recompute(
+                self.core_attn, q, k, v, attn_mask=attn_mask)
         else:
-            out, weights = self.core_attn(q, k, v)
+            out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
 
         # project to output
         out = self.out_proj(out)
@@ -567,26 +569,27 @@ class GPTModel(nn.Layer):
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
 
-        # TODO, use registered buffer
-        # causal_mask = paddle.tensor.triu(
-        #     paddle.ones((paddle.shape(input_ids)[-1],
-        #                  paddle.shape(input_ids)[-1])) * -1e4,
-        #     diagonal=1)
-
-        # if attention_mask is not None:
-        #     if len(attention_mask.shape) == 2:
-        #         attention_mask = attention_mask[:, None, None, :]
-        #     attention_mask = attention_mask + causal_mask
-        # else:
-        #     attention_mask = causal_mask
-        # # The tensor returned by triu not in static graph.
-        # attention_mask.stop_gradient = True
+        if self.training == False:
+            # TODO, use registered buffer
+            causal_mask = paddle.tensor.triu(
+                paddle.ones(
+                    (paddle.shape(input_ids)[-1], paddle.shape(input_ids)[-1]))
+                * -1e4,
+                diagonal=1)
+            if attention_mask is not None:
+                if len(attention_mask.shape) == 2:
+                    attention_mask = attention_mask[:, None, None, :]
+                attention_mask = attention_mask + causal_mask
+            else:
+                attention_mask = causal_mask
+            # The tensor returned by triu not in static graph.
+            attention_mask.stop_gradient = True
 
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
-            # tgt_mask=attention_mask,
-            tgt_mask=None,  # use softmax_mask_fuse_upper_triangle
+            tgt_mask=None if self.training else
+            attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
 
@@ -819,7 +822,6 @@ class GPTForGeneration(nn.Layer):
             "input_ids": input_ids,
             "position_ids": position_ids,
             "attention_mask": attention_mask,
-            "use_cache": use_cache,
             "cache": cache
         }
 
@@ -942,20 +944,33 @@ class GPTForGeneration(nn.Layer):
         scores = paddle.full(
             [batch_size, 1], 0.0, dtype=paddle.get_default_dtype())
 
+        # use_cache is immutable, we split it off other mutable kwargs.
+        assert 'use_cache' in model_kwargs
+        immutable = {'use_cache': model_kwargs['use_cache']}
+        del model_kwargs['use_cache']
+
+        def _forward_(**args):
+            model_inputs = self.prepare_inputs_for_generation(
+                input_ids, **args, **immutable)
+            return self.gpt(**model_inputs, **immutable)
+
         # Pre-while call for inference,
         # the value in model_kwargs should be tensor before while loop
         if cur_len < max_length:
-            model_inputs = self.prepare_inputs_for_generation(input_ids,
-                                                              **model_kwargs)
-            outputs = self.gpt(**model_inputs)
+            outputs = _forward_(**model_kwargs)
+
+        attn_mask = model_kwargs['attention_mask']
+        # make the shape of attention_mask = (-1, -1, -1, -1) in dy2static.
+        model_kwargs['attention_mask'] = paddle.reshape(
+            attn_mask, paddle.shape(attn_mask))
+        model_kwargs['cache'] = outputs[1] if isinstance(outputs,
+                                                         tuple) else None
 
         while cur_len < max_length:
             # prepare model inputs & get model output
             # skip first step for pre-while call
             if cur_len > origin_len:
-                model_inputs = self.prepare_inputs_for_generation(
-                    input_ids, **model_kwargs)
-                outputs = self.gpt(**model_inputs)
+                outputs = _forward_(**model_kwargs)
 
             logits = outputs[0] if isinstance(outputs, tuple) else outputs
 
@@ -1086,8 +1101,9 @@ class GPTForGeneration(nn.Layer):
                     expand_size=num_return_sequences,
                     **model_kwargs)
 
-            return self.sample(input_ids, logits_processors, max_length,
-                               pad_token_id, eos_token_id, top_k, top_p,
-                               temperature, **model_kwargs)
+            ret = self.sample(input_ids, logits_processors, max_length,
+                              pad_token_id, eos_token_id, top_k, top_p,
+                              temperature, **model_kwargs)
         else:
             raise ValueError(f'Not support {decoding_strategy} strategy yet!')
+        return ret
