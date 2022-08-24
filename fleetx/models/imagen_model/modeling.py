@@ -20,12 +20,12 @@ import paddle.nn.functional as F
 from paddle import nn
 import paddle.vision.transforms as T
 
-from fleetx.models.imagen_model.modeling_imagen_modules import (
-    GaussianDiffusion, GaussianDiffusionContinuousTimes, Unet, eval_decorator,
-    exists, identity, cast_tuple, first, maybe, default, pad_tuple_to_length,
-    right_pad_dims_to, resize_image_to, normalize_neg_one_to_one,
-    unnormalize_zero_to_one, cast_uint8_images_to_float, partial, rearrange,
-    repeat, reduce)
+from .unet import Unet
+from .utils import (GaussianDiffusionContinuousTimes, default, exists,
+                    cast_tuple, first, maybe, eval_decorator, identity,
+                    pad_tuple_to_length, right_pad_dims_to, resize_image_to,
+                    normalize_neg_one_to_one, rearrange, repeat, reduce,
+                    unnormalize_zero_to_one, cast_uint8_images_to_float)
 
 
 # predefined unets, with configs lining up with hyperparameters in appendix of paper
@@ -89,30 +89,29 @@ class SRUnet1024(Unet):
 
 
 class Imagen(nn.Layer):
-    def __init__(
-            self,
-            unets,
-            image_sizes,  # for cascading ddpm, image size at each stage
-            text_encoder_name='t5/t5-11b',
-            text_embed_dim=1024,
-            in_chans=3,
-            timesteps=1000,
-            cond_drop_prob=0.1,
-            loss_type='l2',
-            num_classes=None,
-            noise_schedules='cosine',
-            pred_objectives='noise',
-            random_crop_sizes=None,
-            lowres_noise_schedule='linear',
-            lowres_sample_noise_level=0.2,  # in the paper, they present a new trick where they noise the lowres conditioning image, and at sample time, fix it to a certain level (0.1 or 0.3) - the unets are also made to be conditioned on this noise level
-            per_sample_random_aug_noise_level=False,  # unclear when conditioning on augmentation noise level, whether each batch element receives a random aug noise value - turning off due to @marunine's find
-            condition_on_text=True,
-            auto_normalize_img=True,  # whether to take care of normalizing the image from [0, 1] to [-1, 1] and back automatically - you can turn this off if you want to pass in the [-1, 1] ranged image yourself from the dataloader
-            p2_loss_weight_gamma=0.5,  # p2 loss weight, from https://arxiv.org/abs/2204.00227 - 0 is equivalent to weight of 1 across time
-            p2_loss_weight_k=1,
-            dynamic_thresholding=True,
-            dynamic_thresholding_percentile=0.95,
-            only_train_unet_number=None):
+    def __init__(self,
+                 unets,
+                 image_sizes,
+                 text_encoder_name='t5/t5-11b',
+                 text_embed_dim=1024,
+                 in_chans=3,
+                 timesteps=1000,
+                 cond_drop_prob=0.1,
+                 loss_type='l2',
+                 num_classes=None,
+                 noise_schedules='cosine',
+                 pred_objectives='noise',
+                 random_crop_sizes=None,
+                 lowres_noise_schedule='linear',
+                 lowres_sample_noise_level=0.2,
+                 per_sample_random_aug_noise_level=False,
+                 condition_on_text=True,
+                 auto_normalize_img=True,
+                 p2_loss_weight_gamma=0.5,
+                 p2_loss_weight_k=1,
+                 dynamic_thresholding=True,
+                 dynamic_thresholding_percentile=0.95,
+                 only_train_unet_number=None):
         super().__init__()
 
         # loss
