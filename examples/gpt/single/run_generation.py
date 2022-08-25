@@ -47,12 +47,16 @@ def do_generation():
     model_path = os.path.join(ckpt_dir, "model.pdparams")
     model_dict = paddle.load(model_path)
 
+    for key, value in model_dict.items():
+        model_dict[key] = model_dict[key].astype(paddle.float32)
+
     module.model.set_state_dict(model_dict)
 
-    input_text = 'Where are you from?'
+    input_text = 'Hi, GPT2. Tell me who Jack Ma is.'
     result = module.generate(input_text)
 
-    print(result[0])
+    print(f'Prompt: {input_text}')
+    print(f'Generation: {result[0]}')
 
 
 if __name__ == "__main__":

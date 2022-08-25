@@ -72,6 +72,13 @@ cd .. # 回到 single/hybrid_parallel 路径下
 - [混合并行训练](./hybrid_parallel/README.md)
 
 
+### 文本生成
+
+- [单卡预训练模型文本生成](./single/README.md)
+
+- [混合并行预训练模型文本生成](./hybrid_parallel/README.md)
+
+
 ## 参考文献
 - [Language Models are Unsupervised Multitask Learners](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)
 - [Language Models are Few-Shot Learners](https://arxiv.org/pdf/2005.14165.pdf)
