@@ -60,7 +60,7 @@ git clone https://github.com/PaddlePaddle/FleetX.git
 
 切换工作目录并下载demo数据，
 ```
-cd FleetX/examples/gpt/hybrid_parallel
+cd FleetX/examples/gpt/hybrid_parallel # 或者 cd FleetX/examples/gpt/auto_parallel
 
 mkdir data
 wget -O data/gpt_en_dataset_300m_ids.npy https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_ids.npy
