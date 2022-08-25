@@ -28,7 +28,7 @@ from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 
 sys.path.append("../../../")
 from examples.gpt.gpt_module import GPTGenerationModule
-from examples.gpt.tools import parse_args, parse_yaml
+from examples.gpt.tools import parse_yaml
 
 
 def set_hyrbid_parallel_seed(basic_seed, data_world_rank, mp_rank, pp_rank):
@@ -45,7 +45,7 @@ def set_hyrbid_parallel_seed(basic_seed, data_world_rank, mp_rank, pp_rank):
 
 
 def do_generation():
-    configs = parse_yaml(parse_args())
+    configs = parse_yaml()
 
     paddle.set_device(configs['Global']['device'])
 

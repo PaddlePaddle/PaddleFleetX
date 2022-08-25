@@ -118,7 +118,7 @@ class GPTConfig(dict):
             'is_full_quantize': False,
             'onnx_format': False,
         }
-        
+
         self.Generation = {
             'top_k': 5,
             'temperature': 1.0,
@@ -130,6 +130,16 @@ class GPTConfig(dict):
             'max_dec_len': 16,
             'num_return_sequences': 1,
             'decode_strategy': "sampling"
+        }
+
+        self.Eval = {
+            'eval_path': None,
+            'cloze_eval': False,
+            'overlapping_eval': 32,
+            'ckpt_dir': None,
+            'batch_size': 8,
+            'max_seq_len': 1024,
+            'logging_freq': 100,
         }
 
         self._update(yaml_dict)

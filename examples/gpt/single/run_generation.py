@@ -25,11 +25,11 @@ import paddle
 
 sys.path.append("../../../")
 from examples.gpt.gpt_module import GPTGenerationModule
-from examples.gpt.tools import parse_args, parse_yaml
+from examples.gpt.tools import parse_yaml
 
 
 def do_generation():
-    configs = parse_yaml(parse_args())
+    configs = parse_yaml()
 
     paddle.set_device(configs['Global']['device'])
 

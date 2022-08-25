@@ -26,7 +26,7 @@ from paddle.distributed import fleet
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 
 sys.path.append("../../../")
-from examples.gpt.tools import parse_args, parse_yaml
+from examples.gpt.tools import parse_yaml
 from examples.gpt.gpt_module import GPTHybridModule
 from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
 from fleetx.data.tokenizers import GPTTokenizer
@@ -49,7 +49,7 @@ def set_hyrbid_parallel_seed(basic_seed, data_world_rank, mp_rank, pp_rank):
 
 
 def do_train():
-    configs = parse_yaml(parse_args())
+    configs = parse_yaml()
 
     paddle.set_device(configs['Global']['device'])
 
