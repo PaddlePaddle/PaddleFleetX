@@ -17,6 +17,7 @@ import json
 import math
 import time
 import sys
+import random
 import numpy as np
 
 import paddle
@@ -94,16 +95,17 @@ def do_eval():
     configs = parse_yaml()
     paddle.set_device(configs['Global']['device'])
 
+    seed = configs['Global']['seed']
+    random.seed(seed)
+    np.random.seed(seed)
+    paddle.seed(seed)
+
     model = GPTForPretraining(GPTModel(configs['Model']))
 
     if configs['Eval']['ckpt_dir'] is not None:
         logger.info("Load model checkpoint from %s" %
                     configs['Eval']['ckpt_dir'])
         model_dict = paddle.load(os.path.join(configs['Eval']['ckpt_dir']))
-
-        for k, v in model_dict.items():
-            model_dict[k] = v.cast(dtype='float32')
-
         model.set_state_dict(model_dict)
 
     eval_data_loader, eval_dict = create_eval_dataset(configs['Eval'])
