@@ -227,7 +227,7 @@ Fused:
 
 | 模型规模 | 训练策略                 | yaml文件                   |
 |----------|---------------------------|------------------------------|
-| 345M     | fp16+mp8+qat              | configs_1.3B_mp8_qat.yaml    |
+| 345M     | fp16+mp8+qat              | configs_345M_mp8_qat.yaml    |
 | 1.3B     | fp16+dp8+recompute        | configs_1.3B_dp8.yaml        |
 | 6.7B     | fp16+sharding16+recompute | configs_6.7B_sharding16.yaml |
 | 175B     | fp16+mp8+pp16+recompute   | configs_175B_mp8_pp16.yaml   |
@@ -321,3 +321,12 @@ python -m paddle.distributed.launch --log_dir $log_dir --master=$master_ip:$mast
 ```
 
 当节点较多时，可以考虑使用 `ssh` 脚本或 `mpirun` 进行跨节点命令分发。
+
+### 量化训练
+
+若需要对模型进行量化训练，按照以上在配置文件中添加量化参数，可参考`configs_345M_mp8_qat.yaml`，启动命令与以上训练一致。以单机345M模型模型并行训练为例，通过``paddle.distributed.launch``启动多进程训练，该gpt程序需要8卡32G V100以运行，命令如下：
+```shell
+log_dir=log_mp8
+python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
+    -c ./configs_345M_mp8_qat.yaml
+```
