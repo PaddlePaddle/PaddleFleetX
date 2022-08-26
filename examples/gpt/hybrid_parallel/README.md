@@ -330,3 +330,107 @@ log_dir=log_mp8
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
     -c ./configs_345M_mp8_qat.yaml
 ```
+
+
+# GPT Zero-shot 文本生成
+
+## 参数释义
+
+```yaml
+Generation:
+  top_k: 50
+  top_p: 0.75
+  temperature: 1.0
+  min_dec_len: 1
+  max_dec_len: 200
+  num_return_sequences: 1
+  decode_strategy: "sampling"
+```
+
+其中参数说明：
+
+| **参数名**      | **参数释义**                  |
+|--------------|---------------------------|
+| top_k | 每次为采样挑选保留分数最高的 k 个 token        |
+| top_p   | 如果设置小于 1.0 的小数，则保留加起来为 top_p 或更高的最可能的概率的 token。默认值为 1.0        |
+| temperature   |  调节下一个 token 的概率温度，logits = logits / temperature，默认值为 1.0           |
+| min_dec_len | 最小生成 token 长度              |
+| max_dec_len  | 最大生成 token 长度                     |
+| num_return_sequences  | 每个输入生成的序列个数，默认值为 1                  |
+| decode_strategy       | 解码策略，默认值为 "sampling"，目前只支持 "sampling"，未来会支持 "greedy_search"，"beam_search" |
+
+## 文本生成
+
+### 进入到 examples/gpt/hybrid_parallel 目录，下载预训练好的模型
+
+```shell
+mkdir -p ckpt
+wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
+tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
+```
+
+### 快速体验文本生成
+
+
+```shell
+# --devices 根据并行策略设置设备
+# -o Engine.save_load.ckpt_dir=./ckpt/GPT_345M_300B_DP_20220826 是覆盖 yaml 配置文件中的 checkpoint 目录
+
+python -m paddle.distributed.launch --devices "0" run_generation.py -c configs_345M_dp8.yaml -o Engine.save_load.ckpt_dir=./ckpt/GPT_345M_300B_DP_20220826/
+
+# 生成的文本，由于 checkpoint 不同，超参不同，随机数不同，您执行可能会生成不一样的内容
+
+Prompt: Hi, GPT2. Tell me who Jack Ma is.
+Generation: Hi, GPT2. Tell me who Jack Ma is. I don’t want to hear that.”
+
+For now, the only question the crowd is asking is whether or not Jack Ma will step down from the board of directors of Alibaba.
+
+Jack Ma on why he never wanted to run for President in 2016:
+
+There were two reasons. One is that I wanted to spend more time with my family. I thought it was better to spend more time with my family and spend more time with my children. So it was a very personal reason. But the second reason was that I thought it would be difficult to get elected, because there are a lot of political interests in this country. So I thought it was better to spend more time with my family.
+
+On how Alibaba will evolve into a new player in China’s transportation and logistics sector:
+
+I think that we are going to become a very important player in the logistics industry. So our strategy is to make it easy for people to travel.
+```
+
+### 剖析体验文本生成
+
+#### GPT 文本生成模块初始化
+
+```python
+    module = GPTGenerationModule(configs)
+    module.eval()
+```
+
+#### 预训练模型加载
+
+```python
+    # 获取到预训练 checkpoint 的根目录
+    ckpt_dir = configs['Engine']['save_load']['ckpt_dir']
+
+    # 根据混合并行的配置，构造出具体路径
+    ckpt_dir = "{}/mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}".format(
+        ckpt_dir, mp_rank, sharding_rank, pp_rank)
+    model_path = os.path.join(ckpt_dir, "model.pdparams")
+    
+    # 加载模型参数
+    model_dict = paddle.load(model_path)
+
+    # FP16 模型参数转成 FP32 模型参数
+    for key, value in model_dict.items():
+        model_dict[key] = model_dict[key].astype(paddle.float32)
+
+    # 设置模型参数为预训练参数
+    module.model.set_state_dict(model_dict)
+```
+
+#### 文本生成与结果展示
+
+```python
+    input_text = "Historical Records: Tell us about the history of the Great Wall."
+    result = module.generate(input_text)
+
+    print(f'Prompt: {input_text}')
+    print(f'Generation: {result[0]}')
+```
