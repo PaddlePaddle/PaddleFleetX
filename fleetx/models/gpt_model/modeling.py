@@ -685,9 +685,34 @@ class GPTForGeneration(nn.Layer):
 
     """
 
-    def __init__(self, gpt):
+    def __init__(self, gpt, configs):
         super(GPTForGeneration, self).__init__()
         self.gpt = gpt
+        self.configs = configs
+
+        self.max_length = self.configs.get('max_dec_len', 20)
+        self.min_length = self.configs.get('min_dec_len', 0)
+        self.decode_strategy = self.configs.get('decode_strategy', 'sampling')
+        self.temperature = self.configs.get('temperature', 1.0)
+        self.top_k = self.configs.get('top_k', 0)
+        self.top_p = self.configs.get('top_p', 1.0)
+        self.repetition_penalty = self.configs.get('repetition_penalty', 1.0)
+        self.num_beams = self.configs.get('num_beams', 1)
+        self.num_beam_groups = self.configs.get('num_beam_groups', 1)
+        self.length_penalty = self.configs.get('length_penalty', 0.0)
+        self.early_stopping = self.configs.get('early_stopping', False)
+        self.bos_token_id = self.configs.get('bos_token_id', None)
+        self.eos_token_id = self.configs.get('eos_token_id', None)
+        self.pad_token_id = self.configs.get('pad_token_id', None)
+        self.decoder_start_token_id = self.configs.get(
+            'decoder_start_token_id', None)
+        self.forced_bos_token_id = self.configs.get('forced_bos_token_id',
+                                                    None)
+        self.forced_eos_token_id = self.configs.get('forced_eos_token_id',
+                                                    None)
+        self.num_return_sequences = self.configs.get('num_return_sequences', 1)
+        self.diversity_rate = self.configs.get('diversity_rate', 0.0)
+        self.use_cache = self.configs.get('use_cache', True)
 
     def prepare_input_ids_for_generation(self,
                                          bos_token_id,
@@ -1024,29 +1049,29 @@ class GPTForGeneration(nn.Layer):
 
         return input_ids[:, origin_len:], scores
 
-    def forward(self,
-                input_ids=None,
-                max_length=20,
-                min_length=0,
-                decode_strategy='sampling',
-                temperature=1.0,
-                top_k=0,
-                top_p=1.0,
-                repetition_penalty=1.0,
-                num_beams=1,
-                num_beam_groups=1,
-                length_penalty=0.0,
-                early_stopping=False,
-                bos_token_id=None,
-                eos_token_id=None,
-                pad_token_id=None,
-                decoder_start_token_id=None,
-                forced_bos_token_id=None,
-                forced_eos_token_id=None,
-                num_return_sequences=1,
-                diversity_rate=0.0,
-                use_cache=True,
-                **model_kwargs):
+    def forward(self, input_ids=None, **model_kwargs):
+
+        max_length = self.max_length
+        min_length = self.min_length
+        decode_strategy = self.decode_strategy
+        temperature = self.temperature
+        top_k = self.top_k
+        top_p = self.top_p
+        repetition_penalty = self.repetition_penalty
+        num_beams = self.num_beams
+        num_beam_groups = self.num_beam_groups
+        length_penalty = self.length_penalty
+        early_stopping = self.early_stopping
+        bos_token_id = self.bos_token_id
+        eos_token_id = self.eos_token_id
+        pad_token_id = self.pad_token_id
+        decoder_start_token_id = self.decoder_start_token_id
+        forced_bos_token_id = self.forced_bos_token_id
+        forced_eos_token_id = self.forced_eos_token_id
+        num_return_sequences = self.num_return_sequences
+        diversity_rate = self.diversity_rate
+        use_cache = self.use_cache
+
         assert (
             decode_strategy in ["greedy_search", "sampling", "beam_search"]
         ), "`decode_strategy` must be one of 'greedy_search', 'sampling' or 'beam_search' but received {}.".format(

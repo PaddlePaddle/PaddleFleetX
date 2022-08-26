@@ -191,23 +191,29 @@ class GPTGenerationModule(BasicModule):
 
         if nranks == 1:
             from fleetx.models.gpt_model.modeling import GPTModel, GPTForGeneration
-            self.model = GPTForGeneration(GPTModel(configs['Model']))
+            self.model = GPTForGeneration(
+                GPTModel(configs['Model']), self.configs)
         else:
             hcg = fleet.get_hybrid_communicate_group()
             model_configs = deepcopy(self.global_configs['Model'])
             model_configs['topology'] = hcg.topology()
             if self.global_configs['Distributed']['pp_degree'] == 1:
                 from fleetx.models.gpt_model.modeling_hybrid import GPTModel, GPTForGeneration
-                self.model = GPTForGeneration(GPTModel(model_configs['Model']))
+                self.model = GPTForGeneration(
+                    GPTModel(model_configs['Model']), self.configs)
             else:
                 raise NotImplementedError
                 # from fleetx.models.gpt_model.modeling_hybrid import GPTForGenerationPipe
                 # self.model = GPTForGenerationPipe(model_configs['Model'])
 
+        self.tokenizer = GPTTokenizer.from_pretrained("gpt2")
+
         self.configs['max_dec_len'] = self.adjust_length_to_model(
             self.configs['max_dec_len'], 512)
 
-        self.tokenizer = GPTTokenizer.from_pretrained("gpt2")
+        self.configs['bos_token_id'] = self.tokenizer.eos_token_id
+        self.configs['eos_token_id'] = self.tokenizer.eos_token_id
+        self.configs['pad_token_id'] = self.tokenizer.eos_token_id
 
     def adjust_length_to_model(self, length, max_sequence_length):
         if length < 0 or length > max_sequence_length:
@@ -254,21 +260,7 @@ class GPTGenerationModule(BasicModule):
             # [1, seq_len]
             input_ids = paddle.to_tensor(input_ids, dtype='int64')
 
-        ids, scores = self.model(
-            input_ids=input_ids,
-            max_length=self.configs['max_dec_len'],
-            min_length=self.configs['min_dec_len'],
-            bos_token_id=self.tokenizer.eos_token_id,
-            eos_token_id=self.tokenizer.eos_token_id,
-            pad_token_id=self.tokenizer.eos_token_id,
-            decode_strategy=self.configs['decode_strategy'],
-            temperature=self.configs['temperature'],
-            top_k=self.configs['top_k'],
-            top_p=self.configs['top_p'],
-            num_beams=self.configs['num_beams'],
-            length_penalty=self.configs['length_penalty'],
-            early_stopping=self.configs['early_stopping'],
-            num_return_sequences=self.configs['num_return_sequences'])
+        ids, scores = self.model(input_ids=input_ids)
 
         generated_sequences = []
         for i, generated_ids in enumerate(ids):
