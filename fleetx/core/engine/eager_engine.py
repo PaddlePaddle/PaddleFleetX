@@ -607,17 +607,22 @@ class EagerEngine(BasicEngine):
                     SummaryView.UDFView : 'udf',
                 }
 
+        default_views = [
+                    SummaryView.OverView,
+                    SummaryView.ModelView,
+                    SummaryView.KernelView,
+                    SummaryView.OperatorView,
+                ]
         def gen_views(cfg):
             # print all summary view if detailed=True
             if self.profiler_config.get('detailed', False):
                 return None
 
-            default_views = ['overview', 'model', 'kernel', 'op']
             views = []
             # override default view with user defined value if detailed=False
             for view in SummaryView:
                 v = self.profiler_config.get('summary', {}).get(views_dict[view], None)
-                if v is True or (v is None and v in default_views):
+                if v is True or (v is None and view in default_views):
                     views.append(view)
 
             return views or None
@@ -637,5 +642,5 @@ class EagerEngine(BasicEngine):
         profiler_log = self.profiler_config.get('profiler_log', './profiler_log')
         print("For more information please install visualdl and run it with following command:")
         print("-------------------------------------------------------------------------------")
-        print(f"visualdl --logdir --host 0.0.0.0 {profiler_log}")
+        print(f"visualdl --host 0.0.0.0 --logdir {profiler_log}")
         print("-------------------------------------------------------------------------------")
