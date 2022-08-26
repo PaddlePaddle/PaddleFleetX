@@ -21,6 +21,10 @@ GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupe
     ├── configs_175B_mp8_pp16.yaml         # 16机175B混合并行模型配置文件
     ├── run_pretrain.py                    # 分布式预训练入口
     ├── run.sh                             # 分布式训练启动入口
+├── auto_parallel                          # 自动并行分布式模型训练
+    ├── configs_345M_dp8.yaml              # 单机345M数据并行模型配置文件
+    ├── run_pretrain.py                    # 自动并行分布式预训练入口
+    ├── run.sh                             # 自动并行分布式训练启动入口
 ```
 
 ## 快速开始
@@ -51,26 +55,26 @@ python -m pip install regex colorlog colorama omegaconf sentencepiece tqdm visua
 
 **数据下载命令**
 ```shell
-cd single # 或者 cd hybrid_parallel
+cd single # 或者 cd hybrid_parallel, 或者 cd auto_parallel
 
 # 下载样例数据
 mkdir data && cd data
 wget -O gpt_en_dataset_300m_ids.npy https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_ids.npy
 wget -O gpt_en_dataset_300m_idx.npz https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_idx.npz
 
-cd .. # 回到 single/hybrid_parallel 路径下
+cd .. # 回到 single/hybrid_parallel/auto_parallel 路径下
 ```
 
 ### 模型训练
 
-除了单卡训练，飞桨还支持数据并行、混合并行、重计算等多种分布式策略，减少显存占用、加速训练，达到大模型可训练且训得快的效果。在模型训练前，需要根据模型规模选择合适的并行策略。下面分别从单卡训练和混合并行训练两方面来介绍GPT模型训练的配置文件和启动方式。
-
+除了单卡训练，飞桨还支持数据并行、混合并行、自动并行、重计算等多种分布式策略，减少显存占用、加速训练，达到大模型可训练且训得快的效果。在模型训练前，需要根据模型规模选择合适的并行策略。下面分别从单卡训练、混合并行训练和自动并行训练三个方面来介绍GPT模型训练的配置文件和启动方式。
 
 
 - [单卡训练](./single/README.md)
 
 - [混合并行训练](./hybrid_parallel/README.md)
 
+- [自动并行训练](./auto_parallel/README.md)
 
 ### 文本生成
 

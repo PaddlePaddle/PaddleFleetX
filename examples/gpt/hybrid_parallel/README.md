@@ -116,6 +116,28 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
 | min_lr       | Adam 的初始最小学习率             |
 | grad_clip    | 梯度裁剪范围，使用的是GlobalNorm梯度裁剪 |
 
+### 量化训练
+如需要对模型进行量化训练，可通过以下配置量化训练的参数，如：
+```yaml
+  Quantization:
+    weight_quantize_type: 'abs_max'
+    activation_quantize_type: 'moving_average_abs_max'
+    weight_bits: 8
+    activation_bits: 8
+    quantizable_layer_type: ['Conv2D', 'Linear', 'Conv2DTranspose', 'ColumnParallelLinear', 'RowParallelLinear']
+```
+
+其中参数说明：
+| **参数名**      | **参数释义**                  |
+|--------------|---------------------------|
+| weight_quantize_type | 模型权重的量化方式       |
+| activation_quantize_type   |   模型激活值的量化方式        |
+| weight_bits   |      权重量化比特数          |
+| activation_bits |     激活量化比特数              |
+| quantize_op_types  |    量化OP列表             |
+| for_tensorrt  | 量化后的模型是否使用 TensorRT 进行预测，默认值为False                  |
+| is_full_quantize   |    是否全量化，默认值为False             |
+| onnx_format   |   是否采用ONNX量化标准格式，默认值为False            |
 
 ### 并行维度
 
@@ -201,10 +223,11 @@ Fused:
 
 
 ## 运行方式
-本目录中按照1.3B、6.7B和175B规模大小，给出32G V100环境下GPT模型混合并行训练的策略配置如下：
+本目录中按照345M、1.3B、6.7B和175B规模大小，给出32G V100环境下GPT模型混合并行训练的策略配置如下：
 
 | 模型规模 | 训练策略                 | yaml文件                   |
 |----------|---------------------------|------------------------------|
+| 345M     | fp16+mp8+qat              | configs_345M_mp8_qat.yaml    |
 | 1.3B     | fp16+dp8+recompute        | configs_1.3B_dp8.yaml        |
 | 6.7B     | fp16+sharding16+recompute | configs_6.7B_sharding16.yaml |
 | 175B     | fp16+mp8+pp16+recompute   | configs_175B_mp8_pp16.yaml   |
@@ -298,6 +321,16 @@ python -m paddle.distributed.launch --log_dir $log_dir --master=$master_ip:$mast
 ```
 
 当节点较多时，可以考虑使用 `ssh` 脚本或 `mpirun` 进行跨节点命令分发。
+
+### 量化训练
+
+若需要对模型进行量化训练，按照以上在配置文件中添加量化参数，可参考`configs_345M_mp8_qat.yaml`，启动命令与以上训练一致。以单机345M模型模型并行训练为例，通过``paddle.distributed.launch``启动多进程训练，该gpt程序需要8卡32G V100以运行，命令如下：
+```shell
+log_dir=log_mp8
+python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
+    -c ./configs_345M_mp8_qat.yaml
+```
+
 
 # GPT Zero-shot 文本生成
 
