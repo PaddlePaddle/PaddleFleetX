@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-export CUDA_VISIBLE_DEVICES=1
 
 # 345M
 python run_pretrain.py -c ./configs_345m_single_card.yaml 2>&1 | tee tmp.txt
