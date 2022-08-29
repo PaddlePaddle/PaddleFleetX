@@ -63,7 +63,6 @@ Distributed:
 Fused:
   tensor_fusion: False
 
-
 Optimizer:
   # name: Adam
   weight_decay: 0.01
@@ -76,3 +75,9 @@ Optimizer:
     max_lr: 5.0e-5
     min_lr: 1.0e-5
   grad_clip: 1.0
+
+Profiler:
+  enable: False
+  scheduler: [1, 5]
+  profiler_log: profiler_log
+  detailed: False

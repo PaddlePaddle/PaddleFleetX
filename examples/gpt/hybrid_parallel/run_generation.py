@@ -101,10 +101,9 @@ def do_generation():
 
     module.model.set_state_dict(model_dict)
 
-    input_text = 'Where are you from?'
+    #input_text = 'Where are you from?'
     #input_text = 'Sing a song of Taylor Swift.'
-    # input_text = 'Hi, GPT2. Tell me who Jack Ma is.'
-    # input_text = "How do you rate PaddlePaddle and PyTorch deep learning frameworks?"
+    input_text = 'Hi, GPT2. Tell me who Jack Ma is.'
     result = module.generate(input_text)
 
     print(f'Prompt: {input_text}')
