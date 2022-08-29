@@ -22,10 +22,10 @@ import yaml
 import numpy as np
 
 import paddle
+
 sys.path.append("../../../")
 from examples.gpt.gpt_module import GPTGenerationModule
 from examples.gpt.tools import parse_args, parse_yaml
-from fleetx.core.engine.eager_engine import EagerEngine
 
 
 def do_generation():
@@ -40,15 +40,23 @@ def do_generation():
     paddle.seed(seed)
 
     module = GPTGenerationModule(configs)
+    module.eval()
 
-    engine = EagerEngine(module=module, configs=configs, mode='predict')
-    engine.load()
+    ckpt_dir = configs['Engine']['save_load']['ckpt_dir']
 
-    input_text = 'Where are you from?'
+    model_path = os.path.join(ckpt_dir, "model.pdparams")
+    model_dict = paddle.load(model_path)
 
-    result = engine.predict(input_text)
+    for key, value in model_dict.items():
+        model_dict[key] = model_dict[key].astype(paddle.float32)
 
-    print(result[0])
+    module.model.set_state_dict(model_dict)
+
+    input_text = 'Hi, GPT2. Tell me who Jack Ma is.'
+    result = module.generate(input_text)
+
+    print(f'Prompt: {input_text}')
+    print(f'Generation: {result[0]}')
 
 
 if __name__ == "__main__":

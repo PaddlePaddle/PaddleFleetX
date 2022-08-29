@@ -104,6 +104,21 @@ class GPTConfig(dict):
             'grad_clip': 0.0,
         }
 
+        self.Inference = {'model_dir': './output', 'mp_degree': 1}
+
+        self.Quantization = {
+            'weight_quantize_type': 'abs_max',
+            'activation_quantize_type': 'moving_average_abs_max',
+            'weight_bits': 8,
+            'activation_bits': 8,
+            'not_quant_pattern': ['skip_quant'],
+            'quantizable_layer_type':
+            ['Conv2D', 'Linear', 'ColumnParallelLinear', 'RowParallelLinear'],
+            'for_tensorrt': False,
+            'is_full_quantize': False,
+            'onnx_format': False,
+        }
+        
         self.Generation = {
             'top_k': 5,
             'temperature': 1.0,
@@ -116,6 +131,8 @@ class GPTConfig(dict):
             'num_return_sequences': 1,
             'decode_strategy': "sampling"
         }
+        
+        self.Profiler  = {}
 
         self._update(yaml_dict)
 
@@ -126,10 +143,10 @@ class GPTConfig(dict):
     def _traverse(self, ori_dict, k, yaml_dict):
         if k in yaml_dict.keys():
             for ik in yaml_dict[k].keys():
-                if isinstance(ori_dict[k][ik], dict):
+                if isinstance(ori_dict[k].get(ik), dict):
                     self._traverse(ori_dict[k], ik, yaml_dict[k])
                 else:
-                    if ori_dict[k][ik] is not None and yaml_dict[k][
+                    if ori_dict[k].get(ik) is not None and yaml_dict[k][
                             ik] is None:
                         pass
                     else:

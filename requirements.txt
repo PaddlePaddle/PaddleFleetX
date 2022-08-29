@@ -6,3 +6,4 @@ omegaconf==2.2.2
 tqdm==4.54.1
 pybind11==2.10.0
 numpy==1.20.1
+paddleslim>=2.3.4

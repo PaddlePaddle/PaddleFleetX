@@ -104,6 +104,19 @@ def process_fused_configs(yaml_dict):
         assert nranks == dp_degree, "tensor_fusion only support single card train or data parallel train"
 
 
+def process_inference_configs(yaml_dict):
+    """
+    process fused configs for hybrid parallel
+    """
+    configs = yaml_dict['Inference']
+
+    if configs['model_dir'] is None:
+        configs['model_dir'] = yaml_dict['Engine']['save_load']['output_dir']
+
+    if configs['mp_degree'] is None:
+        configs['mp_degree'] = yaml_dict['Distributed']['mp_degree']
+
+
 def process_model_configs(yaml_dict):
     """
     process model configs for hybrid parallel
@@ -133,6 +146,16 @@ def process_engine_configs(yaml_dict):
         'test_iters'] is None else configs['test_iters']
     configs['accumulate_steps'] = yaml_dict['Data']['batch_size']['local_batch_size'] \
         // yaml_dict['Data']['batch_size']['micro_batch_size']
+
+
+def process_quant_configs(yaml_dict):
+    """
+    process engine configs for hybrid parallel
+    """
+    pp_degree = yaml_dict['Distributed']['pp_degree']
+    sharding_degree = yaml_dict['Distributed']['sharding']['sharding_degree']
+    if pp_degree > 1 or sharding_degree > 1:
+        del yaml_dict['Quantization']
 
 
 def model_size(yaml_dict):
@@ -220,6 +243,9 @@ def parse_yaml(yaml_args):
     process_fused_configs(yaml_dict)
     process_model_configs(yaml_dict)
     process_engine_configs(yaml_dict)
+    process_inference_configs(yaml_dict)
+    process_quant_configs(yaml_dict)
+    
 
     _print_args(yaml_dict)
     model_size(yaml_dict)

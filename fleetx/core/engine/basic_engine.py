@@ -34,3 +34,6 @@ class BasicEngine:
 
     def load(self, *args, **kwargs):
         raise NotImplementedError
+
+    def inference(self, *args, **kwargs):
+        raise NotImplementedError

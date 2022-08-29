@@ -185,6 +185,7 @@ class SimpleNet(nn.Layer):
         self.fc3 = nn.Linear(IMAGE_SIZE, IMAGE_SIZE)
         self.fc4 = nn.Linear(IMAGE_SIZE, IMAGE_SIZE)
         self.fc5 = nn.Linear(IMAGE_SIZE, CLASS_NUM)
+
     def forward(self, image, label=None):
         output = self.fc1(image)
         output = self.fc2(output)
@@ -195,6 +196,7 @@ class SimpleNet(nn.Layer):
 class LossLayer(nn.Layer):
     def __init__(self):
         super(LossLayer, self).__init__()
+
     def forward(self, image, label=None):
         return F.cross_entropy(image, label)
 ```
@@ -207,32 +209,40 @@ class TestModule(BasicModule):
         super().__init__()
         self.model = SimpleNet()
         self.loss_fn = LossLayer()
+
     def forward(self, x):
         return self.model(x)
+
     def training_step(self, batch):
         x, y = batch
         loss = self.loss_fn(self(x), y)
         return loss
-    def training_step_end(self, loss, epoch, step, reader_cost, train_cost):
+
+    def training_step_end(self, log_dict):
         logger.info(
-            "[train] global step %d, epoch: %d, batch: %d, loss: %.9f, reader_cost: %.5f sec, batch_cost: %.5f sec"
-            % (self.global_step, epoch, step, loss, reader_cost, train_cost))
+            "[train] epoch: %d, batch: %d, loss: %.9f, avg_batch_cost: %.5f sec"
+            % (log_dict['epoch'], log_dict['batch'], log_dict['loss'], log_dict['train_cost']))
+
     def validation_step(self, batch):
         x, y = batch
         loss = self.loss_fn(self(x), y)
         return loss
-    def validation_step_end(self, loss, epoch, step, eval_cost):
+
+    def validation_step_end(self, log_dict):
         logger.info(
-            "[valid] global step %d, epoch: %d, batch: %d, loss: %.9f, eval_cost: %.5f sec"
-            % (self.global_step, epoch, step, loss, eval_cost))
+            "[eval] epoch: %d, batch: %d, loss: %.9f, avg_eval_cost: %.5f sec"
+            % (log_dict['epoch'], log_dict['batch'], log_dict['loss'], log_dict['eval_cost']))
+
     def test_step(self, batch):
         x, y = batch
         loss = self.loss_fn(self(x), y)
         return loss
-    def test_step_end(self, loss, epoch, step, test_cost):
+
+    def test_step_end(self, log_dict):
         logger.info(
-            "[test] global step %d, epoch: %d, batch: %d, loss: %.9f, test_cost: %.5f sec"
-            % (self.global_step, epoch, step, loss, test_cost))
+            "[test] epoch: %d, batch: %d, loss: %.9f, avg_test_cost: %.5f sec"
+            % (log_dict['epoch'], log_dict['batch'], log_dict['loss'], log_dict['test_cost']))
+
     def configure_optimizers(self):
         return paddle.optimizer.SGD(learning_rate=1e-3,
             parameters=self.model.parameters())
@@ -247,12 +257,15 @@ class TestModule(BasicModule):
 class RandomDataset(Dataset):
     def __init__(self, num_samples):
         self.num_samples = num_samples
+
     def __getitem__(self, idx):
         image = np.random.random([IMAGE_SIZE]).astype('float32')
         label = np.random.randint(0, CLASS_NUM - 1, (1, )).astype('int64')
         return image, label
+
     def __len__(self):
         return self.num_samples
+
 dataset = RandomDataset(BATCH_NUM * BATCH_SIZE)
 dataloader = DataLoader(dataset,
                     batch_size=BATCH_SIZE,
@@ -268,12 +281,15 @@ dataloader = DataLoader(dataset,
 configs = GPTConfig({})
 module = TestModule()
 engine = EagerEngine(module, configs)
+
 if engine._ckpt_dir is not None:
     engine.load()
+
 for e in range(EPOCH_NUM):
     engine.fit(epoch=e, train_data_loader=dataloader)
     engine.evaluate(epoch=e, valid_data_loader=dataloader)
     engine.predict(epoch=e, test_data_loader=dataloader)
+
     if engine._output_dir is not None:
         engine.save()
 ```

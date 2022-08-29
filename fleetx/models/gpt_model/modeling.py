@@ -34,6 +34,13 @@ from .processor import (
     ForcedBOSTokenLogitsProcessor, ForcedEOSTokenLogitsProcessor)
 
 
+def get_attr(layer, name):
+    if getattr(layer, name, None) is not None:
+        return getattr(layer, name, None)
+    else:
+        return get_attr(layer._layer, name)
+
+
 class MultiHeadAttention(nn.Layer):
     """
     Attention mapps queries and a set of key-value pairs to outputs, and
@@ -89,13 +96,25 @@ class MultiHeadAttention(nn.Layer):
         self.out_proj = Linear(
             embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
 
-    def _fuse_prepare_qkv(self, query):
+    def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
         mix_layer = self.qkv_proj(query)
         mix_layer = paddle.reshape_(mix_layer,
                                     [0, 0, self.num_heads, 3 * self.head_dim])
         mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
         q, k, v = paddle.split(mix_layer, num_or_sections=3, axis=-1)
-        return q, k, v
+
+        assert not isinstance(
+            cache, self.StaticCache
+        ), "cache currently does not support the StaticCache type"
+
+        if isinstance(cache, self.Cache):
+            # for decoder self-attention in inference
+            k = tensor.concat([cache.k, k], axis=2)
+            v = tensor.concat([cache.v, v], axis=2)
+        if use_cache is True:
+            cache = self.Cache(k, v)
+
+        return (q, k, v) if use_cache is False else (q, k, v, cache)
 
     def _prepare_qkv(self, query, key, value, use_cache=False, cache=None):
         r"""
@@ -168,15 +187,16 @@ class MultiHeadAttention(nn.Layer):
             # incremental_state with initial value, mainly for usage like UniLM
             return self.Cache(key, value)
 
-    def core_attn(self, q, k, v):
+    def core_attn(self, q, k, v, attn_mask=None):
         # scale dot product attention
         product = layers.matmul(
-            x=q, y=k, transpose_y=True, alpha=self.head_dim ** -0.5)
+            x=q, y=k, transpose_y=True, alpha=self.head_dim**-0.5)
 
-        # TODO(liuyuang): support softmax_mask_fuse_upper_triangle for generation task
-        weights = F.softmax(product)
-
-        # weights = incubate.softmax_mask_fuse_upper_triangle(product)
+        if attn_mask is not None:
+            product = product + attn_mask
+            weights = F.softmax(product)
+        else:
+            weights = incubate.softmax_mask_fuse_upper_triangle(product)
 
         if self.dropout:
             weights = F.dropout(
@@ -209,18 +229,23 @@ class MultiHeadAttention(nn.Layer):
         # compute q ,k ,v
         if use_cache is False:
             if self.fuse:
-                q, k, v = self._fuse_prepare_qkv(query)
+                q, k, v = self._fuse_prepare_qkv(query, use_cache, cache)
             else:
                 q, k, v = self._prepare_qkv(query, key, value, use_cache,
                                             cache)
         else:
-            q, k, v, cache = self._prepare_qkv(query, key, value, use_cache,
-                                               cache)
+            if self.fuse:
+                q, k, v, cache = self._fuse_prepare_qkv(query, use_cache,
+                                                        cache)
+            else:
+                q, k, v, cache = self._prepare_qkv(query, key, value,
+                                                   use_cache, cache)
 
         if self.use_recompute and self.recompute_granularity == "core_attn":
-            out, weights = recompute(self.core_attn, q, k, v)
+            out, weights = recompute(
+                self.core_attn, q, k, v, attn_mask=attn_mask)
         else:
-            out, weights = self.core_attn(q, k, v)
+            out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
 
         # project to output
         out = self.out_proj(out)
@@ -379,7 +404,8 @@ class TransformerDecoderLayer(nn.Layer):
 
         if use_cache is False:
             if self.use_recompute and self.recompute_granularity == "full_attn":
-                tgt = recompute(self.self_attn, tgt, None, None, tgt_mask, use_cache, cache)
+                tgt = recompute(self.self_attn, tgt, None, None, tgt_mask,
+                                use_cache, cache)
             else:
                 tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
         else:
@@ -543,26 +569,27 @@ class GPTModel(nn.Layer):
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
 
-        # TODO, use registered buffer
-        # causal_mask = paddle.tensor.triu(
-        #     paddle.ones((paddle.shape(input_ids)[-1],
-        #                  paddle.shape(input_ids)[-1])) * -1e4,
-        #     diagonal=1)
-
-        # if attention_mask is not None:
-        #     if len(attention_mask.shape) == 2:
-        #         attention_mask = attention_mask[:, None, None, :]
-        #     attention_mask = attention_mask + causal_mask
-        # else:
-        #     attention_mask = causal_mask
-        # # The tensor returned by triu not in static graph.
-        # attention_mask.stop_gradient = True
+        if self.training == False:
+            # TODO, use registered buffer
+            causal_mask = paddle.tensor.triu(
+                paddle.ones(
+                    (paddle.shape(input_ids)[-1], paddle.shape(input_ids)[-1]))
+                * -1e4,
+                diagonal=1)
+            if attention_mask is not None:
+                if len(attention_mask.shape) == 2:
+                    attention_mask = attention_mask[:, None, None, :]
+                attention_mask = attention_mask + causal_mask
+            else:
+                attention_mask = causal_mask
+            # The tensor returned by triu not in static graph.
+            attention_mask.stop_gradient = True
 
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
-            # tgt_mask=attention_mask,
-            tgt_mask=None,  # use softmax_mask_fuse_upper_triangle
+            tgt_mask=None if self.training else
+            attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
 
@@ -602,7 +629,7 @@ class GPTForPretraining(nn.Layer):
             encoder_outputs = outputs
         logits = paddle.matmul(
             encoder_outputs,
-            self.gpt.embeddings.word_embeddings.weight,
+            get_attr(self.gpt.embeddings.word_embeddings, "weight"),
             transpose_y=True)
 
         if use_cache:
@@ -658,9 +685,34 @@ class GPTForGeneration(nn.Layer):
 
     """
 
-    def __init__(self, gpt):
+    def __init__(self, gpt, configs):
         super(GPTForGeneration, self).__init__()
         self.gpt = gpt
+        self.configs = configs
+
+        self.max_length = self.configs.get('max_dec_len', 20)
+        self.min_length = self.configs.get('min_dec_len', 0)
+        self.decode_strategy = self.configs.get('decode_strategy', 'sampling')
+        self.temperature = self.configs.get('temperature', 1.0)
+        self.top_k = self.configs.get('top_k', 0)
+        self.top_p = self.configs.get('top_p', 1.0)
+        self.repetition_penalty = self.configs.get('repetition_penalty', 1.0)
+        self.num_beams = self.configs.get('num_beams', 1)
+        self.num_beam_groups = self.configs.get('num_beam_groups', 1)
+        self.length_penalty = self.configs.get('length_penalty', 0.0)
+        self.early_stopping = self.configs.get('early_stopping', False)
+        self.bos_token_id = self.configs.get('bos_token_id', None)
+        self.eos_token_id = self.configs.get('eos_token_id', None)
+        self.pad_token_id = self.configs.get('pad_token_id', None)
+        self.decoder_start_token_id = self.configs.get(
+            'decoder_start_token_id', None)
+        self.forced_bos_token_id = self.configs.get('forced_bos_token_id',
+                                                    None)
+        self.forced_eos_token_id = self.configs.get('forced_eos_token_id',
+                                                    None)
+        self.num_return_sequences = self.configs.get('num_return_sequences', 1)
+        self.diversity_rate = self.configs.get('diversity_rate', 0.0)
+        self.use_cache = self.configs.get('use_cache', True)
 
     def prepare_input_ids_for_generation(self,
                                          bos_token_id,
@@ -795,7 +847,6 @@ class GPTForGeneration(nn.Layer):
             "input_ids": input_ids,
             "position_ids": position_ids,
             "attention_mask": attention_mask,
-            "use_cache": use_cache,
             "cache": cache
         }
 
@@ -918,20 +969,33 @@ class GPTForGeneration(nn.Layer):
         scores = paddle.full(
             [batch_size, 1], 0.0, dtype=paddle.get_default_dtype())
 
+        # use_cache is immutable, we split it off other mutable kwargs.
+        assert 'use_cache' in model_kwargs
+        immutable = {'use_cache': model_kwargs['use_cache']}
+        del model_kwargs['use_cache']
+
+        def _forward_(**args):
+            model_inputs = self.prepare_inputs_for_generation(
+                input_ids, **args, **immutable)
+            return self.gpt(**model_inputs, **immutable)
+
         # Pre-while call for inference,
         # the value in model_kwargs should be tensor before while loop
         if cur_len < max_length:
-            model_inputs = self.prepare_inputs_for_generation(input_ids,
-                                                              **model_kwargs)
-            outputs = self.gpt(**model_inputs)
+            outputs = _forward_(**model_kwargs)
+
+        attn_mask = model_kwargs['attention_mask']
+        # make the shape of attention_mask = (-1, -1, -1, -1) in dy2static.
+        model_kwargs['attention_mask'] = paddle.reshape(
+            attn_mask, paddle.shape(attn_mask))
+        model_kwargs['cache'] = outputs[1] if isinstance(outputs,
+                                                         tuple) else None
 
         while cur_len < max_length:
             # prepare model inputs & get model output
             # skip first step for pre-while call
             if cur_len > origin_len:
-                model_inputs = self.prepare_inputs_for_generation(
-                    input_ids, **model_kwargs)
-                outputs = self.gpt(**model_inputs)
+                outputs = _forward_(**model_kwargs)
 
             logits = outputs[0] if isinstance(outputs, tuple) else outputs
 
@@ -985,29 +1049,29 @@ class GPTForGeneration(nn.Layer):
 
         return input_ids[:, origin_len:], scores
 
-    def forward(self,
-                input_ids=None,
-                max_length=20,
-                min_length=0,
-                decode_strategy='sampling',
-                temperature=1.0,
-                top_k=0,
-                top_p=1.0,
-                repetition_penalty=1.0,
-                num_beams=1,
-                num_beam_groups=1,
-                length_penalty=0.0,
-                early_stopping=False,
-                bos_token_id=None,
-                eos_token_id=None,
-                pad_token_id=None,
-                decoder_start_token_id=None,
-                forced_bos_token_id=None,
-                forced_eos_token_id=None,
-                num_return_sequences=1,
-                diversity_rate=0.0,
-                use_cache=True,
-                **model_kwargs):
+    def forward(self, input_ids=None, **model_kwargs):
+
+        max_length = self.max_length
+        min_length = self.min_length
+        decode_strategy = self.decode_strategy
+        temperature = self.temperature
+        top_k = self.top_k
+        top_p = self.top_p
+        repetition_penalty = self.repetition_penalty
+        num_beams = self.num_beams
+        num_beam_groups = self.num_beam_groups
+        length_penalty = self.length_penalty
+        early_stopping = self.early_stopping
+        bos_token_id = self.bos_token_id
+        eos_token_id = self.eos_token_id
+        pad_token_id = self.pad_token_id
+        decoder_start_token_id = self.decoder_start_token_id
+        forced_bos_token_id = self.forced_bos_token_id
+        forced_eos_token_id = self.forced_eos_token_id
+        num_return_sequences = self.num_return_sequences
+        diversity_rate = self.diversity_rate
+        use_cache = self.use_cache
+
         assert (
             decode_strategy in ["greedy_search", "sampling", "beam_search"]
         ), "`decode_strategy` must be one of 'greedy_search', 'sampling' or 'beam_search' but received {}.".format(
@@ -1062,8 +1126,9 @@ class GPTForGeneration(nn.Layer):
                     expand_size=num_return_sequences,
                     **model_kwargs)
 
-            return self.sample(input_ids, logits_processors, max_length,
-                               pad_token_id, eos_token_id, top_k, top_p,
-                               temperature, **model_kwargs)
+            ret = self.sample(input_ids, logits_processors, max_length,
+                              pad_token_id, eos_token_id, top_k, top_p,
+                              temperature, **model_kwargs)
         else:
             raise ValueError(f'Not support {decoding_strategy} strategy yet!')
+        return ret

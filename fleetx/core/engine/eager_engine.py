@@ -29,9 +29,9 @@ sys.path.append("../../../")
 from fleetx.utils import logger
 from fleetx.core.engine.basic_engine import BasicEngine
 from fleetx.core.module.basic_module import BasicModule
+from fleetx.inference.inference_engine import InferenceEngine
 from fleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from fleetx.utils.version import version_check
-
 
 class EagerEngine(BasicEngine):
     """
@@ -199,6 +199,27 @@ class EagerEngine(BasicEngine):
 
         self._module.global_step = 0
 
+        self._inference_configs = configs['Inference']
+        self._inference_init = False
+        self._inference_engine = None
+
+        self.profiler = None
+        if 'Profiler' in configs and configs.get('Profiler', {}).get('enable', False):
+            self.profiler_config = configs['Profiler']
+
+            scheduler = self.profiler_config.get('scheduler', None)
+            profiler_log = self.profiler_config.get('profiler_log', './profiler_log')
+            record_shapes = self.profiler_config.get('record_shapes', True)
+            profile_memory = self.profiler_config.get('profile_memory', True)
+            self.profiler = paddle.profiler.Profiler(targets=[paddle.profiler.ProfilerTarget.CPU, paddle.profiler.ProfilerTarget.GPU],
+                                        scheduler=scheduler,
+                                        on_trace_ready=paddle.profiler.export_chrome_tracing(profiler_log),
+                                        #TODO(kzq) uncomment after bugfix
+                                        #record_shapes=record_shapes,
+                                        profile_memory=profile_memory)
+            self.profiler.start()
+            logger.warning("Profiler is enabled, do not enable it in production.")
+
     def _wrap_with_fleet(self):
         if self._sharding_stage in [2, 3]:
             assert self._mp_degree == self._pp_degree == 1, "sharding stage2/3 will support hybrid parallel later"
@@ -306,7 +327,17 @@ class EagerEngine(BasicEngine):
             if self._module.global_step >= self._max_steps:
                 logger.info("The training process is complete.")
                 del train_data_loader
+
+                if self.profiler:
+                    self._profiler_done()
+
                 return
+
+            if self.profiler:
+                self.profiler.step()
+
+        if self.profiler:
+            self._profiler_done()
 
     def _fit_impl(self, batch):
         batch = self._module.pretreating_batch(batch)
@@ -411,37 +442,71 @@ class EagerEngine(BasicEngine):
     @paddle.no_grad()
     def _evaluate_impl(self, batch):
         batch = self._module.pretreating_batch(batch)
-        if self._pp_degree == 1:
-            loss = self._module.validation_step(batch)
-        else:
-            loss = self._module.model.eval_batch(batch, compute_loss=True)
+
+        with paddle.amp.auto_cast(
+                self._use_pure_fp16,
+                custom_black_list=self._custom_black_list,
+                custom_white_list=self._custom_white_list,
+                level='O2'):
+            if self._pp_degree == 1:
+                loss = self._module.validation_step(batch)
+            else:
+                loss = self._module.model.eval_batch(batch, compute_loss=True)
+
         return loss
 
     @paddle.no_grad()
-    def predict(self, inputs):
+    def predict(self, epoch=1, test_data_loader=None):
         """
-        run one predict for inputs.
+        run one evaluation epoch over the test set.
 
         Args:
 
-            inputs: the inputs can be process by model
+            epoch(int): the epoch index.
+            
+            test_data_loader(DataLoader, None): a collection of :class:`paddle.io.DataLoader`, specifying test samples.
 
         """
         self._module.model.eval()
 
-        predict_start = time.time()
-        ret = self._predict_impl(inputs)
+        test_start = time.time()
+        for test_step, batch in enumerate(test_data_loader):
+            self._module.global_step += 1
+            loss = self._predict_impl(batch)
 
-        paddle.device.cuda.synchronize()
-        predict_cost = time.time() - predict_start
+            paddle.device.cuda.synchronize()
+            test_cost = time.time() - test_start
 
-        # logger.info("The predicting process is complete.")
-        return ret
+            if self._module.global_step % self._logging_freq == 0:
+                log_dict = {
+                    'loss': loss.numpy(),
+                    'epoch': epoch,
+                    'batch': test_step,
+                    'test_cost': test_cost,
+                }
+                self._module.test_step_end(log_dict)
+                test_start = time.time()
+
+            if self._module.global_step >= self._max_steps:
+                logger.info("The predicting process is complete.")
+                del test_data_loader
+                return
 
     @paddle.no_grad()
-    def _predict_impl(self, inputs):
-        ret = self._module(inputs)
-        return ret
+    def _predict_impl(self, batch):
+        batch = self._module.pretreating_batch(batch)
+
+        with paddle.amp.auto_cast(
+                self._use_pure_fp16,
+                custom_black_list=self._custom_black_list,
+                custom_white_list=self._custom_white_list,
+                level='O2'):
+            if self._pp_degree == 1:
+                loss = self._module.test_step(batch)
+            else:
+                loss = self._module.model.eval_batch(batch, compute_loss=True)
+
+        return loss
 
     def save(self):
         """
@@ -451,12 +516,15 @@ class EagerEngine(BasicEngine):
             output_dir = os.path.join(self._output_dir,
                                       "step_%d" % self._module.global_step)
             if not os.path.exists(output_dir):
-                os.makedirs(output_dir)
+                os.makedirs(output_dir, exist_ok=True)
             logger.info("Save model to %s" % output_dir)
 
             save_dir = "{}/mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}".format(
                 output_dir, self._mp_rank, self._sharding_rank,
                 self._pp_rank) if self._distributed else output_dir
+
+            if self._sharding_stage == 3:
+                self._module.model.get_all_parameters(convert2cpu=False)
             paddle.save(self._module.model.state_dict(),
                         os.path.join(save_dir, "model.pdparams"))
             paddle.save(self._module.optimizer.state_dict(),
@@ -513,4 +581,61 @@ class EagerEngine(BasicEngine):
 
             logger.info("successfully load checkpoints")
         else:
+            logger.warning("`load` requires a valid value of `ckpt_dir`.")
             raise TypeError("`load` requires a valid value of `ckpt_dir`.")
+
+    def inference(self, data):
+        if not self._inference_init:
+            self._inference_engine = InferenceEngine(
+                self._inference_configs['model_dir'],
+                self._inference_configs['mp_degree'])
+
+        return self._inference_engine.predict(data)
+
+    def _print_summary(self):
+        #TODO(kzq) move above
+        from paddle.profiler import SummaryView
+        views_dict = {
+                    SummaryView.DeviceView : 'device',
+                    SummaryView.OverView : 'overview',
+                    SummaryView.ModelView : 'model',
+                    SummaryView.DistributedView : 'dist',
+                    SummaryView.KernelView : 'kernel',
+                    SummaryView.OperatorView : 'op',
+                    SummaryView.MemoryView : 'mem',
+                    SummaryView.MemoryManipulationView : 'memcpy',
+                    SummaryView.UDFView : 'udf',
+                }
+
+        def gen_views(cfg):
+            # print all summary view if detailed=True
+            if self.profiler_config.get('detailed', False):
+                return None
+
+            default_views = ['overview', 'model', 'kernel', 'op']
+            views = []
+            # override default view with user defined value if detailed=False
+            for view in SummaryView:
+                v = self.profiler_config.get('summary', {}).get(views_dict[view], None)
+                if v is True or (v is None and v in default_views):
+                    views.append(view)
+
+            return views or None
+
+        self.profiler.summary(sorted_by=paddle.profiler.SortedKeys.GPUTotal, 
+                views=gen_views(self.profiler_config))
+
+    def _profiler_done(self):
+        if not self.profiler:
+            return
+
+        logger.info("Profiler finished, prepare to print summary...")
+
+        self.profiler.stop()
+
+        self._print_summary()
+        profiler_log = self.profiler_config.get('profiler_log', './profiler_log')
+        print("For more information please install visualdl and run it with following command:")
+        print("-------------------------------------------------------------------------------")
+        print(f"visualdl --logdir --host 0.0.0.0 {profiler_log}")
+        print("-------------------------------------------------------------------------------")
