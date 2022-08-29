@@ -44,14 +44,13 @@ def do_export():
 
     module = GPTGenerationModule(configs)
 
-    # TODO(haohongxiang): Only need to send `configs['Engine']` into `EagerEngine`
     engine = EagerEngine(module=module, configs=configs, mode='export')
 
     ckpt_dir = configs['Engine']['save_load']['ckpt_dir']
     if ckpt_dir is None or not os.path.isdir(ckpt_dir):
         raise ValueError("config ckpt_dir invalid: {}".format(ckpt_dir))
 
-    # FIXME(dengkaipeng): change to engine.load faster engine.load fixed
+    # FIXME(dengkaipeng): change to engine.load after engine.load fixed
     model_dict = paddle.load(os.path.join(ckpt_dir, 'model.pdparams'))
     engine._module.model.set_state_dict(model_dict)
 
