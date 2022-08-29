@@ -99,6 +99,9 @@ def do_train():
     if configs['Engine']['save_load']['ckpt_dir'] is not None:
         engine.load()
 
+    if configs['Quantization']['enable']:
+        module.qat_model()
+
     for epoch in range(configs['Engine']['num_train_epochs']):
         files = get_train_data_file(configs['Data']['dataset']['input_dir'])
         files.sort()

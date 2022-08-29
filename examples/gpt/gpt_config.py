@@ -107,6 +107,7 @@ class GPTConfig(dict):
         self.Inference = {'model_dir': './output', 'mp_degree': 1}
 
         self.Quantization = {
+            'enable': False,
             'weight_quantize_type': 'abs_max',
             'activation_quantize_type': 'moving_average_abs_max',
             'weight_bits': 8,

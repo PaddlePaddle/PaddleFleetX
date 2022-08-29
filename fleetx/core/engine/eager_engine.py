@@ -546,7 +546,7 @@ class EagerEngine(BasicEngine):
                     if resume_step != meta_dict["global_step"]:
                         raise ValueError(
                             "Warning: resume_step is {}, but the step of checkpoint is {}.".
-                            format(resume_step, state_dict["global_step"]))
+                            format(resume_step, meta_dict["global_step"]))
 
                     self._module.global_step = resume_step
                 else:

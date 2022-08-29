@@ -34,8 +34,6 @@ class GPTModule(BasicModule):
         if self.nranks == 1:
             from fleetx.models.gpt_model.modeling import GPTModel, GPTForPretraining, GPTPretrainingCriterion
             self.model = GPTForPretraining(GPTModel(configs['Model']))
-            if 'Quantization' in self.configs:
-                self.qat_model()
             self.loss_fn = GPTPretrainingCriterion()
         else:
             from fleetx.models.gpt_model.modeling_hybrid import GPTModel, GPTForPretraining, GPTPretrainingCriterion, GPTForPretrainingPipe
@@ -45,8 +43,6 @@ class GPTModule(BasicModule):
                 self.model = GPTForPretraining(GPTModel(configs['Model']))
             else:
                 self.model = GPTForPretrainingPipe(configs['Model'])
-            if 'Quantization' in self.configs:
-                self.qat_model()
             self.loss_fn = GPTPretrainingCriterion()
             del configs['Model']['topology']
 
