@@ -309,9 +309,9 @@ I think that we are going to become a very important player in the logistics ind
 python run_export.py -c configs_345m_single_card.yaml
 ```
 
-注意：导出先需要先将配置文件中`Engine.save_load.ckpt_dir`配置为导出需要使用的权重文件所在目录
+**注意：**导出先需要先将配置文件中`Engine.save_load.ckpt_dir`配置为导出需要使用的权重文件所在目录
 
-导出的模型默认存在`./output`目录，可通过配置文件中`Engine.save_load.output_dir`配置
+导出的模型默认保存在`./output`目录，可通过配置文件中`Engine.save_load.output_dir`配置
 
 #### 预测部署
 
