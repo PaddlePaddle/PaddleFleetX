@@ -132,8 +132,8 @@ class GPTConfig(dict):
             'num_return_sequences': 1,
             'decode_strategy': "sampling"
         }
-        
-        self.Profiler  = {}
+
+        self.Profiler = {}
 
         self.Eval = {
             'eval_path': None,

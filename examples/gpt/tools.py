@@ -148,16 +148,6 @@ def process_engine_configs(yaml_dict):
         // yaml_dict['Data']['batch_size']['micro_batch_size']
 
 
-def process_quant_configs(yaml_dict):
-    """
-    process engine configs for hybrid parallel
-    """
-    pp_degree = yaml_dict['Distributed']['pp_degree']
-    sharding_degree = yaml_dict['Distributed']['sharding']['sharding_degree']
-    if pp_degree > 1 or sharding_degree > 1:
-        del yaml_dict['Quantization']
-
-
 def model_size(yaml_dict):
     """
     get model size for transformer
@@ -243,7 +233,6 @@ def parse_yaml():
     process_model_configs(yaml_dict)
     process_engine_configs(yaml_dict)
     process_inference_configs(yaml_dict)
-    process_quant_configs(yaml_dict)
 
     _print_args(yaml_dict)
     model_size(yaml_dict)
