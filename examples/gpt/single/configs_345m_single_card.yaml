@@ -19,7 +19,7 @@ Engine:
   save_load:
     save_steps: 1000
     output_dir: ./output
-    ckpt_dir:
+    ckpt_dir: ./
 
 
 Data:

@@ -24,12 +24,13 @@ from paddle.optimizer.lr import LRScheduler
 from paddle.distributed.sharding import group_sharded_parallel
 from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
+from paddle.static import InputSpec
 
 sys.path.append("../../../")
 from fleetx.utils import logger
 from fleetx.core.engine.basic_engine import BasicEngine
 from fleetx.core.module.basic_module import BasicModule
-from fleetx.inference.inference_engine import InferenceEngine
+from fleetx.inference import InferenceEngine, export_inference_model
 from fleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from fleetx.utils.version import version_check
 
@@ -118,6 +119,10 @@ class EagerEngine(BasicEngine):
         self._accumulate_steps = self._configs['accumulate_steps']
 
         self._use_pure_fp16 = self._configs['mix_precision']['use_pure_fp16']
+        if mode == 'export' and self._use_pure_fp16:
+            print("NOTE: disable use_pure_fp16 in export mode")
+            self._use_pure_fp16 = False
+
         self._scale_loss = self._configs['mix_precision']['scale_loss']
         self._custom_black_list = self._configs['mix_precision'][
             'custom_black_list']
@@ -200,8 +205,9 @@ class EagerEngine(BasicEngine):
         self._module.global_step = 0
 
         self._inference_configs = configs['Inference']
-        self._inference_init = False
         self._inference_engine = None
+
+        self._generation_configs = configs['Generation']
 
         self.profiler = None
         if 'Profiler' in configs and configs.get('Profiler', {}).get('enable', False):
@@ -584,8 +590,20 @@ class EagerEngine(BasicEngine):
             logger.warning("`load` requires a valid value of `ckpt_dir`.")
             raise TypeError("`load` requires a valid value of `ckpt_dir`.")
 
+    def export(self, output_dir="output"):
+        self._module.model.eval()
+
+        input_spec = [
+            InputSpec(shape=[None, None], name="input_ids", dtype='int64'),
+            # InputSpec(shape=[None, None], name="attention_mask", dtype='int64'),
+        ]
+            
+        save_dir = os.path.join(output_dir, "rank_{}".format(self._dp_rank), 'model')
+        export_inference_model(self._module.model, input_spec, save_dir)
+
+
     def inference(self, data):
-        if not self._inference_init:
+        if self._inference_engine is None:
             self._inference_engine = InferenceEngine(
                 self._inference_configs['model_dir'],
                 self._inference_configs['mp_degree'])
