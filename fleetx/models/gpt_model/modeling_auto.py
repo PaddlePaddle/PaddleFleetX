@@ -628,10 +628,22 @@ class GPTForPretraining(nn.Layer):
             encoder_outputs, cached_kvs = outputs[:2]
         else:
             encoder_outputs = outputs
-        logits = paddle.matmul(
-            encoder_outputs,
-            self.gpt.embeddings.word_embeddings.weight,
-            transpose_y=True)
+
+        x = encoder_outputs
+        w = self.gpt.embeddings.word_embeddings.weight
+        matmul = auto.shard_op(
+            paddle.matmul,
+            dist_attr={
+                'process_mesh': self.gpt.mesh[-1],
+                x: {
+                    "dims_mapping": [self.gpt.mesh.dp] +
+                    [-1 for i in range(len(x.shape) - 1)]
+                },
+                w: {
+                    "dims_mapping": [self.gpt.mesh.mp, -1]
+                }
+            })
+        logits = matmul(x, w, transpose_y=True)
 
         if use_cache:
             return logits, cached_kvs
