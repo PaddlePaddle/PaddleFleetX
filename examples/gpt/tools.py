@@ -210,7 +210,7 @@ def override_config(config, options=None):
     return config
 
 
-def parse_args():
+def parse_yaml():
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--config", help="configuration file to use")
     parser.add_argument(
@@ -219,10 +219,9 @@ def parse_args():
         action='append',
         default=[],
         help='config options to be overridden')
-    return parser.parse_args()
 
+    yaml_args = parser.parse_args()
 
-def parse_yaml(yaml_args):
     yaml_dict = GPTConfig(
         yaml.load(
             open(yaml_args.config, 'rb'), Loader=yaml.Loader))
@@ -242,7 +241,6 @@ def parse_yaml(yaml_args):
 
 def _print_args(yaml_dict):
     """Print arguments."""
-    args = {}
 
     def add_dict(config, k, v):
         if not isinstance(v, dict):
@@ -251,24 +249,39 @@ def _print_args(yaml_dict):
         for ik, iv in v.items():
             add_dict(config, ik, iv)
 
-    for key, value in yaml_dict.items():
-        add_dict(args, key, value)
-
     print(
         '------------------------ arguments ------------------------',
         flush=True)
-    str_list = []
-    for key, value in args.items():
-        dots = '.' * (48 - len(key))
-        str_list.append('  {} {} {}'.format(key, dots, value))
-    for arg in sorted(str_list, key=lambda x: x.lower()):
-        print(arg, flush=True)
+
+    for key, value in yaml_dict.items():
+        args = {}
+        add_dict(args, key, value)
+
+        print("{}:".format(key), flush=True)
+        str_list = []
+        for key, value in args.items():
+            dots = '.' * (48 - len(key))
+            str_list.append('  {} {} {}'.format(key, dots, value))
+        for arg in sorted(str_list, key=lambda x: x.lower()):
+            print(arg, flush=True)
+
     print(
         '-------------------- end of arguments ---------------------',
         flush=True)
 
 
-def parse_yaml_auto(yaml_args):
+def parse_yaml_auto():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", "--config", help="configuration file to use")
+    parser.add_argument(
+        '-o',
+        '--override',
+        action='append',
+        default=[],
+        help='config options to be overridden')
+
+    yaml_args = parser.parse_args()
+
     yaml_dict = GPTAutoConfig(
         yaml.load(
             open(yaml_args.config, 'rb'), Loader=yaml.Loader))

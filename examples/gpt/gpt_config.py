@@ -135,6 +135,16 @@ class GPTConfig(dict):
 
         self.Profiler = {}
 
+        self.Eval = {
+            'eval_path': None,
+            'cloze_eval': False,
+            'overlapping_eval': 32,
+            'ckpt_dir': None,
+            'batch_size': 8,
+            'max_seq_len': 1024,
+            'logging_freq': 100,
+        }
+
         self._update(yaml_dict)
 
     def _update(self, yaml_dict):
