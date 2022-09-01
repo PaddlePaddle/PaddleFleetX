@@ -15,6 +15,7 @@
 import os
 import time
 import sys
+import logging
 
 import paddle
 import paddle.nn as nn
@@ -33,6 +34,9 @@ from fleetx.core.module.basic_module import BasicModule
 from fleetx.inference import InferenceEngine, export_inference_model
 from fleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from fleetx.utils.version import version_check
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class EagerEngine(BasicEngine):
     """
@@ -120,7 +124,7 @@ class EagerEngine(BasicEngine):
 
         self._use_pure_fp16 = self._configs['mix_precision']['use_pure_fp16']
         if mode == 'export' and self._use_pure_fp16:
-            print("NOTE: disable use_pure_fp16 in export mode")
+            logger.info("NOTE: disable use_pure_fp16 in export mode")
             self._use_pure_fp16 = False
 
         self._scale_loss = self._configs['mix_precision']['scale_loss']
@@ -206,8 +210,6 @@ class EagerEngine(BasicEngine):
 
         self._inference_configs = configs['Inference']
         self._inference_engine = None
-
-        self._generation_configs = configs['Generation']
 
         self.profiler = None
         if 'Profiler' in configs and configs.get('Profiler', {}).get('enable', False):
@@ -653,7 +655,7 @@ class EagerEngine(BasicEngine):
 
         self._print_summary()
         profiler_log = self.profiler_config.get('profiler_log', './profiler_log')
-        print("For more information please install visualdl and run it with following command:")
-        print("-------------------------------------------------------------------------------")
-        print(f"visualdl --logdir --host 0.0.0.0 {profiler_log}")
-        print("-------------------------------------------------------------------------------")
+        logger.info("For more information please install visualdl and run it with following command:")
+        logger.info("-------------------------------------------------------------------------------")
+        logger.info(f"visualdl --logdir --host 0.0.0.0 {profiler_log}")
+        logger.info("-------------------------------------------------------------------------------")
