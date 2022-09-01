@@ -32,6 +32,10 @@ from paddle.distributed.fleet.utils import recompute
 import sys
 from .config import configurable
 
+from .utils import ScatterOp, GatherOp, ColumnParallelLinear, RowParallelLinear
+
+fleet.meta_parallel.ColumnParallelLinear = ColumnParallelLinear
+fleet.meta_parallel.RowParallelLinear = RowParallelLinear
 
 def get_attr(layer, name):
     if getattr(layer, name, None) is not None:
@@ -88,7 +92,8 @@ class MultiHeadAttention(nn.Layer):
                  num_partitions=1,
                  fused_linear=False,
                  use_recompute=False,
-                 recompute_granularity="full"):
+                 recompute_granularity="full",
+                 sequence_parallel=False):
         super(MultiHeadAttention, self).__init__()
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
@@ -99,33 +104,44 @@ class MultiHeadAttention(nn.Layer):
         self.fuse = fuse
         self.use_recompute = use_recompute
         self.recompute_granularity = recompute_granularity
+        self.sequence_parallel = sequence_parallel
 
         self.head_dim = embed_dim // num_heads
         assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
 
         assert self.num_heads % num_partitions == 0, "num_heads {} must be divisible by num_partitions {}".format(
             self.num_heads, num_partitions)
-        self.num_heads = self.num_heads // num_partitions
+        self.num_heads = self.num_heads // num_partitions   # num_partitions is mp parallelism
 
         if self.fuse:
             assert self.kdim == embed_dim
             assert self.vdim == embed_dim
 
+            # if sequence_parallel is true, input shape is [s, b, h], 
+            # qkv_proj shape is [s, b, 3h/n], n is mp parallelism
+            # else input shape is [b, s, h], 
+            # qkv_proj shape is [b, s, 3h/n], n is mp parallelism
             self.qkv_proj = fleet.meta_parallel.ColumnParallelLinear(
                 embed_dim,
                 3 * embed_dim,
                 weight_attr=weight_attr,
                 has_bias=True,
                 gather_output=False,
-                fuse_matmul_bias=fused_linear)
+                fuse_matmul_bias=fused_linear,
+                sequence_parallel=sequence_parallel)
         else:
-            self.q_proj = fleet.meta_parallel.ColumnParallelLinear(
+            # if sequence_parallel is true, input shape is [s, b, h], 
+            # q_proj, k_proj, v_proj shape is [s, b, h/n], n is mp parallelism
+            # else input shape is [b, s, h], 
+            # q_proj, k_proj, v_proj shape is [b, s, h/n], n is mp parallelism
+            self.q_proj = ColumnParallelLinear(
                 embed_dim,
                 embed_dim,
                 weight_attr=weight_attr,
                 has_bias=True,
                 gather_output=False,
-                fuse_matmul_bias=fused_linear)
+                fuse_matmul_bias=fused_linear,
+                sequence_parallel=sequence_parallel)
 
             self.k_proj = fleet.meta_parallel.ColumnParallelLinear(
                 self.kdim,
@@ -133,7 +149,8 @@ class MultiHeadAttention(nn.Layer):
                 weight_attr=weight_attr,
                 has_bias=True,
                 gather_output=False,
-                fuse_matmul_bias=fused_linear)
+                fuse_matmul_bias=fused_linear,
+                sequence_parallel=sequence_parallel)
 
             self.v_proj = fleet.meta_parallel.ColumnParallelLinear(
                 self.vdim,
@@ -141,7 +158,8 @@ class MultiHeadAttention(nn.Layer):
                 weight_attr=weight_attr,
                 has_bias=True,
                 gather_output=False,
-                fuse_matmul_bias=fused_linear)
+                fuse_matmul_bias=fused_linear,
+                sequence_parallel=sequence_parallel)
 
         self.out_proj = fleet.meta_parallel.RowParallelLinear(
             embed_dim,
@@ -149,13 +167,25 @@ class MultiHeadAttention(nn.Layer):
             weight_attr=weight_attr,
             has_bias=True,
             input_is_parallel=True,
-            fuse_matmul_bias=fused_linear)
+            fuse_matmul_bias=fused_linear,
+            sequence_parallel=sequence_parallel)
 
     def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
+        # if sequence_parallel is true, mix_layer shape is [s, b, 3h/n]
+        # else its shape is [b, s, 3h/n], n is mp parallelism
         mix_layer = self.qkv_proj(query)
+        # if sequence_parallel is true, mix_layer shape is [b, s, num_heads/n, 3 * head_dim] after reshape, 
+        # else mix_layer shape is [s, b, num_head/n, 3 * head_dim], n is mp parallelism
         mix_layer = paddle.reshape_(mix_layer,
                                     [0, 0, self.num_heads, 3 * self.head_dim])
-        mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
+        # no matter sequence_parallel is true or false,
+        # after reshape, mix_layer shape should be [b, num_heads/n, s, 3 * head_dim]
+        if self.sequence_parallel:
+            mix_layer = paddle.transpose(mix_layer, [1, 2, 0, 3])
+        else:
+            mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
+        # no matter sequence_parallel is true or false,
+        # after reshape, q, k, v shape should be [b, num_heads/n, s, head_dim]
         q, k, v = paddle.split(mix_layer, num_or_sections=3, axis=-1)
 
         assert not isinstance(
@@ -178,9 +208,16 @@ class MultiHeadAttention(nn.Layer):
         to reduce redundant calculations.
 
         """
+        # if sequence parallel is true, q shape is [s, b, h/n],
+        # else q shape is [b, s, h/n], n is mp parallelism
         q = self.q_proj(query)
         q = tensor.reshape(x=q, shape=[0, 0, self.num_heads, self.head_dim])
-        q = tensor.transpose(x=q, perm=[0, 2, 1, 3])
+        # no matter sequence_parallel is true or false,
+        # after transpose, q shape is [b, num_heads/n, s, head_dim], n is mp parallelism
+        if self.sequence_parallel:
+            q = tensor.transpose(x=q, perm=[1, 2, 0, 3])
+        else:
+            q = tensor.transpose(x=q, perm=[0, 2, 1, 3])
 
         if isinstance(cache, self.StaticCache):
             # for encoder-decoder attention in inference and has cached
@@ -209,12 +246,22 @@ class MultiHeadAttention(nn.Layer):
         to construct cache for inference.
 
         """
+        # if sequence_parallel is true, k, v shape is [s, b, h/n]
+        # else their shape is [b, s, h/n]
         k = self.k_proj(key)
         v = self.v_proj(value)
         k = tensor.reshape(x=k, shape=[0, 0, self.num_heads, self.head_dim])
-        k = tensor.transpose(x=k, perm=[0, 2, 1, 3])
+        # k shape is [b, num_heads/n, s, head_dim] after transpose, n is mp parallelism
+        if self.sequence_parallel:
+            k = tensor.transpose(x=k, perm=[1, 2, 0, 3])
+        else:
+            k = tensor.transpose(x=k, perm=[0, 2, 1, 3])
         v = tensor.reshape(x=v, shape=[0, 0, self.num_heads, self.head_dim])
-        v = tensor.transpose(x=v, perm=[0, 2, 1, 3])
+        # v shape is [b, num_heads/n, s, head_dim] after transpose, n is mp parallelism
+        if self.sequence_parallel:
+            v = tensor.transpose(x=v, perm=[1, 2, 0, 3])
+        else:
+            v = tensor.transpose(x=v, perm=[0, 2, 1, 3])
         return k, v
 
     def gen_cache(self, key, value=None, type=Cache):
@@ -243,16 +290,20 @@ class MultiHeadAttention(nn.Layer):
             return self.Cache(key, value)
 
     def core_attn(self, q, k, v, attn_mask=None):
+        # print("core_attn, q shape: {}, k shape: {}".format(str(q.shape), str(k.shape)))
         # scale dot product attention
+        # product shape is [b, num_head/n, s, s]
         product = layers.matmul(
             x=q, y=k, transpose_y=True, alpha=self.head_dim**-0.5)
-
+        # print("core_attn, product shape: ", product.shape)
+        # After softmax, weights shape is [b, num_head/n, s, s]
         if attn_mask is not None:
             product = product + attn_mask
             weights = F.softmax(product)
         else:
             weights = incubate.softmax_mask_fuse_upper_triangle(product)
 
+        # After dropout, weights shape is [b, num_head/n, s, s]
         if self.dropout:
             with get_rng_state_tracker().rng_state('local_seed'):
                 weights = F.dropout(
@@ -260,11 +311,19 @@ class MultiHeadAttention(nn.Layer):
                     self.dropout,
                     training=self.training,
                     mode="upscale_in_train")
-
+        # weights shape is [b, num_head/n, s, s], v shape is [b, num_heads/n, s, head_dim]
+        # After matmul, weights shape is [b, num_head, s, head_dim], n is mp parallelism
         out = tensor.matmul(weights, v)
 
         # combine heads
-        out = tensor.transpose(out, perm=[0, 2, 1, 3])
+        # If sequence_parallel is true, out shape is [s, b, num_heads, head_dim] after transpose
+        # else out shape is [b, s, num_heads, head_dim]
+        if self.sequence_parallel:
+            out = tensor.transpose(out, perm=[2, 0, 1, 3])
+        else:
+            out = tensor.transpose(out, perm=[0, 2, 1, 3])
+        # If sequence_parallel is true, out shape is [s/n, b, h] after transpose
+        # else out shape is [b, s, h], n is mp parallelism
         out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
 
         return out, weights
@@ -298,8 +357,7 @@ class MultiHeadAttention(nn.Layer):
                                                    use_cache, cache)
 
         if self.use_recompute and self.recompute_granularity == "core_attn":
-            out, weights = recompute(
-                self.core_attn, q, k, v, attn_mask=attn_mask)
+            out, weights = recompute(self.core_attn, q, k, v)
         else:
             out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
 
@@ -325,7 +383,8 @@ class TransformerDecoder(nn.Layer):
                  norm=None,
                  hidden_size=None,
                  use_recompute=False,
-                 recompute_granularity="full"):
+                 recompute_granularity="full",
+                 sequence_parallel=False):
         super(TransformerDecoder, self).__init__()
 
         self.num_layers = num_layers
@@ -333,8 +392,17 @@ class TransformerDecoder(nn.Layer):
         self.norm = norm
         self.use_recompute = use_recompute
         self.recompute_granularity = recompute_granularity
+        self.sequence_parallel = sequence_parallel
         if norm == "LayerNorm":
             self.norm = nn.LayerNorm(hidden_size, epsilon=1e-5)
+            # if sequence parallel is true, register hook to all_reduce gradient of bias 
+            if self.sequence_parallel:
+                def bias_all_reduce(grad):
+                    hcg = fleet.get_hybrid_communicate_group()
+                    group = hcg.get_model_parallel_group()
+                    group.process_group.allreduce(grad).wait()
+                    return grad
+                self.norm.bias.register_hook(bias_all_reduce)
         elif norm is not None:
             raise ValueError("Only support LayerNorm")
 
@@ -418,7 +486,8 @@ class TransformerDecoderLayer(nn.Layer):
                  fused_linear=False,
                  recompute_attn=False,
                  use_recompute=False,
-                 recompute_granularity="full"):
+                 recompute_granularity="full",
+                 sequence_parallel=False):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
@@ -429,6 +498,7 @@ class TransformerDecoderLayer(nn.Layer):
         self.normalize_before = normalize_before
         self.use_recompute = use_recompute
         self.recompute_granularity = recompute_granularity
+        self.sequence_parallel = sequence_parallel
 
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
@@ -442,7 +512,8 @@ class TransformerDecoderLayer(nn.Layer):
             num_partitions=num_partitions,
             fused_linear=fused_linear,
             use_recompute=use_recompute,
-            recompute_granularity=recompute_granularity)
+            recompute_granularity=recompute_granularity,
+            sequence_parallel=sequence_parallel)
 
         self.linear1 = fleet.meta_parallel.ColumnParallelLinear(
             d_model,
@@ -450,7 +521,8 @@ class TransformerDecoderLayer(nn.Layer):
             weight_attr=weight_attrs[2],
             gather_output=False,
             has_bias=True,
-            fuse_matmul_bias=fused_linear)
+            fuse_matmul_bias=fused_linear,
+            sequence_parallel=sequence_parallel)
 
         self.linear2 = fleet.meta_parallel.RowParallelLinear(
             dim_feedforward,
@@ -458,10 +530,20 @@ class TransformerDecoderLayer(nn.Layer):
             weight_attr=weight_attrs[2],
             input_is_parallel=True,
             has_bias=True,
-            fuse_matmul_bias=fused_linear)
+            fuse_matmul_bias=fused_linear,
+            sequence_parallel=sequence_parallel)
 
         self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
+        if self.sequence_parallel:
+            # if sequence parallel is true, register hook to all_reduce gradient of bias 
+            def bias_all_reduce(grad):
+                hcg = fleet.get_hybrid_communicate_group()
+                group = hcg.get_model_parallel_group()
+                group.process_group.allreduce(grad).wait()
+                return grad
+            self.norm1.bias.register_hook(bias_all_reduce)
+            self.norm2.bias.register_hook(bias_all_reduce)
         self.dropout1 = nn.Dropout(dropout, mode="upscale_in_train")
         self.dropout2 = nn.Dropout(act_dropout, mode="upscale_in_train")
         self.activation = getattr(F, activation)
@@ -526,9 +608,11 @@ class GPTEmbeddings(nn.Layer):
                  hidden_dropout_prob=0.1,
                  max_position_embeddings=512,
                  type_vocab_size=16,
-                 initializer_range=0.02):
+                 initializer_range=0.02,
+                 sequence_parallel=False):
         super(GPTEmbeddings, self).__init__()
 
+        self.sequence_parallel = sequence_parallel
         self.word_embeddings = fleet.meta_parallel.VocabParallelEmbedding(
             vocab_size,
             hidden_size,
@@ -552,7 +636,15 @@ class GPTEmbeddings(nn.Layer):
         input_embedings = self.word_embeddings(input_ids)
         position_embeddings = self.position_embeddings(position_ids)
         embeddings = input_embedings + position_embeddings
-        embeddings = self.dropout(embeddings)
+        # if sequence parallel is true, change embedding shape [b, s, h] to [s, b, h]
+        # set the sequence dim as first, so the split in sequence dim is data-continuous
+        if self.sequence_parallel:
+            embeddings = paddle.transpose(embeddings, perm=[1, 0, 2])
+            embeddings = ScatterOp.apply(embeddings)
+            with get_rng_state_tracker().rng_state('local_seed'):
+                embeddings = self.dropout(embeddings)
+        else:
+            embeddings = self.dropout(embeddings)
         return embeddings
 
 
@@ -572,7 +664,8 @@ class GPTModel(nn.Layer):
                  num_partitions=1,
                  use_recompute=False,
                  fused_linear=False,
-                 recompute_granularity="full"):
+                 recompute_granularity="full",
+                 sequence_parallel=False):
 
         super(GPTModel, self).__init__()
 
@@ -582,7 +675,9 @@ class GPTModel(nn.Layer):
 
         self.embeddings = GPTEmbeddings(
             vocab_size, hidden_size, hidden_dropout_prob,
-            max_position_embeddings, type_vocab_size, self.initializer_range)
+            max_position_embeddings, type_vocab_size, self.initializer_range,
+            sequence_parallel)
+        self.sequence_parallel = sequence_parallel
 
         decoder_layers = nn.LayerList()
         for i in range(num_layers):
@@ -602,7 +697,8 @@ class GPTModel(nn.Layer):
                     num_partitions=num_partitions,
                     fused_linear=fused_linear,
                     use_recompute=use_recompute,
-                    recompute_granularity=recompute_granularity))
+                    recompute_granularity=recompute_granularity,
+                    sequence_parallel=sequence_parallel))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
@@ -610,7 +706,8 @@ class GPTModel(nn.Layer):
             norm="LayerNorm",
             hidden_size=hidden_size,
             use_recompute=use_recompute,
-            recompute_granularity=recompute_granularity)
+            recompute_granularity=recompute_granularity,
+            sequence_parallel=sequence_parallel)
 
     @classmethod
     def from_config(cls, cfg):
@@ -629,7 +726,8 @@ class GPTModel(nn.Layer):
             "num_partitions": cfg['topology'].get_dim('model'),
             "use_recompute": cfg['use_recompute'],
             "fused_linear": cfg['fused_linear'],
-            "recompute_granularity": cfg['recompute_granularity']
+            "recompute_granularity": cfg['recompute_granularity'],
+            "sequence_parallel": cfg['sequence_parallel']
         }
 
     def forward(self,
@@ -651,6 +749,7 @@ class GPTModel(nn.Layer):
             # .expand_as(input_ids)
             position_ids = paddle.fluid.layers.expand_as(position_ids,
                                                          input_ids)
+        # embedding_output shape is [s/n, b, h], n is mp parallelism
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
 
@@ -677,6 +776,9 @@ class GPTModel(nn.Layer):
             attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
+        if self.sequence_parallel:
+            encoder_outputs = GatherOp.apply(encoder_outputs)
+            encoder_outputs = paddle.transpose(encoder_outputs, [1, 0, 2])
 
         return encoder_outputs
 
@@ -912,464 +1014,3 @@ class GPTForPretrainingPipe(PipelineLayer):
             "fused_linear": cfg['fused_linear'],
             "recompute_granularity": cfg['recompute_granularity']
         }
-
-
-class GPTForGeneration(nn.Layer):
-    """
-    GPT Model with pretraining tasks on top.
-
-    Args:
-        gpt (:class:`GPTModel`):
-            An instance of :class:`GPTModel`.
-
-    """
-
-    def __init__(self, gpt):
-        super(GPTForGeneration, self).__init__()
-        self.gpt = gpt
-        # extra_parameters using for sharding stage3 to register extra_parameters
-        self.extra_parameters = [
-            get_attr(self.gpt.embeddings.word_embeddings, "weight")
-        ]
-
-        self.max_length = self.configs.get('max_dec_len', 20)
-        self.min_length = self.configs.get('min_dec_len', 0)
-        self.decode_strategy = self.configs.get('decode_strategy', 'sampling')
-        self.temperature = self.configs.get('temperature', 1.0)
-        self.top_k = self.configs.get('top_k', 0)
-        self.top_p = self.configs.get('top_p', 1.0)
-        self.repetition_penalty = self.configs.get('repetition_penalty', 1.0)
-        self.num_beams = self.configs.get('num_beams', 1)
-        self.num_beam_groups = self.configs.get('num_beam_groups', 1)
-        self.length_penalty = self.configs.get('length_penalty', 0.0)
-        self.early_stopping = self.configs.get('early_stopping', False)
-        self.bos_token_id = self.configs.get('bos_token_id', None)
-        self.eos_token_id = self.configs.get('eos_token_id', None)
-        self.pad_token_id = self.configs.get('pad_token_id', None)
-        self.decoder_start_token_id = self.configs.get(
-            'decoder_start_token_id', None)
-        self.forced_bos_token_id = self.configs.get('forced_bos_token_id',
-                                                    None)
-        self.forced_eos_token_id = self.configs.get('forced_eos_token_id',
-                                                    None)
-        self.num_return_sequences = self.configs.get('num_return_sequences', 1)
-        self.diversity_rate = self.configs.get('diversity_rate', 0.0)
-        self.use_cache = self.configs.get('use_cache', True)
-
-    def prepare_input_ids_for_generation(self,
-                                         bos_token_id,
-                                         encoder_output=None):
-        batch_size = 1
-        if bos_token_id is None:
-            raise ValueError("`bos_token_id` should be defined when no "
-                             "`input_ids` are provided.")
-        if encoder_output is not None:
-            batch_size = encoder_output.shape[0]
-        return paddle.ones([batch_size, 1], dtype="int64") * bos_token_id
-
-    def prepare_attention_mask_for_generation(self, input_ids, pad_token_id,
-                                              eos_token_id):
-        is_pad_token_in_inputs_ids = (pad_token_id is not None) and paddle.any(
-            input_ids == pad_token_id).numpy().item()
-        is_pad_token_not_equal_to_eos_token_id = (eos_token_id is None) or (
-            (eos_token_id is not None) and (pad_token_id != eos_token_id))
-        if is_pad_token_in_inputs_ids and is_pad_token_not_equal_to_eos_token_id:
-            attention_mask = (input_ids == pad_token_id
-                              ).astype(paddle.get_default_dtype()) * -1e9
-        else:
-            attention_mask = paddle.zeros_like(
-                input_ids, dtype=paddle.get_default_dtype())
-        return paddle.unsqueeze(attention_mask, axis=[1, 2])
-
-    def update_scores_for_generation(self, scores, next_scores, length,
-                                     unfinished_flag):
-        # update scores
-
-        unfinished_scores = (scores * length + next_scores) / (length + 1)
-        scores = paddle.where(unfinished_flag, unfinished_scores, scores)
-        return scores
-
-    def get_logits_processor(self,
-                             min_length=None,
-                             max_length=None,
-                             eos_token_id=None,
-                             forced_bos_token_id=None,
-                             forced_eos_token_id=None,
-                             num_beams=1,
-                             num_beam_groups=1,
-                             diversity_rate=0.0,
-                             repetition_penalty=None):
-        processors = LogitsProcessorList()
-
-        if min_length is not None and eos_token_id is not None and min_length > -1:
-            processors.append(
-                MinLengthLogitsProcessor(min_length, eos_token_id))
-        if num_beam_groups > 1 and diversity_rate > 0.0:
-            processors.append(
-                HammingDiversityLogitsProcessor(
-                    diversity_rate=diversity_rate,
-                    num_beams=num_beams,
-                    num_beam_groups=num_beam_groups))
-        if repetition_penalty is not None and repetition_penalty != 1.0:
-            processors.append(
-                RepetitionPenaltyLogitsProcessor(penalty=repetition_penalty))
-        if forced_bos_token_id is not None:
-            processors.append(
-                ForcedBOSTokenLogitsProcessor(forced_bos_token_id))
-        if forced_eos_token_id is not None:
-            processors.append(
-                ForcedEOSTokenLogitsProcessor(max_length, forced_eos_token_id))
-        # TODO
-        # Add more pre_processing for distribution
-
-        return processors
-
-    def expand_inputs_for_generation(self,
-                                     input_ids,
-                                     expand_size,
-                                     attention_mask=None,
-                                     **model_kwargs):
-
-        index = paddle.tile(
-            paddle.arange(paddle.shape(input_ids)[0]).unsqueeze(-1),
-            [1, expand_size]).reshape([-1])
-
-        input_ids = paddle.gather(input_ids, index)
-
-        if attention_mask is not None:
-            model_kwargs["attention_mask"] = paddle.gather(attention_mask,
-                                                           index)
-
-        if "token_type_ids" in model_kwargs and model_kwargs[
-                "token_type_ids"] is not None:
-            token_type_ids = model_kwargs["token_type_ids"]
-            model_kwargs["token_type_ids"] = paddle.gather(token_type_ids,
-                                                           index)
-
-        if "position_ids" in model_kwargs and model_kwargs[
-                "position_ids"] is not None:
-            position_ids = model_kwargs["position_ids"]
-            model_kwargs["position_ids"] = paddle.gather(position_ids, index)
-
-        if "seq_len" in model_kwargs and model_kwargs["seq_len"] is not None:
-            seq_len = model_kwargs["seq_len"]
-            model_kwargs["seq_len"] = paddle.gather(seq_len, index)
-
-        if "encoder_output" in model_kwargs and model_kwargs[
-                "encoder_output"] is not None:
-            encoder_output = model_kwargs["encoder_output"]
-            model_kwargs["encoder_output"] = paddle.gather(encoder_output,
-                                                           index)
-
-        if "role_ids" in model_kwargs and model_kwargs["role_ids"] is not None:
-            role_ids = model_kwargs["role_ids"]
-            model_kwargs["role_ids"] = paddle.gather(role_ids, index)
-
-        return input_ids, model_kwargs
-
-    def prepare_inputs_for_generation(self,
-                                      input_ids,
-                                      use_cache=False,
-                                      cache=None,
-                                      **kwargs):
-        # only last token for inputs_ids if cache is defined in kwargs
-        position_ids = kwargs.get("position_ids", None)
-        attention_mask = kwargs.get("attention_mask", None)
-        if attention_mask is not None:
-            if len(attention_mask.shape) == 4:
-                attention_mask = attention_mask[:, -1, -1, :]
-            if "int" in paddle.common_ops_import.convert_dtype(
-                    attention_mask.dtype):
-                attention_mask = (1.0 - attention_mask) * -1e4
-        if cache is not None:
-            input_ids = input_ids[:, -1].unsqueeze(-1)
-            if position_ids is not None:
-                position_ids = position_ids[:, -1].unsqueeze(-1)
-        return {
-            "input_ids": input_ids,
-            "position_ids": position_ids,
-            "attention_mask": attention_mask,
-            "cache": cache
-        }
-
-    def update_model_kwargs_for_generation(self,
-                                           outputs,
-                                           model_kwargs,
-                                           is_encoder_decoder=False):
-        # Update the model inputs during generation.
-        # Note that If `token_type_ids` and `attention_mask` in `model_kwargs`
-        # and they contain pad value, the result vectors updated by this method
-        # may be different from expected. In this case, you need to rewrite the
-        # method.
-
-        # update cache
-        if isinstance(outputs, tuple):
-            model_kwargs["cache"] = outputs[1]
-
-        # update token_type_ids with last value
-        if "token_type_ids" in model_kwargs and model_kwargs[
-                "token_type_ids"] is not None:
-            token_type_ids = model_kwargs["token_type_ids"]
-            model_kwargs["token_type_ids"] = paddle.concat(
-                [token_type_ids, token_type_ids[:, -1:]], axis=-1)
-
-        # update position_ids
-        if "position_ids" in model_kwargs and model_kwargs[
-                "position_ids"] is not None:
-            position_ids = model_kwargs["position_ids"]
-            model_kwargs["position_ids"] = paddle.concat(
-                [position_ids, position_ids[:, -1:] + 1], axis=-1)
-
-        # update attention_mask
-        if not is_encoder_decoder and "attention_mask" in model_kwargs:
-            attention_mask = model_kwargs["attention_mask"]
-            # nn.Pad2D don't support the data type `bool`
-            if convert_dtype(attention_mask.dtype) == 'bool':
-                attention_mask = paddle.cast(attention_mask, 'int64')
-            if len(attention_mask.shape) == 4:
-                attention_mask = nn.Pad2D(
-                    [0, 0, 0, 1], mode='replicate')(attention_mask)
-                attention_mask = nn.Pad2D(
-                    [0, 1, 0, 0], value=-1e4)(attention_mask)
-                dtype = convert_dtype(attention_mask.dtype)
-                if 'int' in dtype:
-                    attention_mask[:, :, -1, -1] = 1
-                elif 'float' in dtype:
-                    attention_mask[:, :, -1, -1] = 0.0
-                else:
-                    raise ValueError(
-                        'The data type of input `attention_mask` must '
-                        'be bool, int or float')
-            else:
-                attention_mask = paddle.concat(
-                    [
-                        attention_mask, paddle.ones(
-                            [attention_mask.shape[0], 1], dtype="int64")
-                    ],
-                    axis=-1)
-            model_kwargs["attention_mask"] = attention_mask
-
-        # update role_ids
-        if "role_ids" in model_kwargs and model_kwargs["role_ids"] is not None:
-            role_ids = model_kwargs["role_ids"]
-            model_kwargs["role_ids"] = paddle.concat(
-                [role_ids, role_ids[:, -1:]], axis=-1)
-
-        return model_kwargs
-
-    def sample(self,
-               input_ids,
-               logits_processors,
-               max_length,
-               pad_token_id,
-               eos_token_id,
-               top_k=None,
-               top_p=None,
-               temperature=None,
-               min_tokens_to_keep=1,
-               **model_kwargs):
-        def TopKProcess(probs, top_k, min_tokens_to_keep):
-            top_k = min(max(top_k, min_tokens_to_keep), probs.shape[-1])
-            # Remove all tokens with a probability less than the last token of the top-k
-            topk_probs, _ = paddle.topk(probs, k=top_k)
-            probs = paddle.where(probs >= topk_probs[:, -1:], probs,
-                                 paddle.full_like(probs, 0.0))
-            return probs
-
-        def TopPProcess(probs, top_p, min_tokens_to_keep):
-            sorted_probs = paddle.sort(probs, descending=True)
-            sorted_indices = paddle.argsort(probs, descending=True)
-            cumulative_probs = paddle.cumsum(sorted_probs, axis=-1)
-
-            # Remove tokens with cumulative probs above the top_p, But keep at
-            # least min_tokens_to_keep tokens
-            sorted_indices_to_remove = cumulative_probs > top_p
-            if min_tokens_to_keep > 1:
-                # Set 'min_tokens_to_keep - 1' because the first token is kept
-                sorted_indices_to_remove[:, :min_tokens_to_keep - 1] = 0
-            # Keep the first token
-            sorted_indices_to_remove = paddle.cast(
-                sorted_indices_to_remove, dtype='int64')
-            sorted_indices_to_remove[:, 1:] = (
-                sorted_indices_to_remove[:, :-1].clone())
-            sorted_indices_to_remove[:, 0] = 0
-
-            # Scatter sorted tensors to original indexing
-            sorted_indices = sorted_indices + paddle.arange(probs.shape[
-                0]).unsqueeze(-1) * probs.shape[-1]
-            condition = paddle.scatter(sorted_indices_to_remove.flatten(),
-                                       sorted_indices.flatten(),
-                                       sorted_indices_to_remove.flatten())
-            condition = paddle.cast(condition, 'bool').reshape(probs.shape)
-            probs = paddle.where(condition,
-                                 paddle.full_like(probs, 0.0), probs)
-            return probs
-
-        batch_size, cur_len = input_ids.shape
-        origin_len = input_ids.shape[1]
-        unfinished_flag = paddle.full([batch_size, 1], True, dtype='bool')
-        scores = paddle.full(
-            [batch_size, 1], 0.0, dtype=paddle.get_default_dtype())
-
-        # use_cache is immutable, we split it off other mutable kwargs.
-        assert 'use_cache' in model_kwargs
-        immutable = {'use_cache': model_kwargs['use_cache']}
-        del model_kwargs['use_cache']
-
-        def _forward_(**args):
-            model_inputs = self.prepare_inputs_for_generation(
-                input_ids, **args, **immutable)
-            return self.gpt(**model_inputs, **immutable)
-
-        # Pre-while call for inference,
-        # the value in model_kwargs should be tensor before while loop
-        if cur_len < max_length:
-            outputs = _forward_(**model_kwargs)
-
-        attn_mask = model_kwargs['attention_mask']
-        # make the shape of attention_mask = (-1, -1, -1, -1) in dy2static.
-        model_kwargs['attention_mask'] = paddle.reshape(
-            attn_mask, paddle.shape(attn_mask))
-        model_kwargs['cache'] = outputs[1] if isinstance(outputs,
-                                                         tuple) else None
-
-        while cur_len < max_length:
-            # prepare model inputs & get model output
-            # skip first step for pre-while call
-            if cur_len > origin_len:
-                outputs = _forward_(**model_kwargs)
-
-            logits = outputs[0] if isinstance(outputs, tuple) else outputs
-
-            logits = parallel_matmul(
-                logits,
-                get_attr(self.gpt.embeddings.word_embeddings, "weight"), False)
-
-            # [batch_size, vocab_size]
-            logits = logits[:, -1, :]
-
-            # pre-process distribution
-            logits = logits_processors(input_ids, logits)
-
-            # sample
-            origin_probs = F.softmax(logits)
-            origin_probs = paddle.log(origin_probs)
-            if temperature is not None and temperature != 1.0:
-                logits = logits / temperature
-            probs = F.softmax(logits)
-            if top_k is not None and top_k != 0:
-                probs = TopKProcess(probs, top_k, min_tokens_to_keep)
-            if top_p is not None and top_p < 1.0:
-                probs = TopPProcess(probs, top_p, min_tokens_to_keep)
-            next_tokens = paddle.multinomial(probs)
-
-            next_scores = paddle.index_sample(origin_probs, next_tokens)
-
-            if eos_token_id is not None:
-                next_tokens = paddle.where(
-                    unfinished_flag, next_tokens,
-                    paddle.full_like(next_tokens, pad_token_id))
-
-            scores = self.update_scores_for_generation(
-                scores, next_scores, cur_len - origin_len, unfinished_flag)
-
-            cur_len += 1
-            input_ids = paddle.concat([input_ids, next_tokens], axis=1)
-
-            if eos_token_id is not None:
-                unfinished_flag = paddle.logical_and(
-                    unfinished_flag, next_tokens != eos_token_id)
-
-            # Stop when there is a </s> in all sentences
-            if not paddle.any(unfinished_flag):
-                break
-            model_kwargs = self.update_model_kwargs_for_generation(
-                outputs,
-                model_kwargs,
-                is_encoder_decoder=self.is_encoder_decoder)
-
-        return input_ids[:, origin_len:], scores
-
-    def forward(self, input_ids=None, **model_kwargs):
-
-        max_length = self.max_length
-        min_length = self.min_length
-        decode_strategy = self.decode_strategy
-        temperature = self.temperature
-        top_k = self.top_k
-        top_p = self.top_p
-        repetition_penalty = self.repetition_penalty
-        num_beams = self.num_beams
-        num_beam_groups = self.num_beam_groups
-        length_penalty = self.length_penalty
-        early_stopping = self.early_stopping
-        bos_token_id = self.bos_token_id
-        eos_token_id = self.eos_token_id
-        pad_token_id = self.pad_token_id
-        decoder_start_token_id = self.decoder_start_token_id
-        forced_bos_token_id = self.forced_bos_token_id
-        forced_eos_token_id = self.forced_eos_token_id
-        num_return_sequences = self.num_return_sequences
-        diversity_rate = self.diversity_rate
-        use_cache = self.use_cache
-
-        assert (
-            decode_strategy in ["greedy_search", "sampling", "beam_search"]
-        ), "`decode_strategy` must be one of 'greedy_search', 'sampling' or 'beam_search' but received {}.".format(
-            decode_strategy)
-
-        bos_token_id = bos_token_id if bos_token_id is not None else getattr(
-            self.gpt, 'bos_token_id', None)
-        eos_token_id = eos_token_id if eos_token_id is not None else getattr(
-            self.gpt, 'eos_token_id', None)
-        pad_token_id = pad_token_id if pad_token_id is not None else getattr(
-            self.gpt, 'pad_token_id', None)
-        forced_bos_token_id = forced_bos_token_id if forced_bos_token_id is not None else getattr(
-            self.gpt, 'forced_bos_token_id', None)
-        forced_eos_token_id = forced_eos_token_id if forced_eos_token_id is not None else getattr(
-            self.gpt, 'forced_eos_token_id', None)
-        decoder_start_token_id = decoder_start_token_id if decoder_start_token_id is not None else getattr(
-            self.gpt, 'decoder_start_token_id', None)
-
-        # params check
-        if input_ids is None:
-            # Init `input_ids` with bos_token_id
-            input_ids = self.prepare_input_ids_for_generation(bos_token_id)
-
-        if model_kwargs.get("attention_mask", None) is None:
-            # TODO
-            # Init `attention_mask` depending on `pad_token_id`
-            model_kwargs[
-                "attention_mask"] = self.prepare_attention_mask_for_generation(
-                    input_ids, pad_token_id, eos_token_id)
-        self.is_encoder_decoder = False
-
-        model_kwargs["use_cache"] = use_cache
-
-        max_length += input_ids.shape[-1]
-        min_length += input_ids.shape[-1]
-
-        logits_processors = self.get_logits_processor(
-            min_length=min_length,
-            max_length=max_length,
-            eos_token_id=eos_token_id,
-            forced_bos_token_id=forced_bos_token_id,
-            forced_eos_token_id=forced_eos_token_id,
-            num_beams=num_beams,
-            num_beam_groups=num_beam_groups,
-            diversity_rate=diversity_rate,
-            repetition_penalty=repetition_penalty)
-
-        if decode_strategy == 'sampling':
-            if num_return_sequences > 1:
-                input_ids, model_kwargs = self.expand_inputs_for_generation(
-                    input_ids,
-                    expand_size=num_return_sequences,
-                    **model_kwargs)
-
-            ret = self.sample(input_ids, logits_processors, max_length,
-                              pad_token_id, eos_token_id, top_k, top_p,
-                              temperature, **model_kwargs)
-        else:
-            raise ValueError(f'Not support {decoding_strategy} strategy yet!')
-        return ret
