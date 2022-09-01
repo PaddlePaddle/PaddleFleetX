@@ -51,7 +51,7 @@ def do_inference():
 
     outs = engine.inference([input_ids])
 
-    ids, scores = list(outs.values())
+    ids = list(outs.values())[0]
     out_ids = [int(x) for x in ids[0]]
     result = tokenizer.decode(out_ids)
     result = input_text + result

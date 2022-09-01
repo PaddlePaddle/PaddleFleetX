@@ -25,7 +25,6 @@ from paddle.optimizer.lr import LRScheduler
 from paddle.distributed.sharding import group_sharded_parallel
 from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
-from paddle.static import InputSpec
 
 sys.path.append("../../../")
 from fleetx.utils import logger
@@ -603,12 +602,8 @@ class EagerEngine(BasicEngine):
 
     def export(self, output_dir="output"):
         self._module.model.eval()
+        input_spec = self._module.input_spec()
 
-        input_spec = [
-            InputSpec(shape=[None, None], name="input_ids", dtype='int64'),
-            # InputSpec(shape=[None, None], name="attention_mask", dtype='int64'),
-        ]
-            
         save_dir = os.path.join(output_dir, "rank_{}".format(self._dp_rank), 'model')
         export_inference_model(self._module.model, input_spec, save_dir)
 
