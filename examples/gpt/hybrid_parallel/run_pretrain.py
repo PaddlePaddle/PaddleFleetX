@@ -81,10 +81,10 @@ def do_train():
     sharding_rank = hcg.get_sharding_parallel_rank()
     sharding_size = hcg.get_sharding_parallel_world_size()
 
-    data_world_rank = dp_rank * sharding_size + sharding_rank
-    data_world_size = configs['Distributed']['dp_degree'] * \
-        configs['Distributed']['sharding']['sharding_degree']
-    local_rank = int(os.getenv("PADDLE_RANK_IN_NODE", 0))
+    # data_world_rank = dp_rank * sharding_size + sharding_rank
+    # data_world_size = configs['Distributed']['dp_degree'] * \
+    #     configs['Distributed']['sharding']['sharding_degree']
+    # local_rank = int(os.getenv("PADDLE_RANK_IN_NODE", 0))
 
     # seed control in hybrid parallel
     set_hyrbid_parallel_seed(seed, data_world_rank, mp_rank, pp_rank)

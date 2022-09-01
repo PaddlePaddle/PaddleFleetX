@@ -62,7 +62,7 @@ class AutoEngine(BasicEngine):
         self._logging_freq = self._configs['logging_freq']
         self._num_train_epochs = self._configs['num_train_epochs']
 
-        self._save_steps = self._configs['save_load']['save_steps']
+        self._save_steps = self._configs['save_load']['save_by_step']
         self._output_dir = self._configs['save_load']['output_dir']
         self._ckpt_dir = self._configs['save_load']['ckpt_dir']
 

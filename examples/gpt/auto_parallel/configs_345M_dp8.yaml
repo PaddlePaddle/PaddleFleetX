@@ -22,7 +22,7 @@ Engine:
   #   weight_bits: 8
   #   activation_bits: 8
   save_load:
-    save_steps: 1000
+    save_by_steps: 1000
     output_dir: ./output
     ckpt_dir:
 

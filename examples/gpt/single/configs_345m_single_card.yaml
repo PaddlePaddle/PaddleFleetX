@@ -17,7 +17,8 @@ Engine:
     custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
     custom_white_list: ["lookup_table", "lookup_table_v2"]
   save_load:
-    save_steps: 1000
+    save_by_epoch: -1
+    save_by_step: 1000
     output_dir: ./output
     ckpt_dir:
 
@@ -37,7 +38,7 @@ Data:
 Model:
   vocab_size: 50304
   hidden_size: 1024
-  num_layers: 24
+  num_layers: 4
   num_attention_heads: 16
   ffn_hidden_size: 4096
   hidden_dropout_prob: 0.1

@@ -125,7 +125,9 @@ class EagerEngine(BasicEngine):
         self._custom_white_list = self._configs['mix_precision'][
             'custom_white_list']
 
-        self._save_steps = self._configs['save_load']['save_steps']
+        self._save_by_step = self._configs['save_load']['save_by_step']
+        self._save_by_epoch = self._configs['save_load']['save_by_epoch']
+
         self._output_dir = self._configs['save_load']['output_dir']
         self._ckpt_dir = self._configs['save_load']['ckpt_dir']
 
@@ -198,7 +200,7 @@ class EagerEngine(BasicEngine):
         else:
             self._dp_rank = 0
 
-        self._module.global_step = 0
+        self.global_step = 0
 
         self._inference_configs = configs['Inference']
         self._inference_init = False
@@ -259,6 +261,78 @@ class EagerEngine(BasicEngine):
         self._scaler = fleet.distributed_scaler(
             self._scaler) if self._scaler is not None else self._scaler
 
+    def _train_one_epoch(self,
+                         epoch_index,
+                         train_data_loader=None,
+                         valid_data_loader=None):
+        # time count
+        train_cost = 0.0
+        train_start = time.time()
+        for step, batch in enumerate(train_data_loader()):
+            # if step < self.:
+            #     continue    
+            # self.global_step += 1
+            loss = self._fit_impl(batch)
+            # Sync for profile time, delete it may be a little faster
+            paddle.device.cuda.synchronize()
+            train_cost += time.time() - train_start
+
+            if step % self._logging_freq == 0:
+                log_dict = {
+                    'epoch': epoch_index,
+                    'batch': step,
+                    'train_cost': train_cost,
+                    'loss': loss.numpy(),
+                }
+                self._module.training_step_end(log_dict)
+
+                train_start = time.time()
+                train_cost = 0.0
+
+            if step % self._eval_freq == 0:
+                self._module.model.eval()
+
+                eval_losses = []
+                eval_start = time.time()
+
+                for eval_step, batch in enumerate(valid_data_loader):
+                    loss = self._evaluate_impl(batch)
+                    eval_losses.append(loss)
+
+                    if eval_step >= self._eval_iters - 1:
+                        break
+
+                paddle.device.cuda.synchronize()
+                eval_cost = time.time() - eval_start
+                eval_loss = sum(eval_losses) / len(eval_losses)
+
+                log_dict = {
+                    # 'global_step': self.global_step,
+                    'loss': eval_loss.numpy(),
+                    'epoch': self.epoch_index,
+                    'batch': eval_step,
+                    'eval_cost': eval_cost,
+                }
+                self._module.validation_step_end(log_dict)
+
+                self._module.model.train()
+
+            if self._save_by_step > 0 and (
+                    step % self._save_by_step == 0 or
+                    step >= self._max_steps) and self._dp_rank == 0:
+                # pass
+                self.save()
+
+            if step >= self._max_steps:
+                logger.info("The training process is complete.")
+                #     del train_data_loader
+                #     if self.profiler:
+                #         self._profiler_done()
+                return
+
+            if self.profiler:
+                self.profiler.step()
+
     def fit(self, epoch=1, train_data_loader=None, valid_data_loader=None):
         """
         Run the full process of training/validation/save loop.
@@ -278,72 +352,22 @@ class EagerEngine(BasicEngine):
         train_cost = 0.0
         train_start = time.time()
 
-        for step, batch in enumerate(train_data_loader()):
-            if step < self._module.global_step:
-                continue
+        for self.epoch_index in range(epoch):
+            self.epoch_index = self.epoch_index
+            self._train_one_epoch(self.epoch_index, train_data_loader,
+                                  valid_data_loader)
 
-            self._module.global_step += 1
-            loss = self._fit_impl(batch)
-
-            # Sync for profile time, delete it may be a little faster
             paddle.device.cuda.synchronize()
             train_cost += time.time() - train_start
+            log_dict = {
+                'epoch': epoch_index,
+                'train_cost': train_cost,
+            }
+            self._module.training_epoch_end(log_dict)
 
-            if self._module.global_step % self._logging_freq == 0:
-                log_dict = {
-                    'loss': loss.numpy(),
-                    'epoch': epoch,
-                    'batch': step,
-                    'train_cost': train_cost,
-                }
-                self._module.training_step_end(log_dict)
-
-                train_start = time.time()
-                train_cost = 0.0
-
-            if self._module.global_step % self._eval_freq == 0:
-                self._module.model.eval()
-
-                eval_losses = []
-                eval_start = time.time()
-
-                for eval_step, batch in enumerate(valid_data_loader):
-                    loss = self._evaluate_impl(batch)
-                    eval_losses.append(loss)
-
-                    if eval_step >= self._eval_iters - 1:
-                        break
-
-                paddle.device.cuda.synchronize()
-                eval_cost = time.time() - eval_start
-                eval_loss = sum(eval_losses) / len(eval_losses)
-
-                log_dict = {
-                    'loss': eval_loss.numpy(),
-                    'epoch': epoch,
-                    'batch': eval_step,
-                    'eval_cost': eval_cost,
-                }
-                self._module.validation_step_end(log_dict)
-
-                self._module.model.train()
-
-            if (self._module.global_step % self._save_steps == 0 or
-                    self._module.global_step >= self._max_steps
-                ) and self._dp_rank == 0:
-                self.save()
-
-            if self._module.global_step >= self._max_steps:
-                logger.info("The training process is complete.")
-                del train_data_loader
-
-                if self.profiler:
-                    self._profiler_done()
-
-                return
-
-            if self.profiler:
-                self.profiler.step()
+            if self._save_by_epoch > 0 and self.epoch_index % self._save_by_epoch == 0 and self._dp_rank == 0:
+                print("save..")
+            #     self.save()
 
         if self.profiler:
             self._profiler_done()
@@ -433,8 +457,9 @@ class EagerEngine(BasicEngine):
             paddle.device.cuda.synchronize()
             eval_cost = time.time() - eval_start
 
-            if self._module.global_step % self._logging_freq == 0:
+            if self.global_step % self._logging_freq == 0:
                 log_dict = {
+                    'global_step': self.global_step,
                     'loss': loss.numpy(),
                     'epoch': epoch,
                     'batch': eval_step,
@@ -443,7 +468,7 @@ class EagerEngine(BasicEngine):
                 self._module.validation_step_end(log_dict)
                 eval_start = time.time()
 
-            if self._module.global_step >= self._max_steps:
+            if self.global_step >= self._max_steps:
                 logger.info("The evaluting process is complete.")
                 del valid_data_loader
                 return
@@ -480,14 +505,15 @@ class EagerEngine(BasicEngine):
 
         test_start = time.time()
         for test_step, batch in enumerate(test_data_loader):
-            self._module.global_step += 1
+            self.global_step += 1
             loss = self._predict_impl(batch)
 
             paddle.device.cuda.synchronize()
             test_cost = time.time() - test_start
 
-            if self._module.global_step % self._logging_freq == 0:
+            if self.global_step % self._logging_freq == 0:
                 log_dict = {
+                    'global_step': self.global_step,
                     'loss': loss.numpy(),
                     'epoch': epoch,
                     'batch': test_step,
@@ -496,7 +522,7 @@ class EagerEngine(BasicEngine):
                 self._module.test_step_end(log_dict)
                 test_start = time.time()
 
-            if self._module.global_step >= self._max_steps:
+            if self.global_step >= self._max_steps:
                 logger.info("The predicting process is complete.")
                 del test_data_loader
                 return
@@ -522,8 +548,8 @@ class EagerEngine(BasicEngine):
         save the state dicts of model and optimizer into an checkpoint.
         """
         if self._output_dir and isinstance(self._output_dir, str):
-            output_dir = os.path.join(self._output_dir,
-                                      "step_%d" % self._module.global_step)
+            output_dir = os.path.join(self._output_dir, "epoch_%d_step_%d" %
+                                      (self.epoch_index, self.global_step))
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir, exist_ok=True)
             logger.info("Save model to %s" % output_dir)
@@ -539,7 +565,16 @@ class EagerEngine(BasicEngine):
             paddle.save(self._module.optimizer.state_dict(),
                         os.path.join(save_dir, "model_state.pdopt"))
 
-            meta_dict = {"global_step": self._module.global_step}
+            # meta_dict = {"global_step": self.global_step, ""}
+
+            meta_dict = {
+                # "global_step": self.global_step,
+                "cuda_rng_state": paddle.get_cuda_rng_state(),
+                # "epoch_index": self.epoch_index,
+                # "":
+                # "epoch_offset": self.epoch_offset
+            }
+
             paddle.save(meta_dict, os.path.join(save_dir, "meta_state.pdopt"))
 
         else:
@@ -583,7 +618,7 @@ class EagerEngine(BasicEngine):
                             "Warning: resume_step is {}, but the step of checkpoint is {}.".
                             format(resume_step, meta_dict["global_step"]))
 
-                    self._module.global_step = resume_step
+                    self.global_step = resume_step
                 else:
                     raise ValueError("No meta checkpoint file found in %s." %
                                      meta_path)
