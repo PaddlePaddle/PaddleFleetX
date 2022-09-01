@@ -29,11 +29,11 @@ from examples.gpt.gpt_module import GPTGenerationModule
 from fleetx.data.tokenizers import GPTTokenizer
 from fleetx.core.engine.eager_engine import EagerEngine
 
-from examples.gpt.tools import parse_args, parse_yaml
+from examples.gpt.tools import parse_yaml
 
 
 def do_inference():
-    configs = parse_yaml(parse_args())
+    configs = parse_yaml()
 
     paddle.set_device(configs['Global']['device'])
 

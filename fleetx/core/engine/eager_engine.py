@@ -38,6 +38,7 @@ from fleetx.utils.version import version_check
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class EagerEngine(BasicEngine):
     """
     The common engine for all models that support single-card and distributed 
@@ -212,21 +213,29 @@ class EagerEngine(BasicEngine):
         self._inference_engine = None
 
         self.profiler = None
-        if 'Profiler' in configs and configs.get('Profiler', {}).get('enable', False):
+        if 'Profiler' in configs and configs.get('Profiler', {}).get('enable',
+                                                                     False):
             self.profiler_config = configs['Profiler']
 
             scheduler = self.profiler_config.get('scheduler', None)
-            profiler_log = self.profiler_config.get('profiler_log', './profiler_log')
+            profiler_log = self.profiler_config.get('profiler_log',
+                                                    './profiler_log')
             record_shapes = self.profiler_config.get('record_shapes', True)
             profile_memory = self.profiler_config.get('profile_memory', True)
-            self.profiler = paddle.profiler.Profiler(targets=[paddle.profiler.ProfilerTarget.CPU, paddle.profiler.ProfilerTarget.GPU],
-                                        scheduler=scheduler,
-                                        on_trace_ready=paddle.profiler.export_chrome_tracing(profiler_log),
-                                        #TODO(kzq) uncomment after bugfix
-                                        #record_shapes=record_shapes,
-                                        profile_memory=profile_memory)
+            self.profiler = paddle.profiler.Profiler(
+                targets=[
+                    paddle.profiler.ProfilerTarget.CPU,
+                    paddle.profiler.ProfilerTarget.GPU
+                ],
+                scheduler=scheduler,
+                on_trace_ready=paddle.profiler.export_chrome_tracing(
+                    profiler_log),
+                #TODO(kzq) uncomment after bugfix
+                #record_shapes=record_shapes,
+                profile_memory=profile_memory)
             self.profiler.start()
-            logger.warning("Profiler is enabled, do not enable it in production.")
+            logger.warning(
+                "Profiler is enabled, do not enable it in production.")
 
     def _wrap_with_fleet(self):
         if self._sharding_stage in [2, 3]:
@@ -580,7 +589,7 @@ class EagerEngine(BasicEngine):
                     if resume_step != meta_dict["global_step"]:
                         raise ValueError(
                             "Warning: resume_step is {}, but the step of checkpoint is {}.".
-                            format(resume_step, state_dict["global_step"]))
+                            format(resume_step, meta_dict["global_step"]))
 
                     self._module.global_step = resume_step
                 else:
@@ -616,34 +625,42 @@ class EagerEngine(BasicEngine):
         #TODO(kzq) move above
         from paddle.profiler import SummaryView
         views_dict = {
-                    SummaryView.DeviceView : 'device',
-                    SummaryView.OverView : 'overview',
-                    SummaryView.ModelView : 'model',
-                    SummaryView.DistributedView : 'dist',
-                    SummaryView.KernelView : 'kernel',
-                    SummaryView.OperatorView : 'op',
-                    SummaryView.MemoryView : 'mem',
-                    SummaryView.MemoryManipulationView : 'memcpy',
-                    SummaryView.UDFView : 'udf',
-                }
+            SummaryView.DeviceView: 'device',
+            SummaryView.OverView: 'overview',
+            SummaryView.ModelView: 'model',
+            SummaryView.DistributedView: 'dist',
+            SummaryView.KernelView: 'kernel',
+            SummaryView.OperatorView: 'op',
+            SummaryView.MemoryView: 'mem',
+            SummaryView.MemoryManipulationView: 'memcpy',
+            SummaryView.UDFView: 'udf',
+        }
+
+        default_views = [
+            SummaryView.OverView,
+            SummaryView.ModelView,
+            SummaryView.KernelView,
+            SummaryView.OperatorView,
+        ]
 
         def gen_views(cfg):
             # print all summary view if detailed=True
             if self.profiler_config.get('detailed', False):
                 return None
 
-            default_views = ['overview', 'model', 'kernel', 'op']
             views = []
             # override default view with user defined value if detailed=False
             for view in SummaryView:
-                v = self.profiler_config.get('summary', {}).get(views_dict[view], None)
-                if v is True or (v is None and v in default_views):
+                v = self.profiler_config.get('summary', {}).get(
+                    views_dict[view], None)
+                if v is True or (v is None and view in default_views):
                     views.append(view)
 
             return views or None
 
-        self.profiler.summary(sorted_by=paddle.profiler.SortedKeys.GPUTotal, 
-                views=gen_views(self.profiler_config))
+        self.profiler.summary(
+            sorted_by=paddle.profiler.SortedKeys.GPUTotal,
+            views=gen_views(self.profiler_config))
 
     def _profiler_done(self):
         if not self.profiler:
@@ -654,8 +671,15 @@ class EagerEngine(BasicEngine):
         self.profiler.stop()
 
         self._print_summary()
-        profiler_log = self.profiler_config.get('profiler_log', './profiler_log')
-        logger.info("For more information please install visualdl and run it with following command:")
-        logger.info("-------------------------------------------------------------------------------")
-        logger.info(f"visualdl --logdir --host 0.0.0.0 {profiler_log}")
-        logger.info("-------------------------------------------------------------------------------")
+        profiler_log = self.profiler_config.get('profiler_log',
+                                                './profiler_log')
+        logger.info(
+            "For more information please install visualdl and run it with following command:"
+        )
+        logger.info(
+            "-------------------------------------------------------------------------------"
+        )
+        logger.info(f"visualdl --host 0.0.0.0 --logdir {profiler_log}")
+        logger.info(
+            "-------------------------------------------------------------------------------"
+        )

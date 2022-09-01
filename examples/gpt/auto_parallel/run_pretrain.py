@@ -20,7 +20,7 @@ import paddle
 from paddle.distributed import fleet
 
 sys.path.append("../../../")
-from examples.gpt.tools import parse_args, parse_yaml_auto
+from examples.gpt.tools import parse_yaml_auto
 from examples.gpt.gpt_module import GPTAutoModule
 from fleetx.core.engine import AutoEngine
 from fleetx.data.tokenizers import GPTTokenizer
@@ -44,7 +44,7 @@ def generate_dist_strategy(configs):
 
 
 def do_train():
-    configs = parse_yaml_auto(parse_args())
+    configs = parse_yaml_auto()
     seed = configs['Global']['seed']
     random.seed(seed)
     np.random.seed(seed)
