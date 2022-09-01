@@ -15,7 +15,7 @@
 # 345M
 
 # 1. export model
-python3.7 run_export.py -c ./configs_345m_single_card.yaml
+python run_export.py -c ./configs_345m_single_card.yaml
 
 # 2. run inference with exported inference model
-python3.7 run_inference.py -c ./configs_345m_single_card.yaml
+python run_inference.py -c ./configs_345m_single_card.yaml
