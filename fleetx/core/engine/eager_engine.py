@@ -33,6 +33,7 @@ from fleetx.inference.inference_engine import InferenceEngine
 from fleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from fleetx.utils.version import version_check
 
+
 class EagerEngine(BasicEngine):
     """
     The common engine for all models that support single-card and distributed 
@@ -204,21 +205,29 @@ class EagerEngine(BasicEngine):
         self._inference_engine = None
 
         self.profiler = None
-        if 'Profiler' in configs and configs.get('Profiler', {}).get('enable', False):
+        if 'Profiler' in configs and configs.get('Profiler', {}).get('enable',
+                                                                     False):
             self.profiler_config = configs['Profiler']
 
             scheduler = self.profiler_config.get('scheduler', None)
-            profiler_log = self.profiler_config.get('profiler_log', './profiler_log')
+            profiler_log = self.profiler_config.get('profiler_log',
+                                                    './profiler_log')
             record_shapes = self.profiler_config.get('record_shapes', True)
             profile_memory = self.profiler_config.get('profile_memory', True)
-            self.profiler = paddle.profiler.Profiler(targets=[paddle.profiler.ProfilerTarget.CPU, paddle.profiler.ProfilerTarget.GPU],
-                                        scheduler=scheduler,
-                                        on_trace_ready=paddle.profiler.export_chrome_tracing(profiler_log),
-                                        #TODO(kzq) uncomment after bugfix
-                                        #record_shapes=record_shapes,
-                                        profile_memory=profile_memory)
+            self.profiler = paddle.profiler.Profiler(
+                targets=[
+                    paddle.profiler.ProfilerTarget.CPU,
+                    paddle.profiler.ProfilerTarget.GPU
+                ],
+                scheduler=scheduler,
+                on_trace_ready=paddle.profiler.export_chrome_tracing(
+                    profiler_log),
+                #TODO(kzq) uncomment after bugfix
+                #record_shapes=record_shapes,
+                profile_memory=profile_memory)
             self.profiler.start()
-            logger.warning("Profiler is enabled, do not enable it in production.")
+            logger.warning(
+                "Profiler is enabled, do not enable it in production.")
 
     def _wrap_with_fleet(self):
         if self._sharding_stage in [2, 3]:
@@ -270,8 +279,9 @@ class EagerEngine(BasicEngine):
         train_start = time.time()
 
         for step, batch in enumerate(train_data_loader()):
-            if step < self._module.global_step:
-                continue
+            # Note(Guoxia): for the second epoch will always continue
+            #if step < self._module.global_step:
+            #    continue
 
             self._module.global_step += 1
             loss = self._fit_impl(batch)
@@ -596,16 +606,16 @@ class EagerEngine(BasicEngine):
         #TODO(kzq) move above
         from paddle.profiler import SummaryView
         views_dict = {
-                    SummaryView.DeviceView : 'device',
-                    SummaryView.OverView : 'overview',
-                    SummaryView.ModelView : 'model',
-                    SummaryView.DistributedView : 'dist',
-                    SummaryView.KernelView : 'kernel',
-                    SummaryView.OperatorView : 'op',
-                    SummaryView.MemoryView : 'mem',
-                    SummaryView.MemoryManipulationView : 'memcpy',
-                    SummaryView.UDFView : 'udf',
-                }
+            SummaryView.DeviceView: 'device',
+            SummaryView.OverView: 'overview',
+            SummaryView.ModelView: 'model',
+            SummaryView.DistributedView: 'dist',
+            SummaryView.KernelView: 'kernel',
+            SummaryView.OperatorView: 'op',
+            SummaryView.MemoryView: 'mem',
+            SummaryView.MemoryManipulationView: 'memcpy',
+            SummaryView.UDFView: 'udf',
+        }
 
         def gen_views(cfg):
             # print all summary view if detailed=True
@@ -616,14 +626,16 @@ class EagerEngine(BasicEngine):
             views = []
             # override default view with user defined value if detailed=False
             for view in SummaryView:
-                v = self.profiler_config.get('summary', {}).get(views_dict[view], None)
+                v = self.profiler_config.get('summary', {}).get(
+                    views_dict[view], None)
                 if v is True or (v is None and v in default_views):
                     views.append(view)
 
             return views or None
 
-        self.profiler.summary(sorted_by=paddle.profiler.SortedKeys.GPUTotal, 
-                views=gen_views(self.profiler_config))
+        self.profiler.summary(
+            sorted_by=paddle.profiler.SortedKeys.GPUTotal,
+            views=gen_views(self.profiler_config))
 
     def _profiler_done(self):
         if not self.profiler:
@@ -634,8 +646,15 @@ class EagerEngine(BasicEngine):
         self.profiler.stop()
 
         self._print_summary()
-        profiler_log = self.profiler_config.get('profiler_log', './profiler_log')
-        print("For more information please install visualdl and run it with following command:")
-        print("-------------------------------------------------------------------------------")
+        profiler_log = self.profiler_config.get('profiler_log',
+                                                './profiler_log')
+        print(
+            "For more information please install visualdl and run it with following command:"
+        )
+        print(
+            "-------------------------------------------------------------------------------"
+        )
         print(f"visualdl --logdir --host 0.0.0.0 {profiler_log}")
-        print("-------------------------------------------------------------------------------")
+        print(
+            "-------------------------------------------------------------------------------"
+        )

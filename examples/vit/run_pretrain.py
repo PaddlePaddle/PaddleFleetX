@@ -18,12 +18,14 @@ import sys
 import argparse
 import yaml
 import numpy as np
+from collections import defaultdict
 
 sys.path.append("../../")
 
 import paddle
 from paddle.distributed import fleet
 
+from fleetx.utils import logger
 from fleetx.datasets.vit import build_dataloader
 from fleetx.core.engine.eager_engine import EagerEngine
 
@@ -162,6 +164,17 @@ def do_train():
         engine.fit(train_data_loader=train_data_loader, epoch=epoch)
         if eval_during_train:
             engine.evaluate(valid_data_loader=valid_data_loader, epoch=epoch)
+            if len(engine._module.acc_list) > 0:
+                ret = defaultdict(list)
+
+                for item in engine._module.acc_list:
+                    for key, val in item.items():
+                        ret[key].append(val)
+
+                msg = ", ".join(
+                    [f'{k} = {np.mean(v):.6f}' for k, v in ret.items()])
+                logger.info(f"[eval] epoch: {epoch}, {msg}")
+                engine._module.acc_list.clear()
 
         paddle.save(engine._module.model.state_dict(),
                     os.path.join(output_dir, "model.pdparams"))
@@ -170,6 +183,7 @@ def do_train():
 
         meta_dict = {"epoch": epoch}
         paddle.save(meta_dict, os.path.join(output_dir, "meta_state.pdopt"))
+        logger.info(f"Save last model to {output_dir}")
 
 
 if __name__ == "__main__":

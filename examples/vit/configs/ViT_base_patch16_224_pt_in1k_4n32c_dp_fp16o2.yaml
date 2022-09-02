@@ -1,4 +1,3 @@
-# 345M
 Global:
   device: gpu
   seed: 2021

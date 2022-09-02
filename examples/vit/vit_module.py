@@ -67,6 +67,7 @@ class ViTModule(BasicModule):
         self.eval_metric_func = TopkAcc()
         self.train_batch_size = None
         self.eval_batch_size = None
+        self.acc_list = []
 
         logger.info(f'Total parameters: {len(self.model.parameters())}')
 
@@ -163,12 +164,12 @@ class ViTModule(BasicModule):
             self.eval_batch_size = logits.shape[0]
 
         acc = self.eval_metric_func(logits, labels)
-        print(acc)
+        self.acc_list.append(acc)
         return loss
 
     def validation_step_end(self, log_dict):
         ips = self.eval_batch_size * self.configs['Engine'][
-            'logging_freq'] / log_dict['train_cost']
+            'logging_freq'] / log_dict['eval_cost']
         speed = self.configs['Engine']['logging_freq'] / log_dict['eval_cost']
         logger.info(
             "[eval] epoch: %d, step: %d, loss: %.9f, batch_cost: %.5f sec, ips: %.2f images/sec"

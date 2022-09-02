@@ -5,7 +5,7 @@ Global:
 
 Engine:
   max_steps: 1000000000 # for epoch mode, equal to inf
-  num_train_epochs: 90
+  num_train_epochs: 300
   accumulate_steps: 
   logging_freq: 10
   eval_freq: 1000000000 # for epoch mode, equal to inf
@@ -32,20 +32,20 @@ Distributed:
 
 
 Model:
-  name: ViT_large_patch16_224
-  class_num: 21841
+  name: ViT_base_patch16_224
+  class_num: 1000
   drop_rate: 0.1
   use_recompute: Fasle
 
 Optimizer:
   # name: AdamW
-  weight_decay: 0.03
+  weight_decay: 0.3
   adam_beta1: 0.9
   adam_beta2: 0.999
   adam_epsilon: 1.0e-8
   lr:
-    learning_rate: 0.001
-    decay_type: linear
+    learning_rate: 0.003
+    decay_type: cosine
     warmup_steps: 10000
 
 
@@ -58,9 +58,9 @@ DataLoader:
   Train:
     dataset:
       name: ImageNetDataset
-      image_root: ./dataset/ImageNet22K/
-      class_num: 21841
-      cls_label_path: ./dataset/ImageNet22K/train_list.txt
+      image_root: ./dataset/ILSVRC2012/
+      class_num: 1000
+      cls_label_path: ./dataset/ILSVRC2012/train_list.txt
       transform_ops:
         - DecodeImage:
             to_rgb: True
@@ -81,7 +81,7 @@ DataLoader:
 
     sampler:
       name: DistributedBatchSampler
-      batch_size: 128
+      batch_size: 256
       drop_last: False
       shuffle: True
     loader:
@@ -91,8 +91,8 @@ DataLoader:
   Eval:
     dataset: 
       name: ImageNetDataset
-      image_root: ./dataset/ImageNet22K/
-      cls_label_path: ./dataset/ImageNet22K/val_list.txt
+      image_root: ./dataset/ILSVRC2012/
+      cls_label_path: ./dataset/ILSVRC2012/val_list.txt
       transform_ops:
         - DecodeImage:
             to_rgb: True
