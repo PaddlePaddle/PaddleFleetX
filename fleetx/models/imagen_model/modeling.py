@@ -111,7 +111,8 @@ class Imagen(nn.Layer):
                  p2_loss_weight_k=1,
                  dynamic_thresholding=True,
                  dynamic_thresholding_percentile=0.95,
-                 only_train_unet_number=None):
+                 only_train_unet_number=None,
+                 use_recompute=False):
         super().__init__()
 
         # loss
@@ -778,33 +779,26 @@ class Imagen(nn.Layer):
 
 
 def imagen_base_text2im_64(**kwargs):
-    model = Imagen(
-        unets=Unet64_300M(), image_sizes=(64, ), cond_drop_prob=0.1, **kwargs)
+    model = Imagen(unets=Unet64_300M(), image_sizes=(64, ), **kwargs)
     return model
 
 
 def imagen_text2im_64(**kwargs):
-    model = Imagen(
-        unets=BaseUnet64(), image_sizes=(64, ), cond_drop_prob=0.1, **kwargs)
+    model = Imagen(unets=BaseUnet64(), image_sizes=(64, ), **kwargs)
     return model
 
 
 def imagen_text2im_64_SR256(**kwargs):
     model = Imagen(
-        unets=(BaseUnet64(), SRUnet256()),
-        image_sizes=(64, 256),
-        cond_drop_prob=0.1,
-        **kwargs)
+        unets=(BaseUnet64(), SRUnet256()), image_sizes=(64, 256), **kwargs)
     return model
 
 
 def imagen_SR256(**kwargs):
-    model = Imagen(
-        unets=SRUnet256(), image_sizes=(256, ), cond_drop_prob=0.1, **kwargs)
+    model = Imagen(unets=SRUnet256(), image_sizes=(256, ), **kwargs)
     return model
 
 
 def imagen_SR1024(**kwargs):
-    model = Imagen(
-        unets=SRUnet1024(), image_sizes=(1024, ), cond_drop_prob=0.1, **kwargs)
+    model = Imagen(unets=SRUnet1024(), image_sizes=(1024, ), **kwargs)
     return model
