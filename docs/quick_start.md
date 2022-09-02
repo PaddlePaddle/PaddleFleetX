@@ -1,11 +1,15 @@
 
 # 快速开始
 
-推荐使用 Docker 安装部署 FleetX 进行大模型训练，Docker 环境的安装可以参考[文档](deployment.md#docker-环境安装)，裸机安装方法请参考[文档](deployment.md#2-安装部署流程)。
+## 1. 环境准备
 
-## 1. 拉取镜像
+这里介绍使用裸机或者 Docker 环境使用 FleetX 的方法，用户根据具体情况选择一种安装部署方式即可。
+使用多机训练时，需要在每台机器上都部署相应的环境。
+推荐使用 Docker 安装部署 FleetX 进行大模型训练，Docker 环境的安装可以参考[文档](deployment.md#docker-环境安装)。
 
-请根据本地 cuda 版本（使用 `nvidia-smi`命令查看）使用以下命令拉取对应或兼容的镜像，
+### Docker 环境部署
+
+请根据本地 CUDA 版本（使用 `nvidia-smi`命令查看）使用以下命令拉取对应或兼容的镜像，
 
 ```
 docker pull registry.baidubce.com/kuizhiqing/fleetx-cuda11.2-cudnn8:alpha
@@ -16,8 +20,6 @@ docker pull registry.baidubce.com/kuizhiqing/fleetx-cuda11.2-cudnn8:alpha
 ```
 docker pull registry.baidubce.com/kuizhiqing/fleetx-cuda10.2-cudnn7:alpha
 ```
-
-## 2. 运行镜像
 
 大模型训练需要使用GPU，如已安装 nvida-container-runtime 可以使用以下命令运行镜像，
 
@@ -50,7 +52,28 @@ bash
 
 > 为保证通信效率和通信正常，添加参数 --net=host 使用主机网络，更多 docker run 参数说明请参考 [docker 文档](https://docs.docker.com/engine/reference/commandline/run/)。
 
-## 3. 单机多卡训练
+### 裸机部署
+
+**安装 PaddlePaddle**
+
+首先根据环境在
+[安装文档](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/docker/linux-docker.html) 选择对应的版本使用 pip install 执行对应命令安装 PaddlePaddle，例如
+
+```shell
+python -m pip install paddlepaddle-gpu==0.0.0.post112 -f https://www.paddlepaddle.org.cn/whl/linux/gpu/develop.html
+```
+
+将会安装基于 CUDA 11.2 最新版本的 PaddlePaddle. 安装遇到问题以及环境验证的方法请参考[文档](deployment.md#3-单机环境验证)。
+
+**安装依赖**
+
+使用以下命令安装 FleetX 运行所需依赖。
+
+```shell
+wget https://raw.githubusercontent.com/PaddlePaddle/FleetX/develop/requirements.txt && python -m pip install -r requirements.txt -i https://mirror.baidu.com/pypi/simple
+```
+
+## 2. 单机多卡训练
 
 进入环境后首先使用以下命令拉取最新代码
 
@@ -119,7 +142,7 @@ LAUNCH INFO 2022-08-15 07:37:39,063 Watching Pod: vqhbut, replicas 8, status run
 
 如有启动异常或其他问题请参考[文档](deployment.md#3-单机环境验证)进行工作环境验证和问题解决。
 
-## 4. 多机多卡训练
+## 3. 多机多卡训练
 
 使用以下命令进行多机分布式训练，其中 --nnodes 参数为分布式训练机器数量，--master 为训练机器中其中一台机器的IP，运行时需要将命令中示例IP替换为真实的机器IP和任意可用端口，然后在**每个节点**上都运行以下命令，
 如果不知道机器IP可以不设置--master参数先在一台机器上启动，然后根据提示复制命令在其他机器上启动即可。

@@ -94,7 +94,7 @@ docker pull registry.baidubce.com/kuizhiqing/fleetx-cuda10.2-cudnn7:alpha
 ```
 
 如果需要在裸机中运行可以首先根据环境在
-[安装文档](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/docker/linux-docker.html) 选择对应的版本使用 pip install 安装，执行对应命令，例如
+[安装文档](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/docker/linux-docker.html) 选择对应的版本使用 pip install 执行对应命令安装 PaddlePaddle，执行对应命令，例如
 
 ```shell
 python -m pip install paddlepaddle-gpu==0.0.0.post112 -f https://www.paddlepaddle.org.cn/whl/linux/gpu/develop.html
