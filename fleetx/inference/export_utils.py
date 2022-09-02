@@ -14,6 +14,10 @@
 
 import os
 import paddle
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 __all__ = ['export_inference_model']
 
@@ -43,6 +47,8 @@ def export_inference_model(model, input_spec, save_dir='./output'):
         os.makedirs(save_dir)
 
     static_model = paddle.jit.to_static(model, input_spec)
-    pruned_input_spec = _prune_input_spec(input_spec, static_model.forward.main_program, static_model.forward.outputs)
+    pruned_input_spec = _prune_input_spec(input_spec,
+                                          static_model.forward.main_program,
+                                          static_model.forward.outputs)
     paddle.jit.save(static_model, save_dir, input_spec=pruned_input_spec)
-    print("export inference model saved in {}".format(save_dir))
+    logger.info("export inference model saved in {}".format(save_dir))
