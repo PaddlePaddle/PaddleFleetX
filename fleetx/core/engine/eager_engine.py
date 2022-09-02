@@ -24,6 +24,7 @@ from paddle.optimizer.lr import LRScheduler
 from paddle.distributed.sharding import group_sharded_parallel
 from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
+from paddle.profiler import SummaryView
 
 sys.path.append("../../../")
 from fleetx.utils import logger
@@ -222,8 +223,7 @@ class EagerEngine(BasicEngine):
                 scheduler=scheduler,
                 on_trace_ready=paddle.profiler.export_chrome_tracing(
                     profiler_log),
-                #TODO(kzq) uncomment after bugfix
-                #record_shapes=record_shapes,
+                record_shapes=record_shapes,
                 profile_memory=profile_memory)
             self.profiler.start()
             logger.warning(
@@ -602,8 +602,6 @@ class EagerEngine(BasicEngine):
         return self._inference_engine.predict(data)
 
     def _print_summary(self):
-        #TODO(kzq) move above
-        from paddle.profiler import SummaryView
         views_dict = {
             SummaryView.DeviceView: 'device',
             SummaryView.OverView: 'overview',
