@@ -28,7 +28,7 @@ import paddle.incubate as incubate
 from paddle.distributed import fleet
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 from paddle.distributed.fleet.meta_parallel import LayerDesc, PipelineLayer, SharedLayerDesc
-from paddle.distributed.fleet.utils import recompute
+from paddle.distributed.fleet import recompute
 import sys
 from .config import configurable
 
@@ -889,8 +889,11 @@ class GPTForPretrainingPipe(PipelineLayer):
             topology=topology,
             seg_method="layer:TransformerDecoderLayer",
             recompute_interval=recompute_interval,
-            recompute_partition=False,
-            recompute_offload=False)
+            recompute_ctx={
+                "mp_group": fleet.fleet._hcg.get_model_parallel_group(),
+                "offload": False,
+                "partition": False
+            })
 
     @classmethod
     def from_config(cls, cfg):
