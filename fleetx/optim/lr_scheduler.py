@@ -47,3 +47,44 @@ class CosineAnnealingWithWarmupDecay(LRScheduler):
         decay_ratio = float(num_step_) / float(decay_step_)
         coeff = 0.5 * (math.cos(math.pi * decay_ratio) + 1.0)
         return self.min_lr + coeff * (self.max_lr - self.min_lr)
+
+
+class ViTLRScheduler(LRScheduler):
+    def __init__(self,
+                 learning_rate,
+                 step_each_epoch,
+                 epochs,
+                 decay_type='cosine',
+                 linear_end=1e-5,
+                 warmup_steps=0,
+                 verbose=False,
+                 last_epoch=-1,
+                 **kwargs):
+
+        self.linear_end = linear_end
+        self.T_max = epochs * step_each_epoch
+        self.warmup_steps = warmup_steps
+
+        if self.warmup_steps >= self.T_max:
+            self.warmup_steps = self.T_max - 1
+
+        self.decay_type = decay_type
+        self.last_epoch = last_epoch
+        super(ViTLRScheduler, self).__init__(learning_rate, last_epoch,
+                                             verbose)
+
+    def get_lr(self):
+
+        progress = (self.last_epoch - self.warmup_steps
+                    ) / float(self.T_max - self.warmup_steps)
+        progress = min(1.0, max(0.0, progress))
+
+        if self.decay_type == 'linear':
+            lr = self.linear_end + (self.base_lr - self.linear_end) * (
+                1.0 - progress)
+        elif self.decay_type == 'cosine':
+            lr = 0.5 * self.base_lr * (1.0 + math.cos(math.pi * progress))
+        if self.warmup_steps:
+            lr = lr * min(1.0, self.last_epoch / self.warmup_steps)
+
+        return lr

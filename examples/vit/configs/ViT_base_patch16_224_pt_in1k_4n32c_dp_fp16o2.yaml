@@ -1,0 +1,126 @@
+# 345M
+Global:
+  device: gpu
+  seed: 2021
+
+
+Engine:
+  max_steps: 1000000000 # for epoch mode, equal to inf
+  num_train_epochs: 300
+  accumulate_steps: 
+  logging_freq: 10
+  eval_freq: 1000000000 # for epoch mode, equal to inf
+  eval_iters: 1000000000 # for epoch mode, equal to inf
+  test_iters: 1000000000 # for epoch mode, equal to inf
+  mix_precision:
+    use_pure_fp16: True
+    scale_loss: 32768.0
+    custom_black_list: ["reduce_sum", "elementwise_div"]
+    custom_white_list: []
+  save_load:
+    save_steps: 1000000000  # for epoch mode, equal to inf
+    output_dir: ./output
+    ckpt_dir:
+
+Distributed:
+  dp_degree:
+  mp_degree: 1
+  pp_degree: 1
+  sharding:
+    sharding_degree: 1
+    sharding_stage: 1
+    sharding_offload: False
+
+
+Model:
+  name: ViT_base_patch16_224
+  class_num: 1000
+  drop_rate: 0.1
+  use_recompute: Fasle
+
+Optimizer:
+  # name: AdamW
+  weight_decay: 0.3
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1.0e-8
+  lr:
+    learning_rate: 0.003
+    decay_type: cosine
+    warmup_steps: 10000
+
+
+Fused:
+  tensor_fusion: False
+
+
+# data loader for train and eval
+DataLoader:
+  Train:
+    dataset:
+      name: ImageNetDataset
+      image_root: ./dataset/ILSVRC2012/
+      class_num: 1000
+      cls_label_path: ./dataset/ILSVRC2012/train_list.txt
+      transform_ops:
+        - DecodeImage:
+            to_rgb: True
+            channel_first: False
+        - RandCropImage:
+            size: 224
+            scale: [0.05, 1.0]
+            interpolation: bicubic
+            backend: pil
+        - RandFlipImage:
+            flip_code: 1
+        - NormalizeImage:
+            scale: 1.0/255.0
+            mean: [0.5, 0.5, 0.5]
+            std: [0.5, 0.5, 0.5]
+            order: ''
+        - ToCHWImage:
+
+    sampler:
+      name: DistributedBatchSampler
+      batch_size: 128
+      drop_last: False
+      shuffle: True
+    loader:
+      num_workers: 8
+      use_shared_memory: True
+
+  Eval:
+    dataset: 
+      name: ImageNetDataset
+      image_root: ./dataset/ILSVRC2012/
+      cls_label_path: ./dataset/ILSVRC2012/val_list.txt
+      transform_ops:
+        - DecodeImage:
+            to_rgb: True
+            channel_first: False
+        - ResizeImage:
+            resize_short: 256
+            interpolation: bicubic
+            backend: pil
+        - CenterCropImage:
+            size: 224
+        - NormalizeImage:
+            scale: 1.0/255.0
+            mean: [0.5, 0.5, 0.5]
+            std: [0.5, 0.5, 0.5]
+            order: ''
+        - ToCHWImage:
+        
+    sampler:
+      name: DistributedBatchSampler
+      batch_size: 256
+      drop_last: False
+      shuffle: False
+    loader:
+      num_workers: 8
+      use_shared_memory: True
+
+
+Inference:
+  model_dir: ./output
+  mp_degree: 1
