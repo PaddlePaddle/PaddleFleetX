@@ -68,7 +68,7 @@ python -m paddle.distributed.launch run_pretrain.py -c ./configs_1.3B_dp8.yaml -
 
 ## 结果分析
 
-默认情况下会在训练结束后会有以下数据：
+在训练结束后会有以下数据：
 
 * 根据配置信息在控制台打印 summary 表格
 * 在配置的 `profiler_log` 目录保存 profiler json 文件
@@ -76,9 +76,11 @@ python -m paddle.distributed.launch run_pretrain.py -c ./configs_1.3B_dp8.yaml -
 这里保存的 json 文件可以通过如下两种方式查看：
 
 * 在 chrome 浏览器中打开 chrome://tracing/，然后打开 json 文件查看
-* 根据控制台信息安装并启动 `visualdl --logdir log_path` 然后根据提示在浏览器中查看
+* 根据控制台信息安装并启动 `visualdl --logdir log_path` 然后根据提示在浏览器中**性能分析**模块查看
 
 具体的信息含义解释以及分析方法请参考[文档](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/guides/performance_improving/profiling_model.html)。
+
+> 在使用 visualdl 时，如果 log 文件数据较大，启动会比较耗时，请耐心等待。
 
 ## 附录
 

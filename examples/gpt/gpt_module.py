@@ -16,6 +16,7 @@ import sys
 
 import paddle
 from paddle.distributed import fleet
+from paddle.static import InputSpec
 import paddleslim
 
 sys.path.append("../../../")
@@ -35,8 +36,6 @@ class GPTModule(BasicModule):
         if self.nranks == 1:
             from fleetx.models.gpt_model.modeling import GPTModel, GPTForPretraining, GPTPretrainingCriterion
             self.model = GPTForPretraining(GPTModel(configs['Model']))
-            if 'Quantization' in self.configs:
-                self.qat_model()
             self.loss_fn = GPTPretrainingCriterion()
         else:
             from fleetx.models.gpt_model.modeling_hybrid import GPTModel, GPTForPretraining, GPTPretrainingCriterion, GPTForPretrainingPipe
@@ -46,8 +45,6 @@ class GPTModule(BasicModule):
                 self.model = GPTForPretraining(GPTModel(configs['Model']))
             else:
                 self.model = GPTForPretrainingPipe(configs['Model'])
-            if 'Quantization' in self.configs:
-                self.qat_model()
             self.loss_fn = GPTPretrainingCriterion()
             del configs['Model']['topology']
 
@@ -157,6 +154,13 @@ class GPTModule(BasicModule):
         quanter = paddleslim.dygraph.quant.QAT(
             config=self.configs['Quantization'])
         self.model = quanter.quantize(self.model)
+
+    def input_spec(self):
+        return [
+            InputSpec(
+                shape=[None, None], name="tokens", dtype='int64'), InputSpec(
+                    shape=[None, None], name="ids", dtype='int64')
+        ]
 
 
 class GPTHybridModule(GPTModule):
@@ -274,6 +278,9 @@ class GPTGenerationModule(BasicModule):
             # print(sequence)
 
         return generated_sequences
+
+    def input_spec(self):
+        return [InputSpec(shape=[None, None], name="input_ids", dtype='int64')]
 
 
 class GPTAutoModule(BasicModule):

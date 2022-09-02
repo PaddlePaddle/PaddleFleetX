@@ -88,8 +88,8 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
       decay_steps: 360000
       # max_steps: 500000
       warmup_rate: 0.01
-      max_lr: 1.0e-5
-      min_lr: 5.0e-5
+      max_lr: 5.0e-5
+      min_lr: 1.0e-5
     grad_clip: 1.0
 ```
 
@@ -297,4 +297,62 @@ I think that we are going to become a very important player in the logistics ind
 
     print(f'Prompt: {input_text}')
     print(f'Generation: {result[0]}')
+```
+
+### 模型导出与预测部署
+
+#### 模型导出
+
+如果需要进行模型预测部署，需要先导出用于线上部署的预测模型，可通过如下命令进行模型导出：
+
+1. 下载预训练模型权重，如你已下载，可跳过此步
+
+```shell
+mkdir -p ckpt
+wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
+tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
+```
+
+2. 导出预测模型
+
+```bash
+python run_export.py -c configs_345m_single_card.yaml -o Engine.save_load.ckpt_dir=./ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00
+```
+
+导出的模型默认保存在`./output`目录，可通过配置文件中`Engine.save_load.output_dir`或通过`-o Engine.save_load.output_dir=`指定
+
+导出脚本输出如下：
+
+```bash
+INFO:fleetx.core.engine.eager_engine:NOTE: disable use_pure_fp16 in export mode
+INFO:fleetx.inference.export_utils:export inference model saved in ./output/rank_0/model
+```
+
+#### 预测部署
+
+模型导出后，可以使用Paddle Inference高性能推理引擎完成模型的预测部署，可通过如下脚本和命令进行模型预测：
+
+```bash
+python run_inference.py -c configs_345m_single_card.yaml
+```
+
+`run_inference.py`模型从配置文件中`Inference.model_dir`中读取导出的预测模型，可通过`-o Inference.model_dir=`指定预测模型所在目录，默认为`./output`
+
+预测脚本输出如下：
+
+```bash
+Prompt: Hi, GPT2. Tell me who Jack Ma is.
+Generation: Hi, GPT2. Tell me who Jack Ma is.
+
+GPT2: My name is Jack Ma.
+
+Jack Ma: Jack Ma’s actually a man, he’s a Chinese businessman, born in 1927 in Fuzhou, China, he moved to Shanghai at a young age, he became an investment banker at the investment bank UBS, he then moved to San Francisco and became an entrepreneur.
+
+He got involved in the stock market in the early ‘60s, he was very early on into this technology, he was the first investor in Yahoo and he had a very long career there, and he’s also the founder of Alibaba, the company that is responsible for the majority of China’s internet.
+
+Peter McCormack: So it was a natural move for you to start getting involved in this area. You’re actually a fan of Bitcoin.
+
+Jack Ma: Yes, I am.
+
+Peter McCormack: You’ve invested in many Bitcoin
 ```

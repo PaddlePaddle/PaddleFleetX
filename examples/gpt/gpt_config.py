@@ -107,6 +107,7 @@ class GPTConfig(dict):
         self.Inference = {'model_dir': './output', 'mp_degree': 1}
 
         self.Quantization = {
+            'enable': False,
             'weight_quantize_type': 'abs_max',
             'activation_quantize_type': 'moving_average_abs_max',
             'weight_bits': 8,
@@ -118,7 +119,7 @@ class GPTConfig(dict):
             'is_full_quantize': False,
             'onnx_format': False,
         }
-        
+
         self.Generation = {
             'top_k': 5,
             'temperature': 1.0,
@@ -131,8 +132,18 @@ class GPTConfig(dict):
             'num_return_sequences': 1,
             'decode_strategy': "sampling"
         }
-        
-        self.Profiler  = {}
+
+        self.Profiler = {}
+
+        self.Eval = {
+            'eval_path': None,
+            'cloze_eval': False,
+            'overlapping_eval': 32,
+            'ckpt_dir': None,
+            'batch_size': 8,
+            'max_seq_len': 1024,
+            'logging_freq': 100,
+        }
 
         self._update(yaml_dict)
 

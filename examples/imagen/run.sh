@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# 1. run imagen text to image 
 
-# 345M
-python run_pretrain.py -c ./configs_345m_single_card.yaml
-
-# 1.3B
-# python run_pretrain.py -c ./configs_1.3B_single_card.yaml
+# 300M
+python -m paddle.distributed.launch --gpus="0,1,2,3,4,5,6,7" run_text2im.py -c imagen_300m_text2im.yaml

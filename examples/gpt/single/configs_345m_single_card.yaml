@@ -77,9 +77,11 @@ Optimizer:
     min_lr: 1.0e-5
   grad_clip: 1.0
 
+
 Inference:
   model_dir: ./output
   mp_degree: 1
+
 
 Generation:
   top_k: 50
@@ -89,3 +91,12 @@ Generation:
   max_dec_len: 200
   num_return_sequences: 1
   decode_strategy: "sampling"
+
+Eval:
+  eval_path: None
+  cloze_eval: False
+  overlapping_eval: 32
+  ckpt_dir: None
+  batch_size: 8
+  max_seq_len: 1024
+  logging_freq: 10

@@ -15,4 +15,8 @@
 from . import inference_engine
 from .inference_engine import *
 
-__all__ = inference_engine.__all__
+from . import export_utils
+from .export_utils import *
+
+__all__ = inference_engine.__all__ \
+        + export_utils.__all__

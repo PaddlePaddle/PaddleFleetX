@@ -60,7 +60,6 @@ class InferenceEngine(object):
             self._init_predictor()
 
     def _check_model(self):
-        print("model_dir", self.model_dir)
         if not os.path.isdir(self.model_dir):
             raise ValueError('model_dir is not a directory')
 
@@ -84,7 +83,7 @@ class InferenceEngine(object):
                     tag, rank_path))
             else:
                 return os.path.join(self.model_dir,
-                                    'rank_{}'.format(self.rank), fname)
+                                    'rank_{}'.format(self.rank), files[0])
 
         self.model_file = _check_and_get_file(model_files, 'pdmodel')
         self.param_file = _check_and_get_file(param_files, 'pdiparams')
@@ -141,12 +140,12 @@ class InferenceEngine(object):
                     raise ValueError()
                 for d, name in zip(data, self.input_names()):
                     handle = self.predictor.get_input_handle(name)
-                    handle.copy_from_cpu(d)
+                    handle.copy_from_cpu(np.array(d))
             elif isinstance(data, Mapping):
                 # key check
                 for k, v in data.items():
                     handle = self.predictor.get_input_handle(k)
-                    handle.copy_from_cpu(v)
+                    handle.copy_from_cpu(np.array(v))
             else:
                 raise ValueError()
 
