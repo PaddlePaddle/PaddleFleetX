@@ -79,8 +79,8 @@ GPT训练默认使用AdamW优化器以及cosine学习率衰减，这里通过配
       decay_steps: 360000
       # max_steps: 500000
       warmup_rate: 0.01
-      max_lr: 1.0e-5
-      min_lr: 5.0e-5
+      max_lr: 5.0e-5
+      min_lr: 1.0e-5
     grad_clip: 1.0
 ```
 
