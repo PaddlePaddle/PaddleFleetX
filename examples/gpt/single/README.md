@@ -329,4 +329,4 @@ python run_export.py -c configs_345m_single_card.yaml -o Engine.save_load.ckpt_d
 python run_inference.py -c configs_345m_single_card.yaml
 ```
 
-**注意：** `run_inference.py`模型从配置文件中`Inference.model_dir`中读取导出的预测模型，可通过`-o Inference.model_dir=`指定预测模型所在目录
+`run_inference.py`模型从配置文件中`Inference.model_dir`中读取导出的预测模型，可通过`-o Inference.model_dir=`指定预测模型所在目录，默认为`./output`
