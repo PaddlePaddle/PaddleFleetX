@@ -199,6 +199,12 @@ PaddlePaddle is installed successfully! Let's start deep learning with PaddlePad
 
 表示 PaddlePaddle 已经正确安装。
 
+如果出现以下错误信息请确保 CUDA 安装正确且已根据 CUDA 安装路径正确配置的 LD_LIBRARY_PATH。具体请参考[文档](https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html)。
+
+```
+You are using GPU version Paddle, but your CUDA device is not set properly.
+```
+
 ### 4. 分布式环境验证
 
 如果单机运行正常，但多机分布式运行异常请先根据 [FAQ](#51-网络问题排查) 部分排查网络问题再进行以下排查。
