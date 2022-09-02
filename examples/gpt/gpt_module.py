@@ -16,6 +16,7 @@ import sys
 
 import paddle
 from paddle.distributed import fleet
+from paddle.static import InputSpec
 import paddleslim
 
 sys.path.append("../../../")
@@ -154,6 +155,13 @@ class GPTModule(BasicModule):
             config=self.configs['Quantization'])
         self.model = quanter.quantize(self.model)
 
+    def input_spec(self):
+        return [
+            InputSpec(
+                shape=[None, None], name="tokens", dtype='int64'), InputSpec(
+                    shape=[None, None], name="ids", dtype='int64')
+        ]
+
 
 class GPTHybridModule(GPTModule):
     def pretreating_batch(self, batch):
@@ -270,6 +278,9 @@ class GPTGenerationModule(BasicModule):
             # print(sequence)
 
         return generated_sequences
+
+    def input_spec(self):
+        return [InputSpec(shape=[None, None], name="input_ids", dtype='int64')]
 
 
 class GPTAutoModule(BasicModule):

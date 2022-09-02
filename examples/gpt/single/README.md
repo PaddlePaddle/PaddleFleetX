@@ -298,3 +298,35 @@ I think that we are going to become a very important player in the logistics ind
     print(f'Prompt: {input_text}')
     print(f'Generation: {result[0]}')
 ```
+
+### 模型导出与预测部署
+
+#### 模型导出
+
+如果需要进行模型预测部署，需要先导出用于线上部署的预测模型，可通过如下命令进行模型导出：
+
+1. 下载预训练模型权重，如你已下载，可跳过此步
+
+```shell
+mkdir -p ckpt
+wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
+tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
+```
+
+2. 导出预测模型
+
+```bash
+python run_export.py -c configs_345m_single_card.yaml -o Engine.save_load.ckpt_dir=./ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00
+```
+
+导出的模型默认保存在`./output`目录，可通过配置文件中`Engine.save_load.output_dir`或通过`-o Engine.save_load.output_dir=`指定
+
+#### 预测部署
+
+模型导出后，可以使用Paddle Inference高性能推理引擎完成模型的预测部署，可通过如下脚本和命令进行模型预测：
+
+```bash
+python run_inference.py -c configs_345m_single_card.yaml
+```
+
+`run_inference.py`模型从配置文件中`Inference.model_dir`中读取导出的预测模型，可通过`-o Inference.model_dir=`指定预测模型所在目录，默认为`./output`
