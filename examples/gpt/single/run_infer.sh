@@ -15,7 +15,8 @@
 # 345M
 
 # 1. export model
-python run_export.py -c ./configs_345m_single_card.yaml
+#    NOTE: change <path/to/checkpoint> to your checkpoint directory
+python run_export.py -c ./configs_345m_single_card.yaml -o Engine.save_load.ckpt_dir=<path/to/checkpoint>
 
 # 2. run inference with exported inference model
 python run_inference.py -c ./configs_345m_single_card.yaml

@@ -306,12 +306,12 @@ I think that we are going to become a very important player in the logistics ind
 如果需要进行模型预测部署，需要先导出用于线上部署的预测模型，可通过如下脚本和命令进行模型导出：
 
 ```bash
-python run_export.py -c configs_345m_single_card.yaml
+python run_export.py -c configs_345m_single_card.yaml -o Engine.save_load.ckpt_dir=<path/to/checkpoint/dir>
 ```
 
-**注意：**导出先需要先将配置文件中`Engine.save_load.ckpt_dir`配置为导出需要使用的权重文件所在目录
+**注意：** 导出先需要先将配置文件中`Engine.save_load.ckpt_dir`配置为导出需要使用的权重文件所在目录，可通过修改配置文件或如上述命令中通过`-o Engine.save_load.ckpt_dir=`指定
 
-导出的模型默认保存在`./output`目录，可通过配置文件中`Engine.save_load.output_dir`配置
+导出的模型默认保存在`./output`目录，可通过配置文件中`Engine.save_load.output_dir`或通过`-o Engine.save_load.output_dir=`指定
 
 #### 预测部署
 
@@ -321,6 +321,6 @@ python run_export.py -c configs_345m_single_card.yaml
 python run_inference.py -c configs_345m_single_card.yaml
 ```
 
-注意：`run_inference.py`模型从配置文件中`Inference.model_dir`中读取导出的预测模型，如用户未配置`Inference.model_dir`，则默认为`Engine.save_load.output_dir`
+注意：`run_inference.py`模型从配置文件中`Inference.model_dir`中读取导出的预测模型，可通过`-o Inference.model_dir=`指定预测模型所在目录
 
 可通过`run_infer.sh`脚本一键式体验模型导出和预测部署过程
