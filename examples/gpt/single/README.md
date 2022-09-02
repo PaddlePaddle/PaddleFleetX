@@ -321,6 +321,13 @@ python run_export.py -c configs_345m_single_card.yaml -o Engine.save_load.ckpt_d
 
 导出的模型默认保存在`./output`目录，可通过配置文件中`Engine.save_load.output_dir`或通过`-o Engine.save_load.output_dir=`指定
 
+导出脚本输出如下：
+
+```bash
+INFO:fleetx.core.engine.eager_engine:NOTE: disable use_pure_fp16 in export mode
+INFO:fleetx.inference.export_utils:export inference model saved in ./output/rank_0/model
+```
+
 #### 预测部署
 
 模型导出后，可以使用Paddle Inference高性能推理引擎完成模型的预测部署，可通过如下脚本和命令进行模型预测：
@@ -330,3 +337,22 @@ python run_inference.py -c configs_345m_single_card.yaml
 ```
 
 `run_inference.py`模型从配置文件中`Inference.model_dir`中读取导出的预测模型，可通过`-o Inference.model_dir=`指定预测模型所在目录，默认为`./output`
+
+预测脚本输出如下：
+
+```bash
+Prompt: Hi, GPT2. Tell me who Jack Ma is.
+Generation: Hi, GPT2. Tell me who Jack Ma is.
+
+GPT2: My name is Jack Ma.
+
+Jack Ma: Jack Ma’s actually a man, he’s a Chinese businessman, born in 1927 in Fuzhou, China, he moved to Shanghai at a young age, he became an investment banker at the investment bank UBS, he then moved to San Francisco and became an entrepreneur.
+
+He got involved in the stock market in the early ‘60s, he was very early on into this technology, he was the first investor in Yahoo and he had a very long career there, and he’s also the founder of Alibaba, the company that is responsible for the majority of China’s internet.
+
+Peter McCormack: So it was a natural move for you to start getting involved in this area. You’re actually a fan of Bitcoin.
+
+Jack Ma: Yes, I am.
+
+Peter McCormack: You’ve invested in many Bitcoin
+```

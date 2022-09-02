@@ -600,11 +600,11 @@ class EagerEngine(BasicEngine):
             logger.warning("`load` requires a valid value of `ckpt_dir`.")
             raise TypeError("`load` requires a valid value of `ckpt_dir`.")
 
-    def export(self, output_dir="output"):
+    def export(self):
         self._module.model.eval()
         input_spec = self._module.input_spec()
 
-        save_dir = os.path.join(output_dir, "rank_{}".format(self._dp_rank), 'model')
+        save_dir = os.path.join(self._output_dir, "rank_{}".format(self._dp_rank), 'model')
         export_inference_model(self._module.model, input_spec, save_dir)
 
 
