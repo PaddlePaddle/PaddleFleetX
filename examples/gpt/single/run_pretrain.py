@@ -49,36 +49,36 @@ def do_train():
 
     if configs['Engine']['save_load']['ckpt_dir'] is not None:
         engine.load()
-
     if configs['Quantization']['enable']:
         module.qat_model()
 
-    for epoch in range(configs['Engine']['num_train_epochs']):
-        files = get_train_data_file(configs['Data']['dataset']['input_dir'])
-        files.sort()
-        num_files = len(files)
+    # for epoch in range(configs['Engine']['num_train_epochs']):
+    epoch = configs['Engine']['num_train_epochs']
+    files = get_train_data_file(configs['Data']['dataset']['input_dir'])
+    files.sort()
+    num_files = len(files)
 
-        for f_id in range(num_files):
-            data_file = files[f_id]
-            train_data_loader, valid_data_loader, test_data_loader = create_pretrained_dataset(
-                configs, [data_file],
-                local_rank=0,
-                data_world_size=1,
-                data_world_rank=0,
-                max_seq_len=configs['Data']['dataset']['max_seq_len'],
-                eos_id=tokenizer.eos_token_id)
-            # Bug fix, if not call valid_data_loader, the enumerate will call valid_data_loader
-            # many times. and start a new random dataloader.
-            valid_data_loader = valid_data_loader()
-            test_data_loader = test_data_loader()
+    for f_id in range(num_files):
+        data_file = files[f_id]
+        train_data_loader, valid_data_loader, test_data_loader = create_pretrained_dataset(
+            configs, [data_file],
+            local_rank=0,
+            data_world_size=1,
+            data_world_rank=0,
+            max_seq_len=configs['Data']['dataset']['max_seq_len'],
+            eos_id=tokenizer.eos_token_id)
+        # Bug fix, if not call valid_data_loader, the enumerate will call valid_data_loader
+        # many times. and start a new random dataloader.
+        valid_data_loader = valid_data_loader()
+        test_data_loader = test_data_loader()
 
-            engine.fit(train_data_loader=train_data_loader,
-                       valid_data_loader=valid_data_loader,
-                       epoch=epoch)
+        engine.fit(epoch=epoch,
+                   train_data_loader=train_data_loader,
+                   valid_data_loader=valid_data_loader)
 
-            # engine.evaluate(valid_data_loader=valid_data_loader, epoch=epoch)      
-            # engine.predict(test_data_loader=test_data_loader, epoch=epoch)
-            engine.save()
+        # engine.evaluate(valid_data_loader=valid_data_loader, epoch=epoch)      
+        # engine.predict(test_data_loader=test_data_loader, epoch=epoch)
+        engine.save()
 
 
 if __name__ == "__main__":

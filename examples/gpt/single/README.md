@@ -125,7 +125,7 @@ Engine训练设置完成模型训练/验证/推理等过程中的参数设置，
       custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
       custom_white_list: ["lookup_table", "lookup_table_v2"]
     save_load:
-      save_steps: 1000
+      save_by_steps: 1000
       output_dir: ./output
       ckpt_dir:
 ```
@@ -143,7 +143,7 @@ Engine训练设置完成模型训练/验证/推理等过程中的参数设置，
 | scale_loss        | 使用fp16精度下，loss的放缩比例                  |
 | custom_black_list | 自定义算子黑名单。这个名单中的算子在支持float16计算时会被认为是数值危险的，它们的影响也可能会在下游操作中观察到。这些算子通常不会转为float16计算。 |
 | custom_white_list | 自定义算子白名单。这个名单中的算子在支持float16计算时会被认为是数值安全的，并且对性能至关重要。如果设置了白名单，该名单中的算子会使用float16计算。|
-| save_steps        | 保存模型间隔                               |
+| save_by_step        | 按照steps保存模型的间隔                               |
 | output_dir        | 指定输出文件                               |
 | ckpt_dir          | checkpoint的加载目录                      |
 

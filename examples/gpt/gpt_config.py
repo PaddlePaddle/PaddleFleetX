@@ -42,7 +42,8 @@ class GPTConfig(dict):
                 'custom_white_list': ["lookup_table", "lookup_table_v2"],
             },
             'save_load': {
-                'save_steps': 1000,
+                "save_by_epoch": -1,
+                "save_by_step": 1000,
                 'output_dir': None,
                 'ckpt_dir': None,
             }
@@ -203,7 +204,7 @@ class GPTAutoConfig(GPTConfig):
             },
             'use_recompute': True,
             'save_load': {
-                'save_steps': 1000,
+                'save_by_step': 1000,
                 'output_dir': None,
                 'ckpt_dir': None,
             }
