@@ -97,7 +97,7 @@ docker pull registry.baidubce.com/kuizhiqing/fleetx-cuda10.2-cudnn7:alpha
 
 如果需要在裸机中运行可以首先根据环境在
 [安装文档](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/docker/linux-docker.html) 选择对应的版本使用 pip install 执行对应命令安装 PaddlePaddle.
-请务必按照文档安装 GPU 版本且验证安装成功。
+**请务必按照文档安装 GPU 版本且验证安装成功**。
 
 例如使用如下命令将会安装基于 CUDA 11.2 最新版本的 PaddlePaddle. 
 
@@ -108,7 +108,7 @@ python -m pip install paddlepaddle-gpu==0.0.0.post112 -f https://www.paddlepaddl
 使用以下命令安装 FleetX 运行所需依赖。
 
 ```shell
-wget https://raw.githubusercontent.com/PaddlePaddle/FleetX/develop/requirements.txt && python -m pip install -r requirements.txt -i https://mirror.baidu.com/pypi/simple
+python -m pip install -r https://raw.githubusercontent.com/PaddlePaddle/FleetX/develop/requirements.txt -i https://mirror.baidu.com/pypi/simple
 ```
 
 ### 3. 单机环境验证
