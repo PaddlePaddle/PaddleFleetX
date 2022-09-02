@@ -328,7 +328,6 @@ INFO:fleetx.core.engine.eager_engine:NOTE: disable use_pure_fp16 in export mode
 INFO:fleetx.inference.export_utils:export inference model saved in ./output/rank_0/model
 ```
 
-
 #### 预测部署
 
 模型导出后，可以使用Paddle Inference高性能推理引擎完成模型的预测部署，可通过如下脚本和命令进行模型预测：
