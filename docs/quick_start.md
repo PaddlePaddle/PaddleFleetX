@@ -57,13 +57,16 @@ bash
 **安装 PaddlePaddle**
 
 首先根据环境在
-[安装文档](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/docker/linux-docker.html) 选择对应的版本使用 pip install 执行对应命令安装 PaddlePaddle，例如
+[安装文档](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/docker/linux-docker.html) 选择对应的版本使用 pip install 执行对应命令安装 PaddlePaddle.
+请务必按照文档安装 GPU 版本且验证安装成功。
+
+例如使用如下命令将会安装基于 CUDA 11.2 最新版本的 PaddlePaddle. 
 
 ```shell
 python -m pip install paddlepaddle-gpu==0.0.0.post112 -f https://www.paddlepaddle.org.cn/whl/linux/gpu/develop.html
 ```
 
-将会安装基于 CUDA 11.2 最新版本的 PaddlePaddle. 安装遇到问题以及环境验证的方法请参考[文档](deployment.md#3-单机环境验证)。
+安装遇到问题以及环境验证的方法也可以参考[文档](deployment.md#3-单机环境验证)。
 
 **安装依赖**
 

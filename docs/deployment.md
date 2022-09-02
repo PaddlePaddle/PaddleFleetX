@@ -1,5 +1,7 @@
 ## 环境部署
 
+本文为环境相关问题的完整指引，一般情况下不需要全文阅读或执行，请选择相应章节作为参考解决遇到的问题。
+
 ### 1. 基础环境依赖
 
 部署环境进行大模型训练，需要满足以下配置要求：
@@ -84,7 +86,7 @@ sudo systemctl status docker
 sudo yum install nvidia-container-runtime
 ```
 
-### 2. 安装部署流程
+### 2. 依赖安装
 
 以下镜像中已包含大模型所需依赖，可以根据支持的 cuda 版本直接拉取使用，
 
@@ -94,22 +96,19 @@ docker pull registry.baidubce.com/kuizhiqing/fleetx-cuda10.2-cudnn7:alpha
 ```
 
 如果需要在裸机中运行可以首先根据环境在
-[安装文档](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/docker/linux-docker.html) 选择对应的版本使用 pip install 执行对应命令安装 PaddlePaddle，执行对应命令，例如
+[安装文档](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/docker/linux-docker.html) 选择对应的版本使用 pip install 执行对应命令安装 PaddlePaddle.
+请务必按照文档安装 GPU 版本且验证安装成功。
+
+例如使用如下命令将会安装基于 CUDA 11.2 最新版本的 PaddlePaddle. 
 
 ```shell
 python -m pip install paddlepaddle-gpu==0.0.0.post112 -f https://www.paddlepaddle.org.cn/whl/linux/gpu/develop.html
 ```
 
-然后拉取最新 FleetX 代码。
+使用以下命令安装 FleetX 运行所需依赖。
 
-```
-git clone https://github.com/PaddlePaddle/FleetX.git
-```
-
-进入目录并使用以下命令安装所需依赖。
-
-```
-python -m pip install -r requirements.txt -i https://mirror.baidu.com/pypi/simple
+```shell
+wget https://raw.githubusercontent.com/PaddlePaddle/FleetX/develop/requirements.txt && python -m pip install -r requirements.txt -i https://mirror.baidu.com/pypi/simple
 ```
 
 ### 3. 单机环境验证
@@ -199,7 +198,9 @@ PaddlePaddle is installed successfully! Let's start deep learning with PaddlePad
 
 表示 PaddlePaddle 已经正确安装。
 
-如果出现以下错误信息请确保 CUDA 安装正确且已根据 CUDA 安装路径正确配置的 LD_LIBRARY_PATH。具体请参考[文档](https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html)。
+如果出现以下错误信息请确保 CUDA 安装正确且已根据 CUDA 安装路径正确配置的 LD_LIBRARY_PATH。
+例如执行命令添加 `export LD_LIBRARY_PATH=/usr/lib64/:/usr/local/lib/:/usr/local/cuda-11.2/targets/x86_64-linux/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64:${LD_LIBRARY_PATH}` 。
+具体请参考[文档](https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html)。
 
 ```
 You are using GPU version Paddle, but your CUDA device is not set properly.
