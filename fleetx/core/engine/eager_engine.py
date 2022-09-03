@@ -286,8 +286,9 @@ class EagerEngine(BasicEngine):
         train_start = time.time()
 
         for step, batch in enumerate(train_data_loader()):
-            if step < self._module.global_step:
-                continue
+            # Note(Guoxia): for the second epoch will always continue
+            #if step < self._module.global_step:
+            #    continue
 
             self._module.global_step += 1
             loss = self._fit_impl(batch)
@@ -604,9 +605,9 @@ class EagerEngine(BasicEngine):
         self._module.model.eval()
         input_spec = self._module.input_spec()
 
-        save_dir = os.path.join(self._output_dir, "rank_{}".format(self._dp_rank), 'model')
+        save_dir = os.path.join(self._output_dir,
+                                "rank_{}".format(self._dp_rank), 'model')
         export_inference_model(self._module.model, input_spec, save_dir)
-
 
     def inference(self, data):
         if self._inference_engine is None:
