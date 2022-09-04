@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import shutil
 import random
 import sys
 import argparse
@@ -99,6 +100,38 @@ def parse_yaml():
     return yaml_dict
 
 
+def save(engine, output_dir, epoch, is_best=False):
+
+    if paddle.fluid.core.is_compiled_with_dist(
+    ) and paddle.distributed.get_world_size(
+    ) > 1 and paddle.distributed.ParallelEnv().dev_id != 0:
+        return
+
+    if is_best:
+        last_output_dir = os.path.join(output_dir, 'lastest')
+        best_output_dir = os.path.join(output_dir, 'best')
+
+        if os.path.exists(best_output_dir):
+            shutil.rmtree(best_output_dir)
+        shutil.copytree(last_output_dir, best_output_dir)
+        logger.info(f"Save best model to {best_output_dir}")
+
+    else:
+        output_dir = os.path.join(output_dir, 'lastest')
+
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+
+        paddle.save(engine._module.model.state_dict(),
+                    os.path.join(output_dir, "model.pdparams"))
+        paddle.save(engine._module.optimizer.state_dict(),
+                    os.path.join(output_dir, "model_state.pdopt"))
+
+        meta_dict = {"epoch": epoch}
+        paddle.save(meta_dict, os.path.join(output_dir, "meta_state.pdopt"))
+        logger.info(f"Save lastest model to {output_dir}")
+
+
 def do_train():
 
     configs = parse_yaml()
@@ -160,8 +193,10 @@ def do_train():
         meta_state = paddle.load(meta_path)
         start_epoch = meta_state['epoch']
 
+    best_metric = 0.0
     for epoch in range(start_epoch, epochs):
         engine.fit(train_data_loader=train_data_loader, epoch=epoch)
+        save(engine, output_dir, epoch)
         if eval_during_train:
             engine.evaluate(valid_data_loader=valid_data_loader, epoch=epoch)
             if len(engine._module.acc_list) > 0:
@@ -171,19 +206,19 @@ def do_train():
                     for key, val in item.items():
                         ret[key].append(val)
 
-                msg = ", ".join(
-                    [f'{k} = {np.mean(v):.6f}' for k, v in ret.items()])
+                for k, v in ret.items():
+                    ret[k] = np.mean(v)
+
+                if 'metric' in ret and ret['metric'] > best_metric:
+                    best_metric = ret['metric']
+                    save(engine, output_dir, epoch, is_best=True)
+
+                if 'metric' in ret:
+                    ret['best_metric'] = best_metric
+
+                msg = ", ".join([f'{k} = {v:.6f}' for k, v in ret.items()])
                 logger.info(f"[eval] epoch: {epoch}, {msg}")
                 engine._module.acc_list.clear()
-
-        paddle.save(engine._module.model.state_dict(),
-                    os.path.join(output_dir, "model.pdparams"))
-        paddle.save(engine._module.optimizer.state_dict(),
-                    os.path.join(output_dir, "model_state.pdopt"))
-
-        meta_dict = {"epoch": epoch}
-        paddle.save(meta_dict, os.path.join(output_dir, "meta_state.pdopt"))
-        logger.info(f"Save last model to {output_dir}")
 
 
 if __name__ == "__main__":
