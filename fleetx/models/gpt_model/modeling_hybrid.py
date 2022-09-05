@@ -299,7 +299,7 @@ class MultiHeadAttention(nn.Layer):
 
         if self.use_recompute and self.recompute_granularity == "core_attn":
             out, weights = recompute(
-                self.core_attn, q, k, v, attn_mask=attn_mask)
+                self.core_attn, q, k, v, attn_mask)
         else:
             out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
 

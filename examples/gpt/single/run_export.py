@@ -21,18 +21,16 @@ import sys
 import yaml
 import numpy as np
 
-sys.path.append("../../../")
 import paddle
-from paddle.distributed import fleet
-
-from examples.gpt.gpt_module import GPTGenerationModule
+sys.path.append("../../../")
+from examples.gpt.gpt_module import GPTGenerationModule, GPTModule
+from examples.gpt.tools import parse_yaml
+from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
 from fleetx.data.tokenizers import GPTTokenizer
 from fleetx.core.engine.eager_engine import EagerEngine
 
-from examples.gpt.tools import parse_yaml
 
-
-def do_inference():
+def do_export():
     configs = parse_yaml()
 
     paddle.set_device(configs['Global']['device'])
@@ -43,22 +41,22 @@ def do_inference():
     paddle.seed(seed)
 
     tokenizer = GPTTokenizer.from_pretrained("gpt2")
+
     module = GPTGenerationModule(configs)
-    engine = EagerEngine(module=module, configs=configs, mode='test')
+    # module = GPTModule(configs)
 
-    input_text = 'Hi, GPT2. Tell me who Jack Ma is.'
-    input_ids = [tokenizer.encode(input_text)]
+    engine = EagerEngine(module=module, configs=configs, mode='export')
 
-    outs = engine.inference([input_ids])
+    ckpt_dir = configs['Engine']['save_load']['ckpt_dir']
+    if ckpt_dir is None or not os.path.isdir(ckpt_dir):
+        raise ValueError("config ckpt_dir invalid: {}".format(ckpt_dir))
 
-    ids = list(outs.values())[0]
-    out_ids = [int(x) for x in ids[0]]
-    result = tokenizer.decode(out_ids)
-    result = input_text + result
+    # FIXME(dengkaipeng): change to engine.load after engine.load fixed
+    model_dict = paddle.load(os.path.join(ckpt_dir, 'model.pdparams'))
+    engine._module.model.set_state_dict(model_dict)
 
-    print('Prompt:', input_text)
-    print('Generation:', result)
+    engine.export()
 
 
 if __name__ == "__main__":
-    do_inference()
+    do_export()

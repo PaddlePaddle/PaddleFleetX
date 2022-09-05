@@ -63,3 +63,7 @@ class BasicModule(nn.Layer):
 
     def backward(self, loss):
         loss.backward()
+
+    def input_spec(self):
+        raise NotImplementedError(
+                "Please input Module.input_spec for model export")
