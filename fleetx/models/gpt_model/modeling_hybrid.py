@@ -28,7 +28,7 @@ import paddle.incubate as incubate
 from paddle.distributed import fleet
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 from paddle.distributed.fleet.meta_parallel import LayerDesc, PipelineLayer, SharedLayerDesc
-from paddle.distributed.fleet import recompute
+from paddle.distributed.fleet.utils import recompute
 import sys
 from .config import configurable
 
