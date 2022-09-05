@@ -5,9 +5,10 @@
 
 这里介绍使用裸机或者 Docker 环境使用 FleetX 的方法，用户根据具体情况选择一种安装部署方式即可。
 使用多机训练时，需要在每台机器上都部署相应的环境。
-推荐使用 Docker 安装部署 FleetX 进行大模型训练，Docker 环境的安装可以参考[文档](deployment.md#docker-环境安装)。
 
-### Docker 环境部署
+### 1.1 Docker 环境部署
+
+推荐使用 Docker 安装部署 FleetX 进行大模型训练，Docker 环境的安装可以参考[文档](docker_install.md)。
 
 请根据本地 CUDA 版本（使用 `nvidia-smi`命令查看）使用以下命令拉取对应或兼容的镜像，
 
@@ -52,7 +53,7 @@ bash
 
 > 为保证通信效率和通信正常，添加参数 --net=host 使用主机网络，更多 docker run 参数说明请参考 [docker 文档](https://docs.docker.com/engine/reference/commandline/run/)。
 
-### 裸机部署
+### 1.2 裸机部署
 
 **安装 PaddlePaddle**
 
@@ -66,7 +67,7 @@ bash
 python -m pip install paddlepaddle-gpu==0.0.0.post112 -f https://www.paddlepaddle.org.cn/whl/linux/gpu/develop.html
 ```
 
-安装遇到问题以及环境验证的方法也可以参考[文档](deployment.md#3-单机环境验证)。
+安装遇到问题以及环境验证的方法也可以参考[文档](deployment_faq.md#1-单机环境验证)。
 
 **安装依赖**
 
@@ -93,13 +94,13 @@ wget -O data/gpt_en_dataset_300m_ids.npy https://bj.bcebos.com/paddlenlp/models/
 wget -O data/gpt_en_dataset_300m_idx.npz https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_idx.npz
 ```
 
-然后使用以下命令运行单机多卡程序，该gpt程序需要8卡32G V100以运行，如单机无法满足要求可以使用[多机](#4-多机多卡训练)启动命令，满足启动总卡数为8即可。
+然后使用以下命令运行单机多卡程序，
 
 ```
 python -m paddle.distributed.launch run_pretrain.py -c ./configs_1.3B_dp8.yaml
 ```
 
-若要在显存容量更小的16G V100环境下进行GPT模型单机训练，可通过减小`Model.hidden_size`调整模型规模至合适大小再启动训练，命令如下：
+若要在显存容量更小的环境例如 16G 显存下进行GPT模型单机训练，可通过减小`Model.hidden_size`调整模型规模至合适大小再启动训练，命令如下：
 
 ```
 python -m paddle.distributed.launch run_pretrain.py -c ./configs_1.3B_dp8.yaml -o Model.hidden_size=1024
@@ -143,7 +144,7 @@ LAUNCH INFO 2022-08-15 07:37:39,063 Watching Pod: vqhbut, replicas 8, status run
 ## 更多训练日志
 ```
 
-如有启动异常或其他问题请参考[文档](deployment.md#3-单机环境验证)进行工作环境验证和问题解决。
+如有启动异常请根据[文档](deployment_faq.md#1-单机环境验证)进行工作环境验证，其他问题可参考[FAQ](deployment_faq.md#3-faq)解决。
 
 ## 3. 多机多卡训练
 
@@ -159,9 +160,9 @@ python -m paddle.distributed.launch --master=10.10.10.1:8099 --nnodes=2 run_pret
 > 注意这里需要使用单机多卡训练部分的代码和数据。
 
 
-成功则开始多机训练过程，日志和单机多卡类似，日志异常时请按照[文档](deployment.md#4-分布式环境验证)进行环境验证和问题排查。
+成功则开始多机训练过程，日志和单机多卡类似，日志异常时请按照[文档](deployment_faq.md#2-分布式环境验证)进行环境验证和问题排查。
 
-若要在显存容量更小的16G V100环境下进行GPT模型多机训练，也可通过减小`Model.hidden_size`调整模型规模至合适大小再启动训练，命令如下：
+若要在显存容量更小的环境例如 16G 显存下进行GPT模型单机训练，可通过减小`Model.hidden_size`调整模型规模至合适大小再启动训练，命令如下：
 
 ```
 python -m paddle.distributed.launch --master=10.10.10.1:8099 --nnodes=2 run_pretrain.py -c ./configs_6.7B_sharding16.yaml -o Model.hidden_size=2048
