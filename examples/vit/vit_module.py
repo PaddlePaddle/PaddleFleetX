@@ -74,10 +74,6 @@ class ViTModule(BasicModule):
     def configure_optimizers(self):
         self.decay_fused_tensors, self.all_fused_tensors = None, None
 
-        if self.configs['Fused']['tensor_fusion']:
-            self.decay_fused_tensors, self.all_fused_tensors = fused_parameters(
-                self.model)
-
         opt_configs = self.configs['Optimizer']
 
         lr_configs = copy.deepcopy(self.configs['Optimizer']['lr'])
@@ -89,13 +85,6 @@ class ViTModule(BasicModule):
 
         # Generate parameter names needed to perform weight decay.
         # All bias and LayerNorm parameters are excluded.
-        if self.configs['Fused']['tensor_fusion']:
-            decay_params = [p.name for p in self.decay_fused_tensors]
-        else:
-            decay_params = [
-                p.name for n, p in self.model.named_parameters()
-                if not any(nd in n for nd in ["bias", "norm"])
-            ]
 
         optimizer = paddle.optimizer.AdamW(
             learning_rate=lr_scheduler,
@@ -107,7 +96,6 @@ class ViTModule(BasicModule):
             self.model.parameters(),
             weight_decay=opt_configs['weight_decay'],
             grad_clip=clip,
-            apply_decay_param_fun=lambda x: x in decay_params,
             multi_precision=self.configs['Engine']['mix_precision'][
                 'use_pure_fp16'])
         return optimizer, lr_scheduler
