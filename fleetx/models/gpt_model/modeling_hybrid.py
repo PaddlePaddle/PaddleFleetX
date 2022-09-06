@@ -357,7 +357,7 @@ class MultiHeadAttention(nn.Layer):
                                                    use_cache, cache)
 
         if self.use_recompute and self.recompute_granularity == "core_attn":
-            out, weights = recompute(self.core_attn, q, k, v)
+            out, weights = recompute(self.core_attn, q, k, v, attn_mask)
         else:
             out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
 
@@ -991,8 +991,11 @@ class GPTForPretrainingPipe(PipelineLayer):
             topology=topology,
             seg_method="layer:TransformerDecoderLayer",
             recompute_interval=recompute_interval,
-            recompute_partition=False,
-            recompute_offload=False)
+            recompute_ctx={
+                "mp_group": fleet.fleet._hcg.get_model_parallel_group(),
+                "offload": False,
+                "partition": False
+            })
 
     @classmethod
     def from_config(cls, cfg):

@@ -31,20 +31,10 @@ GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupe
 
 ### 环境依赖
 
-- regex
-- colorlog
-- colorama
-- omegaconf
-- sentencepiece >= 0.1.94
-- tqdm
-- visualdl
-- pybind11
-- lac (可选)
-- zstandard (可选)
+请确保已根据根目录 requirements.txt 安装所需依赖，或者通过以下命令快速安装
 
-**安装命令**
 ```shell
-python -m pip install regex colorlog colorama omegaconf sentencepiece tqdm visualdl 
+python -m pip install -r https://raw.githubusercontent.com/PaddlePaddle/FleetX/develop/requirements.txt -i https://mirror.baidu.com/pypi/simple
 ```
 
 ### 数据准备

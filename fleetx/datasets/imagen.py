@@ -33,7 +33,7 @@ from paddle.distributed import get_world_size
 from paddle.vision import transforms as T
 
 
-def collate_imagen_base64(batch, tokenizer=None):
+def collate_imagen(batch, tokenizer=None):
     """ collate for imagen base64 """
     text_embs = []
     images = []
@@ -91,41 +91,35 @@ def get_files(data_path, gpu_num, shuffle=False):
     return files
 
 
-def build_imagen_train_dataset(args):
-    if args.input_format == 'files':
-        return TextImageDataset(
-            data_path=args.data_path,
-            input_resolution=args.input_resolution,
-            super_resolution=args.super_resolution,
-            second_resolution=args.second_resolution, )
-    elif 'embed' in args.input_format:
-        files = get_files(
-            args.data_path, get_world_size(), shuffle=args.shuffle)
-        return ImagenEmbedPairDataset(
-            data_path=files,
-            input_format=args.input_format,
-            image_size=args.input_resolution,
-            text_max_len=args.text_max_len,
-            tokenizer=None)
-
-    elif 'base64' in args.input_format:
-        files = get_files(
-            args.data_path, get_world_size(), shuffle=args.shuffle)
-        return ImagenBase64PairDataset(
-            data_path=files,
-            input_format=args.input_format,
-            image_size=args.input_resolution,
-            text_max_len=args.text_max_len,
-            tokenizer=None)
+def create_imagen_dataloader(configs, places=None, worker_init=None):
+    data_path = configs['input_path']
+    shuffle = configs['shuffle']
+    input_resolusion = configs['input_resolusion']
+    text_max_len = configs['text_max_len']
+    device_world_size = paddle.distributed.get_world_size()
+    device_world_rank = paddle.distributed.get_rank()
+    files = get_files(data_path, device_world_size, shuffle=shuffle)
+    dataset_train = ImagenEmbedPairDataset(
+        data_path=files,
+        image_size=input_resolusion,
+        text_max_len=text_max_len)
+    return DataLoader(
+        dataset_train,
+        batch_size=configs['batch_size'],
+        shuffle=shuffle,
+        drop_last=True,
+        num_workers=configs['num_workers'],
+        collate_fn=collate_imagen,
+        places=places,
+        use_shared_memory=configs['use_shared_memory'],
+        worker_init_fn=worker_init)
 
 
 def data_augmentation_for_imagen(img, resolution):
-
     arr = deepcopy(img)
     while min(*arr.size) >= 2 * resolution:
         arr = arr.resize(
             tuple(x // 2 for x in arr.size), resample=Image.Resampling.BOX)
-
     scale = resolution / min(*arr.size)
     arr = arr.resize(
         tuple(round(x * scale) for x in arr.size),
@@ -151,7 +145,6 @@ class ImagenEmbedPairDataset(Dataset):
                  tokenizer=None,
                  split='train'):
         super().__init__()
-        self.cc = True if 'cc' in input_format else False
         self.filter_image_resolution = filter_image_resolution
         self.image_size = image_size
         self.text_max_len = text_max_len
@@ -204,7 +197,6 @@ class ImagenEmbedPairDataset(Dataset):
             return f.readline()
 
     def __getitem__(self, index):
-        num_col = 4 if self.cc else 5
         if not isinstance(self.filename, list):
             data_dir = os.path.dirname(self.filename)
             data = self.get_line(self.filename, self.indexes[index])
@@ -224,7 +216,3 @@ class ImagenEmbedPairDataset(Dataset):
 
     def __len__(self):
         return len(self.indexes)
-
-
-if __name__ == '__main__':
-    file_list_path = '/data/trainfile.mix'

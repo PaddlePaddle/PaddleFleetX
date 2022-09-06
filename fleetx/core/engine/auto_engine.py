@@ -19,19 +19,22 @@ import sys
 import paddle
 import paddle.nn as nn
 
-from paddle.static import InputSpec
 from paddle.distributed import fleet
 from paddle.distributed.auto_parallel.engine import Engine
 
 sys.path.append("../../../")
 from fleetx.utils import logger
-from fleetx.data.sampler import Stack, Tuple
 from fleetx.core.engine.basic_engine import BasicEngine
 from fleetx.core.module.basic_module import BasicModule
 
 
 class AutoEngine(BasicEngine):
-    def __init__(self, module, configs=None, strategy=None):
+    def __init__(self,
+                 module,
+                 configs=None,
+                 inputs_spec=None,
+                 labels_spec=None,
+                 strategy=None):
         super().__init__()
 
         if not isinstance(module, BasicModule):
@@ -76,8 +79,6 @@ class AutoEngine(BasicEngine):
                         " or `paddle.fluid.optimizer.Optimizer`."
                 )
 
-        inputs_spec, labels_spec = self._gen_data_holder()
-
         if not strategy:
             strategy = fleet.DistributedStrategy()
             strategy.semi_auto = True
@@ -86,45 +87,61 @@ class AutoEngine(BasicEngine):
             module.model, inputs_spec, labels_spec, strategy=strategy)
         self._auto_engine.prepare(optimizer, module.loss_fn)
 
-    def _gen_data_holder(self):
-        gbsz = self._data_configs['batch_size']['global_batch_size']
-        max_seq_len = self._data_configs['dataset']['max_seq_len']
-
-        tokens = InputSpec([gbsz, max_seq_len], "int64", "tokens")
-        position_ids = InputSpec([gbsz, max_seq_len], "int64", "position_ids")
-        labels = InputSpec([gbsz, max_seq_len], "int64", "labels")
-        loss_mask = InputSpec([gbsz, max_seq_len], "float32", "loss_mask")
-
-        return [tokens, position_ids], [labels, loss_mask]
-
-    def fit(self, epoch=1, train_dataset=None, valid_dataset=None):
-
-        self._auto_engine.fit(
+    def fit(self,
             train_dataset,
-            batch_size=self._data_configs['batch_size']['global_batch_size'],
-            collate_fn=Tuple(Stack(), Stack(), Stack(), Stack()),
-            use_cache=True)
+            batch_size=1,
+            epochs=1,
+            fetches=None,
+            steps_per_epoch=None,
+            collate_fn=None,
+            use_cache=True,
+            return_numpy=True):
 
-    def evaluate(self, valid_dataset=None):
+        self._auto_engine.fit(train_dataset,
+                              batch_size=batch_size,
+                              epochs=epochs,
+                              fetches=fetches,
+                              steps_per_epoch=steps_per_epoch,
+                              collate_fn=collate_fn,
+                              use_cache=use_cache,
+                              return_numpy=return_numpy)
+
+    def evaluate(self,
+                 valid_dataset,
+                 batch_size=1,
+                 fetches=None,
+                 collate_fn=None,
+                 use_cache=True,
+                 return_numpy=True):
 
         self._auto_engine.evaluate(
             valid_dataset,
-            batch_size=self._data_configs['batch_size']['global_batch_size'],
-            collate_fn=Tuple(Stack(), Stack(), Stack(), Stack()),
-            use_cache=True)
+            batch_size=batch_size,
+            fetches=fetches,
+            collate_fn=collate_fn,
+            use_cache=use_cache,
+            return_numpy=return_numpy)
 
-    def predict(self, test_dataset):
+    def predict(self,
+                test_dataset,
+                batch_size=1,
+                fetches=None,
+                collate_fn=None,
+                use_cache=True,
+                return_numpy=True):
 
         self._auto_engine.predict(
             test_dataset,
-            batch_size=self._data_configs['batch_size']['global_batch_size'],
-            collate_fn=Tuple(Stack(), Stack(), Stack(), Stack()),
-            use_cache=True)
+            batch_size=batch_size,
+            fetches=fetches,
+            collate_fn=collate_fn,
+            use_cache=use_cache,
+            return_numpy=return_numpy)
 
     def save(self, training=False):
         if self._output_dir and isinstance(self._output_dir, str):
             path = os.path.join(self._output_dir, "auto")
-            self._auto_engine.save(path, training=training)
+            self._auto_engine.save(path, training=training, mode="train")
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
 

@@ -1,118 +1,8 @@
-## 环境部署
+## 环境验证和常见问题
 
-### 1. 基础环境依赖
+本文为环境问题排查指引，包括环境正确性验证的方法和常见的一些问题解决方法。
 
-部署环境进行大模型训练，需要满足以下配置要求：
-
-* Linux 操作系统，推荐 Ubuntu 18+ 或 CentOS 6+.
-
-* Python 环境 3.6+.
-
-* GPU 支持，CUDA 10.2+ 和 NCCL 2.8+，具体支持情况见 [安装](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/pip/linux-pip.html).
-
-* 【推荐】[Docker](https://docs.docker.com/engine/install/) 19.03+，同时需要安装 [nvida-container-runtime](https://github.com/NVIDIA/nvidia-container-runtime) 以使用 GPU.
-
-* 【可选】[Kubernetes](https://github.com/kubernetes/kubernetes) 1.16+，同时需要安装 [k8s-device-plugin](https://github.com/NVIDIA/k8s-device-plugin) 以使用 GPU. 当机器数量较多（5+）且长期使用时，建议使用 Kubernetes 或类似集群管理工具进行集群管理。
-
-* 【建议】大模型训练多机间带宽建议 25Gbps 及以上，否则可能有性能问题，可使用 [iperf](https://github.com/esnet/iperf) 工具进行测试。
-
-#### Docker 环境安装
-
-使用 Docker 首先需要安装 Docker  环境，安装的完整流程请参考[文档](https://docs.docker.com/engine/install/)，基础安装流程如下所述。
-另外在 Docker 中使用 GPU 还需要安装 [nvida-container-runtime](https://github.com/NVIDIA/nvidia-container-runtime)。
-
-**Ubuntu**
-
-添加 apt 源。
-```
-sudo curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | sudo apt-key add -
-sudo add-apt-repository "deb [arch=amd64] https://mirrors.aliyun.com/docker-ce/linux/ubuntu $(lsb_release -cs) stable"
-```
-
-软件源升级， 安装docker
-
-```
-sudo apt-get update
-
-sudo apt-get docker-ce docker-ce-cli containerd.io 
-```
-
-使用 `docker version` 查看 docker 版本信息无错误信息即说明安装运行正常。
-
-安装 nvida-container-runtime
-
-```
-sudo apt-get install nvidia-container-runtimeb
-```
-
-**CentOS**
-
-添加yum源。
-
-```
-sudo wget -O /etc/yum.repos.d/docker-ce.repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
-```
-
-安装组件。
-```
-sudo yum install docker-ce docker-ce-cli containerd.io
-```
-
-启动Docker。
-```
-sudo systemctl start docker
-```
-
-查看Docker状态。
-```
-sudo systemctl status docker
-```
-
-如日志状态为 active (running) 则表示docker启动正常。
-```
-● docker.service - LSB: start and stop docker
-   Loaded: loaded (/etc/rc.d/init.d/docker; bad; vendor preset: disabled)
-   Active: active (running) since Thu 2022-08-11 20:11:19 CST; 3 days ago
-     Docs: man:systemd-sysv-generator(8)
-  Process: 29766 ExecStop=/etc/rc.d/init.d/docker stop (code=exited, status=0/SUCCESS)
-  Process: 33215 ExecStart=/etc/rc.d/init.d/docker start (code=exited, status=0/SUCCESS)
-```
-
-安装 nvida-container-runtime。
-
-```
-sudo yum install nvidia-container-runtime
-```
-
-### 2. 安装部署流程
-
-以下镜像中已包含大模型所需依赖，可以根据支持的 cuda 版本直接拉取使用，
-
-```
-docker pull registry.baidubce.com/kuizhiqing/fleetx-cuda11.2-cudnn8:alpha
-docker pull registry.baidubce.com/kuizhiqing/fleetx-cuda10.2-cudnn7:alpha
-```
-
-如果需要在裸机中运行可以首先根据环境在
-[安装文档](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/docker/linux-docker.html) 选择对应的版本使用 pip install 安装，执行对应命令，例如
-
-```shell
-python -m pip install paddlepaddle-gpu==0.0.0.post112 -f https://www.paddlepaddle.org.cn/whl/linux/gpu/develop.html
-```
-
-然后拉取最新 FleetX 代码。
-
-```
-git clone https://github.com/PaddlePaddle/FleetX.git
-```
-
-进入目录并使用以下命令安装所需依赖。
-
-```
-python -m pip install -r requirements.txt -i https://mirror.baidu.com/pypi/simple
-```
-
-### 3. 单机环境验证
+### 1. 单机环境验证
 
 以下验证不区分本机环境和 Docker 环境。
 
@@ -199,9 +89,17 @@ PaddlePaddle is installed successfully! Let's start deep learning with PaddlePad
 
 表示 PaddlePaddle 已经正确安装。
 
-### 4. 分布式环境验证
+如果出现以下错误信息请确保 CUDA 安装正确且已根据 CUDA 安装路径正确配置的 LD_LIBRARY_PATH。
+例如执行命令添加 `export LD_LIBRARY_PATH=/usr/lib64/:/usr/local/lib/:/usr/local/cuda-11.2/targets/x86_64-linux/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64:${LD_LIBRARY_PATH}` 。
+具体请参考[文档](https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html)。
 
-如果单机运行正常，但多机分布式运行异常请先根据 [FAQ](#51-网络问题排查) 部分排查网络问题再进行以下排查。
+```
+You are using GPU version Paddle, but your CUDA device is not set properly.
+```
+
+### 2. 分布式环境验证
+
+如果单机运行正常，但多机分布式运行异常请先根据 [网络问题排查](#31-网络问题排查) 部分排查网络问题再进行以下排查。
 
 请先确保**各个机器**的 PaddlePaddle 环境已经正确安装，然后在等待验证的其中一个节点上运行如下命令
 
@@ -278,7 +176,7 @@ LAUNCH INFO 2022-07-20 09:46:57,085 Exit code 0
 
 则表示分布式环境配置正常，多机分布式训练可以成功运行。
 
-> 如果其他节点执行命令后各个节点没有后续输出或输出不符合预期请参考 [FAQ](#5-faq) 部分解决。
+> 如果其他节点执行命令后各个节点没有后续输出或输出不符合预期请参考 [FAQ](#3-faq) 部分解决。
 
 **实际分布式训练任务验证**
 
@@ -425,7 +323,7 @@ LAUNCH INFO 2022-07-20 12:10:25,883 Watching Pod: bpdjev, replicas 2, status run
 其中，每行对应的具体含义解释如下：
 
 * 因为未设置 job_id，使用默认名称 default，启动的是 collective 模式，总共 2 个节点的分布式任务，不支持弹性（即节点数不可变）。
-* 节点短暂处于等待其他节点启动的状态，如果其他节点已启动但日志长期处于等待状态，请根据 [FAQ](#51-网络问题排查) 进行排查。
+* 节点短暂处于等待其他节点启动的状态，如果其他节点已启动但日志长期处于等待状态，请根据 [FAQ](#31-网络问题排查) 进行排查。
 * 任务准备启动，当前节点名为 bpdjev（该名称为随机生成）处于 ready 状态，当前节点包含 2 个进程（1 个进程对应 1 个 GPU）。
 * 节点已启动，正在监控进程健康状态。
 
@@ -497,11 +395,11 @@ LAUNCH INFO 2022-07-21 11:59:00,655 Exit code -15
 * 具体的错误信息 trace，该部分取决于业务代码错误内容。
 * 最后打印错误退出码 Exit code -15.
 
-请根据报错信息进行排查，部分错误请参考 [FAQ](#5-faq)。
+请根据报错信息进行排查，部分错误请参考 [FAQ](#3-faq)。
 
-### 5. FAQ
+### 3. FAQ
 
-#### 5.1 网络问题排查
+#### 3.1 网络问题排查
 
 请按照以下步骤排查网络问题
 
@@ -604,7 +502,7 @@ export NCCL_SOCKET_IFNAME=eth1
 上述测试均正常但是无法跑通分布式环境测试时
 请使用 [nccl-test](https://github.com/NVIDIA/nccl-tests)  测试 GPU 通信是否正常。
 
-#### 5.2 多Python环境问题
+#### 3.2 多Python环境问题
 
 当工作环境中存在多个版本的 python 时可能存在不一致导致问题。
 
@@ -639,7 +537,7 @@ $ ls /usr/bin/python*
 
 即当使用 python 时，使用绝对路径 `/usr/bin/python3.7` 替换。
 
-#### 5.3 自动获取 IP 错误（多网卡环境问题）
+#### 3.3 自动获取 IP 错误（多网卡环境问题）
 
 使用 paddle.distributed.launch 会自动识别使用的 IP，在多网卡配置的环境中自动识别的网卡可能不是预期使用的网卡。
 
@@ -684,7 +582,7 @@ python -m paddle.distributed.launch --master=10.10.10.1:49178 --nnodes=2 --host=
 
 > 当 --master 地址识别错误时，也需要手动替换。
 
-#### 5.4 机器端口有限制，需要使用固定端口
+#### 3.4 机器端口有限制，需要使用固定端口
 
 当集群环境限制通信网卡时需要手动配置所有 ip 和 port 以启动分布式，以机器 `10.10.10.1` 和机器 `10.10.10.2` 必须使用端口 8000-8999 的情况为例，
 假设每台机器有两个卡，使用如下脚本设置每个卡对应进程的环境变量，依次启动进程。
@@ -709,7 +607,7 @@ python train.py
 
 注意在执行时，需要依次替换后面4个环境变量为对应值启动。
 
-#### 5.5 常用的通信问题排查
+#### 3.5 常用的通信问题排查
 
 GPU/NCCL 问题请先核对**版本是否匹配**，通过 `nvidia-smi` 查看是否有进程正在占用，仍有问题需要通过 [nccl-test](https://github.com/NVIDIA/nccl-tests)  测试。常见运行时错误和解决方法如下，
 
@@ -729,172 +627,4 @@ ExternalError: Nccl error(2), unhandled system error
 ```
 
 原因和解决方法：该错误一般为 shm 设置太小，如果使用 Docker 环境需要在启动 Docker 时做映射和设置如 `--shm-size 32G`.
-
-### 附1. Kubernetes部署
-
-在 Kubernetes 上部署分布式任务需要安装 [paddle-operator](https://github.com/PaddleFlow/paddle-operator) 。
-
-paddle-operator 通过添加自定义资源类型 (paddlejob) 以及部署 controller 和一系列 Kubernetes 原生组件的方式实现简单定义即可运行 PaddlePaddle 任务的需求。
-
-目前支持运行 ParameterServer (PS) 和 Collective 两种分布式任务，当然也支持运行单节点任务。
-
-**paddle-operator 安装**
-
-安装 paddle-operator 需要有已经安装的 Kubernetes (v1.16+) 集群和 [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) (v1.16+) 工具。
-
-本节所需配置文件和示例可以在 [这里](https://github.com/PaddleFlow/paddle-operator/tree/main/deploy) 找到，
-可以通过 *git clone* 或者复制文件内容保存。
-
-```yaml
-deploy
-|-- examples
-|   |-- resnet.yaml
-|   |-- wide_and_deep.yaml
-|   |-- wide_and_deep_podip.yaml
-|   |-- wide_and_deep_service.yaml
-|   `-- wide_and_deep_volcano.yaml
-|-- v1
-|   |-- crd.yaml
-|   `-- operator.yaml
-```
-
-执行以下命令，
-
-```shell
-kubectl create -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/dev/deploy/v1/crd.yaml
-```
-
-或者
-
-```shell
-kubectl create -f deploy/v1/crd.yaml
-```
-
-通过以下命令查看是否成功，
-
-```shell
-kubectl get crd
-NAME                                    CREATED AT
-paddlejobs.batch.paddlepaddle.org       2021-02-08T07:43:24Z
-```
-
-执行以下部署命令，
-
-```shell
-kubectl create -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/dev/deploy/v1/operator.yaml
-```
-
-或者
-
-```shell
-kubectl create -f deploy/v1/operator.yaml
-```
-
-通过以下命令查看部署结果和运行状态，
-
-```shell
-kubectl -n paddle-system get pods
-NAME                                         READY   STATUS    RESTARTS   AGE
-paddle-controller-manager-698dd7b855-n65jr   1/1     Running   0          1m
-```
-
-通过查看 controller 日志以确保运行正常，
-
-```shell
-kubectl -n paddle-system logs paddle-controller-manager-698dd7b855-n65jr
-```
-
-提交 demo 任务查看效果，
-
-```shell
-kubectl -n paddle-system create -f deploy/examples/wide_and_deep.yaml
-```
-
-查看 paddlejob 任务状态, pdj 为 paddlejob 的缩写，
-
-```shell
-kubectl -n paddle-system get pdj
-NAME                     STATUS      MODE   AGE
-wide-ande-deep-service   Completed   PS     4m4s
-```
-
-以上信息可以看出：训练任务已经正确完成，该任务为 ps 模式。
-可通过 cleanPodPolicy 配置任务完成/失败后的 pod 删除策略，详见任务配置。
-
-训练期间可以通过如下命令查看 pod 状态，
-
-```shell
-kubectl -n paddle-system get pods
-```
-
-**paddlejob 任务提交**
-
-本resnet示例为 Collective 模式，使用 GPU 进行训练，只需要配置 worker，worker 配置中需要声明使用的 GPU 信息。
-
-准备配置文件，
-
-```yaml
-apiVersion: batch.paddlepaddle.org/v1
-kind: PaddleJob
-metadata:
-  name: resnet
-spec:
-  cleanPodPolicy: Never
-  worker:
-    replicas: 2
-    template:
-      spec:
-        containers:
-          - name: paddle
-            image: registry.baidubce.com/paddle-operator/demo-resnet:v1
-            command:
-            - python
-            args:
-            - "-m"
-            - "paddle.distributed.launch"
-            - "train_fleet.py"
-            volumeMounts:
-            - mountPath: /dev/shm
-              name: dshm
-            resources:
-              limits:
-                nvidia.com/gpu: 1
-        volumes:
-        - name: dshm
-          emptyDir:
-            medium: Memory
-```
-
-注意：
-
-* 这里需要添加 shared memory 挂载以防止缓存出错。
-* 本示例采用内置 flower 数据集，程序启动后会进行下载，根据网络环境可能等待较长时间。
-
-提交任务: 使用 kubectl 提交 yaml 配置文件以创建任务，
-
-```shell
-kubectl -n paddle-system create -f resnet.yaml
-```
-
-**卸载**
-
-通过以下命令卸载部署的组件，
-
-```shell
-kubectl delete -f deploy/v1/crd.yaml -f deploy/v1/operator.yaml
-```
-
-*注意：重新安装时，建议先卸载再安装*
-
-### 附2. 公有云和私有云部署
-
-在公有云上运行 PaddlePaddle 分布式建议通过选购容器引擎服务的方式，各大云厂商都推出了基于标准 Kubernetes 的云产品，然后根据上节中的教程安装使用即可。
-
-| 云厂商 | 容器引擎 | 链接                                           |
-| --- | ---- | -------------------------------------------- |
-| 百度云 | CCE  | https://cloud.baidu.com/product/cce.html     |
-| 阿里云 | ACK  | https://help.aliyun.com/product/85222.html   |
-| 华为云 | CCE  | https://www.huaweicloud.com/product/cce.html |
-
-更为方便的是使用百度提供的全功能AI开发平台 [BML](https://cloud.baidu.com/product/bml) 来使用，详细的使用方式请参考 [BML文档](https://ai.baidu.com/ai-doc/BML/pkhxhgo5v)。
 

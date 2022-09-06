@@ -1,0 +1,88 @@
+# 300M
+Global:
+  device: gpu
+  seed: 1997 
+
+
+Engine:
+  max_steps: 400000 # for epoch mode, equal to inf
+  num_train_epochs: 1 
+  accumulate_steps: 
+  logging_freq: 10
+  eval_freq: 1000000000 # for epoch mode, equal to inf
+  eval_iters: 1000000000 # for epoch mode, equal to inf
+  test_iters: 1000000000 # for epoch mode, equal to inf
+  mix_precision:
+    use_pure_fp16: False 
+    scale_loss: 32768.0
+    custom_black_list: ["reduce_sum", "elementwise_div"]
+    custom_white_list: []
+  save_load:
+    save_steps: 5000
+    output_dir: ./output
+    ckpt_dir:
+
+Distributed:
+  dp_degree:
+  mp_degree: 1
+  pp_degree: 1
+  sharding:
+    sharding_degree: 1
+    sharding_stage: 1
+    sharding_offload: False
+
+
+Model:
+  name: imagen_base_text2im_64
+  use_recompute: False
+  text_encoder_name: t5/t5-11b
+  text_embed_dim: 1024 
+  timesteps: 1000 
+  in_chans: 3
+  loss_type: l2
+  cond_drop_prob: 0.1
+  noise_schedules: cosine
+  pred_objectives: noise
+  lowres_noise_schedule: linear
+  lowres_sample_noise_level: 0.2
+  per_sample_random_aug_noise_level: False
+  condition_on_text: True
+  auto_normalize_img: True
+  p2_loss_weight_gamma: 0.5
+  p2_loss_weight_k: 1.0
+  dynamic_thresholding: True,
+  dynamic_thresholding_percentile: 0.95
+  only_train_unet_number: 1 
+
+Optimizer:
+  name: Adam
+  weight_decay: 0.
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1.0e-8
+  lr:
+    decay_steps: 400000
+    max_lr: 0.0001
+    min_lr: 0.
+    decay_type: cosine
+    warmup_steps: 10000
+  grad_clip: 1.0
+
+Fused:
+  tensor_fusion: False
+
+
+# data loader for train
+DataLoader:
+  batch_size: 32 
+  input_path: ./data/cc12m_base64.lst
+  shuffle: True
+  input_resolusion: 64 
+  text_max_len: 128 
+  use_shared_memory: True
+  num_workers: 0
+
+
+Inference:
+  model_dir: ./output
+  mp_degree: 1

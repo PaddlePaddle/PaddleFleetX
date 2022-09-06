@@ -15,6 +15,7 @@
 import os
 import time
 import sys
+import logging
 
 import paddle
 import paddle.nn as nn
@@ -24,14 +25,18 @@ from paddle.optimizer.lr import LRScheduler
 from paddle.distributed.sharding import group_sharded_parallel
 from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
+from paddle.profiler import SummaryView
 
 sys.path.append("../../../")
 from fleetx.utils import logger
 from fleetx.core.engine.basic_engine import BasicEngine
 from fleetx.core.module.basic_module import BasicModule
-from fleetx.inference.inference_engine import InferenceEngine
+from fleetx.inference import InferenceEngine, export_inference_model
 from fleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from fleetx.utils.version import version_check
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class EagerEngine(BasicEngine):
@@ -119,6 +124,10 @@ class EagerEngine(BasicEngine):
         self._accumulate_steps = self._configs['accumulate_steps']
 
         self._use_pure_fp16 = self._configs['mix_precision']['use_pure_fp16']
+        if mode == 'export' and self._use_pure_fp16:
+            logger.info("NOTE: disable use_pure_fp16 in export mode")
+            self._use_pure_fp16 = False
+
         self._scale_loss = self._configs['mix_precision']['scale_loss']
         self._custom_black_list = self._configs['mix_precision'][
             'custom_black_list']
@@ -201,7 +210,6 @@ class EagerEngine(BasicEngine):
         self._module.global_step = 0
 
         self._inference_configs = configs['Inference']
-        self._inference_init = False
         self._inference_engine = None
 
         self.profiler = None
@@ -222,8 +230,7 @@ class EagerEngine(BasicEngine):
                 scheduler=scheduler,
                 on_trace_ready=paddle.profiler.export_chrome_tracing(
                     profiler_log),
-                #TODO(kzq) uncomment after bugfix
-                #record_shapes=record_shapes,
+                record_shapes=record_shapes,
                 profile_memory=profile_memory)
             self.profiler.start()
             logger.warning(
@@ -279,8 +286,9 @@ class EagerEngine(BasicEngine):
         train_start = time.time()
 
         for step, batch in enumerate(train_data_loader()):
-            if step < self._module.global_step:
-                continue
+            # Note(Guoxia): for the second epoch will always continue
+            #if step < self._module.global_step:
+            #    continue
 
             self._module.global_step += 1
             loss = self._fit_impl(batch)
@@ -593,8 +601,16 @@ class EagerEngine(BasicEngine):
             logger.warning("`load` requires a valid value of `ckpt_dir`.")
             raise TypeError("`load` requires a valid value of `ckpt_dir`.")
 
+    def export(self):
+        self._module.model.eval()
+        input_spec = self._module.input_spec()
+
+        save_dir = os.path.join(self._output_dir,
+                                "rank_{}".format(self._dp_rank), 'model')
+        export_inference_model(self._module.model, input_spec, save_dir)
+
     def inference(self, data):
-        if not self._inference_init:
+        if self._inference_engine is None:
             self._inference_engine = InferenceEngine(
                 self._inference_configs['model_dir'],
                 self._inference_configs['mp_degree'])
@@ -602,8 +618,6 @@ class EagerEngine(BasicEngine):
         return self._inference_engine.predict(data)
 
     def _print_summary(self):
-        #TODO(kzq) move above
-        from paddle.profiler import SummaryView
         views_dict = {
             SummaryView.DeviceView: 'device',
             SummaryView.OverView: 'overview',
@@ -653,13 +667,13 @@ class EagerEngine(BasicEngine):
         self._print_summary()
         profiler_log = self.profiler_config.get('profiler_log',
                                                 './profiler_log')
-        print(
+        logger.info(
             "For more information please install visualdl and run it with following command:"
         )
-        print(
+        logger.info(
             "-------------------------------------------------------------------------------"
         )
-        print(f"visualdl --host 0.0.0.0 --logdir {profiler_log}")
-        print(
+        logger.info(f"visualdl --host 0.0.0.0 --logdir {profiler_log}")
+        logger.info(
             "-------------------------------------------------------------------------------"
         )
