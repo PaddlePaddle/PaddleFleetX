@@ -24,6 +24,8 @@ from paddle.distributed import fleet
 from paddle.distributed.fleet.base import topology as tp
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 
+import numpy as np
+
 
 
 ####################################################
@@ -162,7 +164,22 @@ def is_fused_matmul_bias_supported():
     else:
         return False
 
-class ColumnParallelLinear(Layer):
+def all_reduce_gradient_hook(grad):
+    hcg = fleet.get_hybrid_communicate_group()
+    group = hcg.get_model_parallel_group()
+    group.process_group.allreduce(grad).wait()
+    return grad
+
+def gradient_hook(grad, name="gradient", prefix="seq_paral", is_break=True):
+    hcg = fleet.get_hybrid_communicate_group()
+    group = hcg.get_model_parallel_group()
+    rank = group.rank
+    np.save("debug_data/{0}/{1}_{2}.npy".format(prefix, name, rank), grad)
+    if is_break:
+        import os; os._exit(0)
+    return grad
+
+class ColumnSequenceParallelLinear(Layer):
     def __init__(self,
                  in_features,
                  out_features,
@@ -171,9 +188,8 @@ class ColumnParallelLinear(Layer):
                  gather_output=True,
                  fuse_matmul_bias=False,
                  mp_group=None,
-                 name=None,
-                 sequence_parallel=False):
-        super(ColumnParallelLinear, self).__init__()
+                 name=None):
+        super(ColumnSequenceParallelLinear, self).__init__()
 
         self.model_parallel_group = tp._HYBRID_PARALLEL_GROUP.get_model_parallel_group(
         ) if mp_group is None else mp_group
@@ -183,7 +199,9 @@ class ColumnParallelLinear(Layer):
         self.is_mp = (self.world_size > 1)
 
         # --------------- Added Code for Sequence Parallel --------------- #
-        self.gather_output = gather_output if not sequence_parallel else False
+        assert gather_output is False, "If sequence_parallel is True, \
+                                        gather_output is False"
+        self.gather_output = gather_output
         assert out_features % self.world_size == 0, (
             "Number of column of the weight for linear ({}) must be"
             " divisible by model parallel size ({})".format(
@@ -192,8 +210,6 @@ class ColumnParallelLinear(Layer):
 
         self._weight_attr = weight_attr
         self._dtype = self._helper.get_default_dtype()
-        # --------------- Added Code for Sequence Parallel --------------- #
-        self.sequence_parallel = sequence_parallel
 
         if self.is_mp and paddle.in_dynamic_mode():
             with get_rng_state_tracker().rng_state():
@@ -227,7 +243,7 @@ class ColumnParallelLinear(Layer):
         if fuse_matmul_bias:
             if not is_fused_matmul_bias_supported():
                 raise NotImplementedError(
-                    "You set fuse_matmul_bias=True in ColumnParallelLinear, "
+                    "You set fuse_matmul_bias=True in ColumnSequenceParallelLinear, "
                     "however, the paddle you are using not support this operation. "
                     "Please set fuse_matmul_bias=False or use paddle compiled "
                     "with cuda 11.6 or higher.")
@@ -240,28 +256,18 @@ class ColumnParallelLinear(Layer):
         # --------------- Added Code for Sequence Parallel --------------- #
         # if sequence parallel is true, input shape is [s, b, h]
         # else input shape is [b, s, h]
-        if self.sequence_parallel:
+        if self.is_mp:
             input_parallel = AllGatherOp.apply(x)
         else:
-            if self.is_mp:
-                input_parallel = paddle.distributed.collective._c_identity(
-                    x, group=self.model_parallel_group)
-            else:
-                input_parallel = x
-        output_parallel = self.linear(input_parallel,
+            input_parallel = x
+        output = self.linear(input_parallel,
                                       self.weight,
                                       self.bias,
                                       name=self._name)
-        # --------------- Added Code for Sequence Parallel --------------- #
-        if self.gather_output and self.is_mp:
-            output = paddle.distributed.collective._c_concat(
-                output_parallel, group=self.model_parallel_group)
-        else:
-            output = output_parallel
         return output
 
 
-class RowParallelLinear(Layer):
+class RowSequenceParallelLinear(Layer):
 
     def __init__(self,
                  in_features,
@@ -271,18 +277,17 @@ class RowParallelLinear(Layer):
                  input_is_parallel=False,
                  fuse_matmul_bias=False,
                  mp_group=None,
-                 name=None,
-                 sequence_parallel=False):
-        super(RowParallelLinear, self).__init__()
+                 name=None):
+        super(RowSequenceParallelLinear, self).__init__()
 
         self.in_features = in_features
         self.out_features = out_features
+        assert input_is_parallel is True, "If sequence_parallel is True, \
+                                           input_is_parallel should be true."
         self.input_is_parallel = input_is_parallel
         self._weight_attr = weight_attr
         self._dtype = self._helper.get_default_dtype()
         self._name = name
-        # --------------- Added Code for Sequence Parallel --------------- #
-        self.sequence_parallel = sequence_parallel
 
         self.model_parallel_group = tp._HYBRID_PARALLEL_GROUP.get_model_parallel_group(
         ) if mp_group is None else mp_group
@@ -315,21 +320,17 @@ class RowParallelLinear(Layer):
 
         self.weight.is_distributed = True if self.is_mp else False
 
+        # --------------- Added Code for Sequence Parallel --------------- #
+        # if sequence parallel is true, 
+        # register hook to all_reduce gradient of weight and bias
+        self.weight.register_hook(all_reduce_gradient_hook)
         if has_bias:
             self.bias = self.create_parameter(
                 shape=[self.out_features],
                 attr=paddle.nn.initializer.Constant(value=0.0),
                 dtype=self._dtype,
                 is_bias=True)
-            # --------------- Added Code for Sequence Parallel --------------- #
-            if self.sequence_parallel:
-                # if sequence parallel is true, register hook to all_reduce gradient of bias 
-                def bias_all_reduce(grad):
-                    hcg = fleet.get_hybrid_communicate_group()
-                    group = hcg.get_model_parallel_group()
-                    group.process_group.allreduce(grad).wait()
-                    return grad
-                self.bias.register_hook(bias_all_reduce)
+            self.bias.register_hook(all_reduce_gradient_hook)
         else:
             self.bias = None
 
@@ -358,29 +359,13 @@ class RowParallelLinear(Layer):
                                           self.weight,
                                           name=self._name)
             # --------------- Added Code for Sequence Parallel --------------- #
-            if self.sequence_parallel:
-                output_ = ReduceScatterOp.apply(output_parallel)
-                # if self.bias is not none, sequence parallel will use
-                # register_hook to all_reduce self.bias
-            else:
-                output_ = paddle.distributed.collective._mp_allreduce(
-                    output_parallel,
-                    group=self.model_parallel_group,
-                    use_calc_stream=True,
-                    use_model_parallel=True)
+            output_ = ReduceScatterOp.apply(output_parallel)
+            # if self.bias is not none, sequence parallel will use
+            # register_hook to all_reduce self.bias
             output = output_ + self.bias if self.bias is not None else output_
         else:
-            # --------------- Added Code for Sequence Parallel --------------- #
-            if self.sequence_parallel:
-                output = self.linear(input_parallel,
-                                     self.weight,
-                                     name=self._name)
-                output = ReduceScatterOp.apply(output)
-                output = output + self.bias if self.bias is not None else output
-            else:
-                output = self.linear(input_parallel,
-                                     self.weight,
-                                     self.bias,
-                                     name=self._name)
-
+            output = self.linear(input_parallel,
+                                    self.weight,
+                                    self.bias,
+                                    name=self._name)
         return output
