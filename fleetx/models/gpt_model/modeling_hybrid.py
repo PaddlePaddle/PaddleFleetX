@@ -28,7 +28,7 @@ import paddle.incubate as incubate
 from paddle.distributed import fleet
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 from paddle.distributed.fleet.meta_parallel import LayerDesc, PipelineLayer, SharedLayerDesc
-from paddle.distributed.fleet import recompute
+from paddle.distributed.fleet.utils import recompute
 import sys
 from .config import configurable
 
@@ -298,8 +298,7 @@ class MultiHeadAttention(nn.Layer):
                                                    use_cache, cache)
 
         if self.use_recompute and self.recompute_granularity == "core_attn":
-            out, weights = recompute(
-                self.core_attn, q, k, v, attn_mask)
+            out, weights = recompute(self.core_attn, q, k, v, attn_mask)
         else:
             out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
 
