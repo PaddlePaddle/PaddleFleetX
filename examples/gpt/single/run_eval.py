@@ -106,6 +106,10 @@ def do_eval():
         logger.info("Load model checkpoint from %s" %
                     configs['Eval']['ckpt_dir'])
         model_dict = paddle.load(os.path.join(configs['Eval']['ckpt_dir']))
+
+        for key, value in model_dict.items():
+            model_dict[key] = model_dict[key].astype(paddle.float32)
+
         model.set_state_dict(model_dict)
 
     eval_data_loader, eval_dict = create_eval_dataset(configs['Eval'])
@@ -119,8 +123,6 @@ def do_eval():
         for step, batch in enumerate(eval_data_loader):
             tokens, loss_mask, attention_mask, position_ids, labels = batch
             preds = model(tokens, position_ids, attention_mask)
-
-            preds = model(tokens, position_ids)
 
             if not configs['Eval']['cloze_eval']:
                 masked_lm_loss = paddle.nn.functional.cross_entropy(
