@@ -15,6 +15,7 @@
 import sys
 
 import paddle
+from paddle import LazyGuard
 from paddle.distributed import fleet
 from paddle.static import InputSpec
 import paddleslim
@@ -293,8 +294,9 @@ class GPTAutoModule(BasicModule):
         from fleetx.models.gpt_model.modeling_auto import GPTModel, GPTForPretraining, GPTPretrainingCriterion
         configs['Model']['mesh'] = Mesh(configs)
 
-        self.model = GPTForPretraining(GPTModel(configs['Model']))
-        self.loss_fn = GPTPretrainingCriterion()
+        with LazyGuard():
+            self.model = GPTForPretraining(GPTModel(configs['Model']))
+            self.loss_fn = GPTPretrainingCriterion(configs['Model']['mesh'])
 
         del configs['Model']['mesh']
         print('>> total parameters: ', len(self.model.parameters()))

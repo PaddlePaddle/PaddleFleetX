@@ -656,8 +656,9 @@ class GPTPretrainingCriterion(nn.Layer):
     Criterion for GPT. It calculates the final loss.
     """
 
-    def __init__(self, topo=None):
+    def __init__(self, mesh, topo=None):
         super(GPTPretrainingCriterion, self).__init__()
+        self.mesh = mesh
         self.loss_func = paddle.nn.CrossEntropyLoss(reduction="none")
 
     def forward(self, prediction_scores, masked_lm_labels, loss_mask):
@@ -679,6 +680,15 @@ class GPTPretrainingCriterion(nn.Layer):
             Tensor: The pretraining loss. Its data type should be float32 and its shape is [1].
 
         """
+        loss_mask.stop_gradient = True
+        auto.shard_tensor(
+            loss_mask,
+            dist_attr={
+                "process_mesh": self.mesh[-1],
+                "dims_mapping": [self.mesh.dp] +
+                [-1 for i in range(len(loss_mask.shape) - 1)]
+            })
+
         masked_lm_loss = self.loss_func(prediction_scores,
                                         masked_lm_labels.unsqueeze(2))
 

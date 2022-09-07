@@ -194,6 +194,7 @@ class GPTAutoConfig(GPTConfig):
             'test_iters': None,
             'mix_precision': {
                 'use_pure_fp16': True,
+                'use_fp16_guard': True,
                 'scale_loss': 32768.0,
                 'custom_black_list': [
                     "reduce_sum", "c_softmax_with_cross_entropy",
@@ -212,8 +213,6 @@ class GPTAutoConfig(GPTConfig):
         self.Data = {
             'batch_size': {
                 'global_batch_size': None,
-                # 'local_batch_size': None,
-                # 'micro_batch_size': 8,
             },
             'dataset': {
                 'input_dir': None,

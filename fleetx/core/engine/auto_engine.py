@@ -145,9 +145,9 @@ class AutoEngine(BasicEngine):
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
 
-    def load(self, ):
+    def load(self):
         if self._ckpt_dir and isinstance(self._ckpt_dir, str):
             path = os.path.join(self._ckpt_dir, "auto")
-            self._auto_engine.load(path)
+            self._auto_engine.load(path, mode="train")
         else:
             logger.warning("`load` requires a valid value of `ckpt_dir`.")
