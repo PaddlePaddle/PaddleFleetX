@@ -31,7 +31,7 @@ Data:
 
 ### 模型网络
 
-网络部分完成了网络的组网操作和自动并行半自动策略的适配，GPT在[FleetX/fleetx/models/gpt_model/modeling_auto.py]([../../ppocr/modeling](https://github.com/PaddlePaddle/FleetX/tree/develop/fleetx/models/gpt_model))下。 
+网络部分完成了网络的组网操作和自动并行半自动策略的适配，GPT在[FleetX/fleetx/models/gpt_model/modeling_auto.py]((https://github.com/PaddlePaddle/FleetX/tree/develop/fleetx/models/gpt_model/modeling_auto.py))下。 
 可以使用配置文件配置模型的规模，如：
 
 ```yaml
@@ -64,6 +64,7 @@ Data:
 
 
 ### 优化器
+
 
 GPT训练默认使用AdamW优化器以及cosine学习率衰减，这里通过配置文件配置优化器的参数，如：
 
@@ -147,8 +148,8 @@ Engine训练设置完成模型训练/验证/推理等过程中的参数设置，
       output_dir: ./output
       ckpt_dir:
 ```
+其中参数对应的释义如下：
 
-其中参数说明：
 | **参数名**                      | **参数释义**               |
 |------------------------------|------------------------|
 | max_steps         | 最大训练步数                               |
@@ -176,12 +177,13 @@ Engine训练设置完成模型训练/验证/推理等过程中的参数设置，
 ## 运行方式
 本目录给出32G V100环境下345M规模GPT模型半并行训练的策略配置如下：
 
-| 模型规模   | 训练策略                    | yaml文件                      |
-|----------|--------------------------------|------------------------------------------|
-| 345MB    | fp16+dp8+recompute             | configs_345M_dp8.yaml                    |
-| 345MB    | fp16+dp16+sharding16+recompute | configs_345M_dp16sharding16.yaml         |
+| 模型规模   | 训练策略                    | yaml文件                       |
+|----------|---------------------------- |-------------------------------|
+| 345MB    | dp8+fp16+recompute          | configs_345M_dp8.yaml         |
+| 1.3B     | dp8+fp16+recompute          | configs_1.3B_dp8.yaml         |
+| 6.7B     | sharding16+fp16+recompute   | configs_6.7B_sharding16.yaml  |
 
-若要在显存容量更小的16G V100环境下进行GPT大模型训练，可减小对应yaml文件中的`Model`-`hidden size`值。
+若要在显存容量更小的16G V100环境下进行GPT大模型训练，可将对应yaml文件中的`Model`-`hidden size`值改为原来的1/2即可。
 
 ### 策略支持
 
@@ -197,23 +199,22 @@ Engine训练设置完成模型训练/验证/推理等过程中的参数设置，
 
 ### 单机训练
 
-以单机345M模型数据并行训练为例，通过``paddle.distributed.launch``启动多进程训练。
+以单机1.3B模型数据并行训练为例，通过``paddle.distributed.launch``启动多进程训练，该gpt程序需要8卡32G V100以运行。
 
 **启动命令**
 ```shell
 log_dir=log_dp8
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
-    -c ./configs_345M_dp8.yaml
+    -c ./configs_1.3B_dp8.yaml
 ```
 
 若要在显存容量更小的16G V100环境下进行GPT模型单机训练，可通过减小`Model.hidden_size`调整模型规模至合适大小再启动训练，命令如下：
 
-
 **启动命令**
 ```shell
 log_dir=log_dp8
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
-    -c ./configs_345M_dp8.yaml -o Model.hidden_size=1024
+    -c ./configs_1.3B_dp8.yaml -o Model.hidden_size=1024
 ```
 
 每张GPU的运行日志`workerlog.x`可在launch命令中指定的`log_dir`路径下找到；若未指定，日志路径为`log/workerlog.x`。运行日志具体内容如下：
@@ -231,20 +232,19 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
 [INFO 2022-08-19 10:47:17,680 engine.py:461] [train] epoch: 0 step: 7 lr: 2.500000e-08 loss: 10.939037
 ```
 
-
 ### 多机训练
 
 若需要在更多机器上进行大模型训练，则需要在每个参与训练的节点上设置master节点ip/port信息后执行启动命令（master节点ip为训练所用某一台机器的ip即可）。
 
-以2机16卡32G V100上的345M模型分组切分并行训练为例，启动命令为：
+以2机16卡32G V100上的6.7B模型分组切分并行训练为例，启动命令为：
 
 ```shell
 master_ip=master节点ip
 master_port=可用的空闲端口号
 
-log_dir=log_dp16sharding16
+log_dir=log_sharding16
 python -m paddle.distributed.launch --log_dir $log_dir --master=$master_ip:$master_port --nnodes=2 --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
-    -c ./configs_345M_dp16sharding16.yaml
+    -c ./configs_6.7B_sharding16.yaml
 ```
 
 若要在显存容量更小的16G V100环境下进行GPT模型两机训练，也可通过减小`Model.hidden_size`调整模型规模至合适大小再启动训练，命令如下：
@@ -253,10 +253,10 @@ python -m paddle.distributed.launch --log_dir $log_dir --master=$master_ip:$mast
 master_ip=master节点ip
 master_port=可用的空闲端口号
 
-log_dir=log_dp16sharding16
+log_dir=log_sharding16
 python -m paddle.distributed.launch --log_dir $log_dir --master=$master_ip:$master_port --nnodes=2 --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
-    -c ./configs_345M_dp16sharding16.yaml \
-    -o Model.hidden_size=1024
+    -c ./configs_6.7B_sharding16.yaml \
+    -o Model.hidden_size=2048
 ```
 
 ### 量化训练
