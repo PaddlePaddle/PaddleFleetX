@@ -41,6 +41,7 @@ def generate_dist_strategy(configs):
         "custom_white_list": amp_configs['custom_white_list'],
         "init_loss_scaling": amp_configs['scale_loss'],
         "use_pure_fp16": amp_configs['use_pure_fp16'],
+        "use_fp16_guard": amp_configs['use_fp16_guard']
     }
     sharding_configs = configs['Distributed']['sharding']
     dist_strategy.sharding = sharding_configs['sharding_degree'] > 1

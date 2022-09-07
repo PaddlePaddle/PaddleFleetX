@@ -15,6 +15,6 @@
 log_dir=log_auto
 rm -rf $log_dir
 
-# 345M+dp8
+# 1.3B+dp8
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
-    -c ./configs_345M_dp8.yaml
+    -c ./configs_1.3B_dp8.yaml
