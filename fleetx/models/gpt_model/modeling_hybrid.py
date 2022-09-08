@@ -549,8 +549,6 @@ class TransformerDecoderLayer(nn.Layer):
         if self.normalize_before:
             tgt = self.norm2(tgt)
 
-        print(self.linear1.__class__.__name__)
-        print(self.linear2.__class__.__name__)
         with get_rng_state_tracker().rng_state('global_seed'):
             tgt = self.dropout2(
                 self.linear2(F.gelu(
