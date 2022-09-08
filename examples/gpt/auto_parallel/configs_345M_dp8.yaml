@@ -16,11 +16,8 @@ Engine:
     scale_loss: 32768.0
     custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
     custom_white_list: ["lookup_table", "lookup_table_v2"]
+    use_fp16_guard: False
   use_recompute: True
-  # quantization:
-  #   use_qat: False
-  #   weight_bits: 8
-  #   activation_bits: 8
   save_load:
     save_steps: 1000
     output_dir: ./output
@@ -30,8 +27,6 @@ Engine:
 Data:
   batch_size:
     global_batch_size: 64
-    # local_batch_size: 8
-    # micro_batch_size: 8
 
   dataset:
     input_dir: ./data

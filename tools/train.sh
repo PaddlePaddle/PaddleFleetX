@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-log_dir=log_auto
-rm -rf $log_dir
+# for single card train
+# python3.7 tools/train.py -c ./ppcls/configs/ImageNet/ResNet/ResNet50.yaml
 
-# 1.3B+dp8
-python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" run_pretrain.py \
-    -c ./configs_1.3B_dp8.yaml
+# for multi-cards train
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+python3.7 -m paddle.distributed.launch --gpus="0,1,2,3" train.py -c ../fleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml 

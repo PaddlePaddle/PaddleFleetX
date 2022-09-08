@@ -1,33 +1,6 @@
-# 1.3B
-Global:
-  device: gpu
-  seed: 1024
-
-
-Engine:
-  max_steps: 500000
-  num_train_epochs: 1
-  accumulate_steps: 
-  logging_freq: 1
-  eval_freq: 500
-  eval_iters: 10
-  mix_precision:
-    use_pure_fp16: True
-    scale_loss: 32768.0
-    custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
-    custom_white_list: ["lookup_table", "lookup_table_v2"]
-  save_load:
-    save_steps: 1000
-    output_dir: ./output
-    ckpt_dir:
-
+_base_: ../base.yaml
 
 Data:
-  batch_size:
-    global_batch_size:
-    local_batch_size: 8
-    micro_batch_size: 8
-
   dataset:
     input_dir: ./data
     split: '949,50,1'
@@ -35,6 +8,7 @@ Data:
 
 
 Model:
+  name: "GPT"
   vocab_size: 50304
   hidden_size: 2048
   num_layers: 24
@@ -76,7 +50,7 @@ Optimizer:
     min_lr: 1.0e-5
 
 Gradclip:
-  name: "Gla"
+  name: "Glabal"
   grad_clip: 1.0
 
 Profiler:
