@@ -32,9 +32,8 @@ from paddle.distributed.fleet.utils import recompute
 import sys
 from .config import configurable
 
-from .utils import ScatterOp, GatherOp, all_reduce_gradient_hook, gradient_hook, \
+from .utils import ScatterOp, GatherOp, all_reduce_gradient_hook, \
                    ColumnSequenceParallelLinear, RowSequenceParallelLinear
-import numpy as np
 
 
 def get_attr(layer, name):
@@ -123,11 +122,6 @@ class MultiHeadAttention(nn.Layer):
         if self.fuse:
             assert self.kdim == embed_dim
             assert self.vdim == embed_dim
-
-            # if sequence_parallel is true, input shape is [s, b, h], 
-            # qkv_proj shape is [s, b, 3h/n], n is mp parallelism
-            # else input shape is [b, s, h], 
-            # qkv_proj shape is [b, s, 3h/n], n is mp parallelism
             self.qkv_proj = ColumnParallelLinear(
                 embed_dim,
                 3 * embed_dim,
@@ -136,10 +130,6 @@ class MultiHeadAttention(nn.Layer):
                 gather_output=False,
                 fuse_matmul_bias=fused_linear)
         else:
-            # if sequence_parallel is true, input shape is [s, b, h], 
-            # q_proj, k_proj, v_proj shape is [s, b, h/n], n is mp parallelism
-            # else input shape is [b, s, h], 
-            # q_proj, k_proj, v_proj shape is [b, s, h/n], n is mp parallelism
             self.q_proj = ColumnParallelLinear(
                 embed_dim,
                 embed_dim,
@@ -173,21 +163,13 @@ class MultiHeadAttention(nn.Layer):
             fuse_matmul_bias=fused_linear)
 
     def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
-        # if sequence_parallel is true, mix_layer shape is [s, b, 3h/n]
-        # else its shape is [b, s, 3h/n], n is mp parallelism
         mix_layer = self.qkv_proj(query)
-        # if sequence_parallel is true, mix_layer shape is [b, s, num_heads/n, 3 * head_dim] after reshape, 
-        # else mix_layer shape is [s, b, num_head/n, 3 * head_dim], n is mp parallelism
         mix_layer = paddle.reshape_(mix_layer,
                                     [0, 0, self.num_heads, 3 * self.head_dim])
-        # no matter sequence_parallel is true or false,
-        # after reshape, mix_layer shape should be [b, num_heads/n, s, 3 * head_dim]
         if self.sequence_parallel:
             mix_layer = paddle.transpose(mix_layer, [1, 2, 0, 3])
         else:
             mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
-        # no matter sequence_parallel is true or false,
-        # after reshape, q, k, v shape should be [b, num_heads/n, s, head_dim]
         q, k, v = paddle.split(mix_layer, num_or_sections=3, axis=-1)
 
         assert not isinstance(
@@ -210,12 +192,8 @@ class MultiHeadAttention(nn.Layer):
         to reduce redundant calculations.
 
         """
-        # if sequence parallel is true, q shape is [s, b, h/n],
-        # else q shape is [b, s, h/n], n is mp parallelism
         q = self.q_proj(query)
         q = tensor.reshape(x=q, shape=[0, 0, self.num_heads, self.head_dim])
-        # no matter sequence_parallel is true or false,
-        # after transpose, q shape is [b, num_heads/n, s, head_dim], n is mp parallelism
         if self.sequence_parallel:
             q = tensor.transpose(x=q, perm=[1, 2, 0, 3])
         else:
@@ -233,7 +211,6 @@ class MultiHeadAttention(nn.Layer):
             v = tensor.concat([cache.v, v], axis=2)
         if use_cache is True:
             cache = self.Cache(k, v)
-
         return (q, k, v) if use_cache is False else (q, k, v, cache)
 
     def compute_kv(self, key, value):
@@ -248,12 +225,9 @@ class MultiHeadAttention(nn.Layer):
         to construct cache for inference.
 
         """
-        # if sequence_parallel is true, k, v shape is [s, b, h/n]
-        # else their shape is [b, s, h/n]
         k = self.k_proj(key)
         v = self.v_proj(value)
         k = tensor.reshape(x=k, shape=[0, 0, self.num_heads, self.head_dim])
-        # k shape is [b, num_heads/n, s, head_dim] after transpose, n is mp parallelism
         if self.sequence_parallel:
             k = tensor.transpose(x=k, perm=[1, 2, 0, 3])
         else:
@@ -293,17 +267,14 @@ class MultiHeadAttention(nn.Layer):
 
     def core_attn(self, q, k, v, attn_mask=None):
         # scale dot product attention
-        # product shape is [b, num_head/n, s, s]
         product = layers.matmul(
             x=q, y=k, transpose_y=True, alpha=self.head_dim**-0.5)
-        # After softmax, weights shape is [b, num_head/n, s, s]
         if attn_mask is not None:
             product = product + attn_mask
             weights = F.softmax(product)
         else:
             weights = incubate.softmax_mask_fuse_upper_triangle(product)
 
-        # After dropout, weights shape is [b, num_head/n, s, s]
         if self.dropout:
             with get_rng_state_tracker().rng_state('local_seed'):
                 weights = F.dropout(
@@ -311,19 +282,15 @@ class MultiHeadAttention(nn.Layer):
                     self.dropout,
                     training=self.training,
                     mode="upscale_in_train")
-        # weights shape is [b, num_head/n, s, s], v shape is [b, num_heads/n, s, head_dim]
-        # After matmul, weights shape is [b, num_head, s, head_dim], n is mp parallelism
         out = tensor.matmul(weights, v)
 
         # combine heads
-        # If sequence_parallel is true, out shape is [s, b, num_heads, head_dim] after transpose
-        # else out shape is [b, s, num_heads, head_dim]
         if self.sequence_parallel:
             out = tensor.transpose(out, perm=[2, 0, 1, 3])
         else:
             out = tensor.transpose(out, perm=[0, 2, 1, 3])
-        # If sequence_parallel is true, out shape is [s/n, b, h] after transpose
-        # else out shape is [b, s, h], n is mp parallelism
+        # If sequence_parallel is true, out shape is [s, b, h] after reshape
+        # else out shape is [b, s, h]
         out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
 
         return out, weights
@@ -341,7 +308,10 @@ class MultiHeadAttention(nn.Layer):
         """
         key = query if key is None else key
         value = query if value is None else value
-        # compute q ,k ,v
+        # if sequence_parallel is true, query, key, value shape are [s, b, h], 
+        # else their shape are [b, s, h], n is mp parallelism.
+        # no matter sequence_parallel is true or false,
+        # after reshape, q, k, v shape should be [b, num_heads/n, s, head_dim]
         if use_cache is False:
             if self.fuse:
                 q, k, v = self._fuse_prepare_qkv(query, use_cache, cache)
@@ -362,6 +332,8 @@ class MultiHeadAttention(nn.Layer):
             out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
 
         # project to output
+        # if sequence_parallel is true, out shape are [s/n, b, h], 
+        # else their shape are [b, s, h], n is mp parallelism.
         out = self.out_proj(out)
 
         outs = [out]
@@ -577,38 +549,14 @@ class TransformerDecoderLayer(nn.Layer):
         if self.normalize_before:
             tgt = self.norm2(tgt)
 
+        print(self.linear1.__class__.__name__)
+        print(self.linear2.__class__.__name__)
         with get_rng_state_tracker().rng_state('global_seed'):
             tgt = self.dropout2(
                 self.linear2(F.gelu(
                     self.linear1(tgt), approximate=True)))
 
         tgt = residual + tgt
-
-        # def gradient_hook(grad):
-        #     import os; os._exit(0)
-        #     return grad
-        # tmp = paddle.clone(tgt)
-        # tmp.register_hook(gradient_hook)
-
-        def weight_gradient_hook(grad):
-            hcg = fleet.get_hybrid_communicate_group()
-            group = hcg.get_model_parallel_group()
-            rank = group.rank
-            prefix = "seq_paral" if self.sequence_parallel else "normal"
-            np.save("debug_data/{0}/norm2_weight_gradient_{1}.npy".format(prefix, rank), grad)
-            import os; os._exit(0)
-        
-        def bias_gradient_hook(grad):
-            hcg = fleet.get_hybrid_communicate_group()
-            group = hcg.get_model_parallel_group()
-            rank = group.rank
-            prefix = "seq_paral" if self.sequence_parallel else "normal"
-            np.save("debug_data/{0}/norm2_bias_gradient_{1}.npy".format(prefix, rank), grad)
-            import os; os._exit(0)
-
-        # self.norm2.weight.register_hook(weight_gradient_hook)
-        # self.norm2.bias.register_hook(bias_gradient_hook)
-        
         if not self.normalize_before:
             tgt = self.norm2(tgt)
 
@@ -732,7 +680,6 @@ class GPTModel(nn.Layer):
             recompute_granularity=recompute_granularity,
             sequence_parallel=sequence_parallel)
 
-        self.counter = 0
 
     @classmethod
     def from_config(cls, cfg):
@@ -774,7 +721,8 @@ class GPTModel(nn.Layer):
             # .expand_as(input_ids)
             position_ids = paddle.fluid.layers.expand_as(position_ids,
                                                          input_ids)
-        # embedding_output shape is [s/n, b, h], n is mp parallelism
+        # if sequence_parallel is true, embedding_output shape is [s/n, b, h]
+        # else its shape is [b, s, h], n is mp parallelism
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
 
@@ -801,24 +749,6 @@ class GPTModel(nn.Layer):
             attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
-        if self.sequence_parallel:
-            encoder_outputs = GatherOp.apply(encoder_outputs)
-            encoder_outputs = paddle.transpose(encoder_outputs, [1, 0, 2])
-
-        # hcg = fleet.get_hybrid_communicate_group()
-        # group = hcg.get_model_parallel_group()
-        # rank = group.rank
-        # if self.sequence_parallel:
-        #     if rank == 0:
-        #         np.save("debug_data/seq_paral/encoder_outputs_{}.npy".format(self.counter), encoder_outputs.numpy())
-        # else:
-        #     if rank == 0:
-        #         np.save("debug_data/normal/encoder_outputs_{}.npy".format(self.counter), encoder_outputs.numpy())
-
-        # self.counter += 1
-
-        # if self.counter == 10:
-        #     import os; os._exit(0)
         return encoder_outputs
 
 

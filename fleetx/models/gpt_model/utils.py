@@ -35,8 +35,8 @@ import numpy as np
 ####################################################
 
 class ScatterOp(PyLayer):
-    # input shape: [s, b, h], sequence parallelism is p
-    # after forward shape: [s/p, b, h]
+    # input shape: [s, b, h], n is mp parallelism
+    # after forward shape: [s/n, b, h]
     @staticmethod
     def forward(self, input):
         hcg = fleet.get_hybrid_communicate_group()
@@ -61,8 +61,8 @@ class ScatterOp(PyLayer):
         return output
 
 class GatherOp(PyLayer):
-    # input shape: [s, b, h], sequence parallelism is p
-    # after forward shape: [s/p, b, h]
+    # input shape: [s/n, b, h], n is mp parallelism
+    # after forward shape: [s, b, h]
     @staticmethod
     def forward(self, input):
         hcg = fleet.get_hybrid_communicate_group()
@@ -89,7 +89,7 @@ class GatherOp(PyLayer):
 # All gather along the first dim during forward pass
 # All reduce and scatter along the first dim during backward pass
 class AllGatherOp(PyLayer):
-    # input shape: [s/p, b, h], sequence parallelism is p
+    # input shape: [s/n, b, h], n is mp parallelism
     # after forward shape: [s, b, h]
     @staticmethod
     def forward(self, input):
@@ -102,8 +102,8 @@ class AllGatherOp(PyLayer):
         group.process_group.all_gather(input, output).wait()
         return output
 
-    # grad shape: [s, b, h], sequence parallelism is p
-    # after forward shape: [s/p, b, h]
+    # grad shape: [s, b, h], n is mp parallelism
+    # after forward shape: [s/n, b, h]
     @staticmethod
     def backward(self, grad):
         hcg = fleet.get_hybrid_communicate_group()
@@ -121,8 +121,8 @@ class AllGatherOp(PyLayer):
 # All reduce and scatter along the first dim during forward pass
 # All gather along the first dim during backward pass
 class ReduceScatterOp(PyLayer):
-    # input shape: [s, b, h], sequence parallelism is p
-    # after forward shape: [s/p, b, h]
+    # input shape: [s, b, h], n is mp parallelism
+    # after forward shape: [s/n, b, h]
     @staticmethod
     def forward(self, input):
         hcg = fleet.get_hybrid_communicate_group()
@@ -137,7 +137,7 @@ class ReduceScatterOp(PyLayer):
         group.process_group._reduce_scatter_base(output, input).wait()
         return output
 
-    # grad shape: [s/p, b, h], sequence parallelism is p
+    # grad shape: [s/n, b, h], n is mp parallelism
     # after forward shape: [s, b, h]
     @staticmethod
     def backward(self, grad):
@@ -158,26 +158,26 @@ class ReduceScatterOp(PyLayer):
 #                                                 #
 ###################################################
 
-def is_fused_matmul_bias_supported():
-    if paddle.is_compiled_with_cuda() and not paddle.is_compiled_with_rocm():
-        return hasattr(core.ops, 'fused_gemm_epilogue')
-    else:
-        return False
-
 def all_reduce_gradient_hook(grad):
     hcg = fleet.get_hybrid_communicate_group()
     group = hcg.get_model_parallel_group()
     group.process_group.allreduce(grad).wait()
     return grad
 
-def gradient_hook(grad, name="gradient", prefix="seq_paral", is_break=True):
-    hcg = fleet.get_hybrid_communicate_group()
-    group = hcg.get_model_parallel_group()
-    rank = group.rank
-    np.save("debug_data/{0}/{1}_{2}.npy".format(prefix, name, rank), grad)
-    if is_break:
-        import os; os._exit(0)
-    return grad
+# def gradient_hook(grad, name="gradient", prefix="seq_paral", is_break=True):
+#     hcg = fleet.get_hybrid_communicate_group()
+#     group = hcg.get_model_parallel_group()
+#     rank = group.rank
+#     np.save("debug_data/{0}/{1}_{2}.npy".format(prefix, name, rank), grad)
+#     if is_break:
+#         import os; os._exit(0)
+#     return grad
+
+def is_fused_matmul_bias_supported():
+    if paddle.is_compiled_with_cuda() and not paddle.is_compiled_with_rocm():
+        return hasattr(core.ops, 'fused_gemm_epilogue')
+    else:
+        return False
 
 class ColumnSequenceParallelLinear(Layer):
     def __init__(self,
@@ -198,7 +198,6 @@ class ColumnSequenceParallelLinear(Layer):
         self._name = name
         self.is_mp = (self.world_size > 1)
 
-        # --------------- Added Code for Sequence Parallel --------------- #
         assert gather_output is False, "If sequence_parallel is True, \
                                         gather_output is False"
         self.gather_output = gather_output
@@ -252,8 +251,7 @@ class ColumnSequenceParallelLinear(Layer):
 
 
     def forward(self, x):
-        # use inner api to process identity
-        # --------------- Added Code for Sequence Parallel --------------- #
+        # sequence parallelism is same as model parallelism
         # if sequence parallel is true, input shape is [s, b, h]
         # else input shape is [b, s, h]
         if self.is_mp:
@@ -320,17 +318,18 @@ class RowSequenceParallelLinear(Layer):
 
         self.weight.is_distributed = True if self.is_mp else False
 
-        # --------------- Added Code for Sequence Parallel --------------- #
         # if sequence parallel is true, 
         # register hook to all_reduce gradient of weight and bias
-        self.weight.register_hook(all_reduce_gradient_hook)
+        # if self.is_mp:
+        #     self.weight.register_hook(all_reduce_gradient_hook)
         if has_bias:
             self.bias = self.create_parameter(
                 shape=[self.out_features],
                 attr=paddle.nn.initializer.Constant(value=0.0),
                 dtype=self._dtype,
                 is_bias=True)
-            self.bias.register_hook(all_reduce_gradient_hook)
+            if self.is_mp:
+                self.bias.register_hook(all_reduce_gradient_hook)
         else:
             self.bias = None
 
@@ -358,14 +357,13 @@ class RowSequenceParallelLinear(Layer):
             output_parallel = self.linear(input_parallel,
                                           self.weight,
                                           name=self._name)
-            # --------------- Added Code for Sequence Parallel --------------- #
             output_ = ReduceScatterOp.apply(output_parallel)
             # if self.bias is not none, sequence parallel will use
             # register_hook to all_reduce self.bias
             output = output_ + self.bias if self.bias is not None else output_
         else:
             output = self.linear(input_parallel,
-                                    self.weight,
-                                    self.bias,
-                                    name=self._name)
+                                 self.weight,
+                                 self.bias,
+                                 name=self._name)
         return output
