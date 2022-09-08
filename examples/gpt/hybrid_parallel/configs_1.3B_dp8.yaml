@@ -65,7 +65,7 @@ Fused:
   tensor_fusion: False
 
 Optimizer:
-  # name: Adam
+  name: Adam
   weight_decay: 0.01
   adam_beta1: 0.9
   adam_beta2: 0.999
@@ -75,6 +75,9 @@ Optimizer:
     warmup_rate: 0.01
     max_lr: 5.0e-5
     min_lr: 1.0e-5
+
+Gradclip:
+  name: "Gla"
   grad_clip: 1.0
 
 Profiler:

@@ -1,4 +1,4 @@
-# 345M
+# 1.3B
 Global:
   device: gpu
   seed: 1024
@@ -16,11 +16,8 @@ Engine:
     scale_loss: 32768.0
     custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
     custom_white_list: ["lookup_table", "lookup_table_v2"]
+    use_fp16_guard: False
   use_recompute: True
-  # quantization:
-  #   use_qat: False
-  #   weight_bits: 8
-  #   activation_bits: 8
   save_load:
     save_steps: 1000
     output_dir: ./output
@@ -30,8 +27,6 @@ Engine:
 Data:
   batch_size:
     global_batch_size: 64
-    # local_batch_size: 8
-    # micro_batch_size: 8
 
   dataset:
     input_dir: ./data
@@ -41,7 +36,7 @@ Data:
 
 Model:
   vocab_size: 50304
-  hidden_size: 1024
+  hidden_size: 2048
   num_layers: 24
   num_attention_heads: 16
   ffn_hidden_size:
@@ -53,12 +48,12 @@ Model:
 
 
 Distributed:
-  dp_degree: 16
+  dp_degree:
   mp_degree: 1
   pp_degree: 1
   sharding:
-    sharding_degree: 16
-    sharding_stage: 2
+    sharding_degree: 1
+    sharding_stage: 1
 
 
 Optimizer:
