@@ -48,13 +48,13 @@ Model:
   use_recompute: True
   recompute_granularity:
   fused_linear: True
+  virtual_pp_degree: 1
   
 
 Distributed:
   dp_degree:
   mp_degree: 1
   pp_degree: 1
-  virtual_pp_degree: 1
   sharding:
     sharding_degree: 1
     sharding_stage: 1
