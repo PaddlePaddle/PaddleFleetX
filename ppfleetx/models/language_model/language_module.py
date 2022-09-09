@@ -24,11 +24,7 @@ class LanguageModule(BasicModule):
     def __init__(self, configs):
         super().__init__()
         self.configs = configs
-        self.model = self.get_model()
         self.loss_fn = self.get_loss_fn()
-
-    def get_model(self):
-        raise NotImplementedError
 
     def get_loss_fn(self):
         raise NotImplementedError
@@ -106,7 +102,7 @@ class GPTModule(LanguageModule):
         self.nranks = paddle.distributed.get_world_size()
 
     def get_model(self):
-        model_setting = configs.Model
+        model_setting = self.configs.Model
         if self.nranks == 1:
             model = gpt.GPTForPretraining(gpt.GPTModel(model_setting))
         else:
