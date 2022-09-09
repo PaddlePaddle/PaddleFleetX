@@ -36,7 +36,7 @@ class BasicModule(nn.Layer):
         self.model = self.get_model()
 
     def get_model(self):
-        raise NotImplementedError
+        pass
 
     def pretreating_batch(self, batch):
         return batch
