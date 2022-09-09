@@ -75,13 +75,13 @@ class GPTConfig(dict):
             'use_recompute': True,
             'recompute_granularity': 'full',
             'fused_linear': True,
+            'virtual_pp_degree': 1,
         }
 
         self.Distributed = {
             'dp_degree': 1,
             'mp_degree': 1,
             'pp_degree': 1,
-            'virtual_pp_degree': 1,
             'sharding': {
                 'sharding_degree': 1,
                 'sharding_stage': 1,
