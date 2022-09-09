@@ -75,6 +75,7 @@ class GPTConfig(dict):
             'use_recompute': True,
             'recompute_granularity': 'full',
             'fused_linear': True,
+            'sequence_parallel': False,
         }
 
         self.Distributed = {
