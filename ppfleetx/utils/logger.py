@@ -136,7 +136,7 @@ def advertise():
     Show the advertising message like the following:
 
     ===========================================================
-    ==        PaddleFleetx is powered by PaddlePaddle !        ==
+    ==        PaddleFleetX is powered by PaddlePaddle !        ==
     ===========================================================
     ==                                                       ==
     ==   For more info please go to the following website.   ==
@@ -145,7 +145,7 @@ def advertise():
     ===========================================================
 
     """
-    copyright = "PaddleFleetx is powered by PaddlePaddle !"
+    copyright = "PaddleFleetX is powered by PaddlePaddle !"
     ad = "For more info please go to the following website."
     website = "https://github.com/PaddlePaddle/FleetX"
     AD_LEN = 6 + len(max([copyright, ad, website], key=len))
