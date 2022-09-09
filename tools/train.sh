@@ -19,4 +19,4 @@
 
 # for multi-cards train
 export CUDA_VISIBLE_DEVICES=0,1,2,3
-python3.7 -m paddle.distributed.launch --gpus="0,1,2,3" train.py -c ../fleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml 
+python3.7 -m paddle.distributed.launch --gpus="0,1,2,3" train.py -c ../ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml 

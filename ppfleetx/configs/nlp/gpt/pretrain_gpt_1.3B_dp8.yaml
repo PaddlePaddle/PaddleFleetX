@@ -1,10 +1,9 @@
-_base_: ../base.yaml
+_base_: ./gpt_base.yaml
 
-Data:
-  dataset:
-    input_dir: ./data
-    split: '949,50,1'
-    max_seq_len: 1024
+Global:
+  global_batch_size: 64
+  local_batch_size: 8
+  micro_batch_size: 8
 
 
 Model:
@@ -32,29 +31,3 @@ Distributed:
     sharding_degree: 1
     sharding_stage: 1
     sharding_offload: False
-
-
-Fused:
-  tensor_fusion: False
-
-Optimizer:
-  name: Adam
-  weight_decay: 0.01
-  adam_beta1: 0.9
-  adam_beta2: 0.999
-  adam_epsilon: 1.0e-8
-  lr:
-    decay_steps: 360000
-    warmup_rate: 0.01
-    max_lr: 5.0e-5
-    min_lr: 1.0e-5
-
-Gradclip:
-  name: "Glabal"
-  grad_clip: 1.0
-
-Profiler:
-  enable: False
-  scheduler: [1, 5]
-  profiler_log: profiler_log
-  detailed: False
