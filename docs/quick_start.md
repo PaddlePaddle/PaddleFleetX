@@ -77,7 +77,7 @@ python -m pip install paddlepaddle-gpu==0.0.0.post112 -f https://www.paddlepaddl
 python -m pip install -r https://raw.githubusercontent.com/PaddlePaddle/FleetX/develop/requirements.txt -i https://mirror.baidu.com/pypi/simple
 ```
 
-## 2. 单机多卡训练
+## 2. 模型训练
 
 进入环境后首先使用以下命令拉取最新代码
 
@@ -85,9 +85,44 @@ python -m pip install -r https://raw.githubusercontent.com/PaddlePaddle/FleetX/d
 git clone https://github.com/PaddlePaddle/FleetX.git
 ```
 
+然后根据需求选择对应的训练方式。
+
+### 2.1. 单卡训练
+
+切换工作目录
+```
+FleetX/examples/gpt/single
+```
+
+然后使用以下命令运行程序，
+
+```
+python run_pretrain.py -c ./configs_345m_single_card.yaml
+```
+
+若要在显存容量更小的16G V100环境下进行GPT模型单卡训练，可将对应yaml文件中的Model-hidden size值改为原来的1/2即可。
+
+**运行日志**
+
+```
+[2022-07-27 12:42:46,601] [    INFO] - global step 1, epoch: 0, batch: 0, loss: 11.052017212, avg_reader_cost: 0.05710 sec, avg_batch_cost: 1.59627 sec, speed: 0.63 step/s, ips_total: 5132 tokens/s, ips: 5132 tokens/s, learning rate: 5.55556e-09
+[2022-07-27 12:42:47,102] [    INFO] - global step 2, epoch: 0, batch: 1, loss: 11.030861855, avg_reader_cost: 0.00016 sec, avg_batch_cost: 0.50125 sec, speed: 2.00 step/s, ips_total: 16343 tokens/s, ips: 16343 tokens/s, learning rate: 8.33333e-09
+[2022-07-27 12:42:47,600] [    INFO] - global step 3, epoch: 0, batch: 2, loss: 11.054017067, avg_reader_cost: 0.00015 sec, avg_batch_cost: 0.49697 sec, speed: 2.01 step/s, ips_total: 16484 tokens/s, ips: 16484 tokens/s, learning rate: 1.11111e-08
+[2022-07-27 12:42:48,096] [    INFO] - global step 4, epoch: 0, batch: 3, loss: 11.027174950, avg_reader_cost: 0.00014 sec, avg_batch_cost: 0.49582 sec, speed: 2.02 step/s, ips_total: 16522 tokens/s, ips: 16522 tokens/s, learning rate: 1.38889e-08
+[2022-07-27 12:42:48,591] [    INFO] - global step 5, epoch: 0, batch: 4, loss: 11.037425041, avg_reader_cost: 0.00014 sec, avg_batch_cost: 0.49529 sec, speed: 2.02 step/s, ips_total: 16540 tokens/s, ips: 16540 tokens/s, learning rate: 1.66667e-08
+[2022-07-27 12:42:49,088] [    INFO] - global step 6, epoch: 0, batch: 5, loss: 11.038356781, avg_reader_cost: 0.00015 sec, avg_batch_cost: 0.49619 sec, speed: 2.02 step/s, ips_total: 16510 tokens/s, ips: 16510 tokens/s, learning rate: 1.94444e-08
+[2022-07-27 12:42:49,582] [    INFO] - global step 7, epoch: 0, batch: 6, loss: 11.032723427, avg_reader_cost: 0.00014 sec, avg_batch_cost: 0.49402 sec, speed: 2.02 step/s, ips_total: 16582 tokens/s, ips: 16582 tokens/s, learning rate: 2.22222e-08
+[2022-07-27 12:42:50,086] [    INFO] - global step 8, epoch: 0, batch: 7, loss: 11.025435448, avg_reader_cost: 0.00014 sec, avg_batch_cost: 0.50364 sec, speed: 1.99 step/s, ips_total: 16266 tokens/s, ips: 16266 tokens/s, learning rate: 2.50000e-08
+[2022-07-27 12:42:50,583] [    INFO] - global step 9, epoch: 0, batch: 8, loss: 11.047873497, avg_reader_cost: 0.00015 sec, avg_batch_cost: 0.49669 sec, speed: 2.01 step/s, ips_total: 16493 tokens/s, ips: 16493 tokens/s, learning rate: 2.77778e-08
+```
+
+
+
+### 2.2. 单机多卡训练
+
 切换工作目录并下载demo数据，
 ```
-cd FleetX/examples/gpt/hybrid_parallel # 或者 cd FleetX/examples/gpt/auto_parallel
+cd FleetX/examples/gpt/hybrid_parallel
 
 mkdir data
 wget -O data/gpt_en_dataset_300m_ids.npy https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_ids.npy
@@ -146,7 +181,7 @@ LAUNCH INFO 2022-08-15 07:37:39,063 Watching Pod: vqhbut, replicas 8, status run
 
 如有启动异常请根据[文档](deployment_faq.md#1-单机环境验证)进行工作环境验证，其他问题可参考[FAQ](deployment_faq.md#3-faq)解决。
 
-## 3. 多机多卡训练
+## 2.3. 多机多卡训练
 
 使用以下命令进行多机分布式训练，其中 --nnodes 参数为分布式训练机器数量，--master 为训练机器中其中一台机器的IP，运行时需要将命令中示例IP替换为真实的机器IP和任意可用端口，然后在**每个节点**上都运行以下命令，
 如果不知道机器IP可以不设置--master参数先在一台机器上启动，然后根据提示复制命令在其他机器上启动即可。
