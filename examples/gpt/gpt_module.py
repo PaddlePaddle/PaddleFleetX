@@ -45,7 +45,9 @@ class GPTModule(BasicModule):
             if self.configs['Distributed']['pp_degree'] == 1:
                 self.model = GPTForPretraining(GPTModel(configs['Model']))
             else:
-                self.model = GPTForPretrainingPipe(configs['Model'])
+                pp_configs = configs['Model']
+                pp_configs['virtual_pp_degree'] = configs['Distributed']['virtual_pp_degree']
+                self.model = GPTForPretrainingPipe(pp_configs)
             self.loss_fn = GPTPretrainingCriterion()
             del configs['Model']['topology']
 
