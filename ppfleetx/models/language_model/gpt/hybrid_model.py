@@ -795,7 +795,7 @@ class GPTForPretrainingPipe(PipelineLayer):
                  type_vocab_size=16,
                  initializer_range=0.02,
                  num_partitions=1,
-                 topology=None,
+                 topology=fleet.get_hybrid_parallel_topology(),
                  use_recompute=False,
                  fused_linear=False,
                  recompute_granularity="full"):
