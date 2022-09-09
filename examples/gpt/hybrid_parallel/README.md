@@ -161,6 +161,7 @@ GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过�
 | dp_degree        | 数据并行维度                               |
 | mp_degree        | 张量模型并行维度                             |
 | pp_degree        | 流水线并行维度                              |
+| virtual_pp_degree  | 虚拟流水线并行维度，该参数会减小流水线bubble的占比以提升流水线的吞吐。但是该参数会增加流水线间的通讯，所以该参数的推荐值为2。并且，只有 num_layers可以被 pp_degree * virtual_pp_degree 整除时，才可以使用虚拟流水线并行。 |
 | sharding_degree  | 分组切分并行维度                             |
 | sharding_stage   | 切分策略；1表示仅切分优化器状态，2表示再切分梯度，3表示再切分前向参数 |
 | sharding_offload | CPU offload策略                        |

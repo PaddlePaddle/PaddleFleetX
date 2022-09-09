@@ -81,6 +81,7 @@ class GPTConfig(dict):
             'dp_degree': 1,
             'mp_degree': 1,
             'pp_degree': 1,
+            'virtual_pp_degree:': 1,
             'sharding': {
                 'sharding_degree': 1,
                 'sharding_stage': 1,

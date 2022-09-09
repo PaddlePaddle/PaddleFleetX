@@ -54,6 +54,15 @@ def process_dist_configs(yaml_dict):
     assert nranks % configs[
         'dp_degree'] == 0, "unreasonable configs of dist_strategy."
 
+    assert yaml_dict['Model']['num_layers'] % \
+           (configs['virtual_pp_degree'] * configs['pp_degree']), \
+        "The num_layers of the model should be divisible of pp_degree * virtual_pp_degree." \
+        "Receive num_layers: {}, pp_degree: {}, virtual_pp_degree: {}.".format(
+            yaml_dict['Model']['num_layers'], configs['pp_degree'], configs['virtual_pp_degree'])
+
+    if configs['virtual_pp_degree'] > 2:
+        logger.warning("Setting virtual_pp_degree > 2 may harm the throughput of the pipeline parallel.")
+
 
 def process_data_configs(yaml_dict):
     """

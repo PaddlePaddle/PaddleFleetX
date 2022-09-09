@@ -821,7 +821,8 @@ class GPTForPretrainingPipe(PipelineLayer):
                  topology=None,
                  use_recompute=False,
                  fused_linear=False,
-                 recompute_granularity="full"):
+                 recompute_granularity="full",
+                 virtual_pp_degree=1):
 
         # forward desc
         self.descs = []
@@ -892,7 +893,8 @@ class GPTForPretrainingPipe(PipelineLayer):
                 "mp_group": fleet.fleet._hcg.get_model_parallel_group(),
                 "offload": False,
                 "partition": False
-            })
+            },
+            num_virtual_pipeline_stages=virtual_pp_degree)
 
     @classmethod
     def from_config(cls, cfg):
@@ -912,7 +914,8 @@ class GPTForPretrainingPipe(PipelineLayer):
             "use_recompute": cfg['use_recompute'],
             "topology": cfg['topology'],
             "fused_linear": cfg['fused_linear'],
-            "recompute_granularity": cfg['recompute_granularity']
+            "recompute_granularity": cfg['recompute_granularity'],
+            "virtual_pp_degree": cfg['virtual_pp_degree']
         }
 
 
