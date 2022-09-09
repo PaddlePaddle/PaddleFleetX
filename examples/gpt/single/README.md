@@ -198,6 +198,79 @@ python run_pretrain.py -c ./configs_1.3B_single_card.yaml
 ```
 
 
+# GPT 单卡模型评估
+
+我们提供了对[WikiText](https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-103-v1.zip)、[LAMBADA](https://raw.githubusercontent.com/cybertronai/bflm/master/lambada_test.jsonl)两种数据集的评估脚本，其中数据集WikiText采用的是PPL(perplexity)评估指标，LAMBADA采用的是ACC(accuracy)指标。
+
+## 参数释义
+
+请在模型评估前将前述数据集下载到本地(WikiText数据集需要解压缩)，然后可以使用配置文件配置评估相关的参数，包括：
+
+```yaml
+Eval:
+  eval_path: None
+  cloze_eval: False
+  overlapping_eval: 32
+  ckpt_dir: None
+  batch_size: 8
+  max_seq_len: 1024
+  logging_freq: 10
+```
+
+其中参数对应的释义如下：
+
+| **参数名**                      | **参数释义**          |
+|------------------------------|------------------------|
+| eval_path         | 评估数据集地址                      |
+| cloze_eval  | lambada数据集参数                     |
+| overlapping_eval  | wikitext数据集参数              |
+| ckpt_dir      | 预训练模型参数路径                    |
+| batch_size         | 模型评估时batch size             |
+| max_seq_len        | 模型评估时文本序列长度           |
+| logging_freq     | 评估日志的打印频率                |
+
+## 运行方式
+
+以单卡345M模型训练为例，可以使用如下命令启动评估：
+
+### WikiText数据集评估
+
+```shell
+ckpt_dir=预训练345M模型的参数文件地址
+eval_dir=wikitext数据集的本地路径
+
+python run_eval.py -c configs_345m_single_card.yaml \
+    -o Eval.eval_path=$eval_dir/wikitext-103/wiki.valid.tokens \
+    -o Eval.overlapping_eval=32 \
+    -o Eval.ckpt_dir=$ckpt_dir \
+    -o Eval.batch_size=16
+```
+
+评估结果如下：
+
+```shell
+[2022-08-31 22:09:05,342] [    INFO] - validation results on ./wikitext-103/wiki.valid.tokens | avg loss: 2.9554E+00 | ppl: 1.9210E+01 | adjusted ppl: 2.4948E+01 | token ratio: 1.0884484081583892
+```
+
+### LAMBADA数据集评估
+
+```shell
+ckpt_dir=预训练345M模型的参数文件地址
+eval_dir=lambada数据集的本地路径
+
+python run_eval.py -c configs_345m_single_card.yaml \
+    -o Eval.eval_path=$eval_dir/lambada_test.jsonl \
+    -o Eval.cloze_eval=True \
+    -o Eval.ckpt_dir=$ckpt_dir \
+    -o Eval.batch_size=16
+```
+
+评估结果如下：
+
+```shell
+[2022-08-31 22:02:01,205] [    INFO] - validation results on ./lambada_test.jsonl | number correct: 2.1240E+03 | total examples: 5.1530E+03 | avg accuracy: 4.1219E-01
+```
+
 # GPT Zero-shot 文本生成
 
 ## 参数释义
