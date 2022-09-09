@@ -33,6 +33,10 @@ class BasicModule(nn.Layer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.model = self.get_model()
+
+    def get_model(self):
+        pass
 
     def pretreating_batch(self, batch):
         return batch
@@ -66,4 +70,4 @@ class BasicModule(nn.Layer):
 
     def input_spec(self):
         raise NotImplementedError(
-                "Please input Module.input_spec for model export")
+            "Please input Module.input_spec for model export")
