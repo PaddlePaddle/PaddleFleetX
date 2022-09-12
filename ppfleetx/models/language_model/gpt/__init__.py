@@ -16,4 +16,4 @@ from .hybrid_model import (GPTModelHybrid, GPTForPretrainingPipe,
                            GPTPretrainingCriterionHybird,
                            GPTForPretrainingHybrid)
 
-from .single_model import GPTForPretraining, GPTPretrainingCriterion
+from .single_model import GPTForPretraining, GPTPretrainingCriterion, GPTModel

@@ -23,6 +23,12 @@ Engine:
     output_dir: ./output
     ckpt_dir:
 
+Model:
+  module: "GPTModule"
+  name: "GPT"
+  fused_linear: False
+
+
 Data:
   Train:
     dataset:

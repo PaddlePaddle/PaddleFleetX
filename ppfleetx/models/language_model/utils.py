@@ -120,8 +120,6 @@ def process_engine_configs(config):
 
 
 def process_configs(config):
-
-    # process_dist_configs(config)
     process_data_configs(config)
     process_fused_configs(config)
     process_model_configs(config)
