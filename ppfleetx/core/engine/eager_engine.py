@@ -241,6 +241,72 @@ class EagerEngine(BasicEngine):
         self._scaler = fleet.distributed_scaler(
             self._scaler) if self._scaler is not None else self._scaler
 
+    def _train_one_epoch(self,
+                         epoch_index,
+                         train_data_loader=None,
+                         valid_data_loader=None):
+
+        # time count
+        train_cost = 0.0
+        train_start = time.time()
+        for step, batch in enumerate(train_data_loader()):
+            loss = self._fit_impl(batch)
+            # Sync for profile time, delete it may be a little faster
+            paddle.device.cuda.synchronize()
+            train_cost += time.time() - train_start
+
+            if step % self._logging_freq == 0:
+                log_dict = {
+                    'epoch': epoch_index,
+                    'batch': step,
+                    'train_cost': train_cost,
+                    'loss': loss.numpy(),
+                    'lr': self._optimizer.get_lr()
+                }
+                self._module.training_step_end(log_dict)
+
+                train_start = time.time()
+                train_cost = 0.0
+
+            if step > 0 and step % self._eval_freq == 0:
+                self._module.model.eval()
+
+                eval_losses = []
+                eval_start = time.time()
+
+                for eval_step, batch in enumerate(valid_data_loader):
+                    loss = self._evaluate_impl(batch)
+                    eval_losses.append(loss)
+
+                    if eval_step >= self._eval_iters - 1:
+                        break
+
+                paddle.device.cuda.synchronize()
+                eval_cost = time.time() - eval_start
+                eval_loss = sum(eval_losses) / len(eval_losses)
+
+                log_dict = {
+                    'loss': eval_loss.numpy(),
+                    'epoch': self.epoch_index,
+                    'batch': eval_step,
+                    'eval_cost': eval_cost,
+                }
+                self._module.validation_step_end(log_dict)
+
+                self._module.model.train()
+
+            # if self._save_by_step > 0 and (
+            #         step % self._save_by_step == 0 or
+            #         step >= self._max_steps) and self._dp_rank == 0:
+            #     self.save()
+
+            if step >= self._max_steps:
+                logger.info("The training process is complete.")
+                return
+
+            if self.profiler:
+                self.profiler.step()
+
     def fit(self, epoch=1, train_data_loader=None, valid_data_loader=None):
         """
         Run the full process of training/validation/save loop.
@@ -260,73 +326,21 @@ class EagerEngine(BasicEngine):
         train_cost = 0.0
         train_start = time.time()
 
-        for step, batch in enumerate(train_data_loader()):
-            # Note(Guoxia): for the second epoch will always continue
-            #if step < self._module.global_step:
-            #    continue
+        for epoch_index in range(epoch):
+            self.epoch_index = epoch_index
+            self._train_one_epoch(self.epoch_index, train_data_loader,
+                                  valid_data_loader)
 
-            self._module.global_step += 1
-            loss = self._fit_impl(batch)
-
-            # Sync for profile time, delete it may be a little faster
             paddle.device.cuda.synchronize()
             train_cost += time.time() - train_start
+            log_dict = {
+                'epoch': epoch_index,
+                'train_cost': train_cost,
+            }
+            self._module.training_epoch_end(log_dict)
 
-            if self._module.global_step % self._logging_freq == 0:
-                log_dict = {
-                    'loss': loss.numpy(),
-                    'epoch': epoch,
-                    'batch': step,
-                    'train_cost': train_cost,
-                }
-                self._module.training_step_end(log_dict)
-
-                train_start = time.time()
-                train_cost = 0.0
-
-            if self._module.global_step % self._eval_freq == 0:
-                self._module.model.eval()
-
-                eval_losses = []
-                eval_start = time.time()
-
-                for eval_step, batch in enumerate(valid_data_loader):
-                    loss = self._evaluate_impl(batch)
-                    eval_losses.append(loss)
-
-                    if eval_step >= self._eval_iters - 1:
-                        break
-
-                paddle.device.cuda.synchronize()
-                eval_cost = time.time() - eval_start
-                eval_loss = sum(eval_losses) / len(eval_losses)
-
-                log_dict = {
-                    'loss': eval_loss.numpy(),
-                    'epoch': epoch,
-                    'batch': eval_step,
-                    'eval_cost': eval_cost,
-                }
-                self._module.validation_step_end(log_dict)
-
-                self._module.model.train()
-
-            if (self._module.global_step % self._save_steps == 0 or
-                    self._module.global_step >= self._max_steps
-                ) and self._dp_rank == 0:
-                self.save()
-
-            if self._module.global_step >= self._max_steps:
-                logger.info("The training process is complete.")
-                del train_data_loader
-
-                if self.profiler:
-                    self._profiler_done()
-
-                return
-
-            if self.profiler:
-                self.profiler.step()
+            # if self._save_by_epoch > 0 and self.epoch_index % self._save_by_epoch == 0 and self._dp_rank == 0:
+            #     self.save()
 
         if self.profiler:
             self._profiler_done()
