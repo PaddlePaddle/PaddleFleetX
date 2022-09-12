@@ -9,7 +9,7 @@ Global:
 Engine:
   max_steps: 500000
   num_train_epochs: 1
-  accumulate_steps: 
+  accumulate_steps: 1
   logging_freq: 1
   eval_freq: 500
   eval_iters: 10
@@ -24,22 +24,25 @@ Engine:
     ckpt_dir:
 
 Data:
-  dataset:
-    input_dir: ./data
-    split: '949,50,1'
-    max_seq_len: 1024
+  Train:
+    dataset:
+      name: GPTDataset
+      input_dir: ./data
+      split: '949,50,1'
+      max_seq_len: 1024
 
 
 Fused:
   tensor_fusion: False
 
 Optimizer:
-  name: Adam
+  name: AdamW
   weight_decay: 0.01
-  adam_beta1: 0.9
-  adam_beta2: 0.999
-  adam_epsilon: 1.0e-8
+  beta1: 0.9
+  beta2: 0.999
+  epsilon: 1.0e-8
   lr:
+    name: CosineAnnealingWithWarmupDecay
     decay_steps: 360000
     warmup_rate: 0.01
     max_lr: 5.0e-5

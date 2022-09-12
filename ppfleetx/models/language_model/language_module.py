@@ -11,24 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import sys
 import copy
+
+import paddle
 
 sys.path.append("../../../../")
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.language_model.gpt as gpt
-from ppfleetx.utils.logger import logger
+from ppfleetx.utils import logger
 import paddleslim
 
 
 class LanguageModule(BasicModule):
     def __init__(self, configs):
-        super().__init__()
+        super(LanguageModule, self).__init__()
         self.configs = configs
-        self.loss_fn = self.get_loss_fn()
-
-    def get_loss_fn(self):
-        raise NotImplementedError
 
     def forward(self, tokens, ids):
         return self.model(tokens, ids)
@@ -104,26 +103,29 @@ class LanguageModule(BasicModule):
 
 class GPTModule(LanguageModule):
     def __init__(self, configs):
-        super().__init__(configs)
+        self.configs = configs
         self.nranks = paddle.distributed.get_world_size()
+        super(GPTModule, self).__init__(configs)
 
     def get_model(self):
-        model_setting = self.configs.Model
+        model_setting = copy.deepcopy(self.configs.Model)
+        model_setting.pop("module")
+        model_setting.pop("name")
 
-        l = model_setting.num_layers
-        h = model_setting.hidden_size
-        v = model_setting.vocab_size
-        s = self.configs.Data.dataset.max_seq_len
+        l = model_setting['num_layers']
+        h = model_setting['hidden_size']
+        v = model_setting['vocab_size']
+        s = self.configs.Data.Train.dataset.max_seq_len
         self.get_model_size(l, h, v, s)
 
         if self.nranks == 1:
-            model = gpt.GPTForPretraining(gpt.GPTModel(model_setting))
+            model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
         else:
             if self.configs.Distributed.pp_degree == 1:
                 model = gpt.GPTForPretrainingHybrid(
-                    gpt.GPTModelHybrid(model_setting))
+                    gpt.GPTModelHybrid(**model_setting))
             else:
-                model = gpt.GPTForPretrainingPipe(model_setting)
+                model = gpt.GPTForPretrainingPipe(**model_setting)
 
         return model
 
