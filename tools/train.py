@@ -20,6 +20,7 @@ import os
 import sys
 
 from paddle.distributed import fleet
+import paddle.distributed as dist
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
@@ -37,8 +38,10 @@ if __name__ == "__main__":
     args = config.parse_args()
     cfg = config.get_config(args.config, overrides=args.override, show=False)
 
-    fleet.init(is_collective=True, strategy=env.init_dist_env(cfg))
-    env.set_dist_seed(cfg.Global.seed)
+    if dist.get_world_size() > 1:
+        fleet.init(is_collective=True, strategy=env.init_dist_env(cfg))
+
+    env.set_seed(cfg.Global.seed)
 
     module = build_module(cfg)
     config.print_config(cfg)

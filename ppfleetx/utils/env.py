@@ -24,12 +24,15 @@ from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 __all__ = ['init_dist_env']
 
 
-def set_dist_seed(seed):
-    # obtain rank message of hybrid parallel
-    hcg = fleet.get_hybrid_communicate_group()
-    mp_rank = hcg.get_model_parallel_rank()
-    pp_rank = hcg.get_stage_id()
-    data_world_rank = get_data_world_rank()
+def set_seed(seed):
+    if dist.get_world_size() > 1:
+        # obtain rank message of hybrid parallel
+        hcg = fleet.get_hybrid_communicate_group()
+        mp_rank = hcg.get_model_parallel_rank()
+        pp_rank = hcg.get_stage_id()
+        data_world_rank = get_data_world_rank()
+    else:
+        mp_rank, pp_rank, data_world_rank = 1, 1, 1
 
     random.seed(seed + data_world_rank)
     np.random.seed(seed + data_world_rank)
