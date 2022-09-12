@@ -23,6 +23,7 @@ __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../')))
 
 from ppfleetx.utils import logger, env
+from ppfleetx.data.tokenizers import GPTTokenizer
 
 mode_to_index = {"Train": 0, "Eval": 1, "Test": 2}
 
@@ -30,11 +31,10 @@ mode_to_index = {"Train": 0, "Eval": 1, "Test": 2}
 class GPTDataset(paddle.io.Dataset):
     def __init__(self,
                  input_dir,
-                 num_samples,
-                 eos_id,
                  split,
+                 max_seq_len,
+                 num_samples,
                  mode,
-                 max_seq_len=1024,
                  seed=1234):
 
         files = get_train_data_file(input_dir)
@@ -96,10 +96,12 @@ class GPTDataset(paddle.io.Dataset):
             -1], "The document nums should larger than max of splits, but %s < %s" % (
                 len(sample_lens), splits[-1])
 
+        tokenizer = GPTTokenizer.from_pretrained("gpt2")
+
         self.input_dir = input_dir
         self.max_seq_len = max_seq_len
         self.name = "gpt_" + mode
-        self.eos_id = eos_id
+        self.eos_id = tokenizer.eos_token_id
         self.sample_ids = sample_ids
         self.sample_lens = sample_lens
         self.build_data_file = (local_rank == 0)

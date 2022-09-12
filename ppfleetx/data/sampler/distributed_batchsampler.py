@@ -1,4 +1,4 @@
-#   Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,9 +15,17 @@
 from __future__ import print_function
 from __future__ import division
 
+import os
+import sys
 import numpy as np
 import math
+
 import paddle
+
+__dir__ = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../')))
+
+from ppfleetx.utils import env
 
 __all__ = ["DistributedBatchSampler"]
 
@@ -97,14 +105,14 @@ class DistributedBatchSampler(paddle.io.BatchSampler):
                     "num_replicas should be a positive integer"
             self.nranks = num_replicas
         else:
-            self.nranks = ParallelEnv().nranks
+            self.nranks = env.get_data_world_size()
 
         if rank is not None:
             assert isinstance(rank, int) and rank >= 0, \
                     "rank should be a non-negative integer"
             self.local_rank = rank
         else:
-            self.local_rank = ParallelEnv().local_rank
+            self.local_rank = env.get_data_world_rank()
 
         self.drop_last = drop_last
         self.epoch = 0

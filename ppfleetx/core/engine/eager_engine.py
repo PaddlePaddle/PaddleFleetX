@@ -28,12 +28,12 @@ from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_
 from paddle.profiler import SummaryView
 
 sys.path.append("../../../")
-from fleetx.utils import logger
-from fleetx.core.engine.basic_engine import BasicEngine
-from fleetx.core.module.basic_module import BasicModule
-from fleetx.inference import InferenceEngine, export_inference_model
-from fleetx.utils.tensor_fusion_helper import all_reduce_parameters
-from fleetx.utils.version import version_check
+from ppfleetx.utils import logger
+from ppfleetx.core.engine.basic_engine import BasicEngine
+from ppfleetx.core.module.basic_module import BasicModule
+# from ppfleetx.inference import InferenceEngine, export_inference_model
+from ppfleetx.utils.tensor_fusion_helper import all_reduce_parameters
+from ppfleetx.utils.version import version_check
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ class EagerEngine(BasicEngine):
     training, validation and test. Only used in eager dygraph mode.
     """
 
-    def __init__(self, module, configs, mode='train'):
+    def __init__(self, configs, module, optimizer=None, lr=None, mode='train'):
         """
         Initialize an engine depending on the user-defined module and configs.
 
@@ -162,32 +162,8 @@ class EagerEngine(BasicEngine):
         else:
             self._scaler = None
 
-        if mode == 'train':
-            optimizers = module.configure_optimizers()
-
-            if optimizers and isinstance(optimizers,
-                                         (paddle.optimizer.Optimizer,
-                                          paddle.fluid.optimizer.Optimizer)):
-                self._module.optimizer = optimizers
-                self._module.lr_scheduler = None
-            elif optimizers and isinstance(optimizers,
-                                           tuple) and len(optimizers) == 2:
-                if optimizers[0] and not isinstance(
-                        optimizers[0], (paddle.optimizer.Optimizer,
-                                        paddle.fluid.optimizer.Optimizer)):
-                    raise TypeError("'optimizer' must be object of class `paddle.optimizer.Optimizer`" \
-                                " or `paddle.fluid.optimizer.Optimizer`, but got: {optimizers[0].__class__.__name__}.")
-                self._module.optimizer = optimizers[0]
-
-                if optimizers[1] and not isinstance(optimizers[1],
-                                                    (LRScheduler)):
-                    raise TypeError("'lr_scheduler' must be object of class `paddle.optimizer.lr.LRScheduler`" \
-                                ", but got: {optimizers[1].__class__.__name__}.")
-                self._module.lr_scheduler = optimizers[1]
-            else:
-                raise TypeError(
-                    "Only support optimizer or/and lr_scheduler as outputs of `configure_optimizers`."
-                )
+        self._optimizer = optimizer if mode == 'train' else None
+        self._lr_scheduler = lr if mode == 'train' else None
 
         # distributed configs
         self._distributed = dist.is_initialized()
@@ -251,9 +227,9 @@ class EagerEngine(BasicEngine):
                 src_rank=self._dp_group.ranks[0])
 
         level = "p_g_os" if self._sharding_stage == 3 else "os_g"
-        self._module.model, self._module.optimizer, self._scaler = group_sharded_parallel(
+        self._module.model, self._optimizer, self._scaler = group_sharded_parallel(
             model=self._module.model,
-            optimizer=self._module.optimizer,
+            optimizer=self._optimizer,
             level=level,
             scaler=self._scaler,
             group=self._sharding_group,
@@ -261,8 +237,7 @@ class EagerEngine(BasicEngine):
 
     def _wrap_3D_parallel(self):
         self._module.model = fleet.distributed_model(self._module.model)
-        self._module.optimizer = fleet.distributed_optimizer(
-            self._module.optimizer)
+        self._optimizer = fleet.distributed_optimizer(self._optimizer)
         self._scaler = fleet.distributed_scaler(
             self._scaler) if self._scaler is not None else self._scaler
 
@@ -381,8 +356,8 @@ class EagerEngine(BasicEngine):
                     level='O2'):
                 loss = self._module.model.train_batch(
                     batch,
-                    optimizer=self._module.optimizer,
-                    lr_scheduler=self._module.lr_scheduler,
+                    optimizer=self._optimizer,
+                    lr_scheduler=self._lr_scheduler,
                     scaler=self._scaler)
         return loss
 
@@ -410,15 +385,15 @@ class EagerEngine(BasicEngine):
                         dist.all_reduce(p.bw_storage, group=self._dp_group)
 
         if self._use_pure_fp16:
-            self._scaler.step(self._module.optimizer)
+            self._scaler.step(self._optimizer)
             self._scaler.update()
         else:
-            self._module.optimizer.step()
+            self._optimizer.step()
 
-        if self._module.lr_scheduler is not None:
-            self._module.lr_scheduler.step()
+        if self._lr_scheduler is not None:
+            self._lr_scheduler.step()
 
-        self._module.optimizer.clear_grad()
+        self._optimizer.clear_grad()
 
     @paddle.no_grad()
     def evaluate(self, epoch=1, valid_data_loader=None):
@@ -544,7 +519,7 @@ class EagerEngine(BasicEngine):
                 self._module.model.get_all_parameters(convert2cpu=False)
             paddle.save(self._module.model.state_dict(),
                         os.path.join(save_dir, "model.pdparams"))
-            paddle.save(self._module.optimizer.state_dict(),
+            paddle.save(self._optimizer.state_dict(),
                         os.path.join(save_dir, "model_state.pdopt"))
 
             meta_dict = {"global_step": self._module.global_step}
@@ -577,7 +552,7 @@ class EagerEngine(BasicEngine):
             if self.mode == 'train':
                 if os.path.exists(opt_path):
                     opt_dict = paddle.load(opt_path)
-                    self._module.optimizer.set_state_dict(opt_dict)
+                    self._optimizer.set_state_dict(opt_dict)
                 else:
                     raise ValueError(
                         "No optimizer checkpoint file found in %s." % opt_path)
@@ -601,21 +576,21 @@ class EagerEngine(BasicEngine):
             logger.warning("`load` requires a valid value of `ckpt_dir`.")
             raise TypeError("`load` requires a valid value of `ckpt_dir`.")
 
-    def export(self):
-        self._module.model.eval()
-        input_spec = self._module.input_spec()
+    # def export(self):
+    #     self._module.model.eval()
+    #     input_spec = self._module.input_spec()
 
-        save_dir = os.path.join(self._output_dir,
-                                "rank_{}".format(self._dp_rank), 'model')
-        export_inference_model(self._module.model, input_spec, save_dir)
+    #     save_dir = os.path.join(self._output_dir,
+    #                             "rank_{}".format(self._dp_rank), 'model')
+    #     export_inference_model(self._module.model, input_spec, save_dir)
 
-    def inference(self, data):
-        if self._inference_engine is None:
-            self._inference_engine = InferenceEngine(
-                self._inference_configs['model_dir'],
-                self._inference_configs['mp_degree'])
+    # def inference(self, data):
+    #     if self._inference_engine is None:
+    #         self._inference_engine = InferenceEngine(
+    #             self._inference_configs['model_dir'],
+    #             self._inference_configs['mp_degree'])
 
-        return self._inference_engine.predict(data)
+    #     return self._inference_engine.predict(data)
 
     def _print_summary(self):
         views_dict = {
