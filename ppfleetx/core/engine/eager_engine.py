@@ -268,7 +268,7 @@ class EagerEngine(BasicEngine):
                 train_start = time.time()
                 train_cost = 0.0
 
-            if step % self._eval_freq == 0:
+            if step > 0 and step % self._eval_freq == 0:
                 self._module.model.eval()
 
                 eval_losses = []
