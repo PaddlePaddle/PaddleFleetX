@@ -6,6 +6,7 @@ Global:
   local_batch_size: 1
   micro_batch_size: 1
 
+
 Engine:
   max_steps: 500000
   num_train_epochs: 1
@@ -22,6 +23,7 @@ Engine:
     save_steps: 1000
     output_dir: ./output
     ckpt_dir:
+
 
 Model:
   module: "GPTModule"
@@ -64,6 +66,7 @@ Data:
 Fused:
   tensor_fusion: False
 
+
 Optimizer:
   name: AdamW
   weight_decay: 0.01
@@ -76,16 +79,17 @@ Optimizer:
     warmup_rate: 0.01
     max_lr: 5.0e-5
     min_lr: 1.0e-5
+  grad_clip:
+    name: "ClipGradByGlobalNorm"
+    clip_norm: 1.0
 
-Gradclip:
-  name: "ClipGradByGlobalNorm"
-  grad_clip: 1.0
 
 Profiler:
   enable: False
   scheduler: [1, 5]
   profiler_log: profiler_log
   detailed: False
+
 
 Inference:
   model_dir: ./output

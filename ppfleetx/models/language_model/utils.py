@@ -112,6 +112,14 @@ def process_model_configs(config):
             "but the paddle is compiled with cuda " + paddle.version.cuda())
 
 
+def process_optim_configs(config):
+    """
+    process optim configs for hybrid parallel
+    """
+    config['Optimizer']['multi_precision'] = config['Engine']['mix_precision'][
+        'use_pure_fp16']
+
+
 def process_engine_configs(config):
     """
     process engine configs for hybrid parallel
@@ -156,6 +164,9 @@ def process_configs(config):
     process_global_configs(config)
     process_fused_configs(config)
     process_model_configs(config)
+    process_optim_configs(config)
     process_engine_configs(config)
     process_data_configs(config)
     process_inference_configs(config)
+
+    return config
