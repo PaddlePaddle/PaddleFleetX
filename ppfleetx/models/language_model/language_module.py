@@ -27,6 +27,8 @@ from .utils import process_configs
 
 class LanguageModule(BasicModule):
     def __init__(self, configs):
+        self.nranks = paddle.distributed.get_world_size()
+
         super(LanguageModule, self).__init__(configs)
 
     def process_configs(self, configs):
@@ -58,6 +60,12 @@ class LanguageModule(BasicModule):
             % (self.global_step, log_dict['epoch'], log_dict['batch'],
                log_dict['loss'], 1. / speed, speed, speed *
                default_global_tokens_num, speed * default_global_tokens_num))
+
+        logger.info(
+            "[train] epoch: %d, batch: %d, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
+            % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
+               1. / speed, speed, speed * default_global_tokens_num, speed *
+               default_global_tokens_num / self.nranks, log_dict['lr']))
 
     def validation_step(self, batch):
         tokens, position_ids, labels, loss_mask = batch
@@ -104,11 +112,13 @@ class LanguageModule(BasicModule):
         logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 /
                                                   1000.0))
 
+    def training_epoch_end(self, log_dict):
+        logger.info("[Training] epoch: %d, total time: %.5f sec" %
+                    (log_dict['epoch'], log_dict['train_cost']))
+
 
 class GPTModule(LanguageModule):
     def __init__(self, configs):
-        self.configs = configs
-        self.nranks = paddle.distributed.get_world_size()
         super(GPTModule, self).__init__(configs)
 
     def get_model(self):

@@ -33,7 +33,7 @@ Data:
   Train:
     dataset:
       name: GPTDataset
-      input_dir: ./data/paddle
+      input_dir: ./data/
       split: [949, 50, 1]
       max_seq_len: 1024
     sampler:
@@ -48,7 +48,7 @@ Data:
   Eval:
     dataset:
       name: GPTDataset
-      input_dir: ./data/paddle
+      input_dir: ./data/
       split: [949, 50, 1]
       max_seq_len: 1024
     sampler:

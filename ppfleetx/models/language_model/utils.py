@@ -159,3 +159,4 @@ def process_configs(config):
     process_engine_configs(config)
     process_data_configs(config)
     process_inference_configs(config)
+    return config

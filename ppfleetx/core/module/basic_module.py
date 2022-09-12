@@ -32,8 +32,9 @@ class BasicModule(nn.Layer):
     """
 
     def __init__(self, configs, *args, **kwargs):
+        self.configs = self.process_configs(configs)
         super().__init__(*args, **kwargs)
-        self.config = self.process_configs(configs)
+
         self.model = self.get_model()
         self.loss_fn = self.get_loss_fn()
 
@@ -76,3 +77,6 @@ class BasicModule(nn.Layer):
     def input_spec(self):
         raise NotImplementedError(
             "Please input Module.input_spec for model export")
+
+    def training_epoch_end(self, *args, **kwargs):
+        pass
