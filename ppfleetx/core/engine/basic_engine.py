@@ -12,16 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-import copy
 
-sys.path.append("../../")
-from ppfleetx.core.module.basic_module import BasicModule
-from ppfleetx.models.language_model.language_module import GPTModule
+class BasicEngine:
+    """
+    """
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-def build_module(config):
-    module_name = config.Model.get("module", "BasicModule")
-    module = eval(module_name)(config)
+    def fit(self, *args, **kwargs):
+        raise NotImplementedError
 
-    return module
+    def evaluate(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def predict(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def save(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def load(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def inference(self, *args, **kwargs):
+        raise NotImplementedError

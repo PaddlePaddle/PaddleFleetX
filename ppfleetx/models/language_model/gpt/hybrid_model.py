@@ -25,7 +25,7 @@ from paddle.fluid import layers
 from paddle.nn.layer.transformer import _convert_param_attr_to_list
 import paddle.incubate as incubate
 
-from paddle.distributed import fleet
+import paddle.distributed.fleet as fleet
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 from paddle.distributed.fleet.meta_parallel import LayerDesc, PipelineLayer, SharedLayerDesc
 from paddle.distributed.fleet.utils import recompute
@@ -571,7 +571,7 @@ class GPTModelHybrid(nn.Layer):
                  fused_linear=False,
                  recompute_granularity="full"):
 
-        super(GPTModel, self).__init__()
+        super(GPTModelHybrid, self).__init__()
 
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
@@ -669,7 +669,7 @@ class GPTForPretrainingHybrid(nn.Layer):
     """
 
     def __init__(self, gpt):
-        super(GPTForPretraining, self).__init__()
+        super(GPTForPretrainingHybrid, self).__init__()
         self.gpt = gpt
         # extra_parameters using for sharding stage3 to register extra_parameters
         self.extra_parameters = [
@@ -710,7 +710,7 @@ class GPTPretrainingCriterionHybird(nn.Layer):
     """
 
     def __init__(self, topo=None):
-        super(GPTPretrainingCriterion, self).__init__()
+        super(GPTPretrainingCriterionHybird, self).__init__()
         self.loss_func = paddle.nn.CrossEntropyLoss(reduction="none")
         self.parallel_loss_func = fleet.meta_parallel.ParallelCrossEntropy()
 
@@ -751,7 +751,7 @@ class GPTPretrainingCriterionHybird(nn.Layer):
 # these Layers is just for PipelineParallel
 
 
-class GPTPretrainingCriterionPipe(GPTPretrainingCriterion):
+class GPTPretrainingCriterionPipe(GPTPretrainingCriterionHybird):
     """Extends GPTPretrainingCriterion to meet the input standard."""
 
     def forward(self, prediction_scores, args):
@@ -795,7 +795,7 @@ class GPTForPretrainingPipe(PipelineLayer):
                  type_vocab_size=16,
                  initializer_range=0.02,
                  num_partitions=1,
-                 topology=fleet.get_hybrid_parallel_topology(),
+                 topology=None,
                  use_recompute=False,
                  fused_linear=False,
                  recompute_granularity="full"):
@@ -862,7 +862,7 @@ class GPTForPretrainingPipe(PipelineLayer):
         super().__init__(
             layers=self.descs,
             loss_fn=GPTPretrainingCriterionPipe(),
-            topology=topology,
+            topology=fleet.get_hybrid_communicate_group().topology(),
             seg_method="layer:TransformerDecoderLayer",
             recompute_interval=recompute_interval,
             recompute_ctx={

@@ -12,16 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-import copy
-
-sys.path.append("../../")
-from ppfleetx.core.module.basic_module import BasicModule
-from ppfleetx.models.language_model.language_module import GPTModule
-
-
-def build_module(config):
-    module_name = config.Model.get("module", "BasicModule")
-    module = eval(module_name)(config)
-
-    return module
+from .basic_engine import BasicEngine
+from .eager_engine import EagerEngine
