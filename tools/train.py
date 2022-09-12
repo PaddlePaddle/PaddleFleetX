@@ -55,7 +55,6 @@ if __name__ == "__main__":
     train_data_loader = build_dataloader(cfg.Data, "Train")
     eval_data_loader = build_dataloader(cfg.Data, "Eval")
 
-    # for epoch in range(cfg.Engine.num_train_epochs):
     engine.fit(train_data_loader=train_data_loader,
                valid_data_loader=eval_data_loader,
                epoch=cfg.Engine.num_train_epochs)
