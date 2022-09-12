@@ -12,4 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from paddle.optimizer import AdamW
+import paddle
+
+
+class AdamW(paddle.optimizer.AdamW):
+    def __init__(self, learning_rate, parameters, grad_clip, **config):
+
+        decay_params = [
+            p.name for p in parameters
+            if not any(nd in p.name for nd in ["bias", "norm"])
+        ]
+        apply_decay_param_fun = lambda x: x in decay_params
+
+        super().__init__(
+            learning_rate=learning_rate,
+            parameters=parameters,
+            grad_clip=grad_clip,
+            apply_decay_param_fun=apply_decay_param_fun,
+            **config)
