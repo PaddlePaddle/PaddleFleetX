@@ -17,6 +17,7 @@ import copy
 sys.path.append("../../../../")
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.language_model.gpt as gpt
+from ppfleetx.utils.logger import logger
 import paddleslim
 
 
@@ -95,6 +96,11 @@ class LanguageModule(BasicModule):
                     shape=[None, None], name="ids", dtype='int64')
         ]
 
+    def get_model_size(self, l, h, v, s):
+        P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
+        logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 /
+                                                  1000.0))
+
 
 class GPTModule(LanguageModule):
     def __init__(self, configs):
@@ -103,6 +109,13 @@ class GPTModule(LanguageModule):
 
     def get_model(self):
         model_setting = self.configs.Model
+
+        l = model_setting.num_layers
+        h = model_setting.hidden_size
+        v = model_setting.vocab_size
+        s = self.configs.Data.dataset.max_seq_len
+        self.get_model_size(l, h, v, s)
+
         if self.nranks == 1:
             model = gpt.GPTForPretraining(gpt.GPTModel(model_setting))
         else:
@@ -111,6 +124,7 @@ class GPTModule(LanguageModule):
                     gpt.GPTModelHybrid(model_setting))
             else:
                 model = gpt.GPTForPretrainingPipe(model_setting)
+
         return model
 
     def get_loss_fn(self):
