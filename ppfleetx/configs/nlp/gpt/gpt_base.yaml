@@ -2,7 +2,7 @@ Global:
   device: gpu
   seed: 1024
 
-  global_batch_size: 1
+  global_batch_size: 
   local_batch_size: 1
   micro_batch_size: 1
 
@@ -70,3 +70,7 @@ Profiler:
   scheduler: [1, 5]
   profiler_log: profiler_log
   detailed: False
+
+Inference:
+  model_dir: ./output
+  mp_degree: 1

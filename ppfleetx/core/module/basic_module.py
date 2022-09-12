@@ -31,10 +31,14 @@ class BasicModule(nn.Layer):
 
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, configs, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.config = self.process_configs(configs)
         self.model = self.get_model()
         self.loss_fn = self.get_loss_fn()
+
+    def process_configs(self, configs):
+        return configs
 
     def get_model(self):
         raise NotImplementedError
