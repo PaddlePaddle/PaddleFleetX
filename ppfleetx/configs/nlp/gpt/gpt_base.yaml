@@ -43,6 +43,7 @@ Data:
     loader:
       num_workers: 1
       return_list: False
+      collate_fn: gpt_collate_fn
   
   Eval:
     dataset:
@@ -57,6 +58,7 @@ Data:
     loader:
       num_workers: 1
       return_list: False
+      collate_fn: gpt_collate_fn
 
 
 Fused:

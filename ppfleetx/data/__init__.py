@@ -23,7 +23,6 @@ sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
 
 from ppfleetx.data import dataset, sampler, utils
 from ppfleetx.utils import logger
-from ppfleetx.data.sampler import Stack, Tuple
 
 
 def build_dataloader(config, mode):
@@ -50,11 +49,9 @@ def build_dataloader(config, mode):
     config_loader = config[mode].loader
     config_loader = copy.deepcopy(config_loader)
     batch_transform = config_loader.pop('batch_transform', None)
-    # collate_fn_name = config_loader.pop('collate_fn', 'default_collate_fn')
-    # collate_fn = getattr(utils, collate_fn_name)(
-    #     batch_transform=batch_transform)
-
-    collate_fn = Tuple(Stack(), Stack(), Stack(), Stack())
+    collate_fn_name = config_loader.pop('collate_fn', 'default_collate_fn')
+    collate_fn = getattr(utils, collate_fn_name)(
+        batch_transform=batch_transform)
 
     data_loader = paddle.io.DataLoader(
         dataset=dataset,

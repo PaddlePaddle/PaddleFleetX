@@ -13,6 +13,9 @@
 # limitations under the License.
 
 import paddle
+
+import os
+import sys
 import numbers
 import numpy as np
 
@@ -20,6 +23,11 @@ try:
     from collections.abc import Sequence, Mapping
 except:
     from collections import Sequence, Mapping
+
+__dir__ = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
+
+from ppfleetx.data.sampler import Stack, Tuple
 
 
 def collate_fn(batch):
@@ -84,3 +92,7 @@ def default_collate_fn(batch_transform=None):
         pass
     else:
         return collate_fn
+
+
+def gpt_collate_fn(batch_transform=None):
+    return Tuple(Stack(), Stack(), Stack(), Stack())

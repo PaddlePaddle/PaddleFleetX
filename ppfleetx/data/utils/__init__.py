@@ -13,3 +13,4 @@
 # limitations under the License.
 
 from .batch_collate_fn import default_collate_fn
+from .batch_collate_fn import gpt_collate_fn
