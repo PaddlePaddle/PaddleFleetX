@@ -70,9 +70,6 @@ class BasicModule(nn.Layer):
     def test_step_end(self, *args, **kwargs):
         pass
 
-    def configure_optimizers(self):
-        raise NotImplementedError
-
     def backward(self, loss):
         loss.backward()
 

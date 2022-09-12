@@ -21,7 +21,7 @@ import paddle
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
 
-from ppfleetx.data import dataset, sampler
+from ppfleetx.data import dataset, sampler, utils
 from ppfleetx.utils import logger
 
 
@@ -30,7 +30,7 @@ def build_dataloader(config, mode):
                     ], "Dataset mode should be Train, Eval, Test"
 
     # build dataset
-    config_dataset = config.Data[mode].dataset
+    config_dataset = config[mode].dataset
     config_dataset = copy.deepcopy(config_dataset)
     dataset_name = config_dataset.pop('name')
     dataset = eval("dataset.{}".format(dataset_name))(**config_dataset)
@@ -38,7 +38,7 @@ def build_dataloader(config, mode):
     logger.debug("build dataset({}) success...".format(dataset))
 
     # build sampler
-    config_sampler = config.Data[mode].sampler
+    config_sampler = config[mode].sampler
     config_sampler = copy.deepcopy(config_sampler)
     sampler_name = config_sampler.pop("name")
     batch_sampler = eval("sampler.{}".format(sampler_name))(dataset,
@@ -46,21 +46,18 @@ def build_dataloader(config, mode):
     logger.debug("build batch_sampler({}) success...".format(batch_sampler))
 
     # build dataloader
-    config_loader = config.Data[mode].loader
-    num_workers = config_loader["num_workers"]
-    use_shared_memory = config_loader["use_shared_memory"]
-    collate_fn_name = config_loader.get('collate_fn', 'default_collate_fn')
+    config_loader = config[mode].loader
+    config_loader = copy.deepcopy(config_loader)
+    batch_transform = config_loader.pop('batch_transform', None)
+    collate_fn_name = config_loader.pop('collate_fn', 'default_collate_fn')
     collate_fn = getattr(utils, collate_fn_name)(
         batch_transform=batch_transform)
 
     data_loader = paddle.io.DataLoader(
         dataset=dataset,
-        places=device,
-        num_workers=num_workers,
-        return_list=True,
-        use_shared_memory=use_shared_memory,
         batch_sampler=batch_sampler,
-        collate_fn=collate_fn)
+        collate_fn=collate_fn,
+        **config_loader)
 
     logger.debug("build data_loader({}) success...".format(data_loader))
     return data_loader

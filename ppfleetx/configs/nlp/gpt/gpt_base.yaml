@@ -33,9 +33,32 @@ Data:
   Train:
     dataset:
       name: GPTDataset
-      input_dir: ./data
-      split: '949,50,1'
+      input_dir: ./data/paddle
+      split: [949, 50, 1]
       max_seq_len: 1024
+    sampler:
+      name: DistributedBatchSampler
+      shuffle: False
+      drop_last: True
+    loader:
+      num_workers: 1
+      return_list: False
+      collate_fn: gpt_collate_fn
+  
+  Eval:
+    dataset:
+      name: GPTDataset
+      input_dir: ./data/paddle
+      split: [949, 50, 1]
+      max_seq_len: 1024
+    sampler:
+      name: DistributedBatchSampler
+      shuffle: False
+      drop_last: True
+    loader:
+      num_workers: 1
+      return_list: False
+      collate_fn: gpt_collate_fn
 
 
 Fused:

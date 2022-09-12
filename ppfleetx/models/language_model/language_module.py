@@ -51,7 +51,7 @@ class LanguageModule(BasicModule):
     def training_step_end(self, log_dict):
         speed = self.configs.Engine.logging_freq / log_dict['train_cost']
         default_global_tokens_num = self.configs.Global.global_batch_size * \
-            self.configs.Global.max_seq_len
+            self.configs.Data.Train.dataset.max_seq_len
 
         logger.info(
             "[train] global step %d, epoch: %d, batch: %d, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, ips_total: %.0f tokens/s, ips: %.0f tokens/s"

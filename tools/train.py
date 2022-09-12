@@ -20,16 +20,17 @@ import os
 import sys
 
 from paddle.distributed import fleet
+import paddle.distributed as dist
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
 
 from ppfleetx.utils import config, env
 from ppfleetx.utils.logger import init_logger
-# from ppfleetx.data import build_dataloader
+from ppfleetx.data import build_dataloader
 from ppfleetx.models import build_module
 from ppfleetx.optims import build_lr_scheduler, build_optimizer
-import paddle.distributed as dist
+from ppfleetx.core import EagerEngine
 
 init_logger()
 
@@ -47,4 +48,14 @@ if __name__ == "__main__":
 
     lr = build_lr_scheduler(cfg.Optimizer.lr)
     optimizer = build_optimizer(cfg.Optimizer, module.model, lr)
-    # train_data_loader = build_dataloader(config, "Train")
+
+    engine = EagerEngine(
+        configs=cfg, module=module, optimizer=optimizer, lr=lr)
+
+    train_data_loader = build_dataloader(cfg.Data, "Train")
+    eval_data_loader = build_dataloader(cfg.Data, "Eval")
+
+    for epoch in range(cfg.Engine.num_train_epochs):
+        engine.fit(train_data_loader=train_data_loader,
+                   valid_data_loader=eval_data_loader,
+                   epoch=epoch)
