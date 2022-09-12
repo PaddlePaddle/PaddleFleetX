@@ -42,4 +42,4 @@ if __name__ == "__main__":
     module = build_module(config)
     lr = build_lr_scheduler(config.Optimizer.lr)
     optimizer = build_optimizer(config.Optimizer, module.model, lr)
-    # train_data_loader = build_dataloader(config, "Train")
+    train_data_loader = build_dataloader(config, "Train")

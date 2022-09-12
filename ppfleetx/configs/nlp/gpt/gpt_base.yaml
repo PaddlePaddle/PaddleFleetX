@@ -27,9 +27,22 @@ Data:
   Train:
     dataset:
       name: GPTDataset
-      input_dir: ./data
-      split: '949,50,1'
+      input_dir: ./data/paddle
+      split: [949, 50, 1]
       max_seq_len: 1024
+      num_samples: 32000000
+      eos_id: 1000
+      mode: "Train"
+    sampler:
+      name: DistributedBatchSampler
+      batch_size: 8
+      shuffle: False
+      drop_last: True
+      num_replicas: 8
+      rank: 0
+    loader:
+      num_workers: 1
+      return_list: False
 
 
 Fused:
