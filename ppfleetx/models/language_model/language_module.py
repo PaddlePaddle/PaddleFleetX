@@ -22,12 +22,16 @@ from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.language_model.gpt as gpt
 from ppfleetx.utils import logger
 import paddleslim
+from .utils import process_configs
 
 
 class LanguageModule(BasicModule):
     def __init__(self, configs):
-        super(LanguageModule, self).__init__()
-        self.configs = configs
+        super(LanguageModule, self).__init__(configs)
+
+    def process_configs(self, configs):
+        configs = process_configs(configs)
+        return configs
 
     def forward(self, tokens, ids):
         return self.model(tokens, ids)

@@ -26,7 +26,7 @@ sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
 
 from ppfleetx.utils import config, env
 from ppfleetx.utils.logger import init_logger
-from ppfleetx.data import build_dataloader
+# from ppfleetx.data import build_dataloader
 from ppfleetx.models import build_module
 from ppfleetx.optims import build_lr_scheduler, build_optimizer
 
@@ -34,12 +34,14 @@ init_logger()
 
 if __name__ == "__main__":
     args = config.parse_args()
-    config = config.get_config(args.config, overrides=args.override, show=True)
+    cfg = config.get_config(args.config, overrides=args.override, show=False)
 
-    fleet.init(is_collective=True, strategy=env.init_dist_env(config))
-    env.set_dist_seed(config.Global.seed)
+    fleet.init(is_collective=True, strategy=env.init_dist_env(cfg))
+    env.set_dist_seed(cfg.Global.seed)
 
-    module = build_module(config)
-    lr = build_lr_scheduler(config.Optimizer.lr)
-    optimizer = build_optimizer(config.Optimizer, module.model, lr)
+    module = build_module(cfg)
+    config.print_config(cfg)
+
+    lr = build_lr_scheduler(cfg.Optimizer.lr)
+    optimizer = build_optimizer(cfg.Optimizer, module.model, lr)
     # train_data_loader = build_dataloader(config, "Train")
