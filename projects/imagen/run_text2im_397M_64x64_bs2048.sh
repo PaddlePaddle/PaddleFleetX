@@ -1,3 +1,5 @@
+#! /bin/bash
+
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,17 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-import copy
 
-sys.path.append("../../")
-from ppfleetx.core.module.basic_module import BasicModule
-from ppfleetx.models.language_model.language_module import GPTModule
-from ppfleetx.models.multimodal_model.multimodal_module import ImagenModule
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
-
-def build_module(config):
-    module_name = config.Model.get("module", "BasicModule")
-    module = eval(module_name)(config)
-
-    return module
+python -m paddle.distributed.launch \
+  --gpus="0,1,2,3,4,5,6,7" \
+  tools/train.py \
+  -c ppfleetx/configs/multimodal/imagen/imagen_397M_text2im_64x64.yaml -o Distributed.dp_degree=8 -o Data.Train.loader.num_workers=8 -o Engine.num_train_epochs=68

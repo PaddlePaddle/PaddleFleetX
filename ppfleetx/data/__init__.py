@@ -30,6 +30,8 @@ def build_dataloader(config, mode):
                     ], "Dataset mode should be Train, Eval, Test"
 
     # build dataset
+    if mode == 'Eval' and mode not in config:
+        return None
     config_dataset = config[mode].dataset
     config_dataset = copy.deepcopy(config_dataset)
     dataset_name = config_dataset.pop('name')
@@ -56,7 +58,7 @@ def build_dataloader(config, mode):
         config_loader = copy.deepcopy(config_loader)
         collate_fn_name = config_loader.pop('collate_fn', None)
         collate_fn = getattr(
-            utils, collate_fn_name)() if collate_fn_name is not None else None
+            utils, collate_fn_name) if collate_fn_name is not None else None
 
     data_loader = paddle.io.DataLoader(
         dataset=dataset,
