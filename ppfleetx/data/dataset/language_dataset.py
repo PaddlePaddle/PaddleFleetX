@@ -210,7 +210,13 @@ def get_train_data_file(input_dir):
     ]
 
     files = [x.replace("_ids.npz", "") for x in files]
-    return files
+
+    if len(files) == 0:
+        raise RuntimeError(
+            "Not found dataset with name of xxx_ids.npz in given input_dir '{}'! ".
+            format(input_dir))
+    else:
+        return files
 
 
 def get_train_valid_test_split_(splits, size):
