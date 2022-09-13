@@ -1,5 +1,3 @@
-#!/usr/bin/env bash
-
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,10 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# for single card train
-# export CUDA_VISIBLE_DEVICES=0
-# python tools/train.py -c ../ppfleetx/configs/nlp/gpt/pretrain_gpt_345M.yaml 
+import sys
+import copy
 
-# for multi-cards train
-export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-python -m paddle.distributed.launch --gpus="0,1,2,3,4,5,6,7" train.py -c ../ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml 
+sys.path.append("../../")
+from ppfleetx.core.module.basic_module import BasicModule
+from ppfleetx.models.language_model.language_module import GPTModule
+
+
+def build_module(config):
+    module_name = config.Model.get("module", "BasicModule")
+    module = eval(module_name)(config)
+
+    return module

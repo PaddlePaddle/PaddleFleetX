@@ -15,16 +15,46 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+
 import os
 import sys
+
+from paddle.distributed import fleet
+import paddle.distributed as dist
+
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
 
-from fleetx.utils import config
-from fleetx.utils.logger import init_logger
+from ppfleetx.utils import config, env
+from ppfleetx.utils.logger import init_logger
+from ppfleetx.data import build_dataloader
+from ppfleetx.models import build_module
+from ppfleetx.optims import build_lr_scheduler, build_optimizer
+from ppfleetx.core import EagerEngine
 
 init_logger()
 
 if __name__ == "__main__":
     args = config.parse_args()
-    config = config.get_config(args.config, overrides=args.override, show=True)
+    cfg = config.get_config(args.config, overrides=args.override, show=False)
+
+    if dist.get_world_size() > 1:
+        fleet.init(is_collective=True, strategy=env.init_dist_env(cfg))
+
+    env.set_seed(cfg.Global.seed)
+
+    module = build_module(cfg)
+    config.print_config(cfg)
+
+    lr = build_lr_scheduler(cfg.Optimizer.lr)
+    optimizer = build_optimizer(cfg.Optimizer, module.model, lr)
+
+    engine = EagerEngine(
+        configs=cfg, module=module, optimizer=optimizer, lr=lr)
+
+    train_data_loader = build_dataloader(cfg.Data, "Train")
+    eval_data_loader = build_dataloader(cfg.Data, "Eval")
+
+    engine.fit(train_data_loader=train_data_loader,
+               valid_data_loader=eval_data_loader,
+               epoch=cfg.Engine.num_train_epochs)

@@ -31,12 +31,21 @@ class BasicModule(nn.Layer):
 
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, configs, *args, **kwargs):
+        self.configs = self.process_configs(configs)
         super().__init__(*args, **kwargs)
+
         self.model = self.get_model()
+        self.loss_fn = self.get_loss_fn()
+
+    def process_configs(self, configs):
+        return configs
 
     def get_model(self):
-        pass
+        raise NotImplementedError
+
+    def get_loss_fn(self):
+        raise NotImplementedError
 
     def pretreating_batch(self, batch):
         return batch
@@ -62,12 +71,12 @@ class BasicModule(nn.Layer):
     def test_step_end(self, *args, **kwargs):
         pass
 
-    def configure_optimizers(self):
-        raise NotImplementedError
-
     def backward(self, loss):
         loss.backward()
 
     def input_spec(self):
         raise NotImplementedError(
             "Please input Module.input_spec for model export")
+
+    def training_epoch_end(self, *args, **kwargs):
+        pass

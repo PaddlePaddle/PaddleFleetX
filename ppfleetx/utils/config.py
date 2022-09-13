@@ -19,8 +19,47 @@ import yaml
 import codecs
 from . import logger
 from . import check
+import paddle.distributed as dist
 
-__all__ = ['get_config']
+__all__ = ['get_config', 'print_config']
+
+
+def process_dist_configs(config):
+    """
+    process distributed strategy for hybrid parallel
+    """
+    configs = config['Distributed']
+
+    nranks = dist.get_world_size()
+
+
+    configs['mp_degree'] = 1 \
+        if configs.get('mp_degree', None) is None \
+        else configs['mp_degree']
+
+    configs['pp_degree'] = 1 \
+        if configs.get('pp_degree', None) is None \
+        else configs['pp_degree']
+
+    configs['sharding']['sharding_degree'] = 1 \
+        if configs['sharding'].get('sharding_degree', None) is None \
+        else configs['sharding']['sharding_degree']
+
+    other_degree = configs['mp_degree'] * configs['pp_degree'] * configs[
+        'sharding']['sharding_degree']
+
+    assert nranks % other_degree == 0, "unreasonable configs of dist_strategy."
+
+    if not configs.get('dp_degree', None):
+        configs['dp_degree'] = nranks // other_degree
+    else:
+        if configs['dp_degree'] * other_degree != nranks:
+            logger.warning('Mismatched configs using {} cards with dp_degree[{}], ' \
+                'mp_degree[{}], pp_degree[{}] and sharding_degree[{}]. So adaptively ' \
+                'adjust dp_degree to {}'.format(nranks, configs['dp_degree'], configs['mp_degree'],
+                configs['pp_degree'], configs['sharding']['sharding_degree'], nranks // other_degree))
+    assert nranks % configs[
+        'dp_degree'] == 0, "unreasonable configs of dist_strategy."
 
 
 class AttrDict(dict):
@@ -213,6 +252,8 @@ def get_config(fname, overrides=None, show=False):
         'config file({}) is not exist'.format(fname))
     config = parse_config(fname)
     override_config(config, overrides)
+    process_dist_configs(config)
+
     if show:
         print_config(config)
     check_config(config)
