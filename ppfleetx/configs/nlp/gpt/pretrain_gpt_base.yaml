@@ -21,6 +21,7 @@ Engine:
     custom_white_list: ["lookup_table", "lookup_table_v2"]
   save_load:
     save_steps: 1000
+    save_epoch: 1
     output_dir: ./output
     ckpt_dir:
 
