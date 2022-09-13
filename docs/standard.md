@@ -23,10 +23,10 @@ FleetX是飞桨大模型训练推理一站式工具组件。。与Paddle.distrib
 
 ```text
 .
-├── benchmarks              # benchmark评估结果和事例代码
+├── benchmarks              # benchmark评估结果和示例代码
 ├── codestyle               # 代码风格
 ├── docs                    # 文档
-├── examples                # 模型脚本，包含GPT模型
+├── examples                # 模型执行脚本，负责GPT模型执行部分
 │   ├── gpt
 │   └── README.md
 fleetx
@@ -39,13 +39,27 @@ fleetx
 │   └── tokenizers
 ├── datasets                # dataset生成的脚本
 │   ├── gpt.py
-├── models                  # 模型脚本
+├── models                  # 模型组网脚本，负责模型组网部分
 │   └── gpt_model
 ├── optim                   # 优化器类定义
 └── utils           
 ├── README.md
 └── requirements.txt
 ```
+
+
+部分的具体说明：
+
+| **函数名**                      | **参数释义**               |
+|------------------------------|------------------------|
+| benchmarks | 评估结果和示例代码 |
+| docs | fleetx的使用文档和教程 |
+| examples    | 放置各个模型的执行代码，比如组BasicModule，EagerEngine以及执行逻辑                |
+| data  |   数据集下载、预处理脚本                |
+| datasets    | dataset生成的脚本                  |
+| models  | 组网文件，内部可以拆分多个小文件，保证组网模块化，其中不含有执行模块        |
+| optim    | 优化器，lr schedule等定义                 |
+
 
 ### 3.模型接入方法
 
