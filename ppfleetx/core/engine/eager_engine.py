@@ -303,10 +303,10 @@ class EagerEngine(BasicEngine):
 
                 self._module.model.train()
 
-            if step % self._save_steps == 0:
+            if step > 0 and step % self._save_steps == 0:
                 self.save(epoch=epoch_index, step=step)
 
-            if step >= self._max_steps:
+            if self._max_steps > 0 and step >= self._max_steps:
                 logger.info("The training process is complete.")
                 return
 
@@ -485,7 +485,6 @@ class EagerEngine(BasicEngine):
 
         test_start = time.time()
         for test_step, batch in enumerate(test_data_loader):
-            # self._module.global_step += 1
             loss = self._predict_impl(batch)
 
             paddle.device.cuda.synchronize()
@@ -531,8 +530,8 @@ class EagerEngine(BasicEngine):
             return
 
         if self._output_dir and isinstance(self._output_dir, str):
-            output_dir = os.path.join(self._output_dir, "epoch_%d_step_%d" %
-                                      self._module.global_step)
+            output_dir = os.path.join(self._output_dir,
+                                      "epoch_%d_step_%d" % (epoch, step))
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir, exist_ok=True)
             logger.info("Save model to %s" % output_dir)
