@@ -94,5 +94,5 @@ def default_collate_fn(batch_transform=None):
         return collate_fn
 
 
-def gpt_collate_fn(batch_transform=None):
+def gpt_collate_fn():
     return Tuple(Stack(), Stack(), Stack(), Stack())

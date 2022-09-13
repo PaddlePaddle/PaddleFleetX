@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .distributed_batchsampler import DistributedBatchSampler
+from .batch_sampler import *
 from .collate import Stack, Pad, Tuple, Dict
