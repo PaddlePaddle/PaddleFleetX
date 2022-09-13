@@ -63,12 +63,8 @@ Data:
       collate_fn: gpt_collate_fn
 
 
-Fused:
-  tensor_fusion: False
-
-
 Optimizer:
-  name: AdamW
+  name: FusedAdamW
   weight_decay: 0.01
   beta1: 0.9
   beta2: 0.999
@@ -82,6 +78,7 @@ Optimizer:
   grad_clip:
     name: "ClipGradByGlobalNorm"
     clip_norm: 1.0
+  tensor_fusion: True
 
 
 Profiler:

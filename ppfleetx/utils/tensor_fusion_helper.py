@@ -97,19 +97,15 @@ def obtain_storage(parameters):
     return storage
 
 
-def fused_parameters(model, use_sharding=False):
+def fused_parameters(parameters, use_sharding=False):
     decay_params = []
     other_params = []
 
-    for param in model.parameters():
+    for param in parameters:
         if not any(nd in param.name for nd in ["bias", "norm"]):
             decay_params.append(param)
         else:
             other_params.append(param)
-
-    print("all parameters length:", len(model.parameters()))
-    print("decay_params len: {}, params len: {}".format(
-        len(decay_params), len(other_params)))
 
     decay_fused = decay_params if use_sharding else obtain_storage(
         decay_params)
