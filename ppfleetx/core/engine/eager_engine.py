@@ -299,7 +299,7 @@ class EagerEngine(BasicEngine):
 
                     log_dict = {
                         'loss': eval_loss.numpy(),
-                        'epoch': self.epoch_index,
+                        'epoch': epoch_index,
                         'batch': eval_step,
                         'eval_cost': eval_cost / self._logging_freq,
                     }
@@ -309,6 +309,8 @@ class EagerEngine(BasicEngine):
 
                 if step % self._save_steps == 0:
                     self.save(epoch=epoch_index, step=step)
+            else:
+                skip_first = False
 
             if self._max_steps > 0 and step >= self._max_steps:
                 logger.info("The training process is complete.")
