@@ -252,6 +252,7 @@ class EagerEngine(BasicEngine):
         # time count
         train_cost = 0.0
         train_start = time.time()
+        skip_first = True
         for step, batch in enumerate(train_data_loader()):
 
             if epoch_index == self._load_recovery['epoch']:
@@ -276,35 +277,36 @@ class EagerEngine(BasicEngine):
                 train_start = time.time()
                 train_cost = 0.0
 
-            if step > 0 and step % self._eval_freq == 0:
-                self._module.model.eval()
+            if not skip_first:
+                if step % self._eval_freq == 0:
+                    self._module.model.eval()
 
-                eval_losses = []
-                eval_start = time.time()
+                    eval_losses = []
+                    eval_start = time.time()
 
-                for eval_step, batch in enumerate(valid_data_loader):
-                    loss = self._evaluate_impl(batch)
-                    eval_losses.append(loss)
+                    for eval_step, batch in enumerate(valid_data_loader):
+                        loss = self._evaluate_impl(batch)
+                        eval_losses.append(loss)
 
-                    if eval_step >= self._eval_iters - 1:
-                        break
+                        if eval_step >= self._eval_iters - 1:
+                            break
 
-                paddle.device.cuda.synchronize()
-                eval_cost = time.time() - eval_start
-                eval_loss = sum(eval_losses) / len(eval_losses)
+                    paddle.device.cuda.synchronize()
+                    eval_cost = time.time() - eval_start
+                    eval_loss = sum(eval_losses) / len(eval_losses)
 
-                log_dict = {
-                    'loss': eval_loss.numpy(),
-                    'epoch': epoch_index,
-                    'batch': eval_step,
-                    'eval_cost': eval_cost,
-                }
-                self._module.validation_step_end(log_dict)
+                    log_dict = {
+                        'loss': eval_loss.numpy(),
+                        'epoch': epoch_index,
+                        'batch': eval_step,
+                        'eval_cost': eval_cost,
+                    }
+                    self._module.validation_step_end(log_dict)
 
-                self._module.model.train()
+                    self._module.model.train()
 
-            if step > 0 and step % self._save_steps == 0:
-                self.save(epoch=epoch_index, step=step)
+                if step % self._save_steps == 0:
+                    self.save(epoch=epoch_index, step=step)
 
             if self._max_steps > 0 and step >= self._max_steps:
                 logger.info("The training process is complete.")
