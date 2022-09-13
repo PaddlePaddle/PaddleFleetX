@@ -78,7 +78,7 @@ Optimizer:
   grad_clip:
     name: "ClipGradByGlobalNorm"
     clip_norm: 1.0
-  tensor_fusion: True
+  tensor_fusion: False
 
 
 Profiler:
