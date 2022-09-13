@@ -112,6 +112,7 @@ class GPTConfig(dict):
             'activation_quantize_type': 'moving_average_abs_max',
             'weight_bits': 8,
             'activation_bits': 8,
+            'activation_preprocess_type': None,
             'not_quant_pattern': ['skip_quant'],
             'quantizable_layer_type':
             ['Conv2D', 'Linear', 'ColumnParallelLinear', 'RowParallelLinear'],

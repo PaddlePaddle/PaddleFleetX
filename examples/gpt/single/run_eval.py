@@ -112,6 +112,16 @@ def do_eval():
 
         model.set_state_dict(model_dict)
 
+    if configs['Quantization']['enable']:
+        quanter = paddleslim.dygraph.quant.QAT(config=configs['Quantization'])
+        model = quanter.quantize(model)
+        if configs['Quantization']['ckpt_dir'] is not None:
+            logger.info("Load model checkpoint from %s" %
+                        configs['Quantization']['ckpt_dir'])
+            model_dict = paddle.load(
+                os.path.join(configs['Quantization']['ckpt_dir']))
+            model.set_state_dict(model_dict)
+
     eval_data_loader, eval_dict = create_eval_dataset(configs['Eval'])
 
     model.eval()
