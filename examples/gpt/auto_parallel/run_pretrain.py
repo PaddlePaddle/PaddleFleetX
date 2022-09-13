@@ -95,13 +95,14 @@ def do_train():
             data_file = files[f_id]
             train_data, valid_data, test_data = create_pretrained_dataset_auto(
                 configs, [data_file], tokenizer.eos_token_id)
-            engine.fit(train_dataset=train_data,
+            engine.fit(epoch=1,
+                       train_dataset=train_data,
                        batch_size=gbsz,
                        collate_fn=Tuple(Stack(), Stack(), Stack(), Stack()))
-
-            # engine.evaluate(valid_dataset=valid_data, batch_size=gbsz, collate_fn=Tuple(Stack(), Stack(), Stack(), Stack()))
-            # engine.predict(test_dataset=test_data, batch_size=gbsz, collate_fn=Tuple(Stack(), Stack(), Stack(), Stack()))
-            # engine.save()
+        print(",....,")
+        # engine.evaluate(valid_dataset=valid_data, batch_size=gbsz, collate_fn=Tuple(Stack(), Stack(), Stack(), Stack()))
+        # engine.predict(test_dataset=test_data, batch_size=gbsz, collate_fn=Tuple(Stack(), Stack(), Stack(), Stack()))
+        # engine.save()
 
 
 if __name__ == "__main__":

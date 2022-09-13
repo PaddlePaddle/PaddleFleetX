@@ -135,6 +135,8 @@ class EagerEngine(BasicEngine):
             'custom_white_list']
 
         self._save_steps = self._configs['save_load']['save_steps']
+        self._save_epoch = self._configs['save_load']['save_epoch']
+
         self._output_dir = self._configs['save_load']['output_dir']
         self._ckpt_dir = self._configs['save_load']['ckpt_dir']
 
@@ -183,7 +185,8 @@ class EagerEngine(BasicEngine):
         else:
             self._dp_rank = 0
 
-        self._module.global_step = 0
+        # using for save/load
+        self._load_recovery = {'step': 0, 'epoch': 0, 'rng_state': -1}
 
         self._inference_configs = configs['Inference']
         self._inference_engine = None
@@ -250,6 +253,11 @@ class EagerEngine(BasicEngine):
         train_cost = 0.0
         train_start = time.time()
         for step, batch in enumerate(train_data_loader()):
+
+            if epoch_index == self._load_recovery['epoch']:
+                if step < self._load_recovery['step']:
+                    continue
+
             loss = self._fit_impl(batch)
             # Sync for profile time, delete it may be a little faster
             paddle.device.cuda.synchronize()
@@ -287,7 +295,7 @@ class EagerEngine(BasicEngine):
 
                 log_dict = {
                     'loss': eval_loss.numpy(),
-                    'epoch': self.epoch_index,
+                    'epoch': epoch_index,
                     'batch': eval_step,
                     'eval_cost': eval_cost,
                 }
@@ -295,10 +303,8 @@ class EagerEngine(BasicEngine):
 
                 self._module.model.train()
 
-            # if self._save_by_step > 0 and (
-            #         step % self._save_by_step == 0 or
-            #         step >= self._max_steps) and self._dp_rank == 0:
-            #     self.save()
+            if step % self._save_steps == 0:
+                self.save(epoch=epoch_index, step=step)
 
             if step >= self._max_steps:
                 logger.info("The training process is complete.")
@@ -322,13 +328,15 @@ class EagerEngine(BasicEngine):
         """
         self._module.model.train()
 
-        # time count
         train_cost = 0.0
         train_start = time.time()
 
-        for epoch_index in range(epoch):
-            self.epoch_index = epoch_index
-            self._train_one_epoch(self.epoch_index, train_data_loader,
+        start_epoch = self._load_recovery['epoch']
+        if self._load_recovery['rng_state'] != -1:
+            paddle.set_cuda_rng_state(self._load_recovery['rng_state'])
+
+        for epoch_index in range(start_epoch, epoch):
+            self._train_one_epoch(epoch_index, train_data_loader,
                                   valid_data_loader)
 
             paddle.device.cuda.synchronize()
@@ -339,8 +347,8 @@ class EagerEngine(BasicEngine):
             }
             self._module.training_epoch_end(log_dict)
 
-            # if self._save_by_epoch > 0 and self.epoch_index % self._save_by_epoch == 0 and self._dp_rank == 0:
-            #     self.save()
+            if epoch_index % self._save_epoch == 0:
+                self.save(epoch=epoch_index, step=len(train_data_loader))
 
         if self.profiler:
             self._profiler_done()
@@ -430,7 +438,7 @@ class EagerEngine(BasicEngine):
             paddle.device.cuda.synchronize()
             eval_cost = time.time() - eval_start
 
-            if self._module.global_step % self._logging_freq == 0:
+            if eval_step % self._logging_freq == 0:
                 log_dict = {
                     'loss': loss.numpy(),
                     'epoch': epoch,
@@ -440,7 +448,7 @@ class EagerEngine(BasicEngine):
                 self._module.validation_step_end(log_dict)
                 eval_start = time.time()
 
-            if self._module.global_step >= self._max_steps:
+            if eval_step >= self._max_steps:
                 logger.info("The evaluting process is complete.")
                 del valid_data_loader
                 return
@@ -477,13 +485,13 @@ class EagerEngine(BasicEngine):
 
         test_start = time.time()
         for test_step, batch in enumerate(test_data_loader):
-            self._module.global_step += 1
+            # self._module.global_step += 1
             loss = self._predict_impl(batch)
 
             paddle.device.cuda.synchronize()
             test_cost = time.time() - test_start
 
-            if self._module.global_step % self._logging_freq == 0:
+            if test_step % self._logging_freq == 0:
                 log_dict = {
                     'loss': loss.numpy(),
                     'epoch': epoch,
@@ -493,7 +501,7 @@ class EagerEngine(BasicEngine):
                 self._module.test_step_end(log_dict)
                 test_start = time.time()
 
-            if self._module.global_step >= self._max_steps:
+            if test_step >= self._max_steps:
                 logger.info("The predicting process is complete.")
                 del test_data_loader
                 return
@@ -514,13 +522,17 @@ class EagerEngine(BasicEngine):
 
         return loss
 
-    def save(self):
+    def save(self, epoch=0, step=0):
         """
         save the state dicts of model and optimizer into an checkpoint.
         """
+        if self._dp_rank != 0:
+            logger.info("DP_Rank %d doesn't save model" % self._dp_rank)
+            return
+
         if self._output_dir and isinstance(self._output_dir, str):
-            output_dir = os.path.join(self._output_dir,
-                                      "step_%d" % self._module.global_step)
+            output_dir = os.path.join(self._output_dir, "epoch_%d_step_%d" %
+                                      self._module.global_step)
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir, exist_ok=True)
             logger.info("Save model to %s" % output_dir)
@@ -536,7 +548,11 @@ class EagerEngine(BasicEngine):
             paddle.save(self._optimizer.state_dict(),
                         os.path.join(save_dir, "model_state.pdopt"))
 
-            meta_dict = {"global_step": self._module.global_step}
+            meta_dict = {
+                "epoch": epoch,
+                "step": step,
+                "cuda_rng_state": paddle.get_cuda_rng_state()
+            }
             paddle.save(meta_dict, os.path.join(save_dir, "meta_state.pdopt"))
 
         else:
@@ -573,14 +589,11 @@ class EagerEngine(BasicEngine):
 
                 if os.path.exists(meta_path):
                     meta_dict = paddle.load(meta_path)
-                    resume_step = int(self._ckpt_dir.strip("/").split("_")[-1])
-
-                    if resume_step != meta_dict["global_step"]:
-                        raise ValueError(
-                            "Warning: resume_step is {}, but the step of checkpoint is {}.".
-                            format(resume_step, meta_dict["global_step"]))
-
-                    self._module.global_step = resume_step
+                    self._load_recovery = {
+                        'step': meta_dict['step'],
+                        'epoch': meta_dict['epoch'],
+                        'rng_state': meta_dict['cuda_rng_state']
+                    }
                 else:
                     raise ValueError("No meta checkpoint file found in %s." %
                                      meta_path)

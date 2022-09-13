@@ -17,6 +17,7 @@ import copy
 import argparse
 import yaml
 import codecs
+import sys
 from . import logger
 from . import check
 import paddle.distributed as dist
@@ -24,42 +25,58 @@ import paddle.distributed as dist
 __all__ = ['get_config', 'print_config']
 
 
-def process_dist_configs(config):
+def process_dist_config(config):
     """
     process distributed strategy for hybrid parallel
     """
-    configs = config['Distributed']
+    # config = config['Distributed']
 
     nranks = dist.get_world_size()
 
 
-    configs['mp_degree'] = 1 \
-        if configs.get('mp_degree', None) is None \
-        else configs['mp_degree']
+    config['mp_degree'] = 1 \
+        if config.get('mp_degree', None) is None \
+        else config['mp_degree']
 
-    configs['pp_degree'] = 1 \
-        if configs.get('pp_degree', None) is None \
-        else configs['pp_degree']
+    config['pp_degree'] = 1 \
+        if config.get('pp_degree', None) is None \
+        else config['pp_degree']
 
-    configs['sharding']['sharding_degree'] = 1 \
-        if configs['sharding'].get('sharding_degree', None) is None \
-        else configs['sharding']['sharding_degree']
+    config['sharding']['sharding_degree'] = 1 \
+        if config['sharding'].get('sharding_degree', None) is None \
+        else config['sharding']['sharding_degree']
 
-    other_degree = configs['mp_degree'] * configs['pp_degree'] * configs[
+    other_degree = config['mp_degree'] * config['pp_degree'] * config[
         'sharding']['sharding_degree']
 
-    assert nranks % other_degree == 0, "unreasonable configs of dist_strategy."
+    assert nranks % other_degree == 0, "unreasonable config of dist_strategy."
 
-    if not configs.get('dp_degree', None):
-        configs['dp_degree'] = nranks // other_degree
+    if not config.get('dp_degree', None):
+        config['dp_degree'] = nranks // other_degree
     else:
-        if configs['dp_degree'] * other_degree != nranks:
-            logger.warning('Mismatched configs using {} cards with dp_degree[{}], ' \
+        if config['dp_degree'] * other_degree != nranks:
+            logger.warning('Mismatched config using {} cards with dp_degree[{}], ' \
                 'mp_degree[{}], pp_degree[{}] and sharding_degree[{}]. So adaptively ' \
-                'adjust dp_degree to {}'.format(nranks, configs['dp_degree'], configs['mp_degree'],
-                configs['pp_degree'], configs['sharding']['sharding_degree'], nranks // other_degree))
-    assert nranks % configs[
-        'dp_degree'] == 0, "unreasonable configs of dist_strategy."
+                'adjust dp_degree to {}'.format(nranks, config['dp_degree'], config['mp_degree'],
+                config['pp_degree'], config['sharding']['sharding_degree'], nranks // other_degree))
+    assert nranks % config[
+        'dp_degree'] == 0, "unreasonable config of dist_strategy."
+
+
+def process_engine_config(config):
+    """
+    process engine
+    """
+    if config.get('save_load', None):
+        save_load_cfg = config.save_load
+        save_steps = save_load_cfg.get('save_steps', None)
+        save_epoch = save_load_cfg.get('save_epoch', None)
+        if save_steps is None or save_steps == -1:
+            save_load_cfg[
+                'save_steps'] = sys.maxsize if sys.version > '3' else sys.maxint
+
+        if save_epoch is None or save_epoch == -1:
+            save_load_cfg['save_epoch'] = 1
 
 
 class AttrDict(dict):
@@ -176,8 +193,6 @@ def check_config(config):
     if use_gpu:
         check.check_gpu()
 
-    #TODO(shenliang03): add batch size check
-
 
 def override(dl, ks, v):
     """
@@ -252,7 +267,9 @@ def get_config(fname, overrides=None, show=False):
         'config file({}) is not exist'.format(fname))
     config = parse_config(fname)
     override_config(config, overrides)
-    process_dist_configs(config)
+
+    process_dist_config(config['Distributed'])
+    process_engine_config(config['Engine'])
 
     if show:
         print_config(config)
@@ -261,7 +278,7 @@ def get_config(fname, overrides=None, show=False):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser("generic-image-rec train script")
+    parser = argparse.ArgumentParser("train script")
     parser.add_argument(
         '-c',
         '--config',
