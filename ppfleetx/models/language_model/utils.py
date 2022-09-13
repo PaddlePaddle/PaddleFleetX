@@ -68,18 +68,6 @@ def is_fused_matmul_bias_supported():
         return False
 
 
-def process_fused_configs(config):
-    """
-    process fused configs for hybrid parallel
-    """
-
-    nranks = dist.get_world_size()
-    dp_degree = config['Distributed']['dp_degree']
-    configs = config['Fused']
-    if configs['tensor_fusion']:
-        assert nranks == dp_degree, "tensor_fusion only support single card train or data parallel train"
-
-
 def process_inference_configs(config):
     """
     process fused configs for hybrid parallel
@@ -118,6 +106,11 @@ def process_optim_configs(config):
     """
     config['Optimizer']['multi_precision'] = config['Engine']['mix_precision'][
         'use_pure_fp16']
+
+    nranks = dist.get_world_size()
+    dp_degree = config['Distributed']['dp_degree']
+    if config['Optimizer']['tensor_fusion']:
+        assert nranks == dp_degree, "tensor_fusion only support single card train or data parallel train"
 
 
 def process_engine_configs(config):
@@ -162,7 +155,6 @@ def process_data_configs(config):
 def process_configs(config):
 
     process_global_configs(config)
-    process_fused_configs(config)
     process_model_configs(config)
     process_optim_configs(config)
     process_engine_configs(config)

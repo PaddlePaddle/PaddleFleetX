@@ -21,16 +21,17 @@ import numpy as np
 import math
 
 import paddle
+from paddle.io import DistributedBatchSampler
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../')))
 
 from ppfleetx.utils import env
 
-__all__ = ["DistributedBatchSampler"]
+__all__ = ["GPTBatchSampler", "DistributedBatchSampler"]
 
 
-class DistributedBatchSampler(paddle.io.BatchSampler):
+class GPTBatchSampler(paddle.io.BatchSampler):
     """Sampler that restricts data loading to a subset of the dataset.
     In such case, each process can pass a DistributedBatchSampler instance 
     as a DataLoader sampler, and load a subset of the original dataset that 

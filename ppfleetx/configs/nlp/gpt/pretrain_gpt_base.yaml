@@ -55,7 +55,7 @@ Data:
       split: [949, 50, 1]
       max_seq_len: 1024
     sampler:
-      name: DistributedBatchSampler
+      name: GPTBatchSampler
       shuffle: False
       drop_last: True
     loader:
@@ -64,12 +64,8 @@ Data:
       collate_fn: gpt_collate_fn
 
 
-Fused:
-  tensor_fusion: False
-
-
 Optimizer:
-  name: AdamW
+  name: FusedAdamW
   weight_decay: 0.01
   beta1: 0.9
   beta2: 0.999
@@ -83,6 +79,7 @@ Optimizer:
   grad_clip:
     name: "ClipGradByGlobalNorm"
     clip_norm: 1.0
+  tensor_fusion: False
 
 
 Profiler:

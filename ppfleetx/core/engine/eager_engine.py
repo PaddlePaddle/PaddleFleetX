@@ -250,7 +250,7 @@ class EagerEngine(BasicEngine):
                          valid_data_loader=None):
 
         # time count
-        train_cost = 0.0
+        train_losses = []
         train_start = time.time()
         skip_first = True
         for step, batch in enumerate(train_data_loader()):
@@ -262,20 +262,22 @@ class EagerEngine(BasicEngine):
             loss = self._fit_impl(batch)
             # Sync for profile time, delete it may be a little faster
             paddle.device.cuda.synchronize()
-            train_cost += time.time() - train_start
+            train_costs = time.time() - train_start
+            train_losses.append(loss.numpy())
 
             if step % self._logging_freq == 0:
                 log_dict = {
                     'epoch': epoch_index,
                     'batch': step,
-                    'train_cost': train_cost,
-                    'loss': loss.numpy(),
+                    'train_cost': train_costs
+                    if step == 0 else train_costs / self._logging_freq,
+                    'loss': sum(train_losses) / len(train_losses),
                     'lr': self._optimizer.get_lr()
                 }
                 self._module.training_step_end(log_dict)
 
                 train_start = time.time()
-                train_cost = 0.0
+                train_losses = []
 
             if not skip_first:
                 if step % self._eval_freq == 0:
@@ -299,7 +301,7 @@ class EagerEngine(BasicEngine):
                         'loss': eval_loss.numpy(),
                         'epoch': epoch_index,
                         'batch': eval_step,
-                        'eval_cost': eval_cost,
+                        'eval_cost': eval_cost / self._logging_freq,
                     }
                     self._module.validation_step_end(log_dict)
 
@@ -307,6 +309,8 @@ class EagerEngine(BasicEngine):
 
                 if step % self._save_steps == 0:
                     self.save(epoch=epoch_index, step=step)
+            else:
+                skip_first = False
 
             if self._max_steps > 0 and step >= self._max_steps:
                 logger.info("The training process is complete.")
@@ -362,12 +366,12 @@ class EagerEngine(BasicEngine):
                                                   paddle.DataParallel):
                 with self._module.model.no_sync():
                     loss = self._model_forward_backward(batch)
-                if not hasattr(self._module, "all_fused_tensors"
-                               ) or self._module.all_fused_tensors is None:
+                if not hasattr(self._optimizer, "all_fused_tensors"
+                               ) or self._optimizer.all_fused_tensors is None:
                     fused_allreduce_gradients(
                         list(self._module.model.parameters()), None)
                 else:
-                    all_reduce_parameters(self._module.all_fused_tensors,
+                    all_reduce_parameters(self._optimizer.all_fused_tensors,
                                           self._dp_group)
             else:
                 loss = self._model_forward_backward(batch)
@@ -434,21 +438,25 @@ class EagerEngine(BasicEngine):
         self._module.model.eval()
 
         eval_start = time.time()
+        eval_losses = []
         for eval_step, batch in enumerate(valid_data_loader):
             loss = self._evaluate_impl(batch)
 
             paddle.device.cuda.synchronize()
             eval_cost = time.time() - eval_start
+            eval_losses.append(loss.numpy())
 
             if eval_step % self._logging_freq == 0:
                 log_dict = {
-                    'loss': loss.numpy(),
+                    'loss': len(eval_losses) / sum(eval_losses),
                     'epoch': epoch,
                     'batch': eval_step,
-                    'eval_cost': eval_cost,
+                    'eval_cost': eval_cost
+                    if eval_step == 0 else eval_cost / self._logging_freq,
                 }
                 self._module.validation_step_end(log_dict)
                 eval_start = time.time()
+                eval_losses = []
 
             if eval_step >= self._max_steps:
                 logger.info("The evaluting process is complete.")
@@ -486,21 +494,25 @@ class EagerEngine(BasicEngine):
         self._module.model.eval()
 
         test_start = time.time()
+        test_losses = []
         for test_step, batch in enumerate(test_data_loader):
             loss = self._predict_impl(batch)
 
             paddle.device.cuda.synchronize()
             test_cost = time.time() - test_start
+            test_losses.append(loss.numpy())
 
             if test_step % self._logging_freq == 0:
                 log_dict = {
-                    'loss': loss.numpy(),
+                    'loss': sum(test_losses) / len(test_losses),
                     'epoch': epoch,
                     'batch': test_step,
-                    'test_cost': test_cost,
+                    'test_cost': test_cost
+                    if test_step == 0 else test_cost / self._logging_freq,
                 }
                 self._module.test_step_end(log_dict)
                 test_start = time.time()
+                test_losses = []
 
             if test_step >= self._max_steps:
                 logger.info("The predicting process is complete.")

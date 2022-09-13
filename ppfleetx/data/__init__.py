@@ -37,21 +37,26 @@ def build_dataloader(config, mode):
 
     logger.debug("build dataset({}) success...".format(dataset))
 
+    batch_sampler = None
     # build sampler
-    config_sampler = config[mode].sampler
-    config_sampler = copy.deepcopy(config_sampler)
-    sampler_name = config_sampler.pop("name")
-    batch_sampler = eval("sampler.{}".format(sampler_name))(dataset,
-                                                            **config_sampler)
-    logger.debug("build batch_sampler({}) success...".format(batch_sampler))
+    if 'sampler' in config[mode].keys():
+        config_sampler = config[mode].sampler
+        config_sampler = copy.deepcopy(config_sampler)
+        sampler_name = config_sampler.pop("name")
+        batch_sampler = eval("sampler.{}".format(sampler_name))(
+            dataset, **config_sampler)
+        logger.debug("build batch_sampler({}) success...".format(
+            batch_sampler))
 
+    collate_fn = None
+    config_loader = {}
     # build dataloader
-    config_loader = config[mode].loader
-    config_loader = copy.deepcopy(config_loader)
-    batch_transform = config_loader.pop('batch_transform', None)
-    collate_fn_name = config_loader.pop('collate_fn', 'default_collate_fn')
-    collate_fn = getattr(utils, collate_fn_name)(
-        batch_transform=batch_transform)
+    if 'loader' in config[mode].keys():
+        config_loader = config[mode].loader
+        config_loader = copy.deepcopy(config_loader)
+        collate_fn_name = config_loader.pop('collate_fn', None)
+        collate_fn = getattr(
+            utils, collate_fn_name)() if collate_fn_name is not None else None
 
     data_loader = paddle.io.DataLoader(
         dataset=dataset,
