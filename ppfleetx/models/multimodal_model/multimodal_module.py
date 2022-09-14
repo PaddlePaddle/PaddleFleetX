@@ -121,9 +121,4 @@ class ImagenModule(MultiModalModule):
         return loss_fn
 
     def pretreating_batch(self, batch):
-        if self.configs.Distributed.pp_degree > 1:
-            tokens, position_ids, labels, loss_mask = batch
-            data = [(tokens, position_ids), (labels, loss_mask)]
-            return data
-        else:
-            return batch
+        return batch
