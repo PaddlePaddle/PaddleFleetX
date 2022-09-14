@@ -94,10 +94,6 @@ class MultiModalModule(BasicModule):
                     shape=[None, None], name="ids", dtype='int64')
         ]
 
-    def get_model_size(self, l, h, v, s):
-        P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
-        logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 /
-                                                  1000.0))
 
     def training_epoch_end(self, log_dict):
         logger.info("[Training] epoch: %d, total time: %.5f sec" %
