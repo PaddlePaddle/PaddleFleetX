@@ -17,14 +17,15 @@ import paddle
 
 sys.path.append("../../")
 from ppfleetx.utils.tensor_fusion_helper import fused_parameters
+from paddle.optimizer import Adam, AdamW, Momentum
 
-class Adam(paddle.optimizer.Adam):
-    def __init__(self, learning_rate, parameters, grad_clip, **config):
-        super().__init__(
-            learning_rate=learning_rate,
-            parameters=parameters,
-            grad_clip=grad_clip,
-            **config)
+__all__ = [
+    'Adam',
+    'AdamW',
+    'Momentum',
+    'FusedAdamW',
+]
+
 
 class FusedAdamW(paddle.optimizer.AdamW):
     def __init__(self, learning_rate, parameters, grad_clip, **config):
