@@ -78,3 +78,6 @@ class BasicModule(nn.Layer):
 
     def training_epoch_end(self, *args, **kwargs):
         pass
+
+    def validation_epoch_end(self, *args, **kwargs):
+        pass
