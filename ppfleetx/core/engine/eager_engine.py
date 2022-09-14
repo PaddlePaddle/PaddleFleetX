@@ -115,6 +115,9 @@ class EagerEngine(BasicEngine):
         # engine configs
         self._configs = configs['Engine']
 
+        self._run_mode = self._configs.get('run_mode', 'step')
+        assert self._run_mode in ['epoch', 'step'
+                                  ], 'run_mode must be epoch or step'
         self._max_steps = self._configs['max_steps']
         self._eval_freq = self._configs['eval_freq']
         self._eval_iters = self._configs['eval_iters']
@@ -253,6 +256,8 @@ class EagerEngine(BasicEngine):
         train_losses = []
         train_start = time.time()
         skip_first = True
+        total_train_batch = len(train_data_loader())
+        total_eval_batch = len(valid_data_loader())
         for step, batch in enumerate(train_data_loader()):
 
             if epoch_index == self._load_recovery['epoch']:
@@ -269,6 +274,7 @@ class EagerEngine(BasicEngine):
                 log_dict = {
                     'epoch': epoch_index,
                     'batch': step,
+                    'total_batch': total_train_batch,
                     'train_cost': train_costs
                     if step == 0 else train_costs / self._logging_freq,
                     'loss': sum(train_losses) / len(train_losses),
@@ -279,7 +285,7 @@ class EagerEngine(BasicEngine):
                 train_start = time.time()
                 train_losses = []
 
-            if not skip_first:
+            if self._run_mode == 'step' and not skip_first:
                 if step % self._eval_freq == 0:
                     self._module.model.eval()
 
@@ -301,18 +307,19 @@ class EagerEngine(BasicEngine):
                         'loss': eval_loss.numpy(),
                         'epoch': epoch_index,
                         'batch': eval_step,
+                        'total_batch': total_eval_batch,
                         'eval_cost': eval_cost / self._logging_freq,
                     }
                     self._module.validation_step_end(log_dict)
 
                     self._module.model.train()
 
-                if step % self._save_steps == 0:
+                if self._save_steps > 0 and step % self._save_steps == 0:
                     self.save(epoch=epoch_index, step=step)
             else:
                 skip_first = False
 
-            if self._max_steps > 0 and step >= self._max_steps:
+            if self._run_mode == 'step' and step >= self._max_steps:
                 logger.info("The training process is complete.")
                 return
 
@@ -353,7 +360,18 @@ class EagerEngine(BasicEngine):
             }
             self._module.training_epoch_end(log_dict)
 
-            if epoch_index % self._save_epoch == 0:
+            eval_start = time.time()
+            if self._run_mode == 'epoch' and epoch_index % self._eval_freq == 0:
+                self.evaluate(epoch_index, valid_data_loader)
+                self._module.model.train()
+                eval_cost = time.time() - eval_start
+                log_dict = {
+                    'epoch': epoch_index,
+                    'eval_cost': eval_cost,
+                }
+                self._module.validation_epoch_end(log_dict)
+
+            if self._save_epoch > 0 and epoch_index % self._save_epoch == 0:
                 self.save(epoch=epoch_index, step=len(train_data_loader))
 
         if self.profiler:
@@ -439,6 +457,7 @@ class EagerEngine(BasicEngine):
 
         eval_start = time.time()
         eval_losses = []
+        total_eval_batch = len(valid_data_loader)
         for eval_step, batch in enumerate(valid_data_loader):
             loss = self._evaluate_impl(batch)
 
@@ -451,6 +470,7 @@ class EagerEngine(BasicEngine):
                     'loss': len(eval_losses) / sum(eval_losses),
                     'epoch': epoch,
                     'batch': eval_step,
+                    'total_batch': total_eval_batch,
                     'eval_cost': eval_cost
                     if eval_step == 0 else eval_cost / self._logging_freq,
                 }
@@ -458,7 +478,7 @@ class EagerEngine(BasicEngine):
                 eval_start = time.time()
                 eval_losses = []
 
-            if eval_step >= self._max_steps:
+            if self._run_mode == 'step' and eval_step >= self._max_steps:
                 logger.info("The evaluting process is complete.")
                 del valid_data_loader
                 return

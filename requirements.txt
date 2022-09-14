@@ -7,3 +7,5 @@ tqdm==4.54.1
 pybind11==2.10.0
 numpy==1.20.1
 paddleslim>=2.3.4
+opencv-python==4.0.0.21
+Pillow==8.1.2

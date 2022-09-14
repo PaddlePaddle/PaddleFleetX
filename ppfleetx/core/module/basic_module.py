@@ -34,9 +34,7 @@ class BasicModule(nn.Layer):
     def __init__(self, configs, *args, **kwargs):
         self.configs = self.process_configs(configs)
         super().__init__(*args, **kwargs)
-
         self.model = self.get_model()
-        self.loss_fn = self.get_loss_fn()
 
     def process_configs(self, configs):
         return configs
@@ -45,7 +43,7 @@ class BasicModule(nn.Layer):
         raise NotImplementedError
 
     def get_loss_fn(self):
-        raise NotImplementedError
+        pass
 
     def pretreating_batch(self, batch):
         return batch

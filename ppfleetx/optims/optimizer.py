@@ -17,6 +17,13 @@ import paddle
 
 sys.path.append("../../")
 from ppfleetx.utils.tensor_fusion_helper import fused_parameters
+from paddle.optimizer import AdamW, Momentum
+
+__all__ = [
+    'Momentum',
+    'AdamW',
+    'FusedAdamW',
+]
 
 
 class FusedAdamW(paddle.optimizer.AdamW):

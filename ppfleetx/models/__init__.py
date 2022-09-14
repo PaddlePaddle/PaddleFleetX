@@ -18,6 +18,7 @@ import copy
 sys.path.append("../../")
 from ppfleetx.core.module.basic_module import BasicModule
 from ppfleetx.models.language_model.language_module import GPTModule
+from ppfleetx.models.vision_model.general_classification_module import GeneralClsModule
 
 
 def build_module(config):
