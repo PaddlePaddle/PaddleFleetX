@@ -23,6 +23,16 @@ import paddle
 from paddle import nn
 from paddle.nn import functional as F
 
+from .model_outputs import (
+    BaseModelOutputWithPastAndCrossAttentions,
+    BaseModelOutputWithPoolingAndCrossAttentions,
+    SequenceClassifierOutput,
+    TokenClassifierOutput,
+    QuestionAnsweringModelOutput,
+    MultipleChoiceModelOutput,
+    MaskedLMOutput,
+    ModelOutput, )
+
 
 class ErnieEmbeddings(nn.Layer):
     r"""
@@ -74,6 +84,8 @@ class ErnieEmbeddings(nn.Layer):
         else:
             input_shape = paddle.shape(inputs_embeds)[:-1]
             input_embeddings = inputs_embeds
+
+        return input_embeddings
 
         if position_ids is None:
             # maybe need use shape op to unify static graph and dynamic graph
@@ -220,9 +232,7 @@ class ErnieModel(nn.Layer):
             act_dropout=0,
             weight_attr=weight_attr,
             normalize_before=False)
-        self.encoder = nn.TransformerEncoder(
-            encoder_layer,
-            num_hidden_layers, )
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_hidden_layers)
         #  use_recompute=use_recompute)
         self.pooler = ErniePooler(hidden_size, weight_attr)
         self.apply(self.init_weights)
@@ -668,19 +678,19 @@ class ErniePretrainingCriterion(paddle.nn.Layer):
 
         """
 
-        with paddle.static.amp.fp16_guard():
-            masked_lm_loss = F.cross_entropy(
-                prediction_scores,
-                masked_lm_labels,
-                ignore_index=-1,
-                reduction='none')
+        # with paddle.static.amp.fp16_guard():
+        masked_lm_loss = F.cross_entropy(
+            prediction_scores,
+            masked_lm_labels,
+            ignore_index=-1,
+            reduction='none')
 
-            if not self.with_nsp_loss:
-                return paddle.mean(masked_lm_loss)
+        if not self.with_nsp_loss:
+            return paddle.mean(masked_lm_loss)
 
-            next_sentence_loss = F.cross_entropy(
-                seq_relationship_score, next_sentence_labels, reduction='none')
-            return paddle.mean(masked_lm_loss), paddle.mean(next_sentence_loss)
+        next_sentence_loss = F.cross_entropy(
+            seq_relationship_score, next_sentence_labels, reduction='none')
+        return paddle.mean(masked_lm_loss), paddle.mean(next_sentence_loss)
 
 
 class ErnieOnlyMLMHead(nn.Layer):
