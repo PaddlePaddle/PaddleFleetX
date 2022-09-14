@@ -23,6 +23,7 @@ import ppfleetx.models.language_model.gpt as gpt
 from ppfleetx.utils import logger
 import paddleslim
 from .utils import process_configs
+from ppfleetx.data.tokenizers import GPTTokenizer
 
 
 class LanguageModule(BasicModule):
@@ -151,3 +152,97 @@ class GPTModule(LanguageModule):
             return data
         else:
             return batch
+
+
+class GPTGenerationModule(BasicModule):
+    def __init__(self, configs):
+        self.global_cfgs = configs
+        self.generation_cfgs = configs.Generation
+        self.nranks = paddle.distributed.get_world_size()
+
+        super().__init__(configs)
+
+    def get_model(self):
+        model_setting = copy.deepcopy(self.global_cfgs.Model)
+        model_setting.pop("module")
+        model_setting.pop("name")
+
+        if self.nranks == 1:
+            model = gpt.GPTForGeneration(
+                gpt.GPTModel(**model_setting), self.generation_cfgs)
+        else:
+            assert self.nranks == self.global_cfgs.Distributed.dp_degree, \
+                "only support single card and data parallel in generation task."
+            model = gpt.GPTForGenerationHybrid(
+                gpt.GPTModelHybrid(**model_setting), self.generation_cfgs)
+
+        self.tokenizer = GPTTokenizer.from_pretrained("gpt2")
+
+        self.generation_cfgs['max_dec_len'] = self.adjust_length_to_model(
+            self.generation_cfgs['max_dec_len'], 512)
+
+        self.generation_cfgs['bos_token_id'] = self.tokenizer.eos_token_id
+        self.generation_cfgs['eos_token_id'] = self.tokenizer.eos_token_id
+        self.generation_cfgs['pad_token_id'] = self.tokenizer.eos_token_id
+
+        return model
+
+    def adjust_length_to_model(self, length, max_sequence_length):
+        if length < 0 or length > max_sequence_length:
+            length = max_sequence_length
+        return length
+
+    def left_padding(self, inputs, pad_id, padding="longest"):
+        assert "input_ids" in inputs, "input_ids should be in inputs!"
+        max_length = 0
+        for ids in inputs["input_ids"]:
+            max_length = max(max_length, len(ids))
+
+        def extend_max_lenth(value, max_length, to_pad_id):
+            return [to_pad_id] * (max_length - len(value)) + value
+
+        def extend_filed(name, max_length, to_pad_id):
+            values = inputs[name]
+            res = []
+            for index, value in enumerate(values):
+                res.append(extend_max_lenth(value, max_length, to_pad_id))
+            inputs[name] = res
+
+        extend_filed("input_ids", max_length, pad_id)
+        if "attention_mask" in inputs:
+            extend_filed("attention_mask", max_length, 0)
+        if "position_ids" in inputs:
+            extend_filed("position_ids", max_length, 0)
+
+        return inputs
+
+    def generate(self, input_text):
+        return self(input_text)
+
+    def forward(self, input_text):
+        input_ids = self.tokenizer.encode(input_text)
+        inputs = {'input_ids': [input_ids]}
+
+        inputs = self.left_padding(inputs, self.tokenizer.eos_token_id)
+        input_ids = inputs['input_ids']
+
+        if len(input_ids) == 0:
+            input_ids = None
+        else:
+            # [1, seq_len]
+            input_ids = paddle.to_tensor(input_ids, dtype='int64')
+
+        ids, scores = self.model(input_ids=input_ids)
+
+        generated_sequences = []
+        for i, generated_ids in enumerate(ids):
+            generated_ids = generated_ids.numpy().tolist()
+            # Decode text
+            text = self.tokenizer.convert_ids_to_string(generated_ids)
+            sequence = input_text + text
+            generated_sequences.append(sequence)
+
+        return generated_sequences
+
+    def input_spec(self):
+        return [InputSpec(shape=[None, None], name="input_ids", dtype='int64')]

@@ -45,7 +45,7 @@ class BasicModule(nn.Layer):
         raise NotImplementedError
 
     def get_loss_fn(self):
-        raise NotImplementedError
+        pass
 
     def pretreating_batch(self, batch):
         return batch

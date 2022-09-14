@@ -17,7 +17,7 @@ import copy
 
 sys.path.append("../../")
 from ppfleetx.core.module.basic_module import BasicModule
-from ppfleetx.models.language_model.language_module import GPTModule
+from ppfleetx.models.language_model.language_module import GPTModule, GPTGenerationModule
 from ppfleetx.models.language_model.ernie import ErnieModule
 
 

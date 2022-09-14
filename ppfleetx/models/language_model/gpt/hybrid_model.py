@@ -872,7 +872,7 @@ class GPTForPretrainingPipe(PipelineLayer):
             })
 
 
-class GPTForGeneration(nn.Layer):
+class GPTForGenerationHybrid(nn.Layer):
     """
     GPT Model with pretraining tasks on top.
 
@@ -883,7 +883,7 @@ class GPTForGeneration(nn.Layer):
     """
 
     def __init__(self, gpt):
-        super(GPTForGeneration, self).__init__()
+        super(GPTForGenerationHybrid, self).__init__()
         self.gpt = gpt
         # extra_parameters using for sharding stage3 to register extra_parameters
         self.extra_parameters = [
