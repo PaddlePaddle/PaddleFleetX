@@ -49,7 +49,7 @@ class GPTDataset(paddle.io.Dataset):
             except Exception as e:
                 start_time = time.time()
                 print('> compiling dataset index builder ...')
-                from fleetx.data.data_tools.cpp.compile import compile_helper
+                from ppfleetx.data.data_tools.cpp.compile import compile_helper
                 compile_helper()
                 print(
                     '>>> done with dataset index builder. Compilation time: {:.3f} '
@@ -61,7 +61,7 @@ class GPTDataset(paddle.io.Dataset):
         if device_world_size > 1 and local_rank != 0:
             while True:
                 try:
-                    import fleetx.data.data_tools.cpp.fast_index_map_helpers
+                    import ppfleetx.data.data_tools.cpp.fast_index_map_helpers
                     break
                 except Exception as e:
                     print("> wait for helpers to be compiled!")
