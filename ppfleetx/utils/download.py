@@ -41,7 +41,7 @@ def _map_path(url, root_dir):
 
 def cached_path(url_or_path, cache_dir=None):
     if cache_dir is None:
-        cache_dir = '~/.cache/fleetx/'
+        cache_dir = '~/.cache/ppfleetx/'
 
     cache_dir = os.path.expanduser(cache_dir)
 
