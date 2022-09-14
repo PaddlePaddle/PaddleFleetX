@@ -1,5 +1,10 @@
 _base_: ./pretrain_gpt_345M_single_card.yaml
 
+Engine:
+  mix_precision:
+    use_pure_fp16: False
+
+
 Model:
   module: GPTEvalModule
 
@@ -8,7 +13,6 @@ Offline_Eval:
   eval_path: None
   cloze_eval: False
   overlapping_eval: 32
-  ckpt_dir: None
   batch_size: 8
   max_seq_len: 1024
   logging_freq: 10

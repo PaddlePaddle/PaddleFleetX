@@ -14,6 +14,7 @@
 
 import sys
 import copy
+import math
 
 import paddle
 
@@ -258,26 +259,29 @@ class GPTEvalModule(LanguageModule):
 
         self.post_process_configs()
 
+        self.first_step = True
         self.total_score = 0
         self.score_name = "loss" if not self.eval_cfgs.cloze_eval else "number correct"
 
     def post_process_configs(self):
-        self.configs.pop("Optimizer")
-        self.configs.pop("Inference")
+        self.configs.pop("Optimizer", None)
+        self.configs.pop("Inference", None)
 
-        if "Train" in self.configs.Data.keys():
-            self.configs.Data.pop("Train")
-        if "Test" in self.configs.Data.keys():
-            self.configs.Data.pop("Test")
-        if "sampler" in self.configs.Data.Eval.keys():
-            self.configs.Data.Eval.pop("sampler")
-
+        self.configs.Data.pop("Train", None)
+        self.configs.Data.pop("Test", None)
+        self.configs.Data.Eval.pop("sampler", None)
         self.configs.Data.Eval.loader.collate_fn = "gpt_eval_collate_fn"
+        self.configs.Data.Eval.loader.batch_size = self.eval_cfgs.batch_size
+        self.configs.Data.Eval.dataset.input_dir = self.eval_cfgs.eval_path
+        self.configs.Data.Eval.dataset.max_seq_len = self.eval_cfgs.max_seq_len
+
         self.configs.Engine.logging_freq = self.eval_cfgs.logging_freq
+
         if not self.eval_cfgs.cloze_eval:
-            self.configs.Data.Eval.name = "LM_Eval_Dataset"
+            self.configs.Data.Eval.dataset.name = "LM_Eval_Dataset"
+            self.configs.Data.Eval.dataset.overlapping_eval = self.eval_cfgs.overlapping_eval
         else:
-            self.configs.Data.Eval.name = "Lambada_Eval_Dataset"
+            self.configs.Data.Eval.dataset.name = "Lambada_Eval_Dataset"
 
     def get_model(self):
         model_setting = copy.deepcopy(self.configs.Model)
@@ -297,18 +301,66 @@ class GPTEvalModule(LanguageModule):
 
     def validation_step(self, batch):
         tokens, loss_mask, attention_mask, position_ids, labels, info = batch
+
         preds = self(tokens, position_ids, attention_mask)
 
         if not self.eval_cfgs.cloze_eval:
+            if self.first_step:
+                self.num_original_tokens = info.numpy()[0][0]
+                self.num_tokenized_tokens = info.numpy()[0][1]
+
             masked_lm_loss = paddle.nn.functional.cross_entropy(
                 preds, labels, reduction="none")
             loss = paddle.sum(masked_lm_loss * loss_mask)
-            self.total_score += loss / (info.numpy()[1] - 1)
-
+            return loss
         else:
+            if self.first_step:
+                self.num_examples = info.numpy()[0][0]
+
             outputs = paddle.argmax(preds, -1)
             acc = paddle.cast(outputs == labels, 'float32')
             acc = paddle.where(
                 paddle.cast(loss_mask, 'bool'), acc, paddle.ones_like(acc))
             acc = paddle.sum(paddle.prod(acc, -1))
-            self.total_score += acc.numpy()
+            return acc
+
+        self.first_step = False
+
+    def validation_step_end(self, log_dict):
+        speed = 1. / log_dict['eval_cost']
+
+        if not self.eval_cfgs.cloze_eval:
+            self.total_score += log_dict[
+                'loss'] * self.configs.Engine.logging_freq / (
+                    self.num_tokenized_tokens - 1)
+        else:
+            self.total_score += log_dict[
+                'loss'] * self.configs.Engine.logging_freq
+
+        logger.info("[eval] epoch: %d, batch: %d, %s: %.9f, speed: %.2f step/s"
+                    % (log_dict['epoch'], log_dict['batch'], self.score_name,
+                       self.total_score, speed))
+
+    def validation_epoch_end(self, log_dict):
+        if not self.eval_cfgs.cloze_eval:
+            total_loss = float(self.total_score)
+            ppl = math.exp(min(20, total_loss))
+            token_ratio = (self.num_tokenized_tokens - 1) / (
+                self.num_original_tokens - 1)
+            adjusted_ppl = math.exp(min(20, total_loss * token_ratio))
+            string = ' validation results on {} | '.format(
+                self.eval_cfgs.eval_path)
+            string += 'avg loss: {:.4E} | '.format(total_loss)
+            string += 'ppl: {:.4E} | '.format(ppl)
+            string += 'adjusted ppl: {:.4E} | '.format(adjusted_ppl)
+            string += 'token ratio: {} |'.format(token_ratio)
+        else:
+            num_correct = float(self.total_score)
+            acc = float(num_correct / self.num_examples)
+            string = ' validation results on {} | '.format(
+                self.eval_cfgs.eval_path)
+            string += 'number correct: {:.4E} | '.format(num_correct)
+            string += 'total examples: {:.4E} | '.format(self.num_examples)
+            string += 'avg accuracy: {:.4E}'.format(acc)
+
+        logger.info(string)

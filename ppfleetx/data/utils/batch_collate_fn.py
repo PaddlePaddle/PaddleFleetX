@@ -98,6 +98,10 @@ def gpt_collate_fn(batch):
     return Tuple(Stack(), Stack(), Stack(), Stack())(batch)
 
 
+def gpt_eval_collate_fn(batch):
+    return Tuple(Stack(), Stack(), Stack(), Stack(), Stack(), Stack())(batch)
+
+
 def imagen_collate_fn(batch):
     """ collate for imagen base64 """
     text_embs = []

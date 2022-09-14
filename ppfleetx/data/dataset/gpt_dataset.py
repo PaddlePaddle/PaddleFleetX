@@ -453,10 +453,11 @@ def _build_shuffle_idx(num_samples, total_size, np_rng):
 
 
 class LM_Eval_Dataset(paddle.io.Dataset):
-    def __init__(self, eval_path, seq_len, pad_idx, overlapping_eval=None):
+    def __init__(self, input_dir, max_seq_len, overlapping_eval=None,
+                 **kwargs):
         tokenizer = GPTTokenizer.from_pretrained("gpt2")
 
-        with open(eval_path, "rb") as reader:
+        with open(input_dir, "rb") as reader:
             entire_data = reader.read().decode('utf-8')
 
         self.num_original_tokens = len(entire_data.strip().split(" "))
@@ -464,9 +465,9 @@ class LM_Eval_Dataset(paddle.io.Dataset):
         self.tokens = tokenizer.encode(entire_data)
         self.num_tokenized_tokens = len(self.tokens)
         print('Original Tokens: %d, Detokenized tokens: %d' %
-              (self.num_tokenized_tokens, self.num_original_tokens))
+              (self.num_original_tokens, self.num_tokenized_tokens))
 
-        self.seq_len = seq_len
+        self.seq_len = max_seq_len
         self.pad_idx = tokenizer.eos_token_id
         self.overlapping_eval = overlapping_eval
         if self.overlapping_eval is None:
@@ -516,7 +517,7 @@ class LM_Eval_Dataset(paddle.io.Dataset):
             loss_mask[:-self.overlapping_eval] *= 0
 
         return [tokens, loss_mask, attention_mask, position_ids, labels, \
-            [self.num_original_tokens, self.num_tokenized_tokens]]
+            np.array([self.num_original_tokens, self.num_tokenized_tokens])]
 
     def _wikitext_detokenizer(self, string):
         # contractions
@@ -552,11 +553,12 @@ class LM_Eval_Dataset(paddle.io.Dataset):
 
 
 class Lambada_Eval_Dataset(paddle.io.Dataset):
-    def __init__(self, eval_path, seq_len):
+    def __init__(self, input_dir, max_seq_len, **kwargs):
         tokenizer = GPTTokenizer.from_pretrained("gpt2")
 
-        tokenized_data, tokenized_label = [], []
-        with open(eval_path, 'r') as f:
+        tokenized_data = []
+        tokenized_label = []
+        with open(input_dir, 'r') as f:
             for line in f.readlines():
                 text = json.loads(line)['text']
                 tokens, labels = self._get_tokens(tokenizer, text)
@@ -564,9 +566,9 @@ class Lambada_Eval_Dataset(paddle.io.Dataset):
                 tokenized_label.append(labels)
 
         self.pad_idx = tokenizer.eos_token_id
-        self.seq_len = seq_len
-        self.tokens = tokens
-        self.labels = labels
+        self.seq_len = max_seq_len
+        self.tokens = tokenized_data
+        self.labels = tokenized_label
 
     def __len__(self):
         return len(self.tokens)
@@ -604,7 +606,7 @@ class Lambada_Eval_Dataset(paddle.io.Dataset):
          labels] = self._construct_sample(tokens)
         return [
             tokens, loss_mask, attention_mask, position_ids, labels,
-            [self.__len__]
+            np.array([self.__len__()])
         ]
 
     def _get_tokens(self, tokenizer, text, strict=True):
