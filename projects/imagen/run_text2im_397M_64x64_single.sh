@@ -15,5 +15,5 @@
 # limitations under the License.
 
 
-
+cd ../../
 python tools/train.py -c ppfleetx/configs/multimodal/imagen/imagen_397M_text2im_64x64.yaml -o Data.Train.loader.num_workers=8
