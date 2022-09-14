@@ -32,8 +32,8 @@ from paddle.distributed.fleet.utils import recompute
 import sys
 from .config import configurable
 
-from .utils import ScatterOp, GatherOp, all_reduce_gradient_hook, \
-                   ColumnSequenceParallelLinear, RowSequenceParallelLinear
+from .sequence_parallel_utils import ScatterOp, GatherOp, \
+        all_reduce_gradient_hook, ColumnSequenceParallelLinear, RowSequenceParallelLinear
 
 
 def get_attr(layer, name):
@@ -117,7 +117,7 @@ class MultiHeadAttention(nn.Layer):
 
         assert self.num_heads % num_partitions == 0, "num_heads {} must be divisible by num_partitions {}".format(
             self.num_heads, num_partitions)
-        self.num_heads = self.num_heads // num_partitions   # num_partitions is mp parallelism
+        self.num_heads = self.num_heads // num_partitions  # num_partitions is mp parallelism
 
         if self.fuse:
             assert self.kdim == embed_dim
@@ -678,7 +678,6 @@ class GPTModel(nn.Layer):
             recompute_granularity=recompute_granularity,
             sequence_parallel=sequence_parallel)
 
-
     @classmethod
     def from_config(cls, cfg):
         return {
@@ -747,6 +746,11 @@ class GPTModel(nn.Layer):
             attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
+
+        if self.sequence_parallel:
+            encoder_outputs = GatherOp.apply(encoder_outputs)
+            encoder_outputs = paddle.transpose(encoder_outputs, [1, 0, 2])
+
         return encoder_outputs
 
 
@@ -984,6 +988,7 @@ class GPTForPretrainingPipe(PipelineLayer):
             "fused_linear": cfg['fused_linear'],
             "recompute_granularity": cfg['recompute_granularity']
         }
+
 
 class GPTForGeneration(nn.Layer):
     """

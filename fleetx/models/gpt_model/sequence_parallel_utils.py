@@ -26,65 +26,73 @@ from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 
 import numpy as np
 
-
-
 ####################################################
 #                                                  #
 #        Distributed Communication Operator        #
 #                                                  #
 ####################################################
 
+
+def scatter(input):
+    hcg = fleet.get_hybrid_communicate_group()
+    group = hcg.get_model_parallel_group()
+    parallelism = group.nranks
+    rank = group.rank
+    assert input.shape[0] % parallelism == 0, \
+            "Input sequence length {0} can't be divided exactly \
+             by sequence parallelism {1}".format(input.shape[0], parallelism)
+    input = paddle.split(input, num_or_sections=parallelism, axis=0)[rank]
+    return input
+
+
+def all_gather(input):
+    hcg = fleet.get_hybrid_communicate_group()
+    group = hcg.get_model_parallel_group()
+    parallelism = group.nranks
+    output_shape = input.shape
+    output_shape[0] = output_shape[0] * parallelism
+    output = paddle.empty(shape=output_shape, dtype=input.dtype)
+    group.process_group.all_gather(input, output).wait()
+    return output
+
+
+def reduce_scatter(input):
+    hcg = fleet.get_hybrid_communicate_group()
+    group = hcg.get_model_parallel_group()
+    parallelism = group.nranks
+    output_shape = input.shape
+    assert input.shape[0] % parallelism == 0, \
+        "Input sequence length {0} can't be divided exactly by \
+         sequence parallelism {1}".format(input.shape[0], parallelism)
+    output_shape[0] = output_shape[0] // parallelism
+    output = paddle.empty(shape=output_shape, dtype=input.dtype)
+    group.process_group._reduce_scatter_base(output, input).wait()
+    return output
+
+
 class ScatterOp(PyLayer):
     # input shape: [s, b, h], n is mp parallelism
     # after forward shape: [s/n, b, h]
     @staticmethod
-    def forward(self, input):
-        hcg = fleet.get_hybrid_communicate_group()
-        group = hcg.get_model_parallel_group()
-        parallelism = group.nranks
-        rank = group.rank
-        assert input.shape[0] % parallelism == 0, \
-            "Input sequence length {0} can't be divided exactly \
-             by sequence parallelism {1}".format(input.shape[0], parallelism)
-        input = paddle.split(input, num_or_sections=parallelism, axis=0)[rank]
-        return input
+    def forward(ctx, input):
+        return scatter(input)
 
     @staticmethod
-    def backward(self, grad):
-        hcg = fleet.get_hybrid_communicate_group()
-        group = hcg.get_model_parallel_group()
-        parallelism = group.nranks
-        output_shape = grad.shape
-        output_shape[0] = output_shape[0] * parallelism
-        output = paddle.empty(shape=output_shape, dtype=grad.dtype)
-        group.process_group.all_gather(grad, output).wait()
-        return output
+    def backward(ctx, grad):
+        return all_gather(grad)
+
 
 class GatherOp(PyLayer):
     # input shape: [s/n, b, h], n is mp parallelism
     # after forward shape: [s, b, h]
     @staticmethod
-    def forward(self, input):
-        hcg = fleet.get_hybrid_communicate_group()
-        group = hcg.get_model_parallel_group()
-        parallelism = group.nranks
-        output_shape = input.shape
-        output_shape[0] = output_shape[0] * parallelism
-        output = paddle.empty(shape=output_shape, dtype=input.dtype)
-        group.process_group.all_gather(input, output).wait()
-        return output
+    def forward(ctx, input):
+        return all_gather(input)
 
     @staticmethod
-    def backward(self, grad):
-        hcg = fleet.get_hybrid_communicate_group()
-        group = hcg.get_model_parallel_group()
-        parallelism = group.nranks
-        rank = group.rank
-        assert grad.shape[0] % parallelism == 0, \
-            "Input sequence length {0} can't be divided exactly \
-             by sequence parallelism {1}".format(grad.shape[0], parallelism)
-        input = paddle.split(grad, num_or_sections=parallelism, axis=0)[rank]
-        return input
+    def backward(ctx, grad):
+        return scatter(grad)
+
 
 # All gather along the first dim during forward pass
 # All reduce and scatter along the first dim during backward pass
@@ -92,31 +100,15 @@ class AllGatherOp(PyLayer):
     # input shape: [s/n, b, h], n is mp parallelism
     # after forward shape: [s, b, h]
     @staticmethod
-    def forward(self, input):
-        hcg = fleet.get_hybrid_communicate_group()
-        group = hcg.get_model_parallel_group()
-        parallelism = group.nranks
-        output_shape = input.shape
-        output_shape[0] = output_shape[0] * parallelism
-        output = paddle.empty(shape=output_shape, dtype=input.dtype)
-        group.process_group.all_gather(input, output).wait()
-        return output
+    def forward(ctx, input):
+        return all_gather(input)
 
     # grad shape: [s, b, h], n is mp parallelism
     # after forward shape: [s/n, b, h]
     @staticmethod
-    def backward(self, grad):
-        hcg = fleet.get_hybrid_communicate_group()
-        group = hcg.get_model_parallel_group()
-        parallelism = group.nranks
-        output_shape = grad.shape
-        assert grad.shape[0] % parallelism == 0, \
-            "Grad sequence length {0} can't be divided exactly by \
-             sequence parallelism {1}".format(grad.shape[0], parallelism)
-        output_shape[0] = output_shape[0] // parallelism
-        output = paddle.empty(shape=output_shape, dtype=grad.dtype)
-        group.process_group._reduce_scatter_base(output, grad).wait()
-        return output
+    def backward(ctx, grad):
+        return reduce_scatter(grad)
+
 
 # All reduce and scatter along the first dim during forward pass
 # All gather along the first dim during backward pass
@@ -124,32 +116,14 @@ class ReduceScatterOp(PyLayer):
     # input shape: [s, b, h], n is mp parallelism
     # after forward shape: [s/n, b, h]
     @staticmethod
-    def forward(self, input):
-        hcg = fleet.get_hybrid_communicate_group()
-        group = hcg.get_model_parallel_group()
-        parallelism = group.nranks
-        output_shape = input.shape
-        assert input.shape[0] % parallelism == 0, \
-            "Input sequence length {0} can't be divided exactly by \
-             sequence parallelism {1}".format(input.shape[0], parallelism)
-        output_shape[0] = output_shape[0] // parallelism
-        output = paddle.empty(shape=output_shape, dtype=input.dtype)
-        group.process_group._reduce_scatter_base(output, input).wait()
-        return output
+    def forward(ctx, input):
+        return reduce_scatter(input)
 
     # grad shape: [s/n, b, h], n is mp parallelism
     # after forward shape: [s, b, h]
     @staticmethod
-    def backward(self, grad):
-        hcg = fleet.get_hybrid_communicate_group()
-        group = hcg.get_model_parallel_group()
-        parallelism = group.nranks
-        output_shape = grad.shape
-        output_shape[0] = output_shape[0] * parallelism
-        output = paddle.empty(shape=output_shape, dtype=grad.dtype)
-        group.process_group.all_gather(grad, output).wait()
-        return output
-
+    def backward(ctx, grad):
+        return all_gather(grad)
 
 
 ###################################################
@@ -158,26 +132,20 @@ class ReduceScatterOp(PyLayer):
 #                                                 #
 ###################################################
 
+
 def all_reduce_gradient_hook(grad):
     hcg = fleet.get_hybrid_communicate_group()
     group = hcg.get_model_parallel_group()
     group.process_group.allreduce(grad).wait()
     return grad
 
-# def gradient_hook(grad, name="gradient", prefix="seq_paral", is_break=True):
-#     hcg = fleet.get_hybrid_communicate_group()
-#     group = hcg.get_model_parallel_group()
-#     rank = group.rank
-#     np.save("debug_data/{0}/{1}_{2}.npy".format(prefix, name, rank), grad)
-#     if is_break:
-#         import os; os._exit(0)
-#     return grad
 
 def is_fused_matmul_bias_supported():
     if paddle.is_compiled_with_cuda() and not paddle.is_compiled_with_rocm():
         return hasattr(core.ops, 'fused_gemm_epilogue')
     else:
         return False
+
 
 class ColumnSequenceParallelLinear(Layer):
     def __init__(self,
@@ -191,20 +159,22 @@ class ColumnSequenceParallelLinear(Layer):
                  name=None):
         super(ColumnSequenceParallelLinear, self).__init__()
 
-        self.model_parallel_group = tp._HYBRID_PARALLEL_GROUP.get_model_parallel_group(
+        hcg = fleet.get_hybrid_communicate_group()
+        self.model_parallel_group = hcg.get_model_parallel_group(
         ) if mp_group is None else mp_group
-        self.world_size = tp._HYBRID_PARALLEL_GROUP.get_model_parallel_world_size(
-        ) if mp_group is None else mp_group.nranks
+        self.world_size = hcg.get_model_parallel_group(
+        ).nranks if mp_group is None else mp_group.nranks
         self._name = name
         self.is_mp = (self.world_size > 1)
 
         assert gather_output is False, "If sequence_parallel is True, \
                                         gather_output is False"
+
         self.gather_output = gather_output
         assert out_features % self.world_size == 0, (
             "Number of column of the weight for linear ({}) must be"
-            " divisible by model parallel size ({})".format(
-                out_features, self.world_size))
+            " divisible by model parallel size ({})".format(out_features,
+                                                            self.world_size))
         self.output_size_per_partition = out_features // self.world_size
 
         self._weight_attr = weight_attr
@@ -249,7 +219,6 @@ class ColumnSequenceParallelLinear(Layer):
             from paddle.incubate.nn.functional import fused_linear
             self.linear = fused_linear
 
-
     def forward(self, x):
         # sequence parallelism is same as model parallelism
         # if sequence parallel is true, input shape is [s, b, h]
@@ -258,15 +227,12 @@ class ColumnSequenceParallelLinear(Layer):
             input_parallel = AllGatherOp.apply(x)
         else:
             input_parallel = x
-        output = self.linear(input_parallel,
-                                      self.weight,
-                                      self.bias,
-                                      name=self._name)
+        output = self.linear(
+            input_parallel, self.weight, self.bias, name=self._name)
         return output
 
 
 class RowSequenceParallelLinear(Layer):
-
     def __init__(self,
                  in_features,
                  out_features,
@@ -282,23 +248,25 @@ class RowSequenceParallelLinear(Layer):
         self.out_features = out_features
         assert input_is_parallel is True, "If sequence_parallel is True, \
                                            input_is_parallel should be true."
+
         self.input_is_parallel = input_is_parallel
         self._weight_attr = weight_attr
         self._dtype = self._helper.get_default_dtype()
         self._name = name
 
-        self.model_parallel_group = tp._HYBRID_PARALLEL_GROUP.get_model_parallel_group(
+        hcg = fleet.get_hybrid_communicate_group()
+        self.model_parallel_group = hcg.get_model_parallel_group(
         ) if mp_group is None else mp_group
-        self.world_size = tp._HYBRID_PARALLEL_GROUP.get_model_parallel_world_size(
-        ) if mp_group is None else mp_group.nranks
-        self.rank = tp._HYBRID_PARALLEL_GROUP.get_model_parallel_rank(
-        ) if mp_group is None else mp_group.rank
+        self.world_size = hcg.get_model_parallel_group(
+        ).nranks if mp_group is None else mp_group.nranks
+        self.rank = hcg.get_model_parallel_group(
+        ).rank if mp_group is None else mp_group.rank
 
         self.is_mp = (self.world_size > 1)
         assert in_features % self.world_size == 0, (
             "Number of row of the weight for linear ({}) must be"
-            " divisible by model parallel size ({})".format(
-                in_features, self.world_size))
+            " divisible by model parallel size ({})".format(in_features,
+                                                            self.world_size))
 
         self.input_size_per_partition = in_features // self.world_size
 
@@ -320,8 +288,6 @@ class RowSequenceParallelLinear(Layer):
 
         # if sequence parallel is true, 
         # register hook to all_reduce gradient of weight and bias
-        # if self.is_mp:
-        #     self.weight.register_hook(all_reduce_gradient_hook)
         if has_bias:
             self.bias = self.create_parameter(
                 shape=[self.out_features],
@@ -346,24 +312,15 @@ class RowSequenceParallelLinear(Layer):
             self.linear = fused_linear
 
     def forward(self, x):
-        if self.input_is_parallel or (not self.is_mp):
-            input_parallel = x
-        else:
-            # split last dim
-            input_parallel = paddle.distributed.collective._c_split(
-                x, group=self.model_parallel_group)
-
+        input_parallel = x
         if self.is_mp:
-            output_parallel = self.linear(input_parallel,
-                                          self.weight,
-                                          name=self._name)
+            output_parallel = self.linear(
+                input_parallel, self.weight, name=self._name)
             output_ = ReduceScatterOp.apply(output_parallel)
             # if self.bias is not none, sequence parallel will use
             # register_hook to all_reduce self.bias
             output = output_ + self.bias if self.bias is not None else output_
         else:
-            output = self.linear(input_parallel,
-                                 self.weight,
-                                 self.bias,
-                                 name=self._name)
+            output = self.linear(
+                input_parallel, self.weight, self.bias, name=self._name)
         return output
