@@ -96,3 +96,31 @@ def default_collate_fn(batch_transform=None):
 
 def gpt_collate_fn():
     return Tuple(Stack(), Stack(), Stack(), Stack())
+
+
+def imagen_collate_fn(batch):
+    """ collate for imagen base64 """
+    text_embs = []
+    images = []
+    attn_masks = []
+    max_len = 0
+    for image, text_emb, attn_mask in batch:
+        if text_emb is None:
+            return [None] * 3
+        text_len, dim = text_emb.shape
+        if text_len > max_len:
+            max_len = text_emb.shape[0]
+
+        images.append(image)
+        text_embs.append(text_emb)
+        attn_masks.append(attn_mask)
+    bsz = len(images)
+    dim = text_embs[0].shape[-1]
+    text_embeds = paddle.zeros(shape=[bsz, max_len, dim], dtype=np.float32)
+    text_masks = paddle.zeros(shape=[bsz, max_len], dtype=np.int64)
+    images = paddle.stack(images)
+    for i, (emb, mask) in enumerate(zip(text_embs, attn_masks)):
+        text_embeds[i, :emb.shape[0], :] = emb
+        text_masks[i, :mask.shape[0]] = mask
+
+    return images, text_embeds, text_masks

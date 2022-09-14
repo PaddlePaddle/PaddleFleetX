@@ -13,3 +13,4 @@
 # limitations under the License.
 
 from .language_dataset import GPTDataset
+from .multimodal_dataset import ImagenDataset

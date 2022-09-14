@@ -20,6 +20,9 @@ from ppfleetx.core.module.basic_module import BasicModule
 from ppfleetx.models.language_model.language_module import GPTModule, GPTGenerationModule
 from ppfleetx.models.language_model.ernie import ErnieModule
 
+from ppfleetx.models.multimodal_model.multimodal_module import ImagenModule
+
+
 
 def build_module(config):
     module_name = config.Model.get("module", "BasicModule")
