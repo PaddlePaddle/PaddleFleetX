@@ -28,7 +28,6 @@ from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 
 sys.path.append("../../../")
 from fleetx.core.engine.eager_engine import EagerEngine
-from fleetx.data.tokenizers import GPTTokenizer
 from examples.gpt.gpt_module import GPTGenerationModule
 from examples.gpt.tools import parse_yaml
 
@@ -88,21 +87,22 @@ def do_export():
     set_hyrbid_parallel_seed(seed, data_world_rank, mp_rank, pp_rank)
 
     module = GPTGenerationModule(configs)
+
     engine = EagerEngine(module=module, configs=configs, mode='export')
 
-    tokenizer = GPTTokenizer.from_pretrained("gpt2")
-    input_text = 'Hi, GPT2. Tell me who Jack Ma is.'
-    input_ids = [tokenizer.encode(input_text)]
+    ckpt_dir = configs['Engine']['save_load']['ckpt_dir']
 
-    outs = engine.inference([input_ids])
+    ckpt_dir = "{}/mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}".format(
+        ckpt_dir, mp_rank, sharding_rank, pp_rank)
 
-    ids = list(outs.values())[0]
-    out_ids = [int(x) for x in ids[0]]
-    result = tokenizer.decode(out_ids)
-    result = input_text + result
+    model_path = os.path.join(ckpt_dir, "model.pdparams")
+    model_dict = paddle.load(model_path)
 
-    print('Prompt:', input_text)
-    print('Generation:', result)
+    for key, value in model_dict.items():
+        model_dict[key] = model_dict[key].astype(paddle.float32)
+
+    engine._module.model.set_state_dict(model_dict)
+    engine.export()
 
 
 if __name__ == "__main__":

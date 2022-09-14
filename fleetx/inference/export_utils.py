@@ -42,7 +42,7 @@ def _prune_input_spec(input_spec, program, targets):
     return pruned_input_spec
 
 
-def export_inference_model(model, input_spec, save_dir='./output'):
+def export_inference_model(model, input_spec, save_dir='./output', save_name='model'):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
@@ -50,5 +50,6 @@ def export_inference_model(model, input_spec, save_dir='./output'):
     pruned_input_spec = _prune_input_spec(input_spec,
                                           static_model.forward.main_program,
                                           static_model.forward.outputs)
-    paddle.jit.save(static_model, save_dir, input_spec=pruned_input_spec)
+    paddle.jit.save(static_model, os.path.join(save_dir, save_name),
+                    input_spec=pruned_input_spec)
     logger.info("export inference model saved in {}".format(save_dir))

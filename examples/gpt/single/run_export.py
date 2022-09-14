@@ -26,7 +26,6 @@ sys.path.append("../../../")
 from examples.gpt.gpt_module import GPTGenerationModule, GPTModule
 from examples.gpt.tools import parse_yaml
 from fleetx.datasets.gpt import create_pretrained_dataset, get_train_data_file
-from fleetx.data.tokenizers import GPTTokenizer
 from fleetx.core.engine.eager_engine import EagerEngine
 
 
@@ -39,8 +38,6 @@ def do_export():
     random.seed(seed)
     np.random.seed(seed)
     paddle.seed(seed)
-
-    tokenizer = GPTTokenizer.from_pretrained("gpt2")
 
     module = GPTGenerationModule(configs)
     # module = GPTModule(configs)

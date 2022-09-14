@@ -606,8 +606,9 @@ class EagerEngine(BasicEngine):
         input_spec = self._module.input_spec()
 
         save_dir = os.path.join(self._output_dir,
-                                "rank_{}".format(self._dp_rank), 'model')
-        export_inference_model(self._module.model, input_spec, save_dir)
+                                "rank_{}".format(self._dp_rank))
+        export_inference_model(self._module.model, input_spec,
+                               save_dir, 'model')
 
     def inference(self, data):
         if self._inference_engine is None:
