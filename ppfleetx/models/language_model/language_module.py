@@ -40,6 +40,7 @@ class LanguageModule(BasicModule):
 
     def training_step(self, batch):
         tokens, position_ids, labels, loss_mask = batch
+        print(">>>", tokens)
 
         loss_mask.stop_gradient = True
         labels.stop_gradient = True
