@@ -24,17 +24,18 @@ Engine:
     save_epoch: 1
     output_dir: ./output
     ckpt_dir:
+  balance_loss_weight: 1.0
 
 
 Model:
-  module: "GPTModule"
-  name: "GPT"
+  module: "MoEModule"
+  name: "MoE"
   fused_linear: False
   moe_configs:
-    expert_mode: False
+    expert_mode: True
     gate: gshard
-    top_k: 1
-    num_experts: 1
+    top_k: 2
+    num_experts: 2
 
 
 Data:
