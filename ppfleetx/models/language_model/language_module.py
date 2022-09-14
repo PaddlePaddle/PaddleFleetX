@@ -32,6 +32,8 @@ class LanguageModule(BasicModule):
 
         super(LanguageModule, self).__init__(configs)
 
+        self.loss_fn = self.get_loss_fn()
+
     def process_configs(self, configs):
         configs = process_configs(configs)
         return configs
@@ -246,3 +248,67 @@ class GPTGenerationModule(BasicModule):
 
     def input_spec(self):
         return [InputSpec(shape=[None, None], name="input_ids", dtype='int64')]
+
+
+class GPTEvalModule(LanguageModule):
+    def __init__(self, configs):
+        self.eval_cfgs = configs.Offline_Eval
+
+        super().__init__(configs)
+
+        self.post_process_configs()
+
+        self.total_score = 0
+        self.score_name = "loss" if not self.eval_cfgs.cloze_eval else "number correct"
+
+    def post_process_configs(self):
+        self.configs.pop("Optimizer")
+        self.configs.pop("Inference")
+
+        if "Train" in self.configs.Data.keys():
+            self.configs.Data.pop("Train")
+        if "Test" in self.configs.Data.keys():
+            self.configs.Data.pop("Test")
+        if "sampler" in self.configs.Data.Eval.keys():
+            self.configs.Data.Eval.pop("sampler")
+
+        self.configs.Data.Eval.loader.collate_fn = "gpt_eval_collate_fn"
+        self.configs.Engine.logging_freq = self.eval_cfgs.logging_freq
+        if not self.eval_cfgs.cloze_eval:
+            self.configs.Data.Eval.name = "LM_Eval_Dataset"
+        else:
+            self.configs.Data.Eval.name = "Lambada_Eval_Dataset"
+
+    def get_model(self):
+        model_setting = copy.deepcopy(self.configs.Model)
+        model_setting.pop("module")
+        model_setting.pop("name")
+
+        if self.nranks == 1:
+            model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
+        else:
+            raise RuntimeError(
+                "Only single-card offline eval is supported in GPTModel now.")
+
+        return model
+
+    def forward(self, tokens, ids, mask):
+        return self.model(tokens, ids, mask)
+
+    def validation_step(self, batch):
+        tokens, loss_mask, attention_mask, position_ids, labels, info = batch
+        preds = self(tokens, position_ids, attention_mask)
+
+        if not self.eval_cfgs.cloze_eval:
+            masked_lm_loss = paddle.nn.functional.cross_entropy(
+                preds, labels, reduction="none")
+            loss = paddle.sum(masked_lm_loss * loss_mask)
+            self.total_score += loss / (info.numpy()[1] - 1)
+
+        else:
+            outputs = paddle.argmax(preds, -1)
+            acc = paddle.cast(outputs == labels, 'float32')
+            acc = paddle.where(
+                paddle.cast(loss_mask, 'bool'), acc, paddle.ones_like(acc))
+            acc = paddle.sum(paddle.prod(acc, -1))
+            self.total_score += acc.numpy()

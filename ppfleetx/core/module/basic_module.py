@@ -36,7 +36,6 @@ class BasicModule(nn.Layer):
         super().__init__(*args, **kwargs)
 
         self.model = self.get_model()
-        self.loss_fn = self.get_loss_fn()
 
     def process_configs(self, configs):
         return configs

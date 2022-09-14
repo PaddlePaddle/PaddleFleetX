@@ -188,8 +188,9 @@ class EagerEngine(BasicEngine):
         # using for save/load
         self._load_recovery = {'step': 0, 'epoch': 0, 'rng_state': -1}
 
-        self._inference_configs = configs['Inference']
-        self._inference_engine = None
+        if 'Inference' in configs:
+            self._inference_configs = configs['Inference']
+            self._inference_engine = None
 
         self.profiler = None
         if 'Profiler' in configs and configs.get('Profiler', {}).get('enable',

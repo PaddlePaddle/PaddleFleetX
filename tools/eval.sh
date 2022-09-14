@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,19 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-import copy
-
-sys.path.append("../../")
-from ppfleetx.core.module.basic_module import BasicModule
-from ppfleetx.models.language_model.language_module import GPTModule, GPTGenerationModule, GPTEvalModule
-from ppfleetx.models.language_model.ernie import ErnieModule
-
-from ppfleetx.models.multimodal_model.multimodal_module import ImagenModule
-
-
-def build_module(config):
-    module_name = config.Model.get("module", "BasicModule")
-    module = eval(module_name)(config)
-
-    return module
+# for single card train
+export CUDA_VISIBLE_DEVICES=0
+python tools/eval.py -c ./ppfleetx/configs/nlp/gpt/eval_gpt_345M_single_card.yaml
