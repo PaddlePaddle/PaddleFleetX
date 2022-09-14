@@ -256,9 +256,11 @@ class EagerEngine(BasicEngine):
         train_losses = []
         train_start = time.time()
         skip_first = True
-        total_train_batch = len(train_data_loader())
-        total_eval_batch = len(valid_data_loader())
-        for step, batch in enumerate(train_data_loader()):
+        # Note(GuoxiaWang): Do not use len(train_data_loader()),
+        # it will cause a memory leak.
+        total_train_batch = len(train_data_loader)
+        total_eval_batch = len(valid_data_loader)
+        for step, batch in enumerate(train_data_loader):
 
             if epoch_index == self._load_recovery['epoch']:
                 if step < self._load_recovery['step']:
