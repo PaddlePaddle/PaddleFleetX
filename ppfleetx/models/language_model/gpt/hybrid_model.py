@@ -16,6 +16,7 @@
 
 import collections
 import logging
+import os
 
 import paddle
 import paddle.nn as nn
@@ -29,7 +30,11 @@ import paddle.distributed.fleet as fleet
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 from paddle.distributed.fleet.meta_parallel import LayerDesc, PipelineLayer, SharedLayerDesc
 from paddle.distributed.fleet.utils import recompute
+from paddle.incubate.distributed.models import moe
+
 import sys
+
+MoeLayer = moe.MoELayer
 
 
 def get_attr(layer, name):
@@ -61,6 +66,29 @@ def parallel_matmul(lm_output, logit_weights, parallel_output):
     else:
         logits = paddle.matmul(lm_output, logit_weights, transpose_y=True)
         return logits
+
+
+class ExpertLayer(nn.Layer):
+    def __init__(self, d_model, d_hidden, name=None):
+        super(ExpertLayer, self).__init__()
+
+        self.htoh4 = nn.Linear(d_model, d_hidden, \
+            weight_attr=nn.initializer.KaimingUniform(), \
+             bias_attr=nn.initializer.Constant(value=0.0))
+        self.h4toh = nn.Linear(d_hidden, d_model, \
+            weight_attr=nn.initializer.KaimingUniform(), \
+             bias_attr=nn.initializer.Constant(value=0.0))
+
+        self.htoh4.weight.name = "expert_" + self.htoh4.weight.name
+        self.h4toh.weight.name = "expert_" + self.h4toh.weight.name
+        self.htoh4.bias.name = "expert_" + self.htoh4.bias.name
+        self.h4toh.bias.name = "expert_" + self.h4toh.bias.name
+
+    def forward(self, x):
+        x = self.htoh4(x)
+        x = F.gelu(x, approximate=True)
+        x = self.h4toh(x)
+        return x
 
 
 class MultiHeadAttention(nn.Layer):
@@ -413,6 +441,7 @@ class TransformerDecoderLayer(nn.Layer):
                  weight_attr=None,
                  bias_attr=None,
                  num_partitions=1,
+                 moe_configs=None,
                  fused_linear=False,
                  recompute_attn=False,
                  use_recompute=False,
@@ -428,6 +457,13 @@ class TransformerDecoderLayer(nn.Layer):
         self.use_recompute = use_recompute
         self.recompute_granularity = recompute_granularity
 
+        # moe config
+        if moe_configs is not None:
+            self.gate = moe_configs.get('gate', 'gshard')
+            self.top_k = moe_configs.get('top_k', 2)
+            self.num_experts = moe_configs.get('num_experts', 1)
+            self.expert_mode = moe_configs.get('expert_mode', False)
+
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
 
@@ -442,21 +478,43 @@ class TransformerDecoderLayer(nn.Layer):
             use_recompute=use_recompute,
             recompute_granularity=recompute_granularity)
 
-        self.linear1 = fleet.meta_parallel.ColumnParallelLinear(
-            d_model,
-            dim_feedforward,
-            weight_attr=weight_attrs[2],
-            gather_output=False,
-            has_bias=True,
-            fuse_matmul_bias=fused_linear)
+        if self.expert_mode:
+            experts_list = nn.LayerList()
+            for expi in range(self.num_experts):
+                exp_layer = ExpertLayer(d_model, dim_feedforward)
+                experts_list.append(exp_layer)
 
-        self.linear2 = fleet.meta_parallel.RowParallelLinear(
-            dim_feedforward,
-            d_model,
-            weight_attr=weight_attrs[2],
-            input_is_parallel=True,
-            has_bias=True,
-            fuse_matmul_bias=fused_linear)
+            hcg = fleet.get_hybrid_communicate_group()
+            moe_group = hcg.get_expert_parallel_group()
+            mp_group = hcg.get_model_parallel_group()
+            gate_config = {
+                "type": self.gate,
+                "top_k": self.top_k,
+            }
+
+            self.moe_mlp = MoeLayer(
+                d_model=d_model,
+                experts=experts_list,
+                gate=gate_config,
+                moe_group=moe_group,
+                mp_group=mp_group,
+                recompute_interval=int(self.use_recompute))
+        else:
+            self.linear1 = fleet.meta_parallel.ColumnParallelLinear(
+                d_model,
+                dim_feedforward,
+                weight_attr=weight_attrs[2],
+                gather_output=False,
+                has_bias=True,
+                fuse_matmul_bias=fused_linear)
+
+            self.linear2 = fleet.meta_parallel.RowParallelLinear(
+                dim_feedforward,
+                d_model,
+                weight_attr=weight_attrs[2],
+                input_is_parallel=True,
+                has_bias=True,
+                fuse_matmul_bias=fused_linear)
 
         self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
@@ -495,10 +553,13 @@ class TransformerDecoderLayer(nn.Layer):
         if self.normalize_before:
             tgt = self.norm2(tgt)
 
-        with get_rng_state_tracker().rng_state('global_seed'):
-            tgt = self.dropout2(
-                self.linear2(F.gelu(
-                    self.linear1(tgt), approximate=True)))
+        if self.expert_mode:
+            tgt = self.moe_mlp(tgt)
+        else:
+            with get_rng_state_tracker().rng_state('global_seed'):
+                tgt = self.dropout2(
+                    self.linear2(F.gelu(
+                        self.linear1(tgt), approximate=True)))
 
         tgt = residual + tgt
 
@@ -567,6 +628,7 @@ class GPTModelHybrid(nn.Layer):
                  type_vocab_size=16,
                  initializer_range=0.02,
                  num_partitions=1,
+                 moe_configs=None,
                  use_recompute=False,
                  fused_linear=False,
                  recompute_granularity="full"):
@@ -597,6 +659,7 @@ class GPTModelHybrid(nn.Layer):
                             mean=0.0, std=self.initializer_range)),
                     bias_attr=None,
                     num_partitions=num_partitions,
+                    moe_configs=moe_configs,
                     fused_linear=fused_linear,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity))

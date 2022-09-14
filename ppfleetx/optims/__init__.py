@@ -18,8 +18,8 @@ import copy
 
 import paddle
 from paddle.optimizer.lr import LRScheduler
-from paddle.fluid.clip import ClipGradByGlobalNorm
 
+from .grad_clip import *
 from .lr_scheduler import *
 from .optimizer import *
 
