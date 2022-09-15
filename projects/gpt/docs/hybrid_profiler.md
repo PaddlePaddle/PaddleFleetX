@@ -60,7 +60,7 @@ cd FleetX
 ```
 
 
-修改`FleetX/ppfleetx/configs/nlp/gpt/pretrain_gpt_base.yaml` 中 Profiler.enable 为 True, 同时可以根据上节说明调整相关配置，或者使用命令行参数覆盖，例如可以使用以下命令运行程序，
+修改`ppfleetx/configs/nlp/gpt/pretrain_gpt_base.yaml` 中 Profiler.enable 为 True, 同时可以根据上节说明调整相关配置，或者使用命令行参数覆盖，例如可以使用以下命令运行程序，
 ```
 python -m paddle.distributed.launch \
     ./tools/train.py -c \
