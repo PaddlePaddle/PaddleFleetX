@@ -16,7 +16,7 @@
 
 # for single card train
 # export CUDA_VISIBLE_DEVICES=0
-# python tools/train.py -c ../ppfleetx/configs/nlp/gpt/pretrain_gpt_345M.yaml 
+# python train.py -c ../ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_single_card.yaml
 
 # for multi-cards train
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7

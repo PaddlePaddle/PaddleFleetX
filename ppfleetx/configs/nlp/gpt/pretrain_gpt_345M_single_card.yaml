@@ -1,4 +1,4 @@
-_base_: ./gpt_base.yaml
+_base_: ./pretrain_gpt_base.yaml
 
 Global:
   global_batch_size: 8

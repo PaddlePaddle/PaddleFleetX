@@ -51,15 +51,15 @@ class LanguageModule(BasicModule):
         return loss
 
     def training_step_end(self, log_dict):
-        speed = self.configs.Engine.logging_freq / log_dict['train_cost']
+        speed = 1. / log_dict['train_cost']
         default_global_tokens_num = self.configs.Global.global_batch_size * \
             self.configs.Data.Train.dataset.max_seq_len
 
         logger.info(
-            "[train] epoch: %d, batch: %d, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
-            % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
-               1. / speed, speed, speed * default_global_tokens_num, speed *
-               default_global_tokens_num / self.nranks, log_dict['lr']))
+            "[train] epoch: %d, batch: %d, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
+            "ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
+            % (log_dict['epoch'], log_dict['batch'], log_dict['loss'], log_dict['train_cost'], speed,
+               speed * default_global_tokens_num, speed * default_global_tokens_num / self.nranks, log_dict['lr']))
 
     def validation_step(self, batch):
         tokens, position_ids, labels, loss_mask = batch
@@ -69,11 +69,11 @@ class LanguageModule(BasicModule):
         return loss
 
     def validation_step_end(self, log_dict):
-        speed = self.configs.Engine.logging_freq / log_dict['eval_cost']
+        speed = 1. / log_dict['eval_cost']
         logger.info(
             "[eval] epoch: %d, batch: %d, loss: %.9f, avg_eval_cost: %.5f sec, speed: %.2f step/s"
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
-               1. / speed, speed))
+               log_dict['eval_cost'], speed))
 
     def test_step(self, batch):
         tokens, position_ids, labels, loss_mask = batch
@@ -83,11 +83,11 @@ class LanguageModule(BasicModule):
         return loss
 
     def test_step_end(self, log_dict):
-        speed = self.configs.Engine.logging_freq / log_dict['test_cost']
+        speed = 1. / log_dict['test_cost']
         logger.info(
             "[test] epoch: %d, batch: %d, loss: %.9f, avg_test_cost: %.5f sec, speed: %.2f step/s"
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
-               1. / speed, speed))
+               log_dict['test_cost'], speed))
 
     def qat_model(self):
         quanter = paddleslim.dygraph.quant.QAT(

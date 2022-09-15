@@ -52,8 +52,14 @@ if __name__ == "__main__":
     engine = EagerEngine(
         configs=cfg, module=module, optimizer=optimizer, lr=lr)
 
+    if cfg.Engine.save_load.ckpt_dir is not None:
+        engine.load()
+
     train_data_loader = build_dataloader(cfg.Data, "Train")
     eval_data_loader = build_dataloader(cfg.Data, "Eval")
+
+    if cfg.Engine.save_load.ckpt_dir is not None:
+        engine.load()
 
     engine.fit(train_data_loader=train_data_loader,
                valid_data_loader=eval_data_loader,
