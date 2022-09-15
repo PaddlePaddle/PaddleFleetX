@@ -89,15 +89,11 @@ git clone https://github.com/PaddlePaddle/FleetX.git
 
 ### 2.1. 单卡训练
 
-切换工作目录
-```
-FleetX/examples/gpt/single
-```
 
 然后使用以下命令运行程序，
 
 ```
-python run_pretrain.py -c ./configs_345m_single_card.yaml
+python ./tools/train.py -c ./ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_single_card.yaml
 ```
 
 若要在显存容量更小的16G V100环境下进行GPT模型单卡训练，可将对应yaml文件中的Model-hidden size值改为原来的1/2即可。
@@ -105,15 +101,13 @@ python run_pretrain.py -c ./configs_345m_single_card.yaml
 **运行日志**
 
 ```
-[2022-07-27 12:42:46,601] [    INFO] - global step 1, epoch: 0, batch: 0, loss: 11.052017212, avg_reader_cost: 0.05710 sec, avg_batch_cost: 1.59627 sec, speed: 0.63 step/s, ips_total: 5132 tokens/s, ips: 5132 tokens/s, learning rate: 5.55556e-09
-[2022-07-27 12:42:47,102] [    INFO] - global step 2, epoch: 0, batch: 1, loss: 11.030861855, avg_reader_cost: 0.00016 sec, avg_batch_cost: 0.50125 sec, speed: 2.00 step/s, ips_total: 16343 tokens/s, ips: 16343 tokens/s, learning rate: 8.33333e-09
-[2022-07-27 12:42:47,600] [    INFO] - global step 3, epoch: 0, batch: 2, loss: 11.054017067, avg_reader_cost: 0.00015 sec, avg_batch_cost: 0.49697 sec, speed: 2.01 step/s, ips_total: 16484 tokens/s, ips: 16484 tokens/s, learning rate: 1.11111e-08
-[2022-07-27 12:42:48,096] [    INFO] - global step 4, epoch: 0, batch: 3, loss: 11.027174950, avg_reader_cost: 0.00014 sec, avg_batch_cost: 0.49582 sec, speed: 2.02 step/s, ips_total: 16522 tokens/s, ips: 16522 tokens/s, learning rate: 1.38889e-08
-[2022-07-27 12:42:48,591] [    INFO] - global step 5, epoch: 0, batch: 4, loss: 11.037425041, avg_reader_cost: 0.00014 sec, avg_batch_cost: 0.49529 sec, speed: 2.02 step/s, ips_total: 16540 tokens/s, ips: 16540 tokens/s, learning rate: 1.66667e-08
-[2022-07-27 12:42:49,088] [    INFO] - global step 6, epoch: 0, batch: 5, loss: 11.038356781, avg_reader_cost: 0.00015 sec, avg_batch_cost: 0.49619 sec, speed: 2.02 step/s, ips_total: 16510 tokens/s, ips: 16510 tokens/s, learning rate: 1.94444e-08
-[2022-07-27 12:42:49,582] [    INFO] - global step 7, epoch: 0, batch: 6, loss: 11.032723427, avg_reader_cost: 0.00014 sec, avg_batch_cost: 0.49402 sec, speed: 2.02 step/s, ips_total: 16582 tokens/s, ips: 16582 tokens/s, learning rate: 2.22222e-08
-[2022-07-27 12:42:50,086] [    INFO] - global step 8, epoch: 0, batch: 7, loss: 11.025435448, avg_reader_cost: 0.00014 sec, avg_batch_cost: 0.50364 sec, speed: 1.99 step/s, ips_total: 16266 tokens/s, ips: 16266 tokens/s, learning rate: 2.50000e-08
-[2022-07-27 12:42:50,583] [    INFO] - global step 9, epoch: 0, batch: 8, loss: 11.047873497, avg_reader_cost: 0.00015 sec, avg_batch_cost: 0.49669 sec, speed: 2.01 step/s, ips_total: 16493 tokens/s, ips: 16493 tokens/s, learning rate: 2.77778e-08
+[2022/09/15 11:12:56] ppfleetx INFO: [train] epoch: 0, batch: 0, loss: 11.011782646, avg_batch_cost: 2.47890 sec, speed: 0.40 step/s, ips_total: 3305 tokens/s, ips: 3305 tokens/s, learning rate: 2.77778e-08
+[2022/09/15 11:12:57] ppfleetx INFO: [train] epoch: 0, batch: 1, loss: 11.006950378, avg_batch_cost: 0.51867 sec, speed: 1.93 step/s, ips_total: 15794 tokens/s, ips: 15794 tokens/s, learning rate: 4.16667e-08
+[2022/09/15 11:12:57] ppfleetx INFO: [train] epoch: 0, batch: 2, loss: 11.006834030, avg_batch_cost: 0.50565 sec, speed: 1.98 step/s, ips_total: 16201 tokens/s, ips: 16201 tokens/s, learning rate: 5.55556e-08
+[2022/09/15 11:12:58] ppfleetx INFO: [train] epoch: 0, batch: 3, loss: 11.015736580, avg_batch_cost: 0.50558 sec, speed: 1.98 step/s, ips_total: 16203 tokens/s, ips: 16203 tokens/s, learning rate: 6.94444e-08
+[2022/09/15 11:12:58] ppfleetx INFO: [train] epoch: 0, batch: 4, loss: 11.006859779, avg_batch_cost: 0.50530 sec, speed: 1.98 step/s, ips_total: 16212 tokens/s, ips: 16212 tokens/s, learning rate: 8.33333e-08
+[2022/09/15 11:12:59] ppfleetx INFO: [train] epoch: 0, batch: 5, loss: 11.004158020, avg_batch_cost: 0.50550 sec, speed: 1.98 step/s, ips_total: 16206 tokens/s, ips: 16206 tokens/s, learning rate: 9.72222e-08
+[2022/09/15 11:12:59] ppfleetx INFO: [train] epoch: 0, batch: 6, loss: 11.000040054, avg_batch_cost: 0.50496 sec, speed: 1.98 step/s, ips_total: 16223 tokens/s, ips: 16223 tokens/s, learning rate: 1.11111e-07
 ```
 
 
@@ -132,7 +126,9 @@ wget -O data/gpt_en_dataset_300m_idx.npz https://bj.bcebos.com/paddlenlp/models/
 然后使用以下命令运行单机多卡程序，
 
 ```
-python -m paddle.distributed.launch run_pretrain.py -c ./configs_1.3B_dp8.yaml
+python -m paddle.distributed.launch \
+    ./tools/train.py \
+    -c ./ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml
 ```
 
 若要在显存容量更小的环境例如 16G 显存下进行GPT模型单机训练，可通过减小`Model.hidden_size`调整模型规模至合适大小再启动训练，命令如下：
@@ -175,7 +171,7 @@ LAUNCH INFO 2022-08-15 07:37:38,948 Job: default, mode collective, replicas 1[1:
 LAUNCH INFO 2022-08-15 07:37:38,949 Run Pod: vqhbut, replicas 8, status ready
 LAUNCH INFO 2022-08-15 07:37:39,063 Watching Pod: vqhbut, replicas 8, status running
 ## 启动配置
-[2022-08-15 08:36:12,563] [    INFO] - global step 1, epoch: 0, batch: 0, loss: 11.255846024, avg_reader_cost: 0.10940 sec, avg_batch_cost: 4.78177 sec, speed: 0.21 step/s, ips_total: 13705 tokens/s, ips: 1713 tokens/s, learning rate: 5.55556e-09
+[2022/09/15 11:44:11] ppfleetx INFO: [train] epoch: 0, batch: 0, loss: 11.255846024, avg_batch_cost: 7.06713 sec, speed: 0.14 step/s, ips_total: 9273 tokens/s, ips: 1159 tokens/s, learning rate: 2.77778e-08
 ## 更多训练日志
 ```
 
@@ -203,4 +199,4 @@ python -m paddle.distributed.launch --master=10.10.10.1:8099 --nnodes=2 run_pret
 python -m paddle.distributed.launch --master=10.10.10.1:8099 --nnodes=2 run_pretrain.py -c ./configs_6.7B_sharding16.yaml -o Model.hidden_size=2048
 ```
 
-更多大模型多机训练内容可见[文档](../examples/gpt/hybrid_parallel/README.md)。
+更多大模型多机训练内容可见[文档](../projects/gpt/docs/README.md)。
