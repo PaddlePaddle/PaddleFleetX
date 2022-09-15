@@ -36,6 +36,8 @@ from ppfleetx.utils.logger import init_logger
 from ppfleetx.models.language_model.gpt.auto.gpt_auto_module import parse_yaml_auto, GPTAutoModule
 from ppfleetx.data.tokenizers import GPTTokenizer
 from ppfleetx.core.engine import AutoEngine
+from ppfleetx.data.dataset.gpt_dataset_auto import create_pretrained_dataset_auto, get_train_data_file
+from ppfleetx.data.sampler import Tuple, Stack
 
 init_logger()
 
@@ -77,7 +79,6 @@ def generate_data_holder(configs):
 
 
 def do_train(configs):
-    # configs = parse_yaml_auto()
     seed = configs['Global']['seed']
     random.seed(seed)
     np.random.seed(seed)
