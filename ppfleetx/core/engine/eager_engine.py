@@ -29,11 +29,11 @@ from paddle.profiler import SummaryView
 
 sys.path.append("../../../")
 from ppfleetx.utils import logger
-from ppfleetx.core.engine.basic_engine import BasicEngine
-from ppfleetx.core.module.basic_module import BasicModule
-# from ppfleetx.inference import InferenceEngine, export_inference_model
+from ppfleetx.core.engine import BasicEngine, InferenceEngine
+from ppfleetx.core.module import BasicModule
 from ppfleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from ppfleetx.utils.version import version_check
+from ppfleetx.utils.export import export_inference_model
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -191,8 +191,9 @@ class EagerEngine(BasicEngine):
         # using for save/load
         self._load_recovery = {'step': 0, 'epoch': 0, 'rng_state': -1}
 
-        self._inference_configs = configs['Inference']
-        self._inference_engine = None
+        if 'Inference' in configs:
+            self._inference_configs = configs['Inference']
+            self._inference_engine = None
 
         self.profiler = None
         if 'Profiler' in configs and configs.get('Profiler', {}).get('enable',
@@ -270,7 +271,7 @@ class EagerEngine(BasicEngine):
             # Sync for profile time, delete it may be a little faster
             paddle.device.cuda.synchronize()
             train_costs = time.time() - train_start
-            train_losses.append(loss.numpy())
+            train_losses.append(loss.numpy()[0])
 
             if step % self._logging_freq == 0:
                 log_dict = {
@@ -306,7 +307,7 @@ class EagerEngine(BasicEngine):
                     eval_loss = sum(eval_losses) / len(eval_losses)
 
                     log_dict = {
-                        'loss': eval_loss.numpy(),
+                        'loss': eval_loss.numpy()[0],
                         'epoch': epoch_index,
                         'batch': eval_step,
                         'total_batch': total_eval_batch,
@@ -457,6 +458,26 @@ class EagerEngine(BasicEngine):
         """
         self._module.model.eval()
 
+        eval_cost = 0.0
+        eval_epoch_start = time.time()
+
+        for epoch_index in range(epoch):
+            self._evaluate_one_epoch(epoch_index, valid_data_loader)
+
+            paddle.device.cuda.synchronize()
+            eval_cost += time.time() - eval_epoch_start
+            log_dict = {
+                'epoch': epoch_index,
+                'eval_cost': eval_cost,
+            }
+            self._module.validation_epoch_end(log_dict)
+
+        logger.info("The evaluting process is complete.")
+        del valid_data_loader
+        return
+
+    @paddle.no_grad()
+    def _evaluate_one_epoch(self, epoch=1, valid_data_loader=None):
         eval_start = time.time()
         eval_losses = []
         total_eval_batch = len(valid_data_loader)
@@ -465,11 +486,11 @@ class EagerEngine(BasicEngine):
 
             paddle.device.cuda.synchronize()
             eval_cost = time.time() - eval_start
-            eval_losses.append(loss.numpy())
+            eval_losses.append(loss.numpy()[0])
 
             if eval_step % self._logging_freq == 0:
                 log_dict = {
-                    'loss': len(eval_losses) / sum(eval_losses),
+                    'loss': sum(eval_losses) / len(eval_losses),
                     'epoch': epoch,
                     'batch': eval_step,
                     'total_batch': total_eval_batch,
@@ -481,8 +502,8 @@ class EagerEngine(BasicEngine):
                 eval_losses = []
 
             if self._run_mode == 'step' and eval_step >= self._max_steps:
-                logger.info("The evaluting process is complete.")
-                del valid_data_loader
+                logger.info("[eval] epoch {} : evaluting process is complete.".
+                            format(epoch))
                 return
 
     @paddle.no_grad()
@@ -522,7 +543,7 @@ class EagerEngine(BasicEngine):
 
             paddle.device.cuda.synchronize()
             test_cost = time.time() - test_start
-            test_losses.append(loss.numpy())
+            test_losses.append(loss.numpy()[0])
 
             if test_step % self._logging_freq == 0:
                 log_dict = {
@@ -638,21 +659,22 @@ class EagerEngine(BasicEngine):
             logger.warning("`load` requires a valid value of `ckpt_dir`.")
             raise TypeError("`load` requires a valid value of `ckpt_dir`.")
 
-    # def export(self):
-    #     self._module.model.eval()
-    #     input_spec = self._module.input_spec()
+    def export(self):
+        self._module.model.eval()
+        input_spec = self._module.input_spec()
 
-    #     save_dir = os.path.join(self._output_dir,
-    #                             "rank_{}".format(self._dp_rank), 'model')
-    #     export_inference_model(self._module.model, input_spec, save_dir)
+        save_dir = os.path.join(self._output_dir,
+                                "rank_{}".format(self._dp_rank))
+        export_inference_model(self._module.model, input_spec, save_dir,
+                               'model')
 
-    # def inference(self, data):
-    #     if self._inference_engine is None:
-    #         self._inference_engine = InferenceEngine(
-    #             self._inference_configs['model_dir'],
-    #             self._inference_configs['mp_degree'])
+    def inference(self, data):
+        if self._inference_engine is None:
+            self._inference_engine = InferenceEngine(
+                self._inference_configs['model_dir'],
+                self._inference_configs['mp_degree'])
 
-    #     return self._inference_engine.predict(data)
+        return self._inference_engine.predict(data)
 
     def _print_summary(self):
         views_dict = {

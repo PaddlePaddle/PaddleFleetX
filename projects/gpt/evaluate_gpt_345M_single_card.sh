@@ -1,4 +1,3 @@
-
 #! /bin/bash
 
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
@@ -16,4 +15,5 @@
 # limitations under the License.
 
 
-python ../../tools/train.py -c ../../ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_single_card.yaml 
+export CUDA_VISIBLE_DEVICES=0
+python ./tools/eval.py -c ./ppfleetx/configs/nlp/gpt/eval_gpt_345M_single_card.yaml

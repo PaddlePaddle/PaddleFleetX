@@ -1,11 +1,11 @@
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
-#
+# 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-#
+# 
 #     http://www.apache.org/licenses/LICENSE-2.0
-#
+# 
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,7 +18,6 @@ from __future__ import print_function
 
 import os
 import sys
-import copy
 
 from paddle.distributed import fleet
 import paddle.distributed as dist
@@ -47,26 +46,12 @@ if __name__ == "__main__":
     module = build_module(cfg)
     config.print_config(cfg)
 
-    train_data_loader = build_dataloader(cfg.Data, "Train")
-    eval_data_loader = build_dataloader(cfg.Data, "Eval")
+    engine = EagerEngine(configs=cfg, module=module, mode='eval')
 
-    lr_configs = copy.deepcopy(cfg.Optimizer.lr)
-    lr_configs.update({
-        'epochs': cfg.Engine.num_train_epochs,
-        'step_each_epoch': len(train_data_loader)
-    })
-    lr = build_lr_scheduler(lr_configs)
-    optimizer = build_optimizer(cfg.Optimizer, module.model, lr)
-
-    engine = EagerEngine(
-        configs=cfg, module=module, optimizer=optimizer, lr=lr)
+    valid_data_loader = build_dataloader(cfg.Data, "Eval")
 
     if cfg.Engine.save_load.ckpt_dir is not None:
         engine.load()
 
-    train_data_loader = build_dataloader(cfg.Data, "Train")
-    eval_data_loader = build_dataloader(cfg.Data, "Eval")
-
-    engine.fit(train_data_loader=train_data_loader,
-               valid_data_loader=eval_data_loader,
-               epoch=cfg.Engine.num_train_epochs)
+    engine.evaluate(
+        valid_data_loader=valid_data_loader, epoch=cfg.Engine.num_train_epochs)
