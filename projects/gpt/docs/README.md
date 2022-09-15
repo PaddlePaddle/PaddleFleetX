@@ -84,7 +84,7 @@ cd .. # 回到 FleetX 根目录下
 | **参数名**                      | **参数释义**               |
 |------------------------------|------------------------|
 | device | 设备信息 ｜
-｜seed ｜ 随机数种子 ｜
+| seed | 随机数种子 ｜
 | global_batch_size | 全局的batch size大小，即一次参数更新等效的batch size |
 | local_batch_size  | 每个进程训练的batch size大小                  |
 | micro_batch_size  | 每次前向计算的batch size大小                  |
@@ -257,7 +257,7 @@ GPT训练默认使用AdamW优化器以及cosine学习率衰减，这里通过配
 | clip_norm    | 所允许的范数最大值 |
 | tensor_fusion    | 是否使用tensor_fustion功能加速训练 |
 
-### [Profiler](./hybrid_profiler.md)
+另外，[Profiler](./hybrid_profiler.md)中还介绍了在 GPT 中开启 Profiler 并分析调试分析结果的方法及相关的参数解释。
 
 ## 参考文献
 - [Language Models are Unsupervised Multitask Learners](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)
