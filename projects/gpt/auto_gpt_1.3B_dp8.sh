@@ -1,3 +1,5 @@
+#! /bin/bash
+
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .basic_engine import BasicEngine
-from .inference_engine import InferenceEngine
-from .eager_engine import EagerEngine
-from .auto_engine import AutoEngine
+python -m paddle.distributed.launch --devices "0,1,2,3,4,5,6,7" \
+    ../../tools/auto.py \
+    -c ../../ppfleetx/configs/nlp/gpt/auto/configs_1.3B_dp8.yaml
