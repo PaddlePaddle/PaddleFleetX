@@ -83,8 +83,8 @@ cd .. # 回到 FleetX 根目录下
 其中参数对应的释义如下：
 | **参数名**                      | **参数释义**               |
 |------------------------------|------------------------|
-| device | 设备信息 ｜
-| seed | 随机数种子 ｜
+| device | 设备信息 |
+| seed | 随机数种子 |
 | global_batch_size | 全局的batch size大小，即一次参数更新等效的batch size |
 | local_batch_size  | 每个进程训练的batch size大小                  |
 | micro_batch_size  | 每次前向计算的batch size大小                  |

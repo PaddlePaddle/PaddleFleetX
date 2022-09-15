@@ -21,7 +21,7 @@ FleetX是飞桨大模型训练推理一站式工具组件。。与Paddle.distrib
 
 整体的FleetX的目录结构如下：
 
-
+```text
 .
 ├── benchmarks                  # benchmark评估结果和示例代码
 │   └── README.md
@@ -55,6 +55,7 @@ FleetX是飞桨大模型训练推理一站式工具组件。。与Paddle.distrib
     ├── export_model.py
     ├── inference.py
     └── train.py
+```
 
 ### 3.模型接入方法
 
@@ -317,4 +318,4 @@ Optimizer:
   tensor_fusion: False
 ```
 
-5、运行模型相关的配置文件以及相应的运行脚本，放置在ppfleetx/projects目录。
+5、运行模型相关的配置文件以及相应的运行脚本，放置在[projects](https://github.com/PaddlePaddle/FleetX/tree/develop/projects)目录。
