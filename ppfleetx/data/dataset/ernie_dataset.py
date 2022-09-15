@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .vision_dataset import GeneralClsDataset, ImageFolder, CIFAR
-from .multimodal_dataset import ImagenDataset
-from .gpt_dataset import GPTDataset
-# from .ernie_dataset import ErnieDataset
+import os
+import sys
+import time
+import numpy as np
+
+import paddle
+
+__dir__ = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../')))

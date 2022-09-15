@@ -124,6 +124,11 @@ class InferenceEngine(object):
             dist_config.set_comm_init_config(config_fname)
             config.set_dist_config(dist_config)
 
+        # FIXME(dengkaipeng): remove this after constant_folding_pass fixed
+        config.delete_pass('constant_folding_pass')
+        config.delete_pass('fused_multi_transformer_encoder_fuse_qkv_pass')
+        config.delete_pass('fused_multi_transformer_decoder_fuse_qkv_pass')
+
         self.predictor = paddle.inference.create_predictor(config)
 
     def input_names(self):
