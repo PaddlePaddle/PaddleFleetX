@@ -82,7 +82,7 @@ optional arguments:
 ```
 根据说明，我们使用下面简单命令，可以得到`wikitext_103_en.jsonl`文件。此处，我们对所有doc进行了shuffle。
 ```shell
-python fleetx/data/data_tools/gpt/raw_trans_to_json.py  --input_path ./data/wikitext_103_en --output_path ./data/wikitext_103_en/wikitext_103_en
+python ppfleetx/data/data_tools/gpt/raw_trans_to_json.py  --input_path ./data/wikitext_103_en --output_path ./data/wikitext_103_en/wikitext_103_en
 
 # output of terminal
 # Time to startup: 0.0075109004974365234
