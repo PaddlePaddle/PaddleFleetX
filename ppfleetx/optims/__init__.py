@@ -23,7 +23,6 @@ from paddle.fluid.clip import ClipGradByGlobalNorm
 from .lr_scheduler import *
 from .optimizer import *
 
-sys.path.append("../")
 from ppfleetx.utils import logger
 
 

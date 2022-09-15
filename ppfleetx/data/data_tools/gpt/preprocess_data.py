@@ -21,8 +21,6 @@ import multiprocessing
 import sys
 import time
 
-sys.path.append('.')
-
 import numpy as np
 from tqdm import tqdm
 

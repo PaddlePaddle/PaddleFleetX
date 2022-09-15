@@ -20,9 +20,9 @@ import sys
 import numpy as np
 import paddle
 from paddle.io import DataLoader, Dataset
-from fleetx.utils import logger
-from fleetx.data.sampler import DistributedBatchSampler
-from fleetx.data.sampler import Stack, Tuple
+from ppfleetx.utils import logger
+from ppfleetx.data.sampler import DistributedBatchSampler
+from ppfleetx.data.sampler import Stack, Tuple
 
 
 def get_train_data_file(input_dir):
