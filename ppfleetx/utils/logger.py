@@ -22,7 +22,7 @@ import paddle.distributed as dist
 _logger = None
 
 
-def init_logger(name='fleetx', log_file=None, log_level=logging.INFO):
+def init_logger(name='ppfleetx', log_file=None, log_level=logging.INFO):
     """Initialize and get a logger by name.
     If the logger has not been initialized, this method will initialize the
     logger by adding one or two handlers, otherwise the initialized logger will

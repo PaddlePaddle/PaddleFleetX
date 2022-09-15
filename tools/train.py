@@ -18,6 +18,7 @@ from __future__ import print_function
 
 import os
 import sys
+import copy
 
 from paddle.distributed import fleet
 import paddle.distributed as dist
@@ -46,17 +47,25 @@ if __name__ == "__main__":
     module = build_module(cfg)
     config.print_config(cfg)
 
-    lr = build_lr_scheduler(cfg.Optimizer.lr)
+    train_data_loader = build_dataloader(cfg.Data, "Train")
+    eval_data_loader = build_dataloader(cfg.Data, "Eval")
+
+    lr_configs = copy.deepcopy(cfg.Optimizer.lr)
+    lr_configs.update({
+        'epochs': cfg.Engine.num_train_epochs,
+        'step_each_epoch': len(train_data_loader)
+    })
+    lr = build_lr_scheduler(lr_configs)
     optimizer = build_optimizer(cfg.Optimizer, module.model, lr)
 
     engine = EagerEngine(
         configs=cfg, module=module, optimizer=optimizer, lr=lr)
 
-    train_data_loader = build_dataloader(cfg.Data, "Train")
-    eval_data_loader = build_dataloader(cfg.Data, "Eval")
-
     if cfg.Engine.save_load.ckpt_dir is not None:
         engine.load()
+    
+    train_data_loader = build_dataloader(cfg.Data, "Train")
+    eval_data_loader = build_dataloader(cfg.Data, "Eval")
 
     engine.fit(train_data_loader=train_data_loader,
                valid_data_loader=eval_data_loader,

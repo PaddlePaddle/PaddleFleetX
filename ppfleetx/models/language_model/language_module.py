@@ -31,7 +31,6 @@ from ppfleetx.data.tokenizers import GPTTokenizer
 class LanguageModule(BasicModule):
     def __init__(self, configs):
         self.nranks = paddle.distributed.get_world_size()
-
         super(LanguageModule, self).__init__(configs)
 
         self.loss_fn = self.get_loss_fn()

@@ -26,7 +26,8 @@ class CosineAnnealingWithWarmupDecay(LRScheduler):
                  warmup_rate,
                  decay_steps,
                  last_epoch=0,
-                 verbose=False):
+                 verbose=False,
+                 **kwargs):
 
         self.decay_steps = decay_steps
         self.warmup_step = warmup_rate * decay_steps

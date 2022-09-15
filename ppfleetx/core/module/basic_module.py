@@ -34,7 +34,6 @@ class BasicModule(nn.Layer):
     def __init__(self, configs, *args, **kwargs):
         self.configs = self.process_configs(configs)
         super().__init__(*args, **kwargs)
-
         self.model = self.get_model()
 
     def process_configs(self, configs):
