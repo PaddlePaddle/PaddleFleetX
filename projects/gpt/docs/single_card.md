@@ -1,187 +1,38 @@
 # GPT 单卡模型训练
 
-
-## 参数释义
-
-### 数据集
-数据集参数指定训练的batch size，以及数据的目录。
-
-```yaml
-Data:
-  batch_size:
-    global_batch_size: 8
-    local_batch_size: 8
-    micro_batch_size: 8
-
-  dataset:
-    input_dir: ./data
-    split: '949,50,1'
-    max_seq_len: 1024
-```
-
-
-其中参数对应的释义如下：
-| **参数名**                      | **参数释义**               |
-|------------------------------|------------------------|
-| global_batch_size | 全局的batch size大小，即一次参数更新等效的batch size |
-| local_batch_size  | 每个进程训练的batch size大小                  |
-| micro_batch_size  | 每次前向计算的batch size大小                  |
-| input_dir         | 指定输入文件，可以使用目录，指定目录时将包括目录中的所有文件       |
-| split             | 训练集，验证集和测试集的切分比例                     |
-| max_seq_len       | 输入文本序列的长度                            |
-
-
-
-### 模型网络
-
-网络部分完成了网络的组网操作，GPT在[FleetX/fleetx/models/gpt_model/modeling.py]((https://github.com/PaddlePaddle/FleetX/tree/develop/fleetx/models/gpt_model/modeling.py))下。 
-可以使用配置文件配置模型的规模，如：
-
-```yaml
-  Model:
-    vocab_size: 50304
-    hidden_size: 1024
-    num_layers: 24
-    num_attention_heads: 16
-    ffn_hidden_size:
-    hidden_dropout_prob: 0.1
-    attention_probs_dropout_prob: 0.1
-    max_position_embeddings: 1024
-    type_vocab_size: 16
-    initializer_range: 0.02
-    use_recompute: True
-    recompute_granularity:
-    fused_linear: True
-```
-
-其中参数对应的释义如下：
-| **参数名**                      | **参数释义**               |
-|------------------------------|------------------------|
-| vocab_size                   | 训练词表大小                 |
-| hidden_size                  | 隐藏层大小                  |
-| num_layers                   | transformer层数          |
-| num_attention_heads          | attention head的数量      |
-| max_seq_len                  | 输入文本序列的长度              |
-| ffn_hidden_size              | ffn层大小，一般为隐藏层的四倍       |
-| attention_probs_dropout_prob | attention中的dropout的失活率 |
-| max_position_embeddings      | position embedding的长度  |
-| type_vocab_size              | 词表类型                   |
-| initializer_range            | 参数初始化的范围               |
-| use_recompute     | 是否使用recompute训练                      |
-| recompute_granularity | recompute训练的粒度，可选 `full` `full_attn` `core_attn`，full即recompute全部transformer，full_attn表明只recompute所有self attention部分，core_attn表明只recompute `softmax(qkT)v` 部分。注：显存占用方面，`core_attn` > `full_attn` > `full`，若所选策略产生OOM错误，可以适当更改recompute_granularity |
-| fused_linear      | 是否使用fused_linear代替传统Linear加速训练。注：该功能需要cuda 11.6及以上编译的paddle支持。       |
-
-### 优化器
-
-
-GPT训练默认使用AdamW优化器以及cosine 学习率衰减，这里通过配置文件配置优化器的参数，如：
-
-```yaml
-  Optimizer:
-    # name: Adam
-    weight_decay: 0.01
-    adam_beta1: 0.9
-    adam_beta2: 0.999
-    adam_epsilon: 1.0e-8
-    lr:
-      # name: consine
-      decay_steps: 360000
-      # max_steps: 500000
-      warmup_rate: 0.01
-      max_lr: 5.0e-5
-      min_lr: 1.0e-5
-    grad_clip: 1.0
-```
-
-其中参数说明：
-
-| **参数名**      | **参数释义**                  |
-|--------------|---------------------------|
-| weight_decay | weight的衰减率                |
-| adam_beta1   | 一阶矩估计的指数衰减率               |
-| adam_beta2   | 二阶矩估计的指数衰减率               |
-| adam_epsilon | 指定优化器需要优化的参数              |
-| decay_steps  | 衰减的步长                     |
-| warmup_rate  | warmup 率                  |
-| max_lr       | Adam 的初始最大学习率             |
-| min_lr       | Adam 的初始最小学习率             |
-| grad_clip    | 梯度裁剪范围，使用的是GlobalNorm梯度裁剪 |
-
-### Engine训练控制
-
-Engine训练设置完成模型训练/验证/推理等过程中的参数设置，是fleetX的EagerEngine的必要参数，所有使用该Engine都必须指定该配置。 其中包含的参数有：
-
-```yaml
-  Engine:
-    max_steps: 500000
-    num_train_epochs: 1
-    accumulate_steps: 
-    logging_freq: 1
-    eval_freq: 500
-    eval_iters: 10
-    mix_precision:
-      use_pure_fp16: True
-      scale_loss: 32768.0
-      custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
-      custom_white_list: ["lookup_table", "lookup_table_v2"]
-    save_load:
-      save_steps: 1000
-      output_dir: ./output
-      ckpt_dir:
-```
-其中参数对应的释义如下：
-
-| **参数名**                      | **参数释义**               |
-|------------------------------|------------------------|
-| max_steps         | 最大训练步数                               |
-| num_train_epochs  | 训练的epoch数量                           |
-| accumulate_steps  | 梯度累加次数                           |
-| logging_freq      | 训练日志打印的频率                            |
-| eval_freq         | 模型评估间隔                               |
-| eval_iters        | 模型评估时训练评估测试集的轮数                      |
-| use_pure_fp16     | 是否使用purefp16精度训练                     |
-| scale_loss        | 使用fp16精度下，loss的放缩比例                  |
-| custom_black_list | 自定义算子黑名单。这个名单中的算子在支持float16计算时会被认为是数值危险的，它们的影响也可能会在下游操作中观察到。这些算子通常不会转为float16计算。 |
-| custom_white_list | 自定义算子白名单。这个名单中的算子在支持float16计算时会被认为是数值安全的，并且对性能至关重要。如果设置了白名单，该名单中的算子会使用float16计算。|
-| save_steps        | 保存模型间隔                               |
-| output_dir        | 指定输出文件                               |
-| ckpt_dir          | checkpoint的加载目录                      |
-
-
-### 性能优化
-性能优化这里采用部分fuse op优化方式，可以选择是否fuse。
-
-```yaml
-Fused:
-  tensor_fusion: False
-```
-
-其中参数说明：
-
-| **参数名**           | **参数释义**                             |
-|-------------------|--------------------------------------|
-| tensor_fusion | 是否使用tensor_fustion功能加速训练 |
-
-
 ## 运行方式
 
-本目录中按照345M和1.3B规模大小，给出32G V100环境下GPT模型单卡训练的策略配置如下：
+本文档按照345M和1.3B规模大小，给出32G V100环境下GPT模型单卡训练的策略配置如下：
 
 | 模型规模 | 训练策略       | yaml文件                    | 显存占用 |
 |----------|----------------|-------------------------------|----------|
-| 345M     | fp16           | configs_345m_single_card.yaml | 30.9GB   |
-| 1.3B     | fp16+recompute | configs_1.3B_single_card.yaml | 26.0GB   |
+| 345M     | fp16           | pretrain_gpt_345M_single_card.yaml | 30.9GB   |
+| 1.3B     | fp16+recompute | pretrain_gpt_1.3B_single_card.yaml | 26.0GB   |
 
 **启动命令**
 ```shell
+cd FleetX # 如果已在 FleetX 根目录下，则忽略
+
 # 345M
-python run_pretrain.py -c ./configs_345m_single_card.yaml
+python tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_single_card.yaml
 
 # 1.3B
-python run_pretrain.py -c ./configs_1.3B_single_card.yaml
+python tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_single_card.yaml
 ```
 
-若要在显存容量更小的16G V100环境下进行GPT模型单卡训练，可将对应yaml文件中的`Model`-`hidden size`值改为原来的1/2即可。
+若要在显存容量更小的16G V100环境下进行GPT模型单机训练，可通过减小`Model.hidden_size`调整模型规模至合适大小，或使用重计算等显存优化策略再启动训练，命令如下：
+
+```shell
+# 345M
+python tools/train.py \
+    -c ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_single_card.yaml \
+    -o Model.use_recompute=True
+
+# 1.3B
+python tools/train.py \
+    -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_single_card.yaml \
+    -o Model.hidden_size=1024
+```
 
 **运行日志**
 
@@ -204,17 +55,16 @@ python run_pretrain.py -c ./configs_1.3B_single_card.yaml
 
 ## 参数释义
 
-请在模型评估前将前述数据集下载到本地(WikiText数据集需要解压缩)，然后可以使用配置文件配置评估相关的参数，包括：
+请在模型评估前将前述数据集下载到FleetX根目录下(WikiText数据集需要解压缩)，然后可以使用配置文件配置评估相关的参数，包括：
 
 ```yaml
-Eval:
-  eval_path: None
-  cloze_eval: False
-  overlapping_eval: 32
-  ckpt_dir: None
-  batch_size: 8
-  max_seq_len: 1024
-  logging_freq: 10
+  Offline_Eval:
+    eval_path: ./wikitext-103/wiki.valid.tokens
+    cloze_eval: False
+    overlapping_eval: 32
+    batch_size: 8
+    max_seq_len: 1024
+    logging_freq: 10
 ```
 
 其中参数对应的释义如下：
@@ -224,51 +74,85 @@ Eval:
 | eval_path         | 评估数据集地址                      |
 | cloze_eval  | lambada数据集参数                     |
 | overlapping_eval  | wikitext数据集参数              |
-| ckpt_dir      | 预训练模型参数路径                    |
 | batch_size         | 模型评估时batch size             |
 | max_seq_len        | 模型评估时文本序列长度           |
 | logging_freq     | 评估日志的打印频率                |
 
 ## 运行方式
 
-以单卡345M模型训练为例，可以使用如下命令启动评估：
+以单卡345M模型评估为例，可以使用如下命令启动评估：
 
 ### WikiText数据集评估
 
 ```shell
-ckpt_dir=预训练345M模型的参数文件地址
-eval_dir=wikitext数据集的本地路径
+cd FleetX # 如果已在 FleetX 根目录下，则忽略
 
-python run_eval.py -c configs_345m_single_card.yaml \
-    -o Eval.eval_path=$eval_dir/wikitext-103/wiki.valid.tokens \
-    -o Eval.overlapping_eval=32 \
-    -o Eval.ckpt_dir=$ckpt_dir \
-    -o Eval.batch_size=16
+mkdir -p ckpt
+wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
+tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
+
+wget -O wikitext-103-v1.zip https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-103-v1.zip
+unzip -q wikitext-103-v1.zip
+
+ckpt_dir=ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00/
+eval_dir=./wikitext-103
+
+python tools/eval.py -c ppfleetx/configs/nlp/gpt/eval_gpt_345M_single_card.yaml \
+    -o Engine.save_load.ckpt_dir=$ckpt_dir \
+    -o Offline_Eval.eval_path=$eval_dir/wiki.valid.tokens \
+    -o Offline_Eval.overlapping_eval=32 \
+    -o Offline_Eval.batch_size=16
+```
+
+评估日志如下：
+```shell
+[2022/09/15 12:22:42] ppfleetx INFO: [eval] epoch: 0, batch: 0, loss: 0.170368048, speed: 0.31 step/s
+[2022/09/15 12:22:56] ppfleetx INFO: [eval] epoch: 0, batch: 10, loss: 0.231640193, speed: 0.75 step/s
+[2022/09/15 12:23:09] ppfleetx INFO: [eval] epoch: 0, batch: 20, loss: 0.292417919, speed: 0.74 step/s
+[2022/09/15 12:23:23] ppfleetx INFO: [eval] epoch: 0, batch: 30, loss: 0.351391476, speed: 0.74 step/s
+[2022/09/15 12:23:36] ppfleetx INFO: [eval] epoch: 0, batch: 40, loss: 0.415404772, speed: 0.74 step/s
 ```
 
 评估结果如下：
 
 ```shell
-[2022-08-31 22:09:05,342] [    INFO] - validation results on ./wikitext-103/wiki.valid.tokens | avg loss: 2.9554E+00 | ppl: 1.9210E+01 | adjusted ppl: 2.4948E+01 | token ratio: 1.0884484081583892
+[2022/09/15 12:34:37] ppfleetx INFO: validation results on ./wikitext-103/wiki.valid.tokens | avg loss: 2.9554E+00 | ppl: 1.9210E+01 | adjusted ppl: 2.4948E+01 | token ratio: 1.0884484081583892
 ```
 
 ### LAMBADA数据集评估
 
 ```shell
-ckpt_dir=预训练345M模型的参数文件地址
-eval_dir=lambada数据集的本地路径
+cd FleetX # 如果已在 FleetX 根目录下，则忽略
 
-python run_eval.py -c configs_345m_single_card.yaml \
-    -o Eval.eval_path=$eval_dir/lambada_test.jsonl \
-    -o Eval.cloze_eval=True \
-    -o Eval.ckpt_dir=$ckpt_dir \
-    -o Eval.batch_size=16
+mkdir -p ckpt
+wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
+tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
+
+wget -O lambada_test.jsonl https://raw.githubusercontent.com/cybertronai/bflm/master/lambada_test.jsonl
+
+ckpt_dir=ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00/
+
+python tools/eval.py -c ppfleetx/configs/nlp/gpt/eval_gpt_345M_single_card.yaml \
+    -o Engine.save_load.ckpt_dir=$ckpt_dir \
+    -o Offline_Eval.eval_path=./lambada_test.jsonl \
+    -o Offline_Eval.cloze_eval=True \
+    -o Offline_Eval.batch_size=16
+
+```
+
+评估日志如下：
+```shell
+[2022/09/15 12:29:25] ppfleetx INFO: [eval] epoch: 0, batch: 0, number correct: 50.000000000, speed: 0.30 step/s
+[2022/09/15 12:29:38] ppfleetx INFO: [eval] epoch: 0, batch: 10, number correct: 130.000000000, speed: 0.76 step/s
+[2022/09/15 12:29:52] ppfleetx INFO: [eval] epoch: 0, batch: 20, number correct: 209.000000000, speed: 0.76 step/s
+[2022/09/15 12:30:05] ppfleetx INFO: [eval] epoch: 0, batch: 30, number correct: 279.000000000, speed: 0.76 step/s
+[2022/09/15 12:30:18] ppfleetx INFO: [eval] epoch: 0, batch: 40, number correct: 343.000000000, speed: 0.75 step/s
 ```
 
 评估结果如下：
 
 ```shell
-[2022-08-31 22:02:01,205] [    INFO] - validation results on ./lambada_test.jsonl | number correct: 2.1240E+03 | total examples: 5.1530E+03 | avg accuracy: 4.1219E-01
+[2022/09/15 12:46:29] ppfleetx INFO: validation results on ./lambada_test.jsonl | number correct: 2.1240E+03 | total examples: 5.1530E+03 | avg accuracy: 4.1219E-01
 ```
 
 # GPT Zero-shot 文本生成
@@ -276,14 +160,14 @@ python run_eval.py -c configs_345m_single_card.yaml \
 ## 参数释义
 
 ```yaml
-Generation:
-  top_k: 50
-  top_p: 0.75
-  temperature: 1.0
-  min_dec_len: 1
-  max_dec_len: 200
-  num_return_sequences: 1
-  decode_strategy: "sampling"
+  Generation:
+    top_k: 50
+    top_p: 0.75
+    temperature: 1.0
+    min_dec_len: 1
+    max_dec_len: 200
+    num_return_sequences: 1
+    decode_strategy: "sampling"
 ```
 
 其中参数说明：
@@ -300,22 +184,21 @@ Generation:
 
 ## 文本生成
 
-### 进入到 examples/gpt/single 目录，下载预训练好的模型
-
-```shell
-mkdir -p ckpt
-wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
-tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
-```
+下载预训练好的模型，快速体验文本生成
 
 ### 快速体验文本生成
 
 
 ```shell
-# --devices 根据并行策略设置设备
-# -o Engine.save_load.ckpt_dir=./ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00 是覆盖 yaml 配置文件中的 checkpoint 目录
+cd FleetX # 如果已在 FleetX 根目录下，则忽略
 
-python run_generation.py -c configs_345m_single_card.yaml -o Engine.save_load.ckpt_dir=./ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00
+mkdir -p ckpt
+wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
+tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
+
+python tasks/gpt/generation.py \
+    -c ppfleetx/configs/nlp/gpt/generation_gpt_345M_single_card.yaml \
+    -o Engine.save_load.ckpt_dir=./ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00
 
 # 生成的文本，由于 checkpoint 不同，超参不同，随机数不同，您执行可能会生成不一样的内容
 
@@ -338,15 +221,15 @@ I think that we are going to become a very important player in the logistics ind
 #### GPT 文本生成模块初始化
 
 ```python
-    module = GPTGenerationModule(configs)
-    module.eval()
+    module = build_module(cfg)
+    module.model.eval()
 ```
 
 #### 预训练模型加载
 
 ```python
     # 获取到预训练 checkpoint 的根目录
-    ckpt_dir = configs['Engine']['save_load']['ckpt_dir']
+    ckpt_dir = cfg.Engine.save_load.ckpt_dir
 
     # 构造出具体路径
     model_path = os.path.join(ckpt_dir, "model.pdparams")
@@ -381,6 +264,8 @@ I think that we are going to become a very important player in the logistics ind
 1. 下载预训练模型权重，如你已下载，可跳过此步
 
 ```shell
+cd FleetX # 如果已在 FleetX 根目录下，则忽略
+
 mkdir -p ckpt
 wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
 tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
@@ -389,7 +274,9 @@ tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
 2. 导出预测模型
 
 ```bash
-python run_export.py -c configs_345m_single_card.yaml -o Engine.save_load.ckpt_dir=./ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00
+python tools/export.py \
+    -c ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_single_card.yaml \
+    -o Engine.save_load.ckpt_dir=./ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00
 ```
 
 导出的模型默认保存在`./output`目录，可通过配置文件中`Engine.save_load.output_dir`或通过`-o Engine.save_load.output_dir=`指定
@@ -406,10 +293,10 @@ INFO:fleetx.inference.export_utils:export inference model saved in ./output/rank
 模型导出后，可以使用Paddle Inference高性能推理引擎完成模型的预测部署，可通过如下脚本和命令进行模型预测：
 
 ```bash
-python run_inference.py -c configs_345m_single_card.yaml
+python tools/inference.py -c ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml
 ```
 
-`run_inference.py`模型从配置文件中`Inference.model_dir`中读取导出的预测模型，可通过`-o Inference.model_dir=`指定预测模型所在目录，默认为`./output`
+`tools/inference.py`模型从配置文件中`Inference.model_dir`中读取导出的预测模型，可通过`-o Inference.model_dir=`指定预测模型所在目录，默认为`./output`
 
 预测脚本输出如下：
 

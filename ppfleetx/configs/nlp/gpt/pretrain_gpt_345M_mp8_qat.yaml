@@ -1,7 +1,7 @@
 _base_: ./pretrain_gpt_base.yaml
 
 Global:
-  global_batch_size: 
+  global_batch_size: 8
   local_batch_size: 8
   micro_batch_size: 8
 
@@ -22,10 +22,19 @@ Model:
   
 
 Distributed:
-  dp_degree: 1
-  mp_degree: 1
+  dp_degree:
+  mp_degree: 8
   pp_degree: 1
   sharding:
     sharding_degree: 1
     sharding_stage: 1
     sharding_offload: False
+
+
+Quantization:
+  enable: True
+  weight_quantize_type: 'abs_max'
+  activation_quantize_type: 'moving_average_abs_max'
+  weight_bits: 8
+  activation_bits: 8
+  quantizable_layer_type: ['Conv2D', 'Linear', 'Conv2DTranspose', 'ColumnParallelLinear', 'RowParallelLinear']

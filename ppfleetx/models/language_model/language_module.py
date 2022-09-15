@@ -19,7 +19,6 @@ import math
 import paddle
 from paddle.static import InputSpec
 
-sys.path.append("../../../../")
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.language_model.gpt as gpt
 from ppfleetx.utils import logger
@@ -133,6 +132,10 @@ class GPTModule(LanguageModule):
                     gpt.GPTModelHybrid(**model_setting))
             else:
                 model = gpt.GPTForPretrainingPipe(**model_setting)
+
+        if 'Quantization' in self.configs.keys(
+        ) and self.configs.Quantization.enable:
+            self.qat_model()
 
         return model
 

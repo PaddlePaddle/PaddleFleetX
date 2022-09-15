@@ -17,7 +17,6 @@ import copy
 
 import paddle
 
-sys.path.append("../../../../")
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.multimodal_model.imagen as imagen
 from ppfleetx.utils import logger
@@ -52,7 +51,7 @@ class MultiModalModule(BasicModule):
         logger.info(
             "[train] epoch: %d, batch: %d, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, learning rate: %.5e"
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
-               1. / speed, speed,  log_dict['lr']))
+               1. / speed, speed, log_dict['lr']))
 
     def validation_step(self, batch):
         tokens, position_ids, labels, loss_mask = batch
@@ -93,7 +92,6 @@ class MultiModalModule(BasicModule):
                 shape=[None, None], name="tokens", dtype='int64'), InputSpec(
                     shape=[None, None], name="ids", dtype='int64')
         ]
-
 
     def training_epoch_end(self, log_dict):
         logger.info("[Training] epoch: %d, total time: %.5f sec" %

@@ -18,9 +18,6 @@ import copy
 
 import paddle
 
-__dir__ = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
-
 from ppfleetx.data import dataset, sampler, utils
 from ppfleetx.utils import logger
 
