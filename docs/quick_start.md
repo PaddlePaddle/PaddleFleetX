@@ -89,9 +89,14 @@ git clone https://github.com/PaddlePaddle/FleetX.git
 
 ### 2.1. 单卡训练
 
-切换工作目录
+切换工作目录并下载demo数据，
 ```
-FleetX/examples/gpt/single
+cd FleetX/examples/gpt/single
+
+mkdir data
+wget -O data/gpt_en_dataset_300m_ids.npy https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_ids.npy
+wget -O data/gpt_en_dataset_300m_idx.npz https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_idx.npz
+```
 ```
 
 然后使用以下命令运行程序，
