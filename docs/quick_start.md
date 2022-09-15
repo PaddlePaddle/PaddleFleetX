@@ -81,7 +81,7 @@ python -m pip install -r https://raw.githubusercontent.com/PaddlePaddle/FleetX/d
 
 进入环境后首先使用以下命令拉取最新代码
 
-```
+```shell
 git clone https://github.com/PaddlePaddle/FleetX.git
 ```
 
@@ -92,7 +92,7 @@ git clone https://github.com/PaddlePaddle/FleetX.git
 
 然后使用以下命令运行程序，
 
-```
+```shell
 python ./tools/train.py -c ./ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_single_card.yaml
 ```
 
@@ -115,8 +115,8 @@ python ./tools/train.py -c ./ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_single_c
 ### 2.2. 单机多卡训练
 
 切换工作目录并下载demo数据，
-```
 
+```shell
 mkdir data
 wget -O data/gpt_en_dataset_300m_ids.npy https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_ids.npy
 wget -O data/gpt_en_dataset_300m_idx.npz https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_idx.npz
