@@ -14,6 +14,7 @@ Engine:
   logging_freq: 1
   eval_freq: 500
   eval_iters: 10
+  test_iters:
   mix_precision:
     use_pure_fp16: True
     scale_loss: 32768.0

@@ -16,5 +16,5 @@
 # limitations under the License.
 
 
-
-python ../../tools/train.py -c ../../ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_single_card.yaml 
+export CUDA_VISIBLE_DEVICES=0
+python ./tools/train.py -c ./ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_single_card.yaml 

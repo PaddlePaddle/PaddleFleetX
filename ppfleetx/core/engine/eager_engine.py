@@ -29,11 +29,11 @@ from paddle.profiler import SummaryView
 
 sys.path.append("../../../")
 from ppfleetx.utils import logger
-from ppfleetx.core.engine.basic_engine import BasicEngine
-from ppfleetx.core.module.basic_module import BasicModule
-# from ppfleetx.inference import InferenceEngine, export_inference_model
+from ppfleetx.core.engine import BasicEngine, InferenceEngine
+from ppfleetx.core.module import BasicModule
 from ppfleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from ppfleetx.utils.version import version_check
+from ppfleetx.utils.export import export_inference_model
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -637,21 +637,22 @@ class EagerEngine(BasicEngine):
             logger.warning("`load` requires a valid value of `ckpt_dir`.")
             raise TypeError("`load` requires a valid value of `ckpt_dir`.")
 
-    # def export(self):
-    #     self._module.model.eval()
-    #     input_spec = self._module.input_spec()
+    def export(self):
+        self._module.model.eval()
+        input_spec = self._module.input_spec()
 
-    #     save_dir = os.path.join(self._output_dir,
-    #                             "rank_{}".format(self._dp_rank), 'model')
-    #     export_inference_model(self._module.model, input_spec, save_dir)
+        save_dir = os.path.join(self._output_dir,
+                                "rank_{}".format(self._dp_rank))
+        export_inference_model(self._module.model, input_spec, save_dir,
+                               'model')
 
-    # def inference(self, data):
-    #     if self._inference_engine is None:
-    #         self._inference_engine = InferenceEngine(
-    #             self._inference_configs['model_dir'],
-    #             self._inference_configs['mp_degree'])
+    def inference(self, data):
+        if self._inference_engine is None:
+            self._inference_engine = InferenceEngine(
+                self._inference_configs['model_dir'],
+                self._inference_configs['mp_degree'])
 
-    #     return self._inference_engine.predict(data)
+        return self._inference_engine.predict(data)
 
     def _print_summary(self):
         views_dict = {

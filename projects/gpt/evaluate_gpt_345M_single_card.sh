@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#! /bin/bash
 
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 # 
@@ -14,6 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# for single card train
+
 export CUDA_VISIBLE_DEVICES=0
-python tools/eval.py -c ./ppfleetx/configs/nlp/gpt/eval_gpt_345M_single_card.yaml
+python ./tools/eval.py -c ./ppfleetx/configs/nlp/gpt/eval_gpt_345M_single_card.yaml

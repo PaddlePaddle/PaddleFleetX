@@ -17,6 +17,7 @@ import copy
 import math
 
 import paddle
+from paddle.static import InputSpec
 
 sys.path.append("../../../../")
 from ppfleetx.core.module.basic_module import BasicModule
@@ -159,14 +160,18 @@ class GPTModule(LanguageModule):
 
 class GPTGenerationModule(BasicModule):
     def __init__(self, configs):
-        self.global_cfgs = configs
+        self.configs = configs
         self.generation_cfgs = configs.Generation
         self.nranks = paddle.distributed.get_world_size()
 
         super().__init__(configs)
 
+    def process_configs(self, configs):
+        configs = process_configs(configs)
+        return configs
+
     def get_model(self):
-        model_setting = copy.deepcopy(self.global_cfgs.Model)
+        model_setting = copy.deepcopy(self.configs.Model)
         model_setting.pop("module")
         model_setting.pop("name")
 
@@ -174,7 +179,7 @@ class GPTGenerationModule(BasicModule):
             model = gpt.GPTForGeneration(
                 gpt.GPTModel(**model_setting), self.generation_cfgs)
         else:
-            assert self.nranks == self.global_cfgs.Distributed.dp_degree, \
+            assert self.nranks == self.configs.Distributed.dp_degree, \
                 "only support single card and data parallel in generation task."
             model = gpt.GPTForGenerationHybrid(
                 gpt.GPTModelHybrid(**model_setting), self.generation_cfgs)

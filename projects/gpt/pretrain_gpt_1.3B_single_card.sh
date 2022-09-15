@@ -16,4 +16,4 @@
 # limitations under the License.
 
 
-python ../../tools/train.py -c ../../ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_single_card.yaml 
+python ./tools/train.py -c ./ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_single_card.yaml 
