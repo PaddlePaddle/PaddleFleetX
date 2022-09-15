@@ -452,7 +452,7 @@ tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
 2. 导出预测模型
 
 ```bash
-python -m paddle.distributed.launch --devices "0" run_export.py -c configs_345M_dp8.yaml -o Engine.save_load.ckpt_dir=./ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00
+python -m paddle.distributed.launch --devices "0" run_export.py -c configs_345M_dp8.yaml -o Engine.save_load.ckpt_dir=./ckpt/GPT_345M_300B_DP_20220826
 ```
 
 导出的模型默认保存在`./output`目录，可通过配置文件中`Engine.save_load.output_dir`或通过`-o Engine.save_load.output_dir=`指定
