@@ -12,19 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-import copy
-
-sys.path.append("../../")
-from ppfleetx.core.module.basic_module import BasicModule
-from ppfleetx.models.language_model.language_module import GPTModule
-from ppfleetx.models.vision_model.general_classification_module import GeneralClsModule
-from ppfleetx.models.multimodal_model.multimodal_module import ImagenModule
-from ppfleetx.models.language_model.ernie import ErnieModule
-
-
-def build_module(config):
-    module_name = config.Model.get("module", "BasicModule")
-    module = eval(module_name)(config)
-
-    return module
+from .accuracy import *

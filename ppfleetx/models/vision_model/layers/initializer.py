@@ -12,19 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-import copy
+from paddle.nn.initializer import Constant, Normal, XavierUniform
 
-sys.path.append("../../")
-from ppfleetx.core.module.basic_module import BasicModule
-from ppfleetx.models.language_model.language_module import GPTModule
-from ppfleetx.models.vision_model.general_classification_module import GeneralClsModule
-from ppfleetx.models.multimodal_model.multimodal_module import ImagenModule
-from ppfleetx.models.language_model.ernie import ErnieModule
-
-
-def build_module(config):
-    module_name = config.Model.get("module", "BasicModule")
-    module = eval(module_name)(config)
-
-    return module
+mlp_bias_normal_ = Normal(std=1e-6)
+pos_normal_ = Normal(std=0.02)
+xavier_uniform_ = XavierUniform()
+zeros_ = Constant(value=0.)
+minus_tens_ = Constant(value=-10.)
+ones_ = Constant(value=1.)

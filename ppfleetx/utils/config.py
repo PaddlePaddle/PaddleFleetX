@@ -89,8 +89,21 @@ class AttrDict(dict):
         else:
             self[key] = value
 
-    def __deepcopy__(self, content):
-        return copy.deepcopy(dict(self))
+    def __copy__(self):
+        cls = self.__class__
+        result = cls.__new__(cls)
+        result.__dict__.update(self.__dict__)
+        return result
+
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            setattr(result, k, copy.deepcopy(v, memo))
+        for k, v in self.items():
+            setattr(result, k, copy.deepcopy(v, memo))
+        return result
 
 
 def create_attr_dict(yaml_config):
