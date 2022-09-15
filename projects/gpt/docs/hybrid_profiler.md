@@ -53,15 +53,19 @@ Profiler:
 
 ## 运行分析
 
-本节以 gpt/hybrid_parallel 为例，首先进入目录，
+本节以 gpt混合并行 为例，首先进入目录，
 
 ```
-cd FleetX/examples/gpt/hybrid_parallel
+cd FleetX
 ```
 
-修改 `configs_1.3B_dp8.yaml` 中 Profiler.enable 为 True, 同时可以根据上节说明调整相关配置，或者使用命令行参数覆盖，例如可以使用以下命令运行程序，
+
+修改`ppfleetx/configs/nlp/gpt/pretrain_gpt_base.yaml` 中 Profiler.enable 为 True, 同时可以根据上节说明调整相关配置，或者使用命令行参数覆盖，例如可以使用以下命令运行程序，
 ```
-python -m paddle.distributed.launch run_pretrain.py -c ./configs_1.3B_dp8.yaml -o Model.hidden_size=1024 -o Engine.max_steps=5 -o Profiler.enable=True
+python -m paddle.distributed.launch \
+    ./tools/train.py -c \
+    ./ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml -o Profiler.enable=True
+
 ```
 
 > 在使用 Profiler 工具进行性能分析时，建议减少 train 的步数，获得分析数据即可停止训练。
