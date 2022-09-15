@@ -70,8 +70,11 @@ def is_fused_matmul_bias_supported():
 
 def process_inference_configs(config):
     """
-    process fused configs for hybrid parallel
+    process inference configs for hybrid parallel
     """
+    if 'Inference' not in config.keys():
+        return
+
     configs = config['Inference']
 
     if configs['model_dir'] is None:

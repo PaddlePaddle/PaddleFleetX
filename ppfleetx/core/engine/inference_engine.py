@@ -63,7 +63,7 @@ class InferenceEngine(object):
 
         rank_path = os.path.join(self.model_dir, "rank_{}".format(self.rank))
         if not os.path.isdir(rank_path):
-            raise ValueError('rank_{} directory not found'.format(i))
+            raise ValueError('rank_{} directory not found'.format(self.rank))
         model_files = []
         param_files = []
         for fname in os.listdir(rank_path):

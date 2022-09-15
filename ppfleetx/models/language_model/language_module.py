@@ -99,13 +99,6 @@ class LanguageModule(BasicModule):
             config=self.configs.Quantization)
         self.model = quanter.quantize(self.model)
 
-    def input_spec(self):
-        return [
-            InputSpec(
-                shape=[None, None], name="tokens", dtype='int64'), InputSpec(
-                    shape=[None, None], name="ids", dtype='int64')
-        ]
-
     def get_model_size(self, l, h, v, s):
         P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
         logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 /
@@ -130,6 +123,8 @@ class GPTModule(LanguageModule):
         v = model_setting['vocab_size']
         s = self.configs.Data.Train.dataset.max_seq_len
         self.get_model_size(l, h, v, s)
+
+        self.tokenizer = GPTTokenizer.from_pretrained("gpt2")
 
         if self.nranks == 1:
             model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
@@ -156,6 +151,21 @@ class GPTModule(LanguageModule):
             return data
         else:
             return batch
+
+    def input_spec(self):
+        return [
+            InputSpec(
+                shape=[None, None], name="tokens", dtype='int64'), InputSpec(
+                    shape=[None, None], name="ids", dtype='int64')
+        ]
+
+    def inference_end(self, outputs):
+        for k, v in outputs.items():
+            for i in range(v.shape[0]):
+                out_ids = [int(x) for x in v[i]]
+                ret_str = self.tokenizer.decode(out_ids)
+                # ret_str = text[i] + ret_str
+                print(ret_str)
 
 
 class GPTGenerationModule(BasicModule):

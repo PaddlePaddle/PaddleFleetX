@@ -48,7 +48,7 @@ class GPTDataset(paddle.io.Dataset):
 
         if local_rank == 0:
             try:
-                import fleetx.data.data_tools.cpp.fast_index_map_helpers
+                import ppfleetx.data.data_tools.cpp.fast_index_map_helpers
             except Exception as e:
                 start_time = time.time()
                 print('> compiling dataset index builder ...')
@@ -103,6 +103,7 @@ class GPTDataset(paddle.io.Dataset):
 
         self.input_dir = input_dir
         self.max_seq_len = max_seq_len
+        self.mode = mode
         self.name = "gpt_" + mode
         self.eos_id = tokenizer.eos_token_id
         self.sample_ids = sample_ids
@@ -140,10 +141,10 @@ class GPTDataset(paddle.io.Dataset):
         loss_mask[np.where(np.array(tokens) == self.eos_id)] = 0.0
         position_ids = np.arange(0, seq_length, dtype="int64")
 
-        # attention_mask = (attention_mask - 1.0) * 1e9
-        # attention_mask = attention_mask.astype("float32")
-        # return [tokens, loss_mask, attention_mask, position_ids, labels]
-        return [tokens, position_ids, labels, loss_mask]
+        if self.mode == "Test":
+            return [tokens, position_ids]
+        else:
+            return [tokens, position_ids, labels, loss_mask]
 
     def _get_single_sample_from_idx(self, doc_index_f, doc_index_l, offset_f,
                                     offset_l):
@@ -307,7 +308,7 @@ def construct_samples_and_shuffle_data(name, data_prefix, documents, sizes,
             assert doc_idx.dtype == np.int32
             assert sizes.dtype == np.int32
 
-            from fleetx.data.data_tools.cpp import fast_index_map_helpers
+            from ppfleetx.data.data_tools.cpp import fast_index_map_helpers
 
             sample_idx = fast_index_map_helpers.build_sample_idx(
                 sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch)

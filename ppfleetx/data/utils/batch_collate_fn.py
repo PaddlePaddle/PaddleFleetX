@@ -98,6 +98,10 @@ def gpt_collate_fn(batch):
     return Tuple(Stack(), Stack(), Stack(), Stack())(batch)
 
 
+def gpt_inference_collate_fn(batch):
+    return Tuple(Stack(), Stack())(batch)
+
+
 def gpt_eval_collate_fn(batch):
     return Tuple(Stack(), Stack(), Stack(), Stack(), Stack(), Stack())(batch)
 

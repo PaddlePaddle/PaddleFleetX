@@ -88,8 +88,3 @@ Profiler:
   scheduler: [1, 5]
   profiler_log: profiler_log
   detailed: False
-
-
-Inference:
-  model_dir: ./output
-  mp_degree: 1

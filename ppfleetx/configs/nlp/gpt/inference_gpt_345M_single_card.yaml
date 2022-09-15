@@ -1,0 +1,22 @@
+_base_: ./pretrain_gpt_345M_single_card.yaml
+
+Data:
+  Test:
+    dataset:
+      name: GPTDataset
+      input_dir: ./data/
+      split: [949, 50, 1]
+      max_seq_len: 1024
+    sampler:
+      name: DistributedBatchSampler
+      shuffle: False
+      drop_last: True
+    loader:
+      num_workers: 1
+      return_list: False
+      collate_fn: gpt_inference_collate_fn
+
+
+Inference:
+  model_dir: ./output
+  mp_degree: 1
