@@ -653,6 +653,45 @@ class GPTPretrainingCriterion(nn.Layer):
         return loss
 
 
+class GPTForSequenceClassification(nn.Layer):
+    """
+    GPT Model with a sequence classification/regression head on top (a linear layer on top of the pooled output) e.g.
+    for GLUE tasks.
+    Args:
+        gpt (:class:`GPTModel`):
+            An instance of GPTModel.
+        num_classes (int, optional):
+            The number of classes. Defaults to `2`.
+            
+    """
+
+    def __init__(self, gpt, num_classes=2):
+        super(GPTForSequenceClassification, self).__init__()
+        self.gpt = gpt
+        self.score = nn.Linear(
+            self.gpt.hidden_size, num_classes, bias_attr=False)
+
+    def forward(self, input_ids, position_ids=None, attention_mask=None):
+
+        output = self.gpt(input_ids,
+                          position_ids=position_ids,
+                          attention_mask=attention_mask)
+
+        logits = self.score(output)
+        # padding index maybe 0
+        eos_token_id = 0
+        # sequence_lengths shape [bs,]
+        sequence_lengths = (input_ids != eos_token_id).astype("int64").sum(
+            axis=-1) - 1
+
+        pooled_logits = logits.gather_nd(
+            paddle.stack(
+                [paddle.arange(sequence_output.shape[0]), sequence_lengths],
+                axis=-1))
+
+        return pooled_logits
+
+
 class GPTForGeneration(nn.Layer):
     """
     GPT Model with pretraining tasks on top.
