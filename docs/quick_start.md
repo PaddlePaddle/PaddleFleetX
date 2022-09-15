@@ -116,7 +116,6 @@ python ./tools/train.py -c ./ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_single_c
 
 切换工作目录并下载demo数据，
 ```
-cd FleetX/examples/gpt/hybrid_parallel
 
 mkdir data
 wget -O data/gpt_en_dataset_300m_ids.npy https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_ids.npy
@@ -134,7 +133,9 @@ python -m paddle.distributed.launch \
 若要在显存容量更小的环境例如 16G 显存下进行GPT模型单机训练，可通过减小`Model.hidden_size`调整模型规模至合适大小再启动训练，命令如下：
 
 ```
-python -m paddle.distributed.launch run_pretrain.py -c ./configs_1.3B_dp8.yaml -o Model.hidden_size=1024
+python -m paddle.distributed.launch \
+    ./tools/train.py -c \
+    ./ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml -o Model.hidden_size=1024
 ```
 
 > 更多 launch 启动参数和用法请参考 [API 文档](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/api/paddle/distributed/launch_cn.html)。
@@ -183,7 +184,9 @@ LAUNCH INFO 2022-08-15 07:37:39,063 Watching Pod: vqhbut, replicas 8, status run
 如果不知道机器IP可以不设置--master参数先在一台机器上启动，然后根据提示复制命令在其他机器上启动即可。
 
 ```
-python -m paddle.distributed.launch --master=10.10.10.1:8099 --nnodes=2 run_pretrain.py -c ./configs_6.7B_sharding16.yaml
+python -m paddle.distributed.launch --master=10.10.10.1:8099 --nnodes=2 \
+    ./tools/train.py -c \
+    ./ppfleetx/configs/nlp/gpt/pretrain_gpt_6.7B_sharding16.yaml
 ```
 
 > 该示例为16卡任务，需要满足总卡数为16的要求。
@@ -196,7 +199,9 @@ python -m paddle.distributed.launch --master=10.10.10.1:8099 --nnodes=2 run_pret
 若要在显存容量更小的环境例如 16G 显存下进行GPT模型单机训练，可通过减小`Model.hidden_size`调整模型规模至合适大小再启动训练，命令如下：
 
 ```
-python -m paddle.distributed.launch --master=10.10.10.1:8099 --nnodes=2 run_pretrain.py -c ./configs_6.7B_sharding16.yaml -o Model.hidden_size=2048
+python -m paddle.distributed.launch --master=10.10.10.1:8099 --nnodes=2 \
+    ./tools/train.py -c \
+    ./ppfleetx/configs/nlp/gpt/pretrain_gpt_6.7B_sharding16.yaml -o Model.hidden_size=2048
 ```
 
 更多大模型多机训练内容可见[文档](../projects/gpt/docs/README.md)。

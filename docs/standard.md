@@ -188,7 +188,7 @@ with paddle.no_grad():
 ### 4.模型接入示例
 
 
-1、构建组网文件，放置在fleex/models目录下。
+1、构建组网文件，放置在ppfleex/models目录下。
 
 ```python
 class SimpleNet(nn.Layer):
@@ -261,6 +261,60 @@ class TestModule(BasicModule):
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'], log_dict['test_cost']))
 
 ```
-3、通过config配置Dataset、Optimizer
+3、通过config配置Dataset
 
-4、运行模型相关的配置文件以及相应的运行脚本，放置在fleetx/projects目录。
+Dataset可以通过config文件进行配置。新增Dataset类型放置在 ppfleetx/data/dataset,同时其构造参数于其对应的Dataset字段一致。比如：
+
+```python
+class GPTDataset(paddle.io.Dataset):
+    def __init__(self,
+                 input_dir,
+                 split,
+                 max_seq_len,
+                 num_samples,
+                 mode,
+                 seed=1234):
+```
+对应config中的yaml字段：
+
+```yaml
+Data:
+  Train:
+    dataset:
+      name: GPTDataset
+      input_dir: ./data/
+      split: [949, 50, 1]
+      max_seq_len: 1024
+    sampler:
+      name: DistributedBatchSampler
+      shuffle: False
+      drop_last: True
+    loader:
+      num_workers: 1
+      return_list: False
+      collate_fn: gpt_collate_fn
+```
+
+4、通过config配置Optimizer和LR
+
+
+```yaml
+Optimizer:
+  name: FusedAdamW
+  weight_decay: 0.01
+  beta1: 0.9
+  beta2: 0.999
+  epsilon: 1.0e-8
+  lr:
+    name: CosineAnnealingWithWarmupDecay
+    decay_steps: 360000
+    warmup_rate: 0.01
+    max_lr: 5.0e-5
+    min_lr: 1.0e-5
+  grad_clip:
+    name: "ClipGradByGlobalNorm"
+    clip_norm: 1.0
+  tensor_fusion: False
+```
+
+5、运行模型相关的配置文件以及相应的运行脚本，放置在ppfleetx/projects目录。
