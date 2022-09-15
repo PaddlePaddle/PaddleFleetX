@@ -21,31 +21,40 @@ FleetX是飞桨大模型训练推理一站式工具组件。。与Paddle.distrib
 
 整体的FleetX的目录结构如下：
 
-```text
+
 .
-├── benchmarks              # benchmark评估结果和事例代码
-├── codestyle               # 代码风格
-├── docs                    # 文档
-├── examples                # 模型脚本，包含GPT模型
-│   ├── gpt
-│   └── README.md
-fleetx
-├── core                    
-│   ├── engine              # 管理模型的执行规范
-│   └── module              # 管理模型的组网规范
-├── data                    # 数据集下载、预处理脚本
-│   ├── data_tools         
-│   ├── sampler
-│   └── tokenizers
-├── datasets                # dataset生成的脚本
-│   ├── gpt.py
-├── models                  # 模型脚本
-│   └── gpt_model
-├── optim                   # 优化器类定义
-└── utils           
+├── benchmarks                  # benchmark评估结果和示例代码
+│   └── README.md
+├── Dockerfile
+├── docs                        # 文档
+│   ├── cluster_deployment.md
+│   ├── deployment_faq.md
+│   ├── docker_install.md
+│   ├── images
+│   ├── quick_start.md
+│   └── standard.md
+├── ppfleetx
+│   ├── configs
+│   ├── core                    # 管理模型的组网规范，执行规范
+│   ├── data                    # 数据集下载、预处理脚本
+│   ├── models                  # 模型组网
+│   ├── optims                  # 优化器类定义
+│   └── utils
+├── projects                    # 模型脚本，包含GPT模型
+│   ├── ernie
+│   ├── gpt
+│   ├── imagen
+│   └── vit
 ├── README.md
-└── requirements.txt
-```
+├── requirements.txt
+├── tasks
+│   └── gpt
+└── tools
+    ├── auto.py
+    ├── eval.py
+    ├── export_model.py
+    ├── inference.py
+    └── train.py
 
 ### 3.模型接入方法
 
@@ -70,8 +79,10 @@ fleetx
 | pretreating_batch | 预处理batch数据 |
 | train_step    | 一次完整的训练                  |
 | train_step_end  |   一次完整的训练后的操作                |
+| training_epoch_end  | 一次完整的epoch训练后的操作                  |
 | validation_step    | 一次完整的验证                  |
 | validation_step_end  | 一次完整的验证后的操作                  |
+| validation_epoch_end  | 一次完整的epoch验证后的操作                  |
 | test_step    | 一次完整的测试                  |
 | test_step_end  | 一次完整的测试后的操作                  |
 | configure_optimizers  | 配置这次训练的优化器                  |
@@ -84,10 +95,11 @@ fleetx
 Engine:
   max_steps: 500000
   num_train_epochs: 1
-  accumulate_steps: 
+  accumulate_steps: 1
   logging_freq: 1
   eval_freq: 500
   eval_iters: 10
+  test_iters:
   mix_precision:
     use_pure_fp16: True
     scale_loss: 32768.0
@@ -95,6 +107,7 @@ Engine:
     custom_white_list: ["lookup_table", "lookup_table_v2"]
   save_load:
     save_steps: 1000
+    save_epoch: 1
     output_dir: ./output
     ckpt_dir:
 ```
@@ -114,6 +127,7 @@ Engine:
 | custom_black_list | 自定义算子黑名单。这个名单中的算子在支持float16计算时会被认为是数值危险的，它们的影响也可能会在下游操作中观察到。这些算子通常不会转为float16计算。 |
 | custom_white_list | 自定义算子白名单。这个名单中的算子在支持float16计算时会被认为是数值安全的，并且对性能至关重要。如果设置了白名单，该名单中的算子会使用float16计算。|
 | save_steps        | 保存模型间隔                               |
+| save_epoch        | 保存模型epoch间隔                               |
 | output_dir        | 指定输出文件                               |
 | ckpt_dir          | checkpoint的加载目录                      |
 
@@ -207,8 +221,11 @@ class LossLayer(nn.Layer):
 class TestModule(BasicModule):
     def __init__(self):
         super().__init__()
-        self.model = SimpleNet()
         self.loss_fn = LossLayer()
+
+    def get_model(self):
+        model = SimpleNet()
+        return model
 
     def forward(self, x):
         return self.model(x)
@@ -243,55 +260,7 @@ class TestModule(BasicModule):
             "[test] epoch: %d, batch: %d, loss: %.9f, avg_test_cost: %.5f sec"
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'], log_dict['test_cost']))
 
-    def configure_optimizers(self):
-        return paddle.optimizer.SGD(learning_rate=1e-3,
-            parameters=self.model.parameters())
-
 ```
+3、通过config配置Dataset、Optimizer
 
-3、根据实际模型，构造DataSet生成脚本，放置在fleex/data。构造DataLoader的代码脚本，放置在fleetx/dataset
-
-```python
-
-# define a random dataset
-class RandomDataset(Dataset):
-    def __init__(self, num_samples):
-        self.num_samples = num_samples
-
-    def __getitem__(self, idx):
-        image = np.random.random([IMAGE_SIZE]).astype('float32')
-        label = np.random.randint(0, CLASS_NUM - 1, (1, )).astype('int64')
-        return image, label
-
-    def __len__(self):
-        return self.num_samples
-
-dataset = RandomDataset(BATCH_NUM * BATCH_SIZE)
-dataloader = DataLoader(dataset,
-                    batch_size=BATCH_SIZE,
-                    shuffle=True,
-                    drop_last=True,
-                    num_workers=2)
-
-```
-
-4、构建执行代码文件，放置在fleetx/example目录下。其中初始化engine，调用fit/evaluate/predict等函数。
-
-```python
-configs = GPTConfig({})
-module = TestModule()
-engine = EagerEngine(module, configs)
-
-if engine._ckpt_dir is not None:
-    engine.load()
-
-for e in range(EPOCH_NUM):
-    engine.fit(epoch=e, train_data_loader=dataloader)
-    engine.evaluate(epoch=e, valid_data_loader=dataloader)
-    engine.predict(epoch=e, test_data_loader=dataloader)
-
-    if engine._output_dir is not None:
-        engine.save()
-```
-
-5、运行模型相关的配置文件以及相应的运行脚本，放置在fleetx/example目录。
+4、运行模型相关的配置文件以及相应的运行脚本，放置在fleetx/projects目录。
