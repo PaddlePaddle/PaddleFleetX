@@ -19,5 +19,5 @@ rm -rf $log_dir
 
 # 6.7B+sharding16 run_pretrain
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
-    ../../tools/train.py \
-    -c ../../ppfleetx/configs/nlp/gpt/pretrain_gpt_6.7B_sharding16.yaml
+    ./tools/train.py \
+    -c ./ppfleetx/configs/nlp/gpt/pretrain_gpt_6.7B_sharding16.yaml

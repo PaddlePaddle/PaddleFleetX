@@ -16,6 +16,9 @@ import os
 import sys
 import time
 import numpy as np
+import re
+import math
+import json
 
 import paddle
 
@@ -100,6 +103,7 @@ class GPTDataset(paddle.io.Dataset):
 
         self.input_dir = input_dir
         self.max_seq_len = max_seq_len
+        self.mode = mode
         self.name = "gpt_" + mode
         self.eos_id = tokenizer.eos_token_id
         self.sample_ids = sample_ids
@@ -137,10 +141,10 @@ class GPTDataset(paddle.io.Dataset):
         loss_mask[np.where(np.array(tokens) == self.eos_id)] = 0.0
         position_ids = np.arange(0, seq_length, dtype="int64")
 
-        # attention_mask = (attention_mask - 1.0) * 1e9
-        # attention_mask = attention_mask.astype("float32")
-        # return [tokens, loss_mask, attention_mask, position_ids, labels]
-        return [tokens, position_ids, labels, loss_mask]
+        if self.mode == "Test":
+            return [tokens, position_ids]
+        else:
+            return [tokens, position_ids, labels, loss_mask]
 
     def _get_single_sample_from_idx(self, doc_index_f, doc_index_l, offset_f,
                                     offset_l):
@@ -447,3 +451,171 @@ def _build_shuffle_idx(num_samples, total_size, np_rng):
     np_rng.shuffle(shuffle_idx_last)
 
     return np.concatenate((shuffle_idx_first, shuffle_idx_last))
+
+
+class LM_Eval_Dataset(paddle.io.Dataset):
+    def __init__(self, input_dir, max_seq_len, overlapping_eval=None,
+                 **kwargs):
+        tokenizer = GPTTokenizer.from_pretrained("gpt2")
+
+        with open(input_dir, "rb") as reader:
+            entire_data = reader.read().decode('utf-8')
+
+        self.num_original_tokens = len(entire_data.strip().split(" "))
+        entire_data = self._wikitext_detokenizer(entire_data)
+        self.tokens = tokenizer.encode(entire_data)
+        self.num_tokenized_tokens = len(self.tokens)
+        print('Original Tokens: %d, Detokenized tokens: %d' %
+              (self.num_original_tokens, self.num_tokenized_tokens))
+
+        self.seq_len = max_seq_len
+        self.pad_idx = tokenizer.eos_token_id
+        self.overlapping_eval = overlapping_eval
+        if self.overlapping_eval is None:
+            self.overlapping_eval = self.seq_len
+        self.overlapping_eval = max(1, self.overlapping_eval)
+
+        self.total_targets = len(self.tokens) - 1
+        # remove first sequence tokens
+        targets = max(self.total_targets - self.overlapping_eval, 0)
+        self.total_sequences = max(
+            math.ceil(targets / self.overlapping_eval) + 1, 1)
+
+    def __len__(self):
+        return self.total_sequences
+
+    def _construct_sample(self, tokens):
+        tokens = np.array(tokens).astype("int64").tolist()
+        labels = tokens[1:]
+        tokens = tokens[:-1]
+        seq_length = len(tokens)
+        # attention mask for the attention calulate
+        attention_mask = np.tri(seq_length, seq_length).reshape(
+            (1, seq_length, seq_length))
+
+        # the pad and eos tokens do not contribute the loss
+        loss_mask = np.ones(seq_length, dtype="float32")
+        loss_mask[np.where(np.array(tokens) == self.pad_idx)] = 0.0
+        position_ids = np.arange(0, seq_length, dtype="int64")
+
+        # -INF mask value as default
+        # attention_mask = (attention_mask - 1.0) * 1e9
+        # Bool mask of attention
+        attention_mask = attention_mask.astype("float32")
+        return [tokens, loss_mask, attention_mask, position_ids, labels]
+
+    def __getitem__(self, idx):
+        start_idx = idx * self.overlapping_eval
+        end_idx = start_idx + self.seq_len
+        tokens = self.tokens[start_idx:end_idx + 1]
+        num_tokens = len(tokens)
+        if num_tokens < self.seq_len + 1:
+            num_pad = (self.seq_len + 1 - num_tokens)
+            tokens += [self.pad_idx] * num_pad
+        [tokens, loss_mask, attention_mask, position_ids,
+         labels] = self._construct_sample(tokens)
+        if self.overlapping_eval != self.seq_len and idx != 0:
+            loss_mask[:-self.overlapping_eval] *= 0
+
+        return [tokens, loss_mask, attention_mask, position_ids, labels, \
+            np.array([self.num_original_tokens, self.num_tokenized_tokens])]
+
+    def _wikitext_detokenizer(self, string):
+        # contractions
+        string = string.replace("s '", "s'")
+        string = re.sub(r"/' [0-9]/", r"/'[0-9]/", string)
+        # number separators
+        string = string.replace(" @-@ ", "-")
+        string = string.replace(" @,@ ", ",")
+        string = string.replace(" @.@ ", ".")
+        # punctuation
+        string = string.replace(" : ", ": ")
+        string = string.replace(" ; ", "; ")
+        string = string.replace(" . ", ". ")
+        string = string.replace(" ! ", "! ")
+        string = string.replace(" ? ", "? ")
+        string = string.replace(" , ", ", ")
+        # double brackets
+        string = re.sub(r"\(\s*([^\)]*?)\s*\)", r"(\1)", string)
+        string = re.sub(r"\[\s*([^\]]*?)\s*\]", r"[\1]", string)
+        string = re.sub(r"{\s*([^}]*?)\s*}", r"{\1}", string)
+        string = re.sub(r"\"\s*([^\"]*?)\s*\"", r'"\1"', string)
+        string = re.sub(r"'\s*([^']*?)\s*'", r"'\1'", string)
+        # miscellaneous
+        string = string.replace("= = = =", "====")
+        string = string.replace("= = =", "===")
+        string = string.replace("= =", "==")
+        string = string.replace(" " + chr(176) + " ", chr(176))
+        string = string.replace(" \n", "\n")
+        string = string.replace("\n ", "\n")
+        string = string.replace(" N ", " 1 ")
+        string = string.replace(" 's", "'s")
+        return string
+
+
+class Lambada_Eval_Dataset(paddle.io.Dataset):
+    def __init__(self, input_dir, max_seq_len, **kwargs):
+        tokenizer = GPTTokenizer.from_pretrained("gpt2")
+
+        tokenized_data = []
+        tokenized_label = []
+        with open(input_dir, 'r') as f:
+            for line in f.readlines():
+                text = json.loads(line)['text']
+                tokens, labels = self._get_tokens(tokenizer, text)
+                tokenized_data.append(tokens)
+                tokenized_label.append(labels)
+
+        self.pad_idx = tokenizer.eos_token_id
+        self.seq_len = max_seq_len
+        self.tokens = tokenized_data
+        self.labels = tokenized_label
+
+    def __len__(self):
+        return len(self.tokens)
+
+    def _construct_sample(self, tokens):
+        tokens = np.array(tokens).astype("int64").tolist()
+        labels = tokens[1:]
+        tokens = tokens[:-1]
+
+        seq_length = len(tokens)
+        # attention mask for the attention calulate
+        attention_mask = np.tri(seq_length, seq_length).reshape(
+            (1, seq_length, seq_length))
+
+        # the pad and eos tokens do not contribute the loss
+        position_ids = np.arange(0, seq_length, dtype="int64")
+
+        # -INF mask value as default
+        #attention_mask = (attention_mask - 1.0) * 1e9
+        # Bool mask of attention
+        attention_mask = attention_mask.astype("float32")
+        return [tokens, attention_mask, position_ids, labels]
+
+    def __getitem__(self, idx):
+        tokens = self.tokens[idx][:self.seq_len]
+        labels = self.labels[idx]
+        tokens = tokens + labels
+        num_tokens = len(tokens)
+        if num_tokens < self.seq_len + 1:
+            num_pad = (self.seq_len + 1 - num_tokens)
+            tokens += [self.pad_idx] * num_pad
+        loss_mask = np.zeros(self.seq_len, dtype="float32")
+        loss_mask[num_tokens - len(labels) - 1:num_tokens - 1] = 1.
+        [tokens, attention_mask, position_ids,
+         labels] = self._construct_sample(tokens)
+        return [
+            tokens, loss_mask, attention_mask, position_ids, labels,
+            np.array([self.__len__()])
+        ]
+
+    def _get_tokens(self, tokenizer, text, strict=True):
+        if not strict:
+            tokens = tokenizer.encode(text)
+            return tokens[:-1], [tokens[-1]]
+        last_token = text.split()[-1]
+        start_idx = text.rfind(last_token)
+        beginning_tokens = tokenizer.encode(text[:start_idx].strip())
+        last_token = tokenizer.encode(' ' + last_token)
+        return beginning_tokens, last_token

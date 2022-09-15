@@ -1,3 +1,6 @@
+
+#! /bin/bash
+
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .basic_engine import BasicEngine
-from .inference_engine import InferenceEngine
-from .eager_engine import EagerEngine
-from .auto_engine import AutoEngine
+
+export CUDA_VISIBLE_DEVICES=0
+python ./tools/train.py -c ./ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_single_card.yaml 
