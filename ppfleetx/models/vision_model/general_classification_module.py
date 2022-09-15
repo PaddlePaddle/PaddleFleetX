@@ -85,7 +85,7 @@ class GeneralClsModule(BasicModule):
     def training_step_end(self, log_dict):
         ips = self.train_batch_size / log_dict['train_cost']
         logger.info(
-            "[train] epoch: %d, step: [%d/%d], learning rate: %.5e, loss: %.9f, batch_cost: %.5f sec, ips: %.2f images/sec"
+            "[train] epoch: %d, step: [%d/%d], learning rate: %.7f, loss: %.9f, batch_cost: %.5f sec, ips: %.2f images/sec"
             % (log_dict['epoch'], log_dict['batch'], log_dict['total_batch'],
                log_dict['lr'], log_dict['loss'], log_dict['train_cost'], ips))
 

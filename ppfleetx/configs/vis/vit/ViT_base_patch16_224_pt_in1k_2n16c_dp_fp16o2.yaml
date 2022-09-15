@@ -45,7 +45,7 @@ Model:
 
 Optimizer:
   name: AdamW
-  weight_decay: 0.01
+  weight_decay: 0.3
   beta1: 0.9
   beta2: 0.999
   epsilon: 1.0e-8
