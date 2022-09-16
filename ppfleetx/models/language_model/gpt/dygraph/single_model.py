@@ -996,23 +996,8 @@ class GPTForGeneration(nn.Layer):
                 input_ids, **args, **immutable)
             return self.gpt(**model_inputs, **immutable)
 
-        # Pre-while call for inference,
-        # the value in model_kwargs should be tensor before while loop
-        if cur_len < max_length:
-            outputs = _forward_(**model_kwargs)
-
-        attn_mask = model_kwargs['attention_mask']
-        # make the shape of attention_mask = (-1, -1, -1, -1) in dy2static.
-        model_kwargs['attention_mask'] = paddle.reshape(
-            attn_mask, paddle.shape(attn_mask))
-        model_kwargs['cache'] = outputs[1] if isinstance(outputs,
-                                                         tuple) else None
-
-        while cur_len < max_length:
-            # prepare model inputs & get model output
-            # skip first step for pre-while call
-            if cur_len > origin_len:
-                outputs = _forward_(**model_kwargs)
+        def _post_process_(outputs, input_ids, cur_len, origin_len, scores,
+                           unfinished_flag, model_kwargs):
 
             logits = outputs[0] if isinstance(outputs, tuple) else outputs
 
@@ -1049,20 +1034,45 @@ class GPTForGeneration(nn.Layer):
             scores = self.update_scores_for_generation(
                 scores, next_scores, cur_len - origin_len, unfinished_flag)
 
-            cur_len += 1
             input_ids = paddle.concat([input_ids, next_tokens], axis=1)
 
             if eos_token_id is not None:
                 unfinished_flag = paddle.logical_and(
                     unfinished_flag, next_tokens != eos_token_id)
 
-            # Stop when there is a </s> in all sentences
-            if not paddle.any(unfinished_flag):
-                break
             model_kwargs = self.update_model_kwargs_for_generation(
                 outputs,
                 model_kwargs,
                 is_encoder_decoder=self.is_encoder_decoder)
+
+            return input_ids, scores, unfinished_flag, model_kwargs
+
+        # Note(GuoxiaWang):Pre-while call for inference, simulate a do while loop statement
+        # the value in model_kwargs should be tensor before while loop
+        outputs = _forward_(**model_kwargs)
+
+        input_ids, scores, unfinished_flag, model_kwargs = _post_process_(
+            outputs, input_ids, cur_len, origin_len, scores, unfinished_flag,
+            model_kwargs)
+        cur_len += 1
+
+        attn_mask = model_kwargs['attention_mask']
+        # make the shape of attention_mask = (-1, -1, -1, -1) in dy2static.
+        model_kwargs['attention_mask'] = paddle.reshape(
+            attn_mask, paddle.shape(attn_mask))
+        model_kwargs['cache'] = outputs[1] if isinstance(outputs,
+                                                         tuple) else None
+        while cur_len < max_length:
+            # Note(GuoxiaWang): Remove outputs = _forward_(**model_kwargs) 
+            # and change it to pass directly to _post_process_ to avoid 
+            # closed-loop problem of dynamic-to-static model
+            input_ids, scores, unfinished_flag, model_kwargs = _post_process_(
+                _forward_(**model_kwargs), input_ids, cur_len, origin_len,
+                scores, unfinished_flag, model_kwargs)
+            cur_len += 1
+
+            if not paddle.any(unfinished_flag):
+                break
 
         return input_ids[:, origin_len:], scores
 

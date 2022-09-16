@@ -29,7 +29,6 @@ import argparse
 from functools import reduce
 from paddle import LazyGuard
 
-sys.path.append("../../../../../")
 from ppfleetx.core.module.basic_module import BasicModule
 from ppfleetx.models.language_model.utils import process_global_configs, process_engine_configs
 import ppfleetx.optims.lr_scheduler as lr

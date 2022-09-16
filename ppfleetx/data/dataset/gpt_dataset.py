@@ -22,9 +22,6 @@ import json
 
 import paddle
 
-__dir__ = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../')))
-
 from ppfleetx.utils import logger, env
 from ppfleetx.data.tokenizers import GPTTokenizer
 

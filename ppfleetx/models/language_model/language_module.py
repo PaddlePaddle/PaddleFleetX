@@ -19,10 +19,9 @@ import math
 import paddle
 from paddle.static import InputSpec
 
-sys.path.append("../../../../")
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.language_model.gpt as gpt
-from ppfleetx.utils import logger
+from ppfleetx.utils import logger, env
 import paddleslim
 from .utils import process_configs
 from ppfleetx.data.tokenizers import GPTTokenizer
@@ -31,6 +30,7 @@ from ppfleetx.data.tokenizers import GPTTokenizer
 class LanguageModule(BasicModule):
     def __init__(self, configs):
         self.nranks = paddle.distributed.get_world_size()
+        self.data_world_size = env.get_data_world_size()
         super(LanguageModule, self).__init__(configs)
 
         self.loss_fn = self.get_loss_fn()
@@ -63,7 +63,7 @@ class LanguageModule(BasicModule):
             "[train] epoch: %d, batch: %d, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
             "ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'], log_dict['train_cost'], speed,
-               speed * default_global_tokens_num, speed * default_global_tokens_num / self.nranks, log_dict['lr']))
+               speed * default_global_tokens_num, speed * default_global_tokens_num / self.data_world_size, log_dict['lr']))
 
     def validation_step(self, batch):
         tokens, position_ids, labels, loss_mask = batch
@@ -93,10 +93,10 @@ class LanguageModule(BasicModule):
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
                log_dict['test_cost'], speed))
 
-    def qat_model(self):
+    def qat_model(self, model):
         quanter = paddleslim.dygraph.quant.QAT(
             config=self.configs.Quantization)
-        self.model = quanter.quantize(self.model)
+        return quanter.quantize(model)
 
     def get_model_size(self, l, h, v, s):
         P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
@@ -128,11 +128,17 @@ class GPTModule(LanguageModule):
         if self.nranks == 1:
             model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
         else:
+            model_setting[
+                'num_partitions'] = self.configs.Distributed.mp_degree
             if self.configs.Distributed.pp_degree == 1:
                 model = gpt.GPTForPretrainingHybrid(
                     gpt.GPTModelHybrid(**model_setting))
             else:
                 model = gpt.GPTForPretrainingPipe(**model_setting)
+
+        if 'Quantization' in self.configs.keys(
+        ) and self.configs.Quantization.enable:
+            model = self.qat_model(model)
 
         return model
 

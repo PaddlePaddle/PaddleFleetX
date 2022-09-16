@@ -63,12 +63,42 @@ def process_dist_config(config):
         'dp_degree'] == 0, "unreasonable config of dist_strategy."
 
 
+def process_global_configs(config):
+    """
+    process global configs for hybrid parallel
+    """
+    dp_degree = config['Distributed']['dp_degree']
+    sharding_degree = config['Distributed']['sharding']['sharding_degree']
+
+    configs = config['Global']
+    if configs['global_batch_size'] is None and configs[
+            'local_batch_size'] is None:
+        raise ValueError(
+            "global_batch_size or local_batch_size should be set.")
+    elif configs['global_batch_size'] is not None and configs[
+            'local_batch_size'] is not None:
+        assert configs['global_batch_size'] // configs['local_batch_size'] == (dp_degree * sharding_degree), "global_batch_size[{}] should be divided by local_batch_size[{}] "\
+            "when dp_degree is [{}] and sharding_degree is [{}]".format(configs['global_batch_size'],
+            configs['local_batch_size'], dp_degree, sharding_degree)
+    elif configs['global_batch_size'] is not None and configs[
+            'local_batch_size'] is None:
+        assert configs['global_batch_size'] % (dp_degree * sharding_degree) == 0, \
+            "global_batch_size[{}] should be divided by dp_degree[{}] times sharding_degree[{}]"\
+            .format(configs['global_batch_size'], dp_degree, sharding_degree)
+        configs['local_batch_size'] = configs['global_batch_size'] // (
+            dp_degree * sharding_degree)
+    else:
+        configs['global_batch_size'] = configs[
+            'local_batch_size'] * dp_degree * sharding_degree
+    assert configs['local_batch_size'] % configs['micro_batch_size'] == 0
+
+
 def process_engine_config(config):
     """
     process engine
     """
-    if config.get('save_load', None):
-        save_load_cfg = config.save_load
+    if config.Engine.get('save_load', None):
+        save_load_cfg = config.Engine.save_load
         save_steps = save_load_cfg.get('save_steps', None)
         save_epoch = save_load_cfg.get('save_epoch', None)
         if save_steps is None or save_steps == -1:
@@ -77,6 +107,12 @@ def process_engine_config(config):
 
         if save_epoch is None or save_epoch == -1:
             save_load_cfg['save_epoch'] = 1
+
+        config.Engine.test_iters = config.Engine.eval_iters * 10 \
+            if config.Engine.get('test_iters', None) is None \
+            else config.Engine.test_iters
+
+        config.Engine.accumulate_steps = config.Global.local_batch_size // config.Global.micro_batch_size
 
 
 class AttrDict(dict):
@@ -282,7 +318,8 @@ def get_config(fname, overrides=None, show=False):
     override_config(config, overrides)
 
     process_dist_config(config['Distributed'])
-    process_engine_config(config['Engine'])
+    process_global_configs(config)
+    process_engine_config(config)
 
     if show:
         print_config(config)
