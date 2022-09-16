@@ -26,25 +26,25 @@ GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupe
 请确保已根据根目录 requirements.txt 安装所需依赖，或者通过以下命令快速安装
 
 ```shell
-python -m pip install -r https://raw.githubusercontent.com/PaddlePaddle/FleetX/develop/requirements.txt -i https://mirror.baidu.com/pypi/simple
+python -m pip install -r https://raw.githubusercontent.com/PaddlePaddle/PaddleFleetX/develop/requirements.txt -i https://mirror.baidu.com/pypi/simple
 ```
 
 ### 数据准备
 
-数据获取和制作详见[GPT 模型预训练数据准备流程](https://github.com/PaddlePaddle/FleetX/tree/develop/ppfleetx/data/data_tools/gpt)
+数据获取和制作详见[GPT 模型预训练数据准备流程](https://github.com/PaddlePaddle/PaddleFleetX/tree/develop/ppfleetx/data/data_tools/gpt)
 
 为了方便用户运行测试本模型，此处提供处理好的300M的训练样本，在单卡训练或混合并行训练前都需要通过以下命令获取数据。
 
 **数据下载命令**
 ```shell
-cd FleetX # 如果已在 FleetX 根目录下，则忽略
+cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 # 下载样例数据
 mkdir data && cd data
 wget -O gpt_en_dataset_300m_ids.npy https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_ids.npy
 wget -O gpt_en_dataset_300m_idx.npz https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_idx.npz
 
-cd .. # 回到 FleetX 根目录下
+cd .. # 回到 PaddleFleetX 根目录下
 ```
 
 ### 模型训练
@@ -136,7 +136,7 @@ Engine训练设置完成模型训练/验证/推理等过程中的参数设置，
 
 ### 模型网络
 
-网络部分完成了网络的组网操作，GPT在[FleetX/ppfleetx/models/language_model/gpt/dygraph/single_model.py]((https://github.com/PaddlePaddle/FleetX/blob/develop/ppfleetx/models/language_model/gpt/dygraph/single_model.py))下。 
+网络部分完成了网络的组网操作，GPT在[PaddleFleetX/ppfleetx/models/language_model/gpt/dygraph/single_model.py]((https://github.com/PaddlePaddle/PaddleFleetX/blob/develop/ppfleetx/models/language_model/gpt/dygraph/single_model.py))下。 
 可以使用配置文件配置模型的规模，如：
 
 ```yaml

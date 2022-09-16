@@ -69,7 +69,7 @@
 
 **启动命令**
 ```shell
-cd FleetX # 如果已在 FleetX 根目录下，则忽略
+cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 log_dir=log_dp8
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
@@ -190,7 +190,7 @@ Generation:
 下载预训练好的模型，快速体验文本生成
 
 ```shell
-cd FleetX # 如果已在 FleetX 根目录下，则忽略
+cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 mkdir -p ckpt
 wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
@@ -266,7 +266,7 @@ I think that we are going to become a very important player in the logistics ind
 1. 下载预训练模型权重，如你已下载，可跳过此步
 
 ```shell
-cd FleetX # 如果已在 FleetX 根目录下，则忽略
+cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 mkdir -p ckpt
 wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
