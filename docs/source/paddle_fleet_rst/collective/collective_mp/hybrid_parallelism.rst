@@ -68,7 +68,7 @@ ERNIE千亿级模型采用100多层transformer网络结构，计算复杂，训�
 
 其中，sharding_degree、mp_degree、pp_degree和dp_degree分别表示sharding、模型并行、流水线并行和数据并行的并行度。参数optimize_offload表示是否开启offload功能，以节省显存。schedule_mode参数用于配置流水线并行的调度方式，为了节省显存，建议设置为"1F1B"。参数micro_batch_size和accumulate_steps分别表示流水线并行中每个micro batch的batch size和梯度累积的次数，即每个mini-batch切分为多少个micro-batch。
 
-示例代码可参见：`examples/hybrid_parallelism <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/hybrid_parallelism>`_。
+示例代码可参见：`examples/hybrid_parallelism <https://github.com/PaddlePaddle/PaddleFleetX/tree/old_develop/examples/hybrid_parallelism>`_。
 
 动态图使用方法
 =======

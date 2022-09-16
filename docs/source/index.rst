@@ -1,4 +1,4 @@
-:github_url: https://github.com/PaddlePaddle/FleetX
+:github_url: https://github.com/PaddlePaddle/PaddleFleetX
 
 =========================================================
 欢迎来到飞桨分布式技术文档主页

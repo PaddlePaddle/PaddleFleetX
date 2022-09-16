@@ -28,7 +28,7 @@
 - Worker负责从参数服务节点拉取参数，根据分配给自己的训练数据计算得到参数梯度，并将梯度推送给对应的Server。
 - Server负责存储参数，并采用分布式存储的方式各自存储全局参数的一部分，同时接受Worker的请求查询和更新参数。
 
-.. image:: https://github.com/PaddlePaddle/FleetX/blob/develop/docs/source/paddle_fleet_rst/collective/img/ps_arch.png?raw=true
+.. image:: https://github.com/PaddlePaddle/PaddleFleetX/blob/old_develop/docs/source/paddle_fleet_rst/collective/img/ps_arch.png?raw=true
   :alt: Parameter-Server Architecture
   :align: center
 
@@ -39,7 +39,7 @@
 
 与参数服务器架构具有两种角色不同，集合通信架构中所有的训练节点通常是对等的，可以说都是Worker。节点间通过Collective集合通信原语通信，因此也称为Collective训练，如下图所示。一种典型的集合通信原语是基于\ `NVIDIA NCCL <https://developer.nvidia.com/nccl>`__\ 通信库的集合通信原语。集合通信架构的典型应用方式是使用多张GPU卡协同训练，典型应用场景包括计算机视觉和自然语言处理等。
 
-.. image:: https://github.com/PaddlePaddle/FleetX/blob/develop/docs/source/paddle_fleet_rst/collective/img/collective_arch.png?raw=true
+.. image:: https://github.com/PaddlePaddle/PaddleFleetX/blob/old_develop/docs/source/paddle_fleet_rst/collective/img/collective_arch.png?raw=true
   :width: 200
   :alt: Collective Architecture
   :align: center
@@ -61,7 +61,7 @@
 
 综上所述，可以参考如下的流程图选择您需要的并行模式。
 
-.. image:: https://github.com/sandyhouse/FleetX/blob/develop/docs/source/paddle_fleet_rst/collective/img/parallel_selection.png?raw=true
+.. image:: https://github.com/sandyhouse/FleetX/blob/develop/docs/source/paddle_fleet_rst/collective/img/parallel_selection.png
   :width: 400
   :alt: Parallel Selection
   :align: center
@@ -71,7 +71,7 @@
 开始你的分布式训练之旅
 ----------------------
 
--  整体内容：我们推荐您直接根据\ `主页 <../index.html>`__\ ，按照章节顺序逐个浏览学习，如果有任何疑问都可以在\ `Paddle <https://github.com/PaddlePaddle/Paddle>`__\ 、\ `FleetX <https://github.com/PaddlePaddle/FleetX/>`__\ 提交issue提问。
+-  整体内容：我们推荐您直接根据\ `主页 <../index.html>`__\ ，按照章节顺序逐个浏览学习，如果有任何疑问都可以在\ `Paddle <https://github.com/PaddlePaddle/Paddle>`__\ 、\ `PaddleFleetX <https://github.com/PaddlePaddle/PaddleFleetX/>`__\ 提交issue提问。
 -  快速上手：如果想最低成本的了解飞桨的分布式训练，我们推荐阅读\ `GPU多机多卡(Collective)训练快速开始 <collective/collective_quick_start.html>`__\ 和\ `参数服务器训练快速开始 <parameter_server/ps_quick_start.html>`__\ 。
 -  GPU多机训练：如果您已经开始使用GPU进行多机多卡训练，\ `Collective训练 <collective/index.html>`__\ 包含了诸多飞桨多机多卡的训练能力和优化方法，建议阅读。
 -  参数服务器：信息检索、推荐系统领域常用的并行训练方式，\ `参数服务器训练 <parameter_server/index.html>`__\ 包含了飞桨参数服务器的训练能力，建议阅读。

@@ -21,7 +21,7 @@
     exe_strategy.num_threads = 3
     strategy.execution_strategy = exe_strategy
 
-上述例子存放在：\ `example/resnet/train_fleet_static_others.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_others.py>`_\ 。
+上述例子存放在：\ `example/resnet/train_fleet_static_others.py <https://github.com/PaddlePaddle/PaddleFleetX/blob/old_develop/examples/resnet/train_fleet_static_others.py>`_\ 。
 
 假设要运行8卡的任务，那么只需在命令行中执行:
 

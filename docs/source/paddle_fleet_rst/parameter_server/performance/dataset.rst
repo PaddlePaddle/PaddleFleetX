@@ -198,7 +198,7 @@
 
        fleet.stop_worker()
 
-完整示例代码可以参考 FleetX/examples/wide_and_deep_dataset 目录
+完整示例代码可以参考 PaddleFleetX/tree/old_develop/examples/wide_and_deep_datase 目录
 
 
 

@@ -29,14 +29,14 @@ conf.py
 """
 import os
 import sys
-sys.path.append(os.path.abspath('../../FleetX/'))
+sys.path.append(os.path.abspath('../../PaddleFleetX/'))
 sys.path.append(os.path.abspath('../..'))
 sys.path.append(os.path.abspath('..'))
 import sphinx_rtd_theme
 
 # -- Project information -----------------------------------------------------
 
-project = 'FleetX'
+project = 'PaddleFleetX'
 copyright = '2020, PaddlePaddle'
 author = 'PaddlePaddle'
 

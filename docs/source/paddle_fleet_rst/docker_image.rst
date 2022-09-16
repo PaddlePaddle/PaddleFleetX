@@ -27,7 +27,7 @@ Docker 镜像
 代码准备
 ============
 
-示例源码可在此获得: `wide_and_deep <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/wide_and_deep>`_ ，其中 train.py 为程序的入口点。
+示例源码可在此获得: `wide_and_deep <https://github.com/PaddlePaddle/PaddleFleetX/tree/old_develop/examples/wide_and_deep>`_ ，其中 train.py 为程序的入口点。
 
 本示例会在任务镜像中包含训练数据，实际应用过程中一般不会也不建议这样使用，常见用法分为以下两种：
 
@@ -93,7 +93,7 @@ Dockerfile 内容，
 代码准备
 ============
 
-示例源码可在此获得: `resnet <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/resnet>`_  ，其中 train_fleet.py 为程序的入口点。
+示例源码可在此获得: `resnet <https://github.com/PaddlePaddle/PaddleFleetX/tree/old_develop/examples/resnet>`_  ，其中 train_fleet.py 为程序的入口点。
 
 制作任务镜像
 ============
@@ -151,7 +151,7 @@ Dockerfile 内容，
 * 对环境进行封装，在不同机器上开发时保持环境一致，同时方便合作共享；
 * 降低从开发到发布的 gap，降低发布成本。
 
-本节涉及的 dockerfile 可以在 `这里 <https://github.com/PaddlePaddle/FleetX/tree/develop/dockerfiles>`_ 找到，
+本节涉及的 dockerfile 可以在 `这里 <https://github.com/PaddlePaddle/PaddleFleetX/tree/old_develop/dockerfiles>`_ 找到，
 
 .. list-table::
 
