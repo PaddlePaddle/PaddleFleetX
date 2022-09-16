@@ -16,4 +16,4 @@
 
 
 export CUDA_VISIBLE_DEVICES=0
-python ./tools/inference.py -c ./ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml
+python ./tasks/gpt/inference.py -c ./ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml

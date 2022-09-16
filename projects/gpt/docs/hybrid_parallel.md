@@ -93,15 +93,16 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
 **运行日志**
 
 ```
-[2022-07-27 12:40:00,833] [    INFO] - global step 1, epoch: 0, batch: 0, loss: 11.083364487, avg_reader_cost: 0.23392 sec, avg_batch_cost: 2.05344 sec, speed: 0.49 step/s, ips_total: 3989 tokens/s, ips: 499 tokens/s, learning rate: 5.55556e-09
-[2022-07-27 12:40:00,967] [    INFO] - global step 2, epoch: 0, batch: 1, loss: 11.054802895, avg_reader_cost: 0.00014 sec, avg_batch_cost: 0.13314 sec, speed: 7.51 step/s, ips_total: 61529 tokens/s, ips: 7691 tokens/s, learning rate: 8.33333e-09
-[2022-07-27 12:40:01,075] [    INFO] - global step 3, epoch: 0, batch: 2, loss: 11.082803726, avg_reader_cost: 0.00013 sec, avg_batch_cost: 0.10738 sec, speed: 9.31 step/s, ips_total: 76289 tokens/s, ips: 9536 tokens/s, learning rate: 1.11111e-08
-[2022-07-27 12:40:01,185] [    INFO] - global step 4, epoch: 0, batch: 3, loss: 11.070495605, avg_reader_cost: 0.00012 sec, avg_batch_cost: 0.10999 sec, speed: 9.09 step/s, ips_total: 74480 tokens/s, ips: 9310 tokens/s, learning rate: 1.38889e-08
-[2022-07-27 12:40:01,298] [    INFO] - global step 5, epoch: 0, batch: 4, loss: 11.086440086, avg_reader_cost: 0.00012 sec, avg_batch_cost: 0.11292 sec, speed: 8.86 step/s, ips_total: 72548 tokens/s, ips: 9068 tokens/s, learning rate: 1.66667e-08
-[2022-07-27 12:40:01,402] [    INFO] - global step 6, epoch: 0, batch: 5, loss: 11.046300888, avg_reader_cost: 0.00013 sec, avg_batch_cost: 0.10367 sec, speed: 9.65 step/s, ips_total: 79022 tokens/s, ips: 9878 tokens/s, learning rate: 1.94444e-08
-[2022-07-27 12:40:01,506] [    INFO] - global step 7, epoch: 0, batch: 6, loss: 11.099355698, avg_reader_cost: 0.00013 sec, avg_batch_cost: 0.10319 sec, speed: 9.69 step/s, ips_total: 79385 tokens/s, ips: 9923 tokens/s, learning rate: 2.22222e-08
-[2022-07-27 12:40:01,621] [    INFO] - global step 8, epoch: 0, batch: 7, loss: 11.076607704, avg_reader_cost: 0.00012 sec, avg_batch_cost: 0.11502 sec, speed: 8.69 step/s, ips_total: 71223 tokens/s, ips: 8903 tokens/s, learning rate: 2.50000e-08
-[2022-07-27 12:40:01,726] [    INFO] - global step 9, epoch: 0, batch: 8, loss: 11.076778412, avg_reader_cost: 0.00013 sec, avg_batch_cost: 0.10425 sec, speed: 9.59 step/s, ips_total: 78577 tokens/s, ips: 9822 tokens/s, learning rate: 2.77778e-08
+[2022/09/16 09:34:38] ppfleetx INFO: [train] epoch: 0, batch: 0, loss: 10.999595642, avg_batch_cost: 3.50859 sec, speed: 0.29 step/s, ips_total: 2335 tokens/s, ips: 2335 tokens/s, learning rate: 2.77778e-08
+[2022/09/16 09:34:39] ppfleetx INFO: [train] epoch: 0, batch: 1, loss: 10.997043610, avg_batch_cost: 0.66441 sec, speed: 1.51 step/s, ips_total: 12330 tokens/s, ips: 12330 tokens/s, learning rate: 4.16667e-08
+[2022/09/16 09:34:39] ppfleetx INFO: [train] epoch: 0, batch: 2, loss: 10.994422913, avg_batch_cost: 0.66781 sec, speed: 1.50 step/s, ips_total: 12267 tokens/s, ips: 12267 tokens/s, learning rate: 5.55556e-08
+[2022/09/16 09:34:40] ppfleetx INFO: [train] epoch: 0, batch: 3, loss: 11.005314827, avg_batch_cost: 0.66650 sec, speed: 1.50 step/s, ips_total: 12291 tokens/s, ips: 12291 tokens/s, learning rate: 6.94444e-08
+[2022/09/16 09:34:41] ppfleetx INFO: [train] epoch: 0, batch: 4, loss: 10.988011360, avg_batch_cost: 0.66635 sec, speed: 1.50 step/s, ips_total: 12294 tokens/s, ips: 12294 tokens/s, learning rate: 8.33333e-08
+[2022/09/16 09:34:41] ppfleetx INFO: [train] epoch: 0, batch: 5, loss: 10.982966423, avg_batch_cost: 0.66437 sec, speed: 1.51 step/s, ips_total: 12330 tokens/s, ips: 12330 tokens/s, learning rate: 9.72222e-08
+[2022/09/16 09:34:42] ppfleetx INFO: [train] epoch: 0, batch: 6, loss: 10.988498688, avg_batch_cost: 0.66345 sec, speed: 1.51 step/s, ips_total: 12348 tokens/s, ips: 12348 tokens/s, learning rate: 1.11111e-07
+[2022/09/16 09:34:43] ppfleetx INFO: [train] epoch: 0, batch: 7, loss: 10.966865540, avg_batch_cost: 0.66505 sec, speed: 1.50 step/s, ips_total: 12318 tokens/s, ips: 12318 tokens/s, learning rate: 1.25000e-07
+[2022/09/16 09:34:43] ppfleetx INFO: [train] epoch: 0, batch: 8, loss: 10.980158806, avg_batch_cost: 0.66787 sec, speed: 1.50 step/s, ips_total: 12266 tokens/s, ips: 12266 tokens/s, learning rate: 1.38889e-07
+[2022/09/16 09:34:44] ppfleetx INFO: [train] epoch: 0, batch: 9, loss: 10.966165543, avg_batch_cost: 0.66881 sec, speed: 1.50 step/s, ips_total: 12249 tokens/s, ips: 12249 tokens/s, learning rate: 1.52778e-07
 ```
 
 ### 多机训练
@@ -277,7 +278,7 @@ tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
 
 ```bash
 python -m paddle.distributed.launch --devices "0" tools/export.py \
-    -c ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_single_card.yaml \
+    -c ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml \
     -o Engine.save_load.ckpt_dir=./ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00
 ```
 
@@ -286,8 +287,8 @@ python -m paddle.distributed.launch --devices "0" tools/export.py \
 导出脚本输出如下：
 
 ```bash
-INFO:fleetx.core.engine.eager_engine:NOTE: disable use_pure_fp16 in export mode
-INFO:fleetx.inference.export_utils:export inference model saved in ./output/rank_0/model
+[2022/09/16 09:41:06] ppfleetx INFO: disable use_pure_fp16 in export mode
+[2022/09/16 09:41:07] ppfleetx INFO: export inference model saved in ./output/rank_0
 ```
 
 #### 预测部署
@@ -296,27 +297,25 @@ INFO:fleetx.inference.export_utils:export inference model saved in ./output/rank
 
 ```bash
 python -m paddle.distributed.launch --devices "0" \
-    tools/inference.py \
+    tasks/gpt/inference.py \
     -c ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml
 ```
 
-`tools/inference.py`模型从配置文件中`Inference.model_dir`中读取导出的预测模型，可通过`-o Inference.model_dir=`指定预测模型所在目录，默认为`./output`
+`tasks/gpt/inference.py`模型从配置文件中`Inference.model_dir`中读取导出的预测模型，可通过`-o Inference.model_dir=`指定预测模型所在目录，默认为`./output`
 
 预测脚本输出如下：
 
 ```bash
 Prompt: Hi, GPT2. Tell me who Jack Ma is.
-Generation: Hi, GPT2. Tell me who Jack Ma is.
+Generation: Hi, GPT2. Tell me who Jack Ma is. I don’t want to hear that.”
 
-GPT2: My name is Jack Ma.
+For now, the only question the crowd is asking is whether or not Jack Ma will step down from the board of directors of Alibaba.
 
-Jack Ma: Jack Ma’s actually a man, he’s a Chinese businessman, born in 1927 in Fuzhou, China, he moved to Shanghai at a young age, he became an investment banker at the investment bank UBS, he then moved to San Francisco and became an entrepreneur.
+Jack Ma on why he never wanted to run for President in 2016:
 
-He got involved in the stock market in the early ‘60s, he was very early on into this technology, he was the first investor in Yahoo and he had a very long career there, and he’s also the founder of Alibaba, the company that is responsible for the majority of China’s internet.
+There were two reasons. One is that I wanted to spend more time with my family. I thought it was better to spend more time with my family and spend more time with my children. So it was a very personal reason. But the second reason was that I thought it would be difficult to get elected, because there are a lot of political interests in this country. So I thought it was better to spend more time with my family.
 
-Peter McCormack: So it was a natural move for you to start getting involved in this area. You’re actually a fan of Bitcoin.
+On how Alibaba will evolve into a new player in China’s transportation and logistics sector:
 
-Jack Ma: Yes, I am.
-
-Peter McCormack: You’ve invested in many Bitcoin
+I think that we are going to become a very important player in the logistics industry. So our strategy is to make it easy for people to travel.
 ```
