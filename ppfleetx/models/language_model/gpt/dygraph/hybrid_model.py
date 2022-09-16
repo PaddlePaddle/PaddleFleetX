@@ -798,7 +798,8 @@ class GPTForPretrainingPipe(PipelineLayer):
                  topology=None,
                  use_recompute=False,
                  fused_linear=False,
-                 recompute_granularity="full"):
+                 recompute_granularity="full",
+                 virtual_pp_degree=1):
 
         # forward desc
         self.descs = []
@@ -869,7 +870,8 @@ class GPTForPretrainingPipe(PipelineLayer):
                 "mp_group": fleet.fleet._hcg.get_model_parallel_group(),
                 "offload": False,
                 "partition": False
-            })
+            },
+            num_virtual_pipeline_stages=virtual_pp_degree)
 
 
 class GPTForGenerationHybrid(nn.Layer):
