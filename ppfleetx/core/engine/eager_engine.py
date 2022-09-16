@@ -373,7 +373,7 @@ class EagerEngine(BasicEngine):
                 }
                 self._module.validation_epoch_end(log_dict)
 
-            if self._save_epoch > 0 and epoch_index % self._save_epoch == 0:
+            if self._save_epoch > 0 and self._run_mode == 'epoch' and epoch_index % self._save_epoch == 0:
                 self.save(epoch=epoch_index, step=len(train_data_loader))
 
         if self.profiler:
