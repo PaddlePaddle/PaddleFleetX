@@ -32,7 +32,7 @@ def set_seed(seed):
         pp_rank = hcg.get_stage_id()
         data_world_rank = get_data_world_rank()
     else:
-        mp_rank, pp_rank, data_world_rank = 1, 1, 1
+        mp_rank, pp_rank, data_world_rank = 0, 0, 0
 
     random.seed(seed + data_world_rank)
     np.random.seed(seed + data_world_rank)

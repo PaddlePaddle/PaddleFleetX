@@ -1,4 +1,3 @@
-
 #! /bin/bash
 
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
@@ -15,6 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-
-python ../../tools/train.py -c ../../ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_single_card.yaml 
+python -m paddle.distributed.launch --devices "0,1,2,3,4,5,6,7" \
+    ./tools/auto.py \
+    -c ./ppfleetx/configs/nlp/gpt/auto/configs_1.3B_dp8.yaml

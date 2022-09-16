@@ -16,4 +16,11 @@
 # limitations under the License.
 
 
-python ../../tools/train.py -c ../../ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_single_card.yaml 
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+
+log_dir=log_hybrid
+rm -rf $log_dir
+
+python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
+    ./tools/train.py \
+    -c ./ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_mp8_qat.yaml 

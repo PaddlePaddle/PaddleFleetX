@@ -34,9 +34,7 @@ class BasicModule(nn.Layer):
     def __init__(self, configs, *args, **kwargs):
         self.configs = self.process_configs(configs)
         super().__init__(*args, **kwargs)
-
         self.model = self.get_model()
-        self.loss_fn = self.get_loss_fn()
 
     def process_configs(self, configs):
         return configs
@@ -45,7 +43,7 @@ class BasicModule(nn.Layer):
         raise NotImplementedError
 
     def get_loss_fn(self):
-        raise NotImplementedError
+        pass
 
     def pretreating_batch(self, batch):
         return batch
@@ -76,7 +74,13 @@ class BasicModule(nn.Layer):
 
     def input_spec(self):
         raise NotImplementedError(
-            "Please input Module.input_spec for model export")
+            "Please redefine Module.input_spec for model export")
+
+    def inference_end(self, outputs):
+        pass
 
     def training_epoch_end(self, *args, **kwargs):
+        pass
+
+    def validation_epoch_end(self, *args, **kwargs):
         pass
