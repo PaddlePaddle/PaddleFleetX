@@ -150,9 +150,9 @@ common config:
                         处理文本id化的进程个数。
 ```
 通过下面脚本转化，我们可以得到处理好的预训练数据，token ids:`wikitext_103_en.npy`, 文章索引信息`wikitext_103_en.npz`.
-在使用 `GPTTokenizer` 时需要用到 `gpt2-vocab.json` 与 `gpt2-merges.txt`，如果没有下载缓存过这两个文件，脚本会自动下载并缓存。当遇到网络问题时，可以自行下载并将这两个文件放置在 `~/.cache/fleetx/` 目录下。
+在使用 `GPTTokenizer` 时需要用到 `gpt2-vocab.json` 与 `gpt2-merges.txt`，如果没有下载缓存过这两个文件，脚本会自动下载并缓存。当遇到网络问题时，可以自行下载并将这两个文件放置在 `~/.cache/ppfleetx/` 目录下。
 ``` 
-python fleetx/data/data_tools/gpt/preprocess_data.py \
+python ppfleetx/data/data_tools/gpt/preprocess_data.py \
     --model_name gpt2 \
     --tokenizer_name GPTTokenizer \
     --data_format JSON \
