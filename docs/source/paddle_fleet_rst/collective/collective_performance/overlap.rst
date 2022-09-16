@@ -33,7 +33,7 @@
     strategy.sync_nccl_allreduce=False
 
 
-完整的示例代码请参考：\ `example/resnet/train_fleet_static_overlap.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_overlap.py>`_\ 。
+完整的示例代码请参考：\ `example/resnet/train_fleet_static_overlap.py <https://github.com/PaddlePaddle/PaddleFleetX/blob/old_develop/examples/resnet/train_fleet_static_overlap.py>`_\ 。
 
 假设要运行用2卡执行上述任务，那么只需在命令行中执行:
 

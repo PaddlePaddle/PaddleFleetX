@@ -39,7 +39,7 @@ AllReduce操作将不同机器上的数据整合(Reduce)后将结果发送到各
 
 需要说明的是，层次化通信拓扑目前只适用于多GPU训练。
 
-上述例子存放在：\ `example/resnet/train_fleet_static_communication_topology.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_communication_topology.py>`_\ 。
+上述例子存放在：\ `example/resnet/train_fleet_static_communication_topology.py <https://github.com/PaddlePaddle/PaddleFleetX/blob/old_develop/examples/resnet/train_fleet_static_communication_topolopy.py>`_\ 。
 
 假设要运行8卡的任务，那么只需在命令行中执行:
 

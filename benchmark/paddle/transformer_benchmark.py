@@ -24,8 +24,8 @@ import fleetx as X
 import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
 import paddle.distributed.fleet.base.role_maker as role_maker
-# FleetX help users to focus more on learning to train a large scale model
-# if you want to learn how to write a model, FleetX is not for you
+# PaddleFleetX help users to focus more on learning to train a large scale model
+# if you want to learn how to write a model, PaddleFleetX is not for you
 # focus more on engineering staff in fleet-x
 configs = X.parse_train_configs()
 fleet.init(is_collective=True)

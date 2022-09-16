@@ -17,7 +17,7 @@ import paddle
 import paddle.fluid as fluid
 import paddle.distributed.fleet as fleet
 paddle.enable_static()
-# FleetX help users to focus more on learning to train a large scale model
+# PaddleFleetX help users to focus more on learning to train a large scale model
 # if you want to learn how to write a model, fleetx is not for you
 # focus more on engineering staff in fleet-x
 

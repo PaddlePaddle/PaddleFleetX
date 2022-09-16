@@ -163,7 +163,7 @@ DGC 相关策略
     }
 
 
-基于ResNet50网络的DGC代码：\ `example/resnet/train_fleet_static_dgc.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_dgc.py>`_\ 。
+基于ResNet50网络的DGC代码：\ `example/resnet/train_fleet_static_dgc.py <https://github.com/PaddlePaddle/PaddleFleetX/blob/old_develop/examples/resnet/train_fleet_static_dgc.py>`_\ 。
 
 假设要运行2卡的任务，那么只需在命令行中执行:
 
@@ -272,7 +272,7 @@ SGD和自适应步长local SGD都仅支持SGD和Momentum两种优化器。
     } 
 
 
-上述例子存放在：\ `example/resnet/train_fleet_static_localsgd.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_localsgd.py>`_\ 下面。
+上述例子存放在：\ `example/resnet/train_fleet_static_localsgd.py <https://github.com/PaddlePaddle/PaddleFleetX/blob/old_develop/examples/resnet/train_fleet_static_localsgd.py>`_\ 下面。
 
 假设要运行2卡的任务，那么只需在命令行中执行:
 

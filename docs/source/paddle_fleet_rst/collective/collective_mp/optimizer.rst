@@ -124,7 +124,7 @@ meta optimizer, 在使用时需要设置以下几点:
                         "exclude_from_weight_decay": ['batch_norm', '.b_0']
                     }
 
-上述例子的完整代码存放在：\ `train_fleet_lars.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_lars.py>`_\ 下面。假设要运行2卡的任务，那么只需在命令行中执行:
+上述例子的完整代码存放在：\ `train_fleet_lars.py <https://github.com/PaddlePaddle/PaddleFleetX/blob/old_develop/examples/resnet/train_fleet_lars.py>`_\ 下面。假设要运行2卡的任务，那么只需在命令行中执行:
 
 
 .. code-block:: sh
@@ -210,7 +210,7 @@ meta optimizer, 在使用时需要设置以下几点:
         'exclude_from_weight_decay': ['layer_norm'],
     }
 
-上述例子的完整代码存放在：\ `train_fleet_lamb.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_lamb.py>`_\ 下面。假设要运行2卡的任务，那么只需在命令行中执行:
+上述例子的完整代码存放在：\ `train_fleet_lamb.py <https://github.com/PaddlePaddle/PaddleFleetX/blob/old_develop/examples/resnet/train_fleet_lamb.py>`_\ 下面。假设要运行2卡的任务，那么只需在命令行中执行:
 
 
 .. code-block:: sh

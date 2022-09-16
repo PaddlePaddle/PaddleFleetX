@@ -75,7 +75,7 @@ OP融合（计算，通信）
     strategy.fuse_all_reduce_ops=True
 
 
-完整示例请参考：`example/resnet/train_fleet_static_op_fusion.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_op_fusion.py>`_。
+完整示例请参考：`example/resnet/train_fleet_static_op_fusion.py <https://github.com/PaddlePaddle/PaddleFleetX/blob/old_develop/examples/resnet/train_fleet_static_op_fusion.py>`_。
 
 假设要运行2卡训练任务，那么只需在命令行中执行:
 

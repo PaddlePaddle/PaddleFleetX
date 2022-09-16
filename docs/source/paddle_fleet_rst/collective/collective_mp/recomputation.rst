@@ -85,7 +85,7 @@ res2a.add.output.5.tmp_0 等是用户组网时定义的张量名称。
         "checkpoint_shape": []
         }
 
-上述例子的完整代码存放在：\ `train_fleet_recompute.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_recompute.py>`_\ 下面。假设要运行2卡的任务，那么只需在命令行中执行:
+上述例子的完整代码存放在：\ `train_fleet_recompute.py <https://github.com/PaddlePaddle/PaddleFleetX/blob/old_develop/examples/resnet/train_fleet_recompute.py>`_\ 下面。假设要运行2卡的任务，那么只需在命令行中执行:
 
 
 .. code-block:: sh
@@ -283,7 +283,7 @@ res2a.add.output.5.tmp_0 等是用户组网时定义的张量名称。
 
     python recompute_dygraph.py
 
-recompute动态图代码：`example/recompute <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/recompute>`_。
+recompute动态图代码：`example/recompute <https://github.com/PaddlePaddle/PaddleFleetX/tree/old_develop/examples/recompute>`_。
 
 输出:
 

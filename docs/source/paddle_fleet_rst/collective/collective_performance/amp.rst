@@ -65,7 +65,7 @@
 
 其中，\ ``use_dynamic_loss_scaling``\ 表示是否采用，\ ``动态loss scaling``\ 机制。飞桨中维护了算子黑白名单，用户也可以通过\ ``custom_white_list``\ 和\ ``custom_black_list``\ 参数改变某些算子的默认位置。
 
-上述例子存放在：\ `example/resnet/train_fleet_static_amp.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_static_amp.py>`_\ 。假设要运行8卡的任务，那么只需在命令行中执行:
+上述例子存放在：\ `example/resnet/train_fleet_static_amp.py <https://github.com/PaddlePaddle/PaddleFleetX/blob/old_develop/examples/resnet/train_fleet_static_amp.py>`_\ 。假设要运行8卡的任务，那么只需在命令行中执行:
 
 .. code-block:: sh
 
@@ -260,4 +260,4 @@
    使用AMP模式耗时:
    共计耗时 = 1.222 sec
 
-上述例子存放在：\ `example/amp/amp_dygraph.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/amp/amp_dygraph.py>`_\ 。
+上述例子存放在：\ `example/amp/amp_dygraph.py <https://github.com/PaddlePaddle/PaddleFleetX/blob/old_develop/examples/amp/amp_dygraph.py>`_\ 。

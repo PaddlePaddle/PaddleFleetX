@@ -80,7 +80,7 @@ save 环节
         state_dict['epoch'] = eop
         paddle.save(state_dict, checkpoint_path)
 
-完整示例见 `resnet <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/resnet/train_fleet_dygraph_ckpt.py>`_ .
+完整示例见 `resnet <https://github.com/PaddlePaddle/PaddleFleetX/tree/old_develop/examples/resnet/train_fleet_dygraph_ckpt.py>`_ .
 
 注意：如示例中所示，save 和 load 均在 rank 为 0 的节点上进行，checkpoint 所在目录要确保能够被访问。
 

@@ -75,7 +75,7 @@
                                 "micro_batch_size": 32}
 
 
-基于ResNet50网络的流水线并行代码：`example/resnet <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/pipeline>`_。
+基于ResNet50网络的流水线并行代码：`example/resnet <https://github.com/PaddlePaddle/PaddleFleetX/tree/old_develop/examples/pipeline>`_。
 
 使用下述命令行运行示例代码：
 
@@ -384,7 +384,7 @@ model_b.train_batch(...)：这一步主要就是执行1F1B的流水线并行方�
   export CUDA_VISIBLE_DEVICES=0,1
   python -m paddle.distributed.launch alexnet_dygraph_pipeline.py # alexnet_dygraph_pipeline.py是用户运行动态图流水线的python文件
 
-基于AlexNet的流水线并行动态图代码：`example/alex <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/pipeline>`_。
+基于AlexNet的流水线并行动态图代码：`example/alex <https://github.com/PaddlePaddle/PaddleFleetX/tree/old_develop/examples/pipeline>`_。
 
 控制台输出信息如下：
 

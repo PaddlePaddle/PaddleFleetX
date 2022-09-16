@@ -125,7 +125,7 @@ sharding 可以设置以下参数：
     }
 
 
-上述例子的完整代码存放在：\ `train_fleet_sharding.py <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet/train_fleet_sharding.py>`_\ 下面。假设要运行4卡的任务，那么只需在命令行中执行:
+上述例子的完整代码存放在：\ `train_fleet_sharding.py <https://github.com/PaddlePaddle/PaddleFleetX/blob/old_develop/examples/resnet/train_fleet_sharding.py>`_\ 下面。假设要运行4卡的任务，那么只需在命令行中执行:
 
 
 .. code-block:: sh

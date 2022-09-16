@@ -379,7 +379,7 @@ Embedding和矩阵乘法算子的切分。我们需要对该API的 ``gather_out`
   export CUDA_VISIBLE_DEVICES=0,1
   python -m paddle.distributed.launch mp_static.py
 
-模型并行的静态图代码：`example/model_parallelism/mp_static.py <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/model_parallelism>`_。
+模型并行的静态图代码：`example/model_parallelism/mp_static.py <https://github.com/PaddlePaddle/PaddleFleetX/tree/old_develop/examples/model_parallelism>`_。
 
 控制台输出信息如下：
 
@@ -719,7 +719,7 @@ Embedding和矩阵乘法算子的切分。我们需要对该API的 ``gather_out`
    
       print("mp_loss: ", loss_a.numpy()[0], " single_loss: ", loss_b.numpy()[0])
 
-模型并行的动态图代码：`example/model_parallelism/mp_dygraph.py <https://github.com/PaddlePaddle/FleetX/tree/develop/examples/model_parallelism>`_。
+模型并行的动态图代码：`example/model_parallelism/mp_dygraph.py <https://github.com/PaddlePaddle/PaddleFleetX/tree/old_develop/examples/model_parallelism>`_。
 
 
 运行方式（需要保证当前机器有两张gpu）：

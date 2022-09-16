@@ -5,7 +5,7 @@
 Collective训练快速开始
 ^^^^^^^^^^^^^^^^^^^^^^
 
-本节将以CV领域经典模型ResNet50为例，介绍如何使用Fleet API（paddle.distributed.fleet）完成Collective分布式训练。我们采用Paddle内置的flowers数据集和Momentum优化器方法，循环迭代10个epoch，并在每个step打印当前模型的损失值和精度值。具体代码请参考\ `FleetX/examples/resnet <https://github.com/PaddlePaddle/FleetX/blob/develop/examples/resnet>`_\ ，其中包含动态图和静态图两种执行方式。resnet_dygraph.py为动态图模型相关代码，train_fleet_dygraph.py为动态图训练脚本。resnet_static.py为静态图模型相关代码，train_fleet_static.py为静态图训练脚本。
+本节将以CV领域经典模型ResNet50为例，介绍如何使用Fleet API（paddle.distributed.fleet）完成Collective分布式训练。我们采用Paddle内置的flowers数据集和Momentum优化器方法，循环迭代10个epoch，并在每个step打印当前模型的损失值和精度值。具体代码请参考\ `PaddleFleetX/examples/resnet <https://github.com/PaddlePaddle/PaddleFleetX/blob/old_develop/examples/resnet>`_\ ，其中包含动态图和静态图两种执行方式。resnet_dygraph.py为动态图模型相关代码，train_fleet_dygraph.py为动态图训练脚本。resnet_static.py为静态图模型相关代码，train_fleet_static.py为静态图训练脚本。
 
 版本要求
 ^^^^^^^^
