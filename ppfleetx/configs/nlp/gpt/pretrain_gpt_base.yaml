@@ -31,6 +31,7 @@ Model:
   module: "GPTModule"
   name: "GPT"
   fused_linear: False
+  sequence_parallel: False
 
 
 Data:
