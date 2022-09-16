@@ -27,7 +27,7 @@ sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
 
 from ppfleetx.utils import config, env, logger
 from ppfleetx.utils.logger import init_logger
-from ppfleetx.data import build_dataloader, tokenizers
+from ppfleetx.data import build_dataloader
 from ppfleetx.models import build_module
 from ppfleetx.core import EagerEngine
 
@@ -50,7 +50,6 @@ if __name__ == "__main__":
     test_data_loader = build_dataloader(cfg.Data, "Test")
     for iter_id, data in enumerate(test_data_loader()):
         outs = engine.inference(data)
-        module.inference_end(outs)
 
         if iter_id >= cfg.Engine.test_iters:
             break

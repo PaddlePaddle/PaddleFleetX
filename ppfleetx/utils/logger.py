@@ -40,7 +40,7 @@ def init_logger(name='ppfleetx', log_file=None, log_level=logging.INFO):
     """
     global _logger
 
-    #  solve mutiple init issue when using paddleclas.py and engin.engin
+    #  solve mutiple init issue
     init_flag = False
     if _logger is None:
         _logger = logging.getLogger(name)
@@ -147,7 +147,7 @@ def advertise():
     """
     copyright = "PaddleFleetX is powered by PaddlePaddle !"
     ad = "For more info please go to the following website."
-    website = "https://github.com/PaddlePaddle/FleetX"
+    website = "https://github.com/PaddlePaddle/PaddleFleetX"
     AD_LEN = 6 + len(max([copyright, ad, website], key=len))
 
     info("\n{0}\n{1}\n{2}\n{3}\n{4}\n{5}\n{6}\n{7}\n".format(

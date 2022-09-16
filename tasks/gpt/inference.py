@@ -1,50 +1,52 @@
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
-#
+# 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-#
+# 
 #     http://www.apache.org/licenses/LICENSE-2.0
-#
+# 
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
-import math
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import os
-import random
-import time
 import sys
-import yaml
-import numpy as np
 
-sys.path.append("../../../")
-import paddle
 from paddle.distributed import fleet
+import paddle.distributed as dist
 
-from examples.gpt.gpt_module import GPTGenerationModule
-from fleetx.data.tokenizers import GPTTokenizer
-from fleetx.core.engine.eager_engine import EagerEngine
+__dir__ = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.abspath(os.path.join(__dir__, '../../')))
 
-from examples.gpt.tools import parse_yaml
+from ppfleetx.utils import config, env, logger
+from ppfleetx.utils.logger import init_logger
+from ppfleetx.data import build_dataloader, tokenizers
+from ppfleetx.models import build_module
+from ppfleetx.core import EagerEngine
 
+init_logger()
 
-def do_inference():
-    configs = parse_yaml()
+if __name__ == "__main__":
+    args = config.parse_args()
+    cfg = config.get_config(args.config, overrides=args.override, show=False)
 
-    paddle.set_device(configs['Global']['device'])
+    if dist.get_world_size() > 1:
+        fleet.init(is_collective=True, strategy=env.init_dist_env(cfg))
 
-    seed = configs['Global']['seed']
-    random.seed(seed)
-    np.random.seed(seed)
-    paddle.seed(seed)
+    env.set_seed(cfg.Global.seed)
 
-    tokenizer = GPTTokenizer.from_pretrained("gpt2")
-    module = GPTGenerationModule(configs)
-    engine = EagerEngine(module=module, configs=configs, mode='test')
+    module = build_module(cfg)
+    config.print_config(cfg)
+
+    tokenizer = tokenizers.GPTTokenizer.from_pretrained("gpt2")
+    engine = EagerEngine(configs=cfg, module=module, mode='inference')
 
     input_text = 'Hi, GPT2. Tell me who Jack Ma is.'
     input_ids = [tokenizer.encode(input_text)]
@@ -58,7 +60,3 @@ def do_inference():
 
     print('Prompt:', input_text)
     print('Generation:', result)
-
-
-if __name__ == "__main__":
-    do_inference()

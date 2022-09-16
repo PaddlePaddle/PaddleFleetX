@@ -1,4 +1,4 @@
-_base_: ./generation_gpt_345M_single_card.yaml
+_base_: ./generation_gpt_345M_dp8.yaml
 
 
 Inference:
