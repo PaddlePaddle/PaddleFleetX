@@ -19,6 +19,7 @@ Model:
   initializer_range: 0.02
   use_recompute: True
   recompute_granularity:
+  virtual_pp_degree: 1
   
 
 Distributed:

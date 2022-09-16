@@ -69,6 +69,28 @@ def process_model_configs(config):
             "The flag fused_linear only valid for cuda version higher than 11.6, "
             "but the paddle is compiled with cuda " + paddle.version.cuda())
 
+    pp_degree = config.Distributed.pp_degree
+    if pp_degree > 1:
+        configs['virtual_pp_degree'] = 1 \
+            if configs.get('virtual_pp_degree', None) is None \
+            else configs['virtual_pp_degree']
+        virtual_pp_degree = configs['virtual_pp_degree']
+        num_layers = configs.num_layers
+
+        assert (num_layers %
+            (virtual_pp_degree * pp_degree)) == 0, \
+            "The num_layers of the model should be divisible of pp_degree * virtual_pp_degree." \
+            "Receive num_layers: {}, pp_degree: {}, virtual_pp_degree: {}.".format(
+            num_layers, pp_degree, virtual_pp_degree)
+
+        if virtual_pp_degree > 2:
+            logger.warning(
+                "Setting virtual_pp_degree > 2 may harm the throughput of the pipeline parallel."
+            )
+    else:
+        if configs.get('virtual_pp_degree', None):
+            logger.warning("virtual_pp_degree is unuseful.")
+
 
 def process_optim_configs(config):
     """
