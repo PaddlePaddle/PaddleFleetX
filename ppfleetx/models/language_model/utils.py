@@ -70,6 +70,7 @@ def process_model_configs(config):
             "but the paddle is compiled with cuda " + paddle.version.cuda())
 
     pp_degree = config.Distributed.pp_degree
+
     if pp_degree > 1:
         configs['virtual_pp_degree'] = 1 \
             if configs.get('virtual_pp_degree', None) is None \
@@ -82,6 +83,13 @@ def process_model_configs(config):
             "The num_layers of the model should be divisible of pp_degree * virtual_pp_degree." \
             "Receive num_layers: {}, pp_degree: {}, virtual_pp_degree: {}.".format(
             num_layers, pp_degree, virtual_pp_degree)
+
+        # TODO(liuyuang): To solve the limitations of virtual_pp_degree
+        if virtual_pp_degree > 1:
+            local_batch_size = config.Global.local_batch_size
+            micro_batch_size = config.Global.micro_batch_size
+            assert local_batch_size // micro_batch_size == pp_degree, "micro_batch_size * pp_degree " \
+                "must be equal to local_batch_size when using virtual_pp_degree"
 
         if virtual_pp_degree > 2:
             logger.warning(
@@ -133,10 +141,9 @@ def process_data_configs(config):
 
 
 def process_configs(config):
-
+    process_data_configs(config)
     process_model_configs(config)
     process_optim_configs(config)
-    process_data_configs(config)
     process_inference_configs(config)
 
     return config
