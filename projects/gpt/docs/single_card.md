@@ -11,7 +11,7 @@
 
 **启动命令**
 ```shell
-cd FleetX # 如果已在 FleetX 根目录下，则忽略
+cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 # 345M
 python tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_single_card.yaml
@@ -85,7 +85,7 @@ python tools/train.py \
 ### WikiText数据集评估
 
 ```shell
-cd FleetX # 如果已在 FleetX 根目录下，则忽略
+cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 mkdir -p ckpt
 wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
@@ -122,7 +122,7 @@ python tools/eval.py -c ppfleetx/configs/nlp/gpt/eval_gpt_345M_single_card.yaml 
 ### LAMBADA数据集评估
 
 ```shell
-cd FleetX # 如果已在 FleetX 根目录下，则忽略
+cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 mkdir -p ckpt
 wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
@@ -190,7 +190,7 @@ python tools/eval.py -c ppfleetx/configs/nlp/gpt/eval_gpt_345M_single_card.yaml 
 
 
 ```shell
-cd FleetX # 如果已在 FleetX 根目录下，则忽略
+cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 mkdir -p ckpt
 wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
@@ -264,7 +264,7 @@ I think that we are going to become a very important player in the logistics ind
 1. 下载预训练模型权重，如你已下载，可跳过此步
 
 ```shell
-cd FleetX # 如果已在 FleetX 根目录下，则忽略
+cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 mkdir -p ckpt
 wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz

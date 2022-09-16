@@ -14,11 +14,11 @@
 
 ## 目录切换
 ```
-# 如果您还未下载 FleetX 套件，请先 clone 套件
-# git clone https://github.com/PaddlePaddle/FleetX.git
-cd FleetX
+# 如果您还未下载 PaddleFleetX 套件，请先 clone 套件
+# git clone https://github.com/PaddlePaddle/PaddleFleetX.git
+cd PaddleFleetX
 
-# 以下所有命令都在 FleetX 根目录中执行
+# 以下所有命令都在 PaddleFleetX 根目录中执行
 ```
 
 ## 环境依赖
