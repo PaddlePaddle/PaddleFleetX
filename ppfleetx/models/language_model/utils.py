@@ -84,12 +84,12 @@ def process_model_configs(config):
             "Receive num_layers: {}, pp_degree: {}, virtual_pp_degree: {}.".format(
             num_layers, pp_degree, virtual_pp_degree)
 
-        # TODO(liuyuang): To solve the limitations of virtual_pp_degree
         if virtual_pp_degree > 1:
             local_batch_size = config.Global.local_batch_size
             micro_batch_size = config.Global.micro_batch_size
-            assert local_batch_size // micro_batch_size == pp_degree, "micro_batch_size * pp_degree " \
-                "must be equal to local_batch_size when using virtual_pp_degree"
+            acc_steps = local_batch_size // micro_batch_size
+            assert acc_steps % pp_degree == 0, "local_batch_size must be integral multiple of" \
+                "micro_batch_size * pp_degree when using virtual_pp_degree"
 
         if virtual_pp_degree > 2:
             logger.warning(
