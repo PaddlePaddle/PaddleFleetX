@@ -91,8 +91,6 @@ git clone https://github.com/PaddlePaddle/FleetX.git
 
 切换工作目录并下载demo数据，
 ```
-cd FleetX/examples/gpt/single
-
 mkdir data
 wget -O data/gpt_en_dataset_300m_ids.npy https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_ids.npy
 wget -O data/gpt_en_dataset_300m_idx.npz https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_idx.npz
