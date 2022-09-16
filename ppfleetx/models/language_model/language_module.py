@@ -21,7 +21,7 @@ from paddle.static import InputSpec
 
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.language_model.gpt as gpt
-from ppfleetx.utils import logger
+from ppfleetx.utils import logger, env
 import paddleslim
 from .utils import process_configs
 from ppfleetx.data.tokenizers import GPTTokenizer
@@ -30,6 +30,7 @@ from ppfleetx.data.tokenizers import GPTTokenizer
 class LanguageModule(BasicModule):
     def __init__(self, configs):
         self.nranks = paddle.distributed.get_world_size()
+        self.data_world_size = env.get_data_world_size()
         super(LanguageModule, self).__init__(configs)
 
         self.loss_fn = self.get_loss_fn()
@@ -62,7 +63,7 @@ class LanguageModule(BasicModule):
             "[train] epoch: %d, batch: %d, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
             "ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'], log_dict['train_cost'], speed,
-               speed * default_global_tokens_num, speed * default_global_tokens_num / self.nranks, log_dict['lr']))
+               speed * default_global_tokens_num, speed * default_global_tokens_num / self.data_world_size, log_dict['lr']))
 
     def validation_step(self, batch):
         tokens, position_ids, labels, loss_mask = batch

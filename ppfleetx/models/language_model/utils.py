@@ -28,36 +28,6 @@ from functools import reduce
 from ppfleetx.utils import env
 
 
-def process_global_configs(config):
-    """
-    process global configs for hybrid parallel
-    """
-    dp_degree = config['Distributed']['dp_degree']
-    sharding_degree = config['Distributed']['sharding']['sharding_degree']
-
-    configs = config['Global']
-    if configs['global_batch_size'] is None and configs[
-            'local_batch_size'] is None:
-        raise ValueError(
-            "global_batch_size or local_batch_size should be set.")
-    elif configs['global_batch_size'] is not None and configs[
-            'local_batch_size'] is not None:
-        assert configs['global_batch_size'] // configs['local_batch_size'] == (dp_degree * sharding_degree), "global_batch_size[{}] should be divided by local_batch_size[{}] "\
-            "when dp_degree is [{}] and sharding_degree is [{}]".format(configs['global_batch_size'],
-            configs['local_batch_size'], dp_degree, sharding_degree)
-    elif configs['global_batch_size'] is not None and configs[
-            'local_batch_size'] is None:
-        assert configs['global_batch_size'] % (dp_degree * sharding_degree) == 0, \
-            "global_batch_size[{}] should be divided by dp_degree[{}] times sharding_degree[{}]"\
-            .format(configs['global_batch_size'], dp_degree, sharding_degree)
-        configs['local_batch_size'] = configs['global_batch_size'] // (
-            dp_degree * sharding_degree)
-    else:
-        configs['global_batch_size'] = configs[
-            'local_batch_size'] * dp_degree * sharding_degree
-    assert configs['local_batch_size'] % configs['micro_batch_size'] == 0
-
-
 def is_fused_matmul_bias_supported():
     if paddle.is_compiled_with_cuda() and not paddle.is_compiled_with_rocm():
         return hasattr(core.ops, 'fused_gemm_epilogue')
@@ -113,18 +83,6 @@ def process_optim_configs(config):
         assert nranks == dp_degree, "tensor_fusion only support single card train or data parallel train"
 
 
-def process_engine_configs(config):
-    """
-    process engine configs for hybrid parallel
-    """
-    configs = config['Engine']
-    configs['test_iters'] = configs['eval_iters'] * 10 \
-        if configs.get('test_iters', None) is None \
-        else configs['test_iters']
-    configs['accumulate_steps'] = config['Global']['local_batch_size'] \
-        // config['Global']['micro_batch_size']
-
-
 def process_data_configs(config):
     """
     process data configs for hybrid parallel
@@ -154,10 +112,8 @@ def process_data_configs(config):
 
 def process_configs(config):
 
-    process_global_configs(config)
     process_model_configs(config)
     process_optim_configs(config)
-    process_engine_configs(config)
     process_data_configs(config)
     process_inference_configs(config)
 
