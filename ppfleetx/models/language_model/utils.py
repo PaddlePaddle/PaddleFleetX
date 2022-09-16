@@ -25,9 +25,6 @@ from paddle.fluid import core
 import argparse
 from functools import reduce
 
-__dir__ = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../')))
-
 from ppfleetx.utils import env
 
 
@@ -70,8 +67,11 @@ def is_fused_matmul_bias_supported():
 
 def process_inference_configs(config):
     """
-    process fused configs for hybrid parallel
+    process inference configs for hybrid parallel
     """
+    if 'Inference' not in config.keys():
+        return
+
     configs = config['Inference']
 
     if configs['model_dir'] is None:

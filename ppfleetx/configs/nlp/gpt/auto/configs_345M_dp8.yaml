@@ -2,6 +2,9 @@
 Global:
   device: gpu
   seed: 1024
+  global_batch_size: 64
+  local_batch_size: 
+  micro_batch_size: 1
 
 
 Engine:
@@ -25,12 +28,10 @@ Engine:
 
 
 Data:
-  batch_size:
-    global_batch_size: 64
-
+    
   dataset:
     input_dir: ./data
-    split: '949,50,1'
+    split: [949, 50, 1]
     max_seq_len: 1024
 
 
@@ -45,7 +46,7 @@ Model:
   max_position_embeddings: 1024
   type_vocab_size: 16
   initializer_range: 0.02
-
+  use_recompute: True
 
 Distributed:
   dp_degree:

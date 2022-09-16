@@ -15,7 +15,6 @@
 import sys
 import paddle
 
-sys.path.append("../../")
 from ppfleetx.utils.tensor_fusion_helper import fused_parameters
 from paddle.optimizer import Adam, AdamW, Momentum
 

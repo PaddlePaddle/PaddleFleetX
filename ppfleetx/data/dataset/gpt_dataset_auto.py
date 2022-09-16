@@ -1,4 +1,5 @@
-# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.
+# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,181 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 import os
 import sys
-import time
+
 import numpy as np
-
 import paddle
-
-__dir__ = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../')))
-
-from ppfleetx.utils import logger, env
-from ppfleetx.data.tokenizers import GPTTokenizer
-
-mode_to_index = {"Train": 0, "Eval": 1, "Test": 2}
-
-
-class GPTDataset(paddle.io.Dataset):
-    def __init__(self,
-                 input_dir,
-                 split,
-                 max_seq_len,
-                 num_samples,
-                 mode,
-                 seed=1234):
-
-        files = get_train_data_file(input_dir)
-        files.sort()
-        input_dir = [files[0]]
-
-        local_rank = int(os.getenv("PADDLE_RANK_IN_NODE", 0))
-
-        if local_rank == 0:
-            try:
-                import fleetx.data.data_tools.cpp.fast_index_map_helpers
-            except Exception as e:
-                start_time = time.time()
-                print('> compiling dataset index builder ...')
-                from fleetx.data.data_tools.cpp.compile import compile_helper
-                compile_helper()
-                print(
-                    '>>> done with dataset index builder. Compilation time: {:.3f} '
-                    'seconds'.format(time.time() - start_time),
-                    flush=True)
-
-        device_world_size = paddle.distributed.get_world_size()
-
-        if device_world_size > 1 and local_rank != 0:
-            while True:
-                try:
-                    import fleetx.data.data_tools.cpp.fast_index_map_helpers
-                    break
-                except Exception as e:
-                    print("> wait for helpers to be compiled!")
-                    time.sleep(1)
-
-        data_world_size = env.get_data_world_size()
-
-        logger.info(
-            "The distributed run, total device num:{}, distinct dataflow num:{}.".
-            format(device_world_size, data_world_size))
-
-        assert len(input_dir) == 1, "GPT only support one dataset for now."
-
-        input_prefix = input_dir[0]
-
-        for suffix in ["_ids.npy", "_idx.npz"]:
-            if not os.path.isfile(input_prefix + suffix):
-                raise ValueError("File Not found, %s" %
-                                 (input_prefix + suffix))
-
-        sample_ids = np.load(
-            input_prefix + "_ids.npy", mmap_mode="r", allow_pickle=True)
-        # All documment ids, extend as 1-D array.
-
-        process_data = np.load(input_prefix + "_idx.npz")
-        # The len(sample_lens) num of docs
-        # The sum(sample_lens) should equal len(sample_ids)
-        sample_lens = process_data["lens"]
-
-        splits = get_train_valid_test_split_(split, len(sample_lens))
-        assert len(sample_lens) >= splits[
-            -1], "The document nums should larger than max of splits, but %s < %s" % (
-                len(sample_lens), splits[-1])
-
-        tokenizer = GPTTokenizer.from_pretrained("gpt2")
-
-        self.input_dir = input_dir
-        self.max_seq_len = max_seq_len
-        self.name = "gpt_" + mode
-        self.eos_id = tokenizer.eos_token_id
-        self.sample_ids = sample_ids
-        self.sample_lens = sample_lens
-        self.build_data_file = (local_rank == 0)
-
-        if mode in mode_to_index.keys():
-            index = mode_to_index[mode]
-        else:
-            raise ValueError("valid str value for 'mode'")
-
-        documents = np.arange(splits[index], splits[index + 1])
-        if documents is None:
-            document_ids = np.arange(0, self.sample_lens.shape[0])
-        else:
-            document_ids = documents
-
-        self.doc_idx, self.sample_idx, self.shuffle_idx = \
-            construct_samples_and_shuffle_data(self.name, input_prefix, document_ids,\
-                self.sample_lens, num_samples, max_seq_len, seed, self.build_data_file)
-
-        # The doc cumsum start pos
-        self.start_pos = [0] + np.cumsum(self.sample_lens).tolist()
-
-    def _construct_sample(self, tokens):
-        tokens = np.array(tokens).astype("int64").tolist()
-        labels = tokens[1:]
-        tokens = tokens[:-1]
-        seq_length = len(tokens)
-        # Attention mask for the attention calulate
-        # attention_mask = np.tri(seq_length, seq_length).reshape((1, seq_length,
-        #  seq_length))
-        # The pad and eos tokens do not contribute the loss
-        loss_mask = np.ones(seq_length, dtype="float32")
-        loss_mask[np.where(np.array(tokens) == self.eos_id)] = 0.0
-        position_ids = np.arange(0, seq_length, dtype="int64")
-
-        # attention_mask = (attention_mask - 1.0) * 1e9
-        # attention_mask = attention_mask.astype("float32")
-        # return [tokens, loss_mask, attention_mask, position_ids, labels]
-        return [tokens, position_ids, labels, loss_mask]
-
-    def _get_single_sample_from_idx(self, doc_index_f, doc_index_l, offset_f,
-                                    offset_l):
-        """
-        The input means:
-            doc_index_f: data from the first doc.
-            doc_index_l: data from the last doc.
-            offset_f: offset of the first doc.
-            offset_l: offset of the last doc.
-        """
-        # Data from the sample doc. just select the needed ids.
-        if doc_index_f == doc_index_l:
-            current_start_pos = self.start_pos[self.doc_idx[doc_index_f]]
-            return self.sample_ids[current_start_pos+offset_f:\
-                       current_start_pos+offset_l+1].tolist()
-
-        # Data from multi docs.
-        else:
-            current_start_pos = self.start_pos[self.doc_idx[doc_index_f]]
-            next_start_pos = self.start_pos[self.doc_idx[doc_index_f] + 1]
-            tokens = self.sample_ids[current_start_pos + offset_f:
-                                     next_start_pos].tolist()
-            for i in range(doc_index_f + 1, doc_index_l):
-                current_start_pos = self.start_pos[self.doc_idx[i]]
-                next_start_pos = self.start_pos[self.doc_idx[i] + 1]
-                tokens.extend(self.sample_ids[current_start_pos:next_start_pos]
-                              .tolist())
-            last_start_pos = self.start_pos[self.doc_idx[doc_index_l]]
-            tokens.extend(self.sample_ids[last_start_pos:last_start_pos +
-                                          offset_l + 1].tolist())
-
-        return tokens
-
-    def __getitem__(self, index):
-        idx = self.shuffle_idx[index]
-        # Start and end documents and offsets.
-        doc_index_f = self.sample_idx[idx][0]
-        doc_index_l = self.sample_idx[idx + 1][0]
-        offset_f = self.sample_idx[idx][1]
-        offset_l = self.sample_idx[idx + 1][1]
-        tokens = self._get_single_sample_from_idx(doc_index_f, doc_index_l,
-                                                  offset_f, offset_l)
-        return self._construct_sample(tokens)
-
-    def __len__(self):
-        return self.sample_idx.shape[0] - 1
+from paddle.io import DataLoader, Dataset
+from ppfleetx.utils import logger
+from ppfleetx.data.sampler import DistributedBatchSampler
+from ppfleetx.data.sampler import Stack, Tuple
 
 
 def get_train_data_file(input_dir):
@@ -210,13 +46,83 @@ def get_train_data_file(input_dir):
     ]
 
     files = [x.replace("_ids.npz", "") for x in files]
+    return files
 
-    if len(files) == 0:
-        raise RuntimeError(
-            "Not found dataset with name of xxx_ids.npz in given input_dir '{}'! ".
-            format(input_dir))
-    else:
-        return files
+
+def create_pretrained_dataset_auto(configs, input_path, eos_id):
+
+    local_rank = int(os.getenv("PADDLE_RANK_IN_NODE", 0))
+    if local_rank == 0:
+        try:
+            import fleetx.data.data_tools.cpp.fast_index_map_helpers
+        except Exception as e:
+            start_time = time.time()
+            print('> compiling dataset index builder ...')
+            from fleetx.data.data_tools.cpp.compile import compile_helper
+            compile_helper()
+            print(
+                '>>> done with dataset index builder. Compilation time: {:.3f} '
+                'seconds'.format(time.time() - start_time),
+                flush=True)
+
+    device_world_size = paddle.distributed.get_world_size()
+    if device_world_size > 1 and local_rank != 0:
+        while True:
+            try:
+                import fleetx.data.data_tools.cpp.fast_index_map_helpers
+                break
+            except Exception as e:
+                print("> wait for helpers to be compiled!")
+                time.sleep(1)
+
+    assert len(input_path) == 1, "GPT only support one dataset for now."
+
+    input_prefix = input_path[0]
+    for suffix in ["_ids.npy", "_idx.npz"]:
+        if not os.path.isfile(input_prefix + suffix):
+            raise ValueError("File Not found, %s" % (input_prefix + suffix))
+
+    sample_ids = np.load(
+        input_prefix + "_ids.npy", mmap_mode="r", allow_pickle=True)
+    # All documment ids, extend as 1-D array.
+
+    process_data = np.load(input_prefix + "_idx.npz")
+    # The len(sample_lens) num of docs
+    # The sum(sample_lens) should equal len(sample_ids)
+    sample_lens = process_data["lens"]
+
+    splits = get_train_valid_test_split_(configs['Data']['dataset']['split'],
+                                         len(sample_lens))
+    assert len(sample_lens) >= splits[
+        -1], "The document nums should larger than max of splits, but %s < %s" % (
+            len(sample_lens), splits[-1])
+
+    def build_dataset(index, name, num_samples):
+        dataset = GPTDataset(
+            file_path=input_prefix,
+            build_data_file=local_rank == 0,
+            name="gpt_" + name,
+            max_seq_len=configs['Data']['dataset']['max_seq_len'],
+            num_samples=num_samples,
+            documents=np.arange(splits[index], splits[index + 1]),
+            sample_ids=sample_ids,
+            sample_lens=sample_lens,
+            eos_id=eos_id,
+            seed=configs['Global']['seed'])
+        return dataset
+
+    gbsz = configs['Data']['batch_size']['global_batch_size']
+    max_steps = configs['Engine']['max_steps']
+    eval_freq = configs['Engine']['eval_freq']
+    eval_iters = configs['Engine']['eval_iters']
+    test_iters = configs['Engine']['test_iters']
+
+    train_dataset = build_dataset(0, "train", gbsz * max_steps)
+    valid_dataset = build_dataset(1, "valid", gbsz *
+                                  (max_steps // eval_freq + 1) * eval_iters)
+    test_dataset = build_dataset(2, "test", gbsz * test_iters)
+
+    return train_dataset, valid_dataset, test_dataset
 
 
 def get_train_valid_test_split_(splits, size):
@@ -447,3 +353,98 @@ def _build_shuffle_idx(num_samples, total_size, np_rng):
     np_rng.shuffle(shuffle_idx_last)
 
     return np.concatenate((shuffle_idx_first, shuffle_idx_last))
+
+
+class GPTDataset(paddle.io.Dataset):
+    def __init__(self,
+                 file_path,
+                 num_samples,
+                 eos_id,
+                 sample_ids,
+                 sample_lens,
+                 documents=None,
+                 build_data_file=False,
+                 name="gpt",
+                 max_seq_len=1024,
+                 seed=1234):
+        self.file_path = file_path
+        self.max_seq_len = max_seq_len
+        self.name = name
+        self.eos_id = eos_id
+        self.sample_ids = sample_ids
+        self.sample_lens = sample_lens
+        if documents is None:
+            document_ids = np.arange(0, self.sample_lens.shape[0])
+        else:
+            document_ids = documents
+
+        self.doc_idx, self.sample_idx, self.shuffle_idx = \
+            construct_samples_and_shuffle_data(self.name, self.file_path, document_ids,\
+                self.sample_lens, num_samples, max_seq_len, seed, build_data_file)
+
+        # The doc cumsum start pos
+        self.start_pos = [0] + np.cumsum(self.sample_lens).tolist()
+
+    def _construct_sample(self, tokens):
+        tokens = np.array(tokens).astype("int64").tolist()
+        labels = tokens[1:]
+        tokens = tokens[:-1]
+        seq_length = len(tokens)
+        # Attention mask for the attention calulate
+        # attention_mask = np.tri(seq_length, seq_length).reshape((1, seq_length,
+        #  seq_length))
+        # The pad and eos tokens do not contribute the loss
+        loss_mask = np.ones(seq_length, dtype="float32")
+        loss_mask[np.where(np.array(tokens) == self.eos_id)] = 0.0
+        position_ids = np.arange(0, seq_length, dtype="int64")
+
+        # attention_mask = (attention_mask - 1.0) * 1e9
+        # attention_mask = attention_mask.astype("float32")
+        # return [tokens, loss_mask, attention_mask, position_ids, labels]
+        return [tokens, position_ids, labels, loss_mask]
+
+    def _get_single_sample_from_idx(self, doc_index_f, doc_index_l, offset_f,
+                                    offset_l):
+        """
+        The input means:
+            doc_index_f: data from the first doc.
+            doc_index_l: data from the last doc.
+            offset_f: offset of the first doc.
+            offset_l: offset of the last doc.
+        """
+        # Data from the sample doc. just select the needed ids.
+        if doc_index_f == doc_index_l:
+            current_start_pos = self.start_pos[self.doc_idx[doc_index_f]]
+            return self.sample_ids[current_start_pos+offset_f:\
+                       current_start_pos+offset_l+1].tolist()
+
+        # Data from multi docs.
+        else:
+            current_start_pos = self.start_pos[self.doc_idx[doc_index_f]]
+            next_start_pos = self.start_pos[self.doc_idx[doc_index_f] + 1]
+            tokens = self.sample_ids[current_start_pos + offset_f:
+                                     next_start_pos].tolist()
+            for i in range(doc_index_f + 1, doc_index_l):
+                current_start_pos = self.start_pos[self.doc_idx[i]]
+                next_start_pos = self.start_pos[self.doc_idx[i] + 1]
+                tokens.extend(self.sample_ids[current_start_pos:next_start_pos]
+                              .tolist())
+            last_start_pos = self.start_pos[self.doc_idx[doc_index_l]]
+            tokens.extend(self.sample_ids[last_start_pos:last_start_pos +
+                                          offset_l + 1].tolist())
+
+        return tokens
+
+    def __getitem__(self, index):
+        idx = self.shuffle_idx[index]
+        # Start and end documents and offsets.
+        doc_index_f = self.sample_idx[idx][0]
+        doc_index_l = self.sample_idx[idx + 1][0]
+        offset_f = self.sample_idx[idx][1]
+        offset_l = self.sample_idx[idx + 1][1]
+        tokens = self._get_single_sample_from_idx(doc_index_f, doc_index_l,
+                                                  offset_f, offset_l)
+        return self._construct_sample(tokens)
+
+    def __len__(self):
+        return self.sample_idx.shape[0] - 1

@@ -14,6 +14,7 @@ Engine:
   logging_freq: 1
   eval_freq: 500
   eval_iters: 10
+  test_iters:
   mix_precision:
     use_pure_fp16: True
     scale_loss: 32768.0
@@ -87,8 +88,3 @@ Profiler:
   scheduler: [1, 5]
   profiler_log: profiler_log
   detailed: False
-
-
-Inference:
-  model_dir: ./output
-  mp_degree: 1

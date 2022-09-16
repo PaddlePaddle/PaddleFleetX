@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .hybrid_model import (GPTModelHybrid, GPTForPretrainingPipe,
-                           GPTPretrainingCriterionHybird,
-                           GPTForPretrainingHybrid)
+from .dygraph.hybrid_model import (
+    GPTModelHybrid, GPTForPretrainingPipe, GPTPretrainingCriterionHybird,
+    GPTForPretrainingHybrid, GPTForGenerationHybrid)
 
-from .single_model import GPTForPretraining, GPTPretrainingCriterion, GPTModel
+from .dygraph.single_model import GPTForPretraining, GPTPretrainingCriterion, GPTModel, GPTForGeneration
