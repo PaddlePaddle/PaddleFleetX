@@ -40,7 +40,7 @@ def init_logger(name='ppfleetx', log_file=None, log_level=logging.INFO):
     """
     global _logger
 
-    #  solve mutiple init issue when using paddleclas.py and engin.engin
+    #  solve mutiple init issue
     init_flag = False
     if _logger is None:
         _logger = logging.getLogger(name)
