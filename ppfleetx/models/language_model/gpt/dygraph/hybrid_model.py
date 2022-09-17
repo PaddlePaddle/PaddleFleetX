@@ -646,6 +646,11 @@ class GPTModelHybrid(nn.Layer):
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
 
+        hcg = fleet.get_hybrid_communicate_group()
+        mp_size = hcg.get_model_parallel_world_size() 
+        if mp_size <= 1:
+            sequence_parallel = False
+
         self.embeddings = GPTEmbeddings(
             vocab_size, hidden_size, hidden_dropout_prob,
             max_position_embeddings, type_vocab_size, self.initializer_range,
