@@ -183,6 +183,7 @@ class GPTFinetuneModule(BasicModule):
 
         self.loss_fn = paddle.nn.loss.CrossEntropyLoss()
         self.metric = paddle.metric.Accuracy()
+        self.best_metric = 0.0
 
     def process_configs(self, configs):
         return configs
@@ -239,9 +240,9 @@ class GPTFinetuneModule(BasicModule):
             self.configs.Data.Train.dataset.max_length
 
         logger.info(
-            "[train] epoch: %d, step: [%d/%d], learning rate: %.7f, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
+            "[train] epoch: [%d/%d], step: [%d/%d], learning rate: %.7f, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
             "ips_total: %.0f tokens/s, ips: %.0f tokens/s"
-            % (log_dict['epoch'], log_dict['batch'], log_dict['total_batch'], log_dict['lr'], log_dict['loss'], log_dict['train_cost'], speed,
+            % (log_dict['epoch'], log_dict['total_epoch'], log_dict['batch'], log_dict['total_batch'], log_dict['lr'], log_dict['loss'], log_dict['train_cost'], speed,
                speed * default_global_tokens_num, speed * default_global_tokens_num / self.data_world_size))
 
     def validation_step(self, batch):
@@ -289,9 +290,13 @@ class GPTFinetuneModule(BasicModule):
     def validation_epoch_end(self, log_dict):
         res = self.metric.accumulate()
         self.metric.reset()
+        if res > self.best_metric:
+            self.best_metric = res
 
-        logger.info("[Eval] epoch: %d, total time: %.5f sec, Acc: %.5f" %
-                    (log_dict['epoch'], log_dict['eval_cost'], res))
+        logger.info(
+            "[Eval] epoch: %d, total time: %.5f sec, acc: %.5f, best_metric: %.5f"
+            %
+            (log_dict['epoch'], log_dict['eval_cost'], res, self.best_metric))
 
 
 class GPTGenerationModule(BasicModule):

@@ -13,28 +13,14 @@
 # limitations under the License.
 
 import os
-import csv
 
 import paddle
 
 from ppfleetx.data.tokenizers import GPTTokenizer
+from ppfleetx.utils.download import cached_path
+from ppfleetx.utils.file import unzip, parse_csv
 
 __all__ = ['SST2', ]
-
-
-def parse_csv(path, skip_lines=0, delimiter=' ', quotechar='|', func=None):
-
-    with open(path, newline='') as csvfile:
-        data = []
-        spamreader = csv.reader(
-            csvfile, delimiter=delimiter, quotechar=quotechar)
-        for idx, row in enumerate(spamreader):
-            if idx < skip_lines:
-                continue
-            if func is not None:
-                row = func(row)
-            data.append(row)
-        return data
 
 
 class SST2(paddle.io.Dataset):
@@ -64,7 +50,19 @@ class SST2(paddle.io.Dataset):
 
         self.root = root
         self.split = split
+        if os.path.exists(self.root):
+            assert os.path.isdir(self.root)
+        else:
+            zip_path = cached_path(
+                self.URL, cache_dir=os.path.abspath(self.root))
+            unzip(
+                zip_path,
+                mode="r",
+                out_dir=os.path.join(self.root, '..'),
+                delete=True)
+
         self.path = os.path.join(self.root, self._EXTRACTED_FILES[split])
+        assert os.path.exists(self.path), f"{self.path} is not exists!"
         self.max_length = max_length
 
         self.tokenizer = GPTTokenizer.from_pretrained(

@@ -276,6 +276,7 @@ class EagerEngine(BasicEngine):
             if step % self._logging_freq == 0:
                 log_dict = {
                     'epoch': epoch_index,
+                    'total_epoch': self._num_train_epochs,
                     'batch': step,
                     'total_batch': total_train_batch,
                     'train_cost': train_costs

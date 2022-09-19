@@ -94,3 +94,15 @@ def get_data_world_rank():
     sharding_size = hcg.get_sharding_parallel_world_size()
 
     return dp_rank * sharding_size + sharding_rank
+
+
+def work_at_local_rank0(func):
+    def wrapper(*args, **kwargs):
+        local_rank = 0
+        if paddle.fluid.core.is_compiled_with_dist(
+        ) and paddle.distributed.get_world_size() > 1:
+            local_rank = paddle.distributed.ParallelEnv().dev_id
+        if local_rank == 0:
+            func(*args, **kwargs)
+
+    return wrapper

@@ -8,20 +8,16 @@ Global:
 
 Engine:
   run_mode: epoch
-  max_steps: -1
   num_train_epochs: 3
   accumulate_steps:
   logging_freq: 10
-  eval_freq: 500
-  eval_iters: 10
-  test_iters:
+  eval_freq: 1
   mix_precision:
     use_pure_fp16: True
     scale_loss: 32768.0
     custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
     custom_white_list: ["lookup_table", "lookup_table_v2"]
   save_load:
-    save_steps: -1
     save_epoch: 1
     output_dir: ./output
     ckpt_dir:
