@@ -8,7 +8,7 @@ Global:
 
 Model:
   vocab_size: 50304
-  hidden_size: 512
+  hidden_size: 1024
   num_layers: 1
   num_attention_heads: 8
   ffn_hidden_size: 
@@ -23,7 +23,7 @@ Model:
 
 Distributed:
   dp_degree: 1
-  mp_degree: 2
+  mp_degree: 8
   pp_degree: 1
   sharding:
     sharding_degree: 1
