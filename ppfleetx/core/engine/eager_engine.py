@@ -27,7 +27,7 @@ from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 from paddle.profiler import SummaryView
 
-from ppfleetx.utils import logger
+from ppfleetx.utils.log import logger
 from ppfleetx.core.engine import BasicEngine, InferenceEngine
 from ppfleetx.core.module import BasicModule
 from ppfleetx.utils.tensor_fusion_helper import all_reduce_parameters
@@ -259,7 +259,8 @@ class EagerEngine(BasicEngine):
         # Note(GuoxiaWang): Do not use len(train_data_loader()),
         # it will cause a memory leak.
         total_train_batch = len(train_data_loader)
-        total_eval_batch = len(valid_data_loader) if valid_data_loader is not None else 0
+        total_eval_batch = len(
+            valid_data_loader) if valid_data_loader is not None else 0
         for step, batch in enumerate(train_data_loader):
 
             if epoch_index == self._load_recovery['epoch']:

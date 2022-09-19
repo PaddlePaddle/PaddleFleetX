@@ -32,14 +32,11 @@ __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
 
 from ppfleetx.utils import config, env
-from ppfleetx.utils.logger import init_logger
 from ppfleetx.models.language_model.gpt.auto.gpt_auto_module import parse_yaml_auto, GPTAutoModule
 from ppfleetx.data.tokenizers import GPTTokenizer
 from ppfleetx.core.engine import AutoEngine
 from ppfleetx.data.dataset.gpt_dataset_auto import create_pretrained_dataset_auto, get_train_data_file
 from ppfleetx.data.sampler import Tuple, Stack
-
-init_logger()
 
 
 def generate_dist_strategy(configs):

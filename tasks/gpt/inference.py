@@ -26,12 +26,10 @@ __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../../')))
 
 from ppfleetx.utils import config, env, logger
-from ppfleetx.utils.logger import init_logger
+from ppfleetx.utils.log import logger
 from ppfleetx.data import build_dataloader, tokenizers
 from ppfleetx.models import build_module
 from ppfleetx.core import EagerEngine
-
-init_logger()
 
 if __name__ == "__main__":
     args = config.parse_args()

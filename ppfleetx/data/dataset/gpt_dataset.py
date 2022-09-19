@@ -22,7 +22,8 @@ import json
 
 import paddle
 
-from ppfleetx.utils import logger, env
+from ppfleetx.utils import env
+from ppfleetx.utils.log import logger
 from ppfleetx.data.tokenizers import GPTTokenizer
 
 mode_to_index = {"Train": 0, "Eval": 1, "Test": 2}
