@@ -73,6 +73,7 @@ def process_model_configs(config):
                 "the min value in recompute_layers should >= 0"
             assert max(configs['recompute_layers']) < configs['num_layers'], \
                 "the max value in recompute_layers should < num_layers"
+            configs['recompute_layers'] = sorted(list(set(configs['recompute_layers'])))
 
     if configs['fused_linear'] and not is_fused_matmul_bias_supported():
         configs['fused_linear'] = False
