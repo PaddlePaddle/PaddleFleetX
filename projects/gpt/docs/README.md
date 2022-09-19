@@ -60,9 +60,9 @@ cd .. # 回到 PaddleFleetX 根目录下
 
 ### 文本生成
 
-- [单卡预训练模型文本生成](./single_card.md)
+- [单卡预训练模型文本生成](./single_card.md#GPT-Zero-shot-文本生成)
 
-- [混合并行预训练模型文本生成](./hybrid_parallel.md)
+- [混合并行预训练模型文本生成](./hybrid_parallel.md#GPT-Zero-shot-文本生成)
 
 
 ## 参数释义
