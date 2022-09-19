@@ -63,6 +63,16 @@ def process_model_configs(config):
     if configs['use_recompute']:
         if not configs['recompute_granularity']:
             configs['recompute_granularity'] = 'full'
+        if not configs['recompute_layers']:
+            configs['recompute_layers'] = [i for i in range(configs['num_layers'])]
+        else:
+            assert isinstance(configs['recompute_layers'], list), "recompute_layers should be a list"
+            for i in configs['recompute_layers']:
+                assert isinstance(i, int), "all values in recompute_layers should be an integer"
+            assert min(configs['recompute_layers']) >= 0, \
+                "the min value in recompute_layers should >= 0"
+            assert max(configs['recompute_layers']) < configs['num_layers'], \
+                "the max value in recompute_layers should < num_layers"
 
     if configs['fused_linear'] and not is_fused_matmul_bias_supported():
         configs['fused_linear'] = False

@@ -19,6 +19,7 @@ Model:
   initializer_range: 0.02
   use_recompute: False
   recompute_granularity:
+  recompute_layers:
   fused_linear: True
   
 
