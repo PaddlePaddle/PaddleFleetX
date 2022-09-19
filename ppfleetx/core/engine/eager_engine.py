@@ -288,44 +288,6 @@ class EagerEngine(BasicEngine):
                 train_start = time.time()
                 train_losses = []
 
-            if self._run_mode == 'step' and not skip_first:
-                if step % self._eval_freq == 0:
-                    self._module.model.eval()
-
-                    eval_losses = []
-                    eval_start = time.time()
-
-                    for eval_step, batch in enumerate(valid_data_loader):
-                        loss = self._evaluate_impl(batch)
-                        eval_losses.append(loss)
-
-                        if eval_step >= self._eval_iters - 1:
-                            break
-
-                    paddle.device.cuda.synchronize()
-                    eval_cost = time.time() - eval_start
-                    eval_loss = sum(eval_losses) / len(eval_losses)
-
-                    log_dict = {
-                        'loss': eval_loss.numpy()[0],
-                        'epoch': epoch_index,
-                        'batch': eval_step,
-                        'total_batch': total_eval_batch,
-                        'eval_cost': eval_cost / self._logging_freq,
-                    }
-                    self._module.validation_step_end(log_dict)
-
-                    self._module.model.train()
-
-                if self._save_steps > 0 and step % self._save_steps == 0:
-                    self.save(epoch=epoch_index, step=step)
-            else:
-                skip_first = False
-
-            if self._run_mode == 'step' and step >= self._max_steps:
-                logger.info("The training process is complete.")
-                return
-
             if self.profiler:
                 self.profiler.step()
 
@@ -433,6 +395,7 @@ class EagerEngine(BasicEngine):
                         p.bw_storage.scale_(1.0 / self._dp_group.nranks)
                         dist.all_reduce(p.bw_storage, group=self._dp_group)
 
+        # print(">>>", self._optimizer._parameter_list)
         if self._use_pure_fp16:
             self._scaler.step(self._optimizer)
             self._scaler.update()
