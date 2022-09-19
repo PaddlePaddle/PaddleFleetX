@@ -19,7 +19,7 @@ import numpy as np
 from typing import Any, Callable, cast, Dict, List, Optional, Tuple
 
 import paddle
-from ppfleetx.utils import logger
+from ppfleetx.utils.log import logger
 from ppfleetx.data.transforms.utils import create_preprocess_operators, transform
 
 
