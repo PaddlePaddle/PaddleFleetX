@@ -19,7 +19,8 @@ from collections import defaultdict
 import numpy as np
 
 import paddle
-from ppfleetx.utils import logger
+from ppfleetx.utils.log import logger
+
 from ppfleetx.core.module.basic_module import BasicModule
 from .vit import *
 from .loss import *

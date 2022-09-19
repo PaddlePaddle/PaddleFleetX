@@ -18,7 +18,8 @@ import argparse
 import yaml
 import codecs
 import sys
-from . import logger
+from .log import logger, advertise
+
 from . import check
 import paddle.distributed as dist
 
@@ -226,7 +227,7 @@ def print_config(config):
     Arguments:
         config: configs
     """
-    logger.advertise()
+    advertise()
     print_dict(config)
 
 

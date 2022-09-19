@@ -19,7 +19,7 @@ import copy
 import paddle
 
 from ppfleetx.data import dataset, sampler, utils
-from ppfleetx.utils import logger
+from ppfleetx.utils.log import logger
 
 
 def build_dataloader(config, mode):

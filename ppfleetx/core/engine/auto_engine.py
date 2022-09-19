@@ -22,7 +22,7 @@ import paddle.nn as nn
 from paddle.distributed import fleet
 from paddle.distributed.auto_parallel.engine import Engine
 
-import ppfleetx.utils.logger as logger
+from ppfleetx.utils.log import logger
 from ppfleetx.core.engine.basic_engine import BasicEngine
 from ppfleetx.core.module.basic_module import BasicModule
 

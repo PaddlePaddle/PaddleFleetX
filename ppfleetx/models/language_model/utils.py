@@ -25,7 +25,8 @@ from paddle.fluid import core
 import argparse
 from functools import reduce
 
-from ppfleetx.utils import env, logger
+from ppfleetx.utils import env
+from ppfleetx.utils.log import logger
 
 
 def is_fused_matmul_bias_supported():
