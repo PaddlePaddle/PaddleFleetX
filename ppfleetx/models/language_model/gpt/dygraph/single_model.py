@@ -270,12 +270,12 @@ class TransformerDecoder(nn.Layer):
                  hidden_size=None,
                  use_recompute=False,
                  recompute_granularity="full",
-                 recompute_layers=None):
+                 no_recompute_layers=None):
         super(TransformerDecoder, self).__init__()
 
-        if recompute_layers is None:
-            recompute_layers = [i for i in range(num_layers)]
-        self.recompute_layers = recompute_layers
+        if no_recompute_layers is None:
+            no_recompute_layers = []
+        self.no_recompute_layers = no_recompute_layers
 
         self.num_layers = num_layers
         self.layers = decoder_layers
@@ -312,7 +312,7 @@ class TransformerDecoder(nn.Layer):
                                             cache=cache)
                     new_caches.append(new_cache)
                 else:
-                    if self.use_recompute and self.recompute_granularity == "full" and i in self.recompute_layers:
+                    if self.use_recompute and self.recompute_granularity == "full" and i not in self.no_recompute_layers:
                         output = recompute(mod, output, memory, tgt_mask,
                                            use_cache, cache)
                     else:
@@ -498,11 +498,11 @@ class GPTModel(nn.Layer):
                  fused_linear=False,
                  recompute_granularity="full",
                  sequence_parallel=False,
-                 recompute_layers=None):
+                 no_recompute_layers=None):
 
         super(GPTModel, self).__init__()
-        if recompute_layers is None:
-            recompute_layers = [i for i in range(num_layers)]
+        if no_recompute_layers is None:
+            no_recompute_layers = []
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
@@ -529,7 +529,7 @@ class GPTModel(nn.Layer):
                     fused_linear=fused_linear,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
-                    do_recompute=i in recompute_layers))
+                    do_recompute=i not in no_recompute_layers))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
@@ -538,7 +538,7 @@ class GPTModel(nn.Layer):
             hidden_size=hidden_size,
             use_recompute=use_recompute,
             recompute_granularity=recompute_granularity,
-            recompute_layers=recompute_layers)
+            no_recompute_layers=no_recompute_layers)
 
     def forward(self,
                 input_ids,

@@ -91,7 +91,8 @@ class MultiHeadAttention(nn.Layer):
                  fused_linear=False,
                  use_recompute=False,
                  recompute_granularity="full",
-                 sequence_parallel=False):
+                 sequence_parallel=False,
+                 do_recompute=True):
         super(MultiHeadAttention, self).__init__()
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
@@ -102,6 +103,7 @@ class MultiHeadAttention(nn.Layer):
         self.fuse = fuse
         self.use_recompute = use_recompute
         self.recompute_granularity = recompute_granularity
+        self.do_recompute = do_recompute
         self.sequence_parallel = sequence_parallel
 
         if sequence_parallel:
@@ -329,7 +331,7 @@ class MultiHeadAttention(nn.Layer):
                 q, k, v, cache = self._prepare_qkv(query, key, value,
                                                    use_cache, cache)
 
-        if self.use_recompute and self.recompute_granularity == "core_attn":
+        if self.use_recompute and self.recompute_granularity == "core_attn" and self.do_recompute:
             out, weights = recompute(self.core_attn, q, k, v, attn_mask)
         else:
             out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
@@ -359,8 +361,12 @@ class TransformerDecoder(nn.Layer):
                  hidden_size=None,
                  use_recompute=False,
                  recompute_granularity="full",
-                 sequence_parallel=False):
+                 sequence_parallel=False,
+                 no_recompute_layers=None):
         super(TransformerDecoder, self).__init__()
+        if no_recompute_layers is None:
+            no_recompute_layers = []
+        self.no_recompute_layers = no_recompute_layers
 
         self.num_layers = num_layers
         self.layers = decoder_layers
@@ -403,7 +409,7 @@ class TransformerDecoder(nn.Layer):
                                             cache=cache)
                     new_caches.append(new_cache)
                 else:
-                    if self.use_recompute and self.recompute_granularity == "full":
+                    if self.use_recompute and self.recompute_granularity == "full" and i not in self.no_recompute_layers:
                         output = recompute(mod, output, memory, tgt_mask,
                                            use_cache, cache)
                     else:
@@ -459,7 +465,8 @@ class TransformerDecoderLayer(nn.Layer):
                  recompute_attn=False,
                  use_recompute=False,
                  recompute_granularity="full",
-                 sequence_parallel=False):
+                 sequence_parallel=False,
+                 do_recompute=True):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
@@ -471,6 +478,7 @@ class TransformerDecoderLayer(nn.Layer):
         self.use_recompute = use_recompute
         self.recompute_granularity = recompute_granularity
         self.sequence_parallel = sequence_parallel
+        self.do_recompute = do_recompute
 
         if sequence_parallel:
             ColumnParallelLinear = ColumnSequenceParallelLinear
@@ -492,7 +500,8 @@ class TransformerDecoderLayer(nn.Layer):
             fused_linear=fused_linear,
             use_recompute=use_recompute,
             recompute_granularity=recompute_granularity,
-            sequence_parallel=sequence_parallel)
+            sequence_parallel=sequence_parallel,
+            do_recompute=do_recompute)
 
         self.linear1 = ColumnParallelLinear(
             d_model,
@@ -534,7 +543,7 @@ class TransformerDecoderLayer(nn.Layer):
             tgt = self.norm1(tgt)
 
         if use_cache is False:
-            if self.use_recompute and self.recompute_granularity == "full_attn":
+            if self.use_recompute and self.recompute_granularity == "full_attn" and self.do_recompute:
                 tgt = recompute(self.self_attn, tgt, None, None, tgt_mask,
                                 use_cache, cache)
             else:
@@ -638,9 +647,12 @@ class GPTModelHybrid(nn.Layer):
                  use_recompute=False,
                  fused_linear=False,
                  recompute_granularity="full",
-                 sequence_parallel=False):
+                 sequence_parallel=False,
+                 no_recompute_layers=None):
 
         super(GPTModelHybrid, self).__init__()
+        if no_recompute_layers is None:
+            no_recompute_layers = []
 
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
@@ -676,7 +688,8 @@ class GPTModelHybrid(nn.Layer):
                     fused_linear=fused_linear,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
-                    sequence_parallel=sequence_parallel))
+                    sequence_parallel=sequence_parallel,
+                    do_recompute=i not in no_recompute_layers))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
@@ -685,7 +698,8 @@ class GPTModelHybrid(nn.Layer):
             hidden_size=hidden_size,
             use_recompute=use_recompute,
             recompute_granularity=recompute_granularity,
-            sequence_parallel=sequence_parallel)
+            sequence_parallel=sequence_parallel,
+            no_recompute_layers=no_recompute_layers)
 
     def forward(self,
                 input_ids,
@@ -884,10 +898,18 @@ class GPTForPretrainingPipe(PipelineLayer):
                  fused_linear=False,
                  recompute_granularity="full",
                  virtual_pp_degree=1,
-                 sequence_parallel=False):
+                 sequence_parallel=False,
+                 no_recompute_layers=None):
 
         # forward desc
         self.descs = []
+
+        if no_recompute_layers is None:
+            no_recompute_layers = []
+        else:
+            if recompute_granularity == 'full':
+                assert len(list(set(no_recompute_layers))) == num_layers, \
+                    "for pp with full recompute, no_recompute_layers is not support"
 
         assert sequence_parallel is False, "Sequence parallel strategy \
                     is not supported in GPTForPretrainingPipe model now."
@@ -904,7 +926,7 @@ class GPTForPretrainingPipe(PipelineLayer):
                 type_vocab_size=type_vocab_size,
                 initializer_range=0.02))
 
-        for _ in range(num_layers):
+        for i in range(num_layers):
             self.descs.append(
                 LayerDesc(
                     TransformerDecoderLayer,
@@ -922,7 +944,8 @@ class GPTForPretrainingPipe(PipelineLayer):
                     num_partitions=num_partitions,
                     fused_linear=fused_linear,
                     use_recompute=use_recompute,
-                    recompute_granularity=recompute_granularity))
+                    recompute_granularity=recompute_granularity,
+                    do_recompute=i not in no_recompute_layers))
 
         self.descs.append(
             LayerDesc(
