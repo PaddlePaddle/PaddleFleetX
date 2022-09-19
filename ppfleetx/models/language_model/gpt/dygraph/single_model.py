@@ -63,7 +63,8 @@ class MultiHeadAttention(nn.Layer):
                  fuse=True,
                  fused_linear=False,
                  use_recompute=False,
-                 recompute_granularity="full"):
+                 recompute_granularity="full",
+                 do_recompute=True):
         super(MultiHeadAttention, self).__init__()
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
@@ -74,6 +75,7 @@ class MultiHeadAttention(nn.Layer):
         self.fuse = fuse
         self.use_recompute = use_recompute
         self.recompute_granularity = recompute_granularity
+        self.do_recompute = do_recompute
 
         self.head_dim = embed_dim // num_heads
         assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
@@ -240,7 +242,7 @@ class MultiHeadAttention(nn.Layer):
                 q, k, v, cache = self._prepare_qkv(query, key, value,
                                                    use_cache, cache)
 
-        if self.use_recompute and self.recompute_granularity == "core_attn":
+        if self.use_recompute and self.recompute_granularity == "core_attn" and self.do_recompute:
             out, weights = recompute(self.core_attn, q, k, v, attn_mask)
         else:
             out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
@@ -267,7 +269,8 @@ class TransformerDecoder(nn.Layer):
                  norm=None,
                  hidden_size=None,
                  use_recompute=False,
-                 recompute_granularity="full"):
+                 recompute_granularity="full",
+                 recompute_start_layer=0):
         super(TransformerDecoder, self).__init__()
 
         self.num_layers = num_layers
@@ -275,6 +278,7 @@ class TransformerDecoder(nn.Layer):
         self.norm = norm
         self.use_recompute = use_recompute
         self.recompute_granularity = recompute_granularity
+        self.recompute_start_layer = recompute_start_layer
         if norm == "LayerNorm":
             self.norm = nn.LayerNorm(hidden_size, epsilon=1e-5)
         elif norm is not None:
@@ -305,7 +309,7 @@ class TransformerDecoder(nn.Layer):
                                             cache=cache)
                     new_caches.append(new_cache)
                 else:
-                    if self.use_recompute and self.recompute_granularity == "full":
+                    if self.use_recompute and self.recompute_granularity == "full" and i >= self.recompute_start_layer:
                         output = recompute(mod, output, memory, tgt_mask,
                                            use_cache, cache)
                     else:
@@ -357,7 +361,8 @@ class TransformerDecoderLayer(nn.Layer):
                  bias_attr=None,
                  fused_linear=False,
                  use_recompute=False,
-                 recompute_granularity="full"):
+                 recompute_granularity="full",
+                 do_recompute=True):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
@@ -368,6 +373,7 @@ class TransformerDecoderLayer(nn.Layer):
         self.normalize_before = normalize_before
         self.use_recompute = use_recompute
         self.recompute_granularity = recompute_granularity
+        self.do_recompute = do_recompute
 
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
@@ -382,7 +388,8 @@ class TransformerDecoderLayer(nn.Layer):
             bias_attr=bias_attrs[0],
             fused_linear=fused_linear,
             use_recompute=use_recompute,
-            recompute_granularity=recompute_granularity)
+            recompute_granularity=recompute_granularity,
+            do_recompute=do_recompute)
         self.linear1 = Linear(
             d_model, dim_feedforward, weight_attrs[2], bias_attr=bias_attrs[2])
         self.linear2 = Linear(
@@ -401,7 +408,7 @@ class TransformerDecoderLayer(nn.Layer):
             tgt = self.norm1(tgt)
 
         if use_cache is False:
-            if self.use_recompute and self.recompute_granularity == "full_attn":
+            if self.use_recompute and self.recompute_granularity == "full_attn" and self.do_recompute:
                 tgt = recompute(self.self_attn, tgt, None, None, tgt_mask,
                                 use_cache, cache)
             else:
@@ -487,7 +494,8 @@ class GPTModel(nn.Layer):
                  initializer_range=0.02,
                  fused_linear=False,
                  recompute_granularity="full",
-                 sequence_parallel=False):
+                 sequence_parallel=False,
+                 recompute_start_layer=0):
 
         super(GPTModel, self).__init__()
         self.initializer_range = initializer_range
@@ -515,7 +523,8 @@ class GPTModel(nn.Layer):
                     bias_attr=None,
                     fused_linear=fused_linear,
                     use_recompute=use_recompute,
-                    recompute_granularity=recompute_granularity))
+                    recompute_granularity=recompute_granularity,
+                    do_recompute=i>=recompute_start_layer))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
@@ -523,7 +532,8 @@ class GPTModel(nn.Layer):
             norm="LayerNorm",
             hidden_size=hidden_size,
             use_recompute=use_recompute,
-            recompute_granularity=recompute_granularity)
+            recompute_granularity=recompute_granularity,
+            recompute_start_layer=recompute_start_layer)
 
     def forward(self,
                 input_ids,

@@ -99,6 +99,15 @@ def process_model_configs(config):
     if configs['use_recompute']:
         if not configs['recompute_granularity']:
             configs['recompute_granularity'] = 'full'
+        if not configs['recompute_start_layer']:
+            configs['recompute_start_layer'] = 0
+        else:
+            try:
+                configs['recompute_start_layer'] = int(configs['recompute_start_layer'])
+            except ValueError:
+                raise ValueError("The recompute_start_layer must be an integer")
+            assert configs['recompute_start_layer'] >= 0, \
+                "The value of recompute_start_layer must be great or equal than 0"
 
     if configs['fused_linear'] and not is_fused_matmul_bias_supported():
         configs['fused_linear'] = False
