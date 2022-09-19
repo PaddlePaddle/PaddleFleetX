@@ -407,7 +407,7 @@ class TransformerDecoder(nn.Layer):
                                             cache=cache)
                     new_caches.append(new_cache)
                 else:
-                    if self.use_recompute and self.recompute_granularity == "full" and i >= self.recompute_start_layere:
+                    if self.use_recompute and self.recompute_granularity == "full" and i >= self.recompute_start_layer:
                         output = recompute(mod, output, memory, tgt_mask,
                                            use_cache, cache)
                     else:
