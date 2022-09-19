@@ -650,6 +650,9 @@ class GPTModelHybrid(nn.Layer):
 
         super(GPTModelHybrid, self).__init__()
 
+        if recompute_start_layer is None:
+            recompute_start_layer = 0
+
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
