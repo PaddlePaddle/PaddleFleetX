@@ -814,6 +814,14 @@ def imagen_SR256(**kwargs):
     return model
 
 
+def imagen_SR512(**kwargs):
+    model = ImagenModel(unets=SRUnet1024(), image_sizes=(512, ), **kwargs)
+    return model
+
 def imagen_SR1024(**kwargs):
     model = ImagenModel(unets=SRUnet1024(), image_sizes=(1024, ), **kwargs)
+    return model
+
+def imagen_SR64to1024(**kwargs):
+    model = ImagenModel(unets=SRUnet64to1024(), image_sizes=(1024, ), **kwargs)
     return model

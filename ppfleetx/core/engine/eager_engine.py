@@ -259,7 +259,7 @@ class EagerEngine(BasicEngine):
         # Note(GuoxiaWang): Do not use len(train_data_loader()),
         # it will cause a memory leak.
         total_train_batch = len(train_data_loader)
-        total_eval_batch = len(valid_data_loader)
+        total_eval_batch = len(valid_data_loader) if valid_data_loader is not None else 0
         for step, batch in enumerate(train_data_loader):
 
             if epoch_index == self._load_recovery['epoch']:
