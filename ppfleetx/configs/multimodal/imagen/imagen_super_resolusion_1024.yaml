@@ -24,7 +24,8 @@ Model:
   dynamic_thresholding: True,
   dynamic_thresholding_percentile: 0.95
   only_train_unet_number: 1 
-  use_recompute: False
+  use_recompute: True
+  recompute_granularity: full
 
 Data:
   Train:
@@ -37,7 +38,7 @@ Data:
     loader:
       num_workers: 8
       shuffle: True
-      batch_size: 1 
+      batch_size: 1
       drop_last: True
       collate_fn: imagen_collate_fn
   

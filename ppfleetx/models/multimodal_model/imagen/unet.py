@@ -20,6 +20,7 @@ import paddle
 from paddle import nn
 from paddle import nn, einsum
 import paddle.nn.functional as F
+from paddle.distributed.fleet.utils import recompute
 
 from .utils import (zeros_, zero_init_, default, exists, cast_tuple,
                     resize_image_to, prob_mask_like, masked_mean, Identity,
@@ -873,6 +874,8 @@ class Unet(nn.Layer):
 
         # save locals to take care of some hyperparameters for cascading DDPM
 
+        self.count = 0
+
         self._locals = locals()
         self._locals.pop('self', None)
         self._locals.pop('__class__', None)
@@ -1298,7 +1301,8 @@ class Unet(nn.Layer):
                 text_embeds=None,
                 text_mask=None,
                 cond_images=None,
-                cond_drop_prob=0.):
+                cond_drop_prob=0.,
+                use_recompute=False):
         batch_size = x.shape[0]
 
         # add low resolution conditioning, if present
@@ -1340,6 +1344,8 @@ class Unet(nn.Layer):
 
         time_tokens = self.to_time_tokens(time_hiddens)
         t = self.to_time_cond(time_hiddens)
+        if use_recompute:
+            t.stop_gradient = True
 
         # add lowres time conditioning to time hiddens
         # and add lowres time tokens along sequence dimension for attention
@@ -1426,6 +1432,8 @@ class Unet(nn.Layer):
         # normalize conditioning tokens
 
         c = self.norm_cond(c)
+        if use_recompute:
+            c.stop_gradient = True
 
         if exists(self.init_resnet_block):
             x = self.init_resnet_block(x, t)
@@ -1434,19 +1442,35 @@ class Unet(nn.Layer):
 
         for pre_downsample, init_block, resnet_blocks, attn_block, post_downsample in self.downs:
             if exists(pre_downsample):
-                x = pre_downsample(x)
+                if use_recompute:
+                    x = recompute(pre_downsample, x)
+                else:
+                    x = pre_downsample(x)
+                
 
-            x = init_block(x, t, c)
+            if use_recompute:
+                x = init_block(x, t, c)
+            else:
+                x = recompute(init_block, x, t, c)
 
             for resnet_block in resnet_blocks:
-                x = resnet_block(x, t)
+                if use_recompute:
+                    x = recompute(resnet_block, x, t)
+                else:
+                    x = resnet_block(x, t)
                 hiddens.append(x)
 
-            x = attn_block(x, c)
+            if use_recompute:
+                x = recompute(attn_block, x, c)
+            else:
+                x = attn_block(x, c)
             hiddens.append(x)
 
             if exists(post_downsample):
-                x = post_downsample(x)
+                if use_recompute:
+                    x = recompute(post_downsample, x)
+                else:
+                    x = post_downsample(x)
 
         x = self.mid_block1(x, t, c)
 
@@ -1461,15 +1485,27 @@ class Unet(nn.Layer):
 
         for init_block, resnet_blocks, attn_block, upsample in self.ups:
             x = add_skip_connection(x)
-            x = init_block(x, t, c)
+            if use_recompute:
+                x = recompute(init_block, x, t, c)
+            else:
+                x = init_block(x, t, c)
 
             for resnet_block in resnet_blocks:
                 x = add_skip_connection(x)
-                x = resnet_block(x, t)
+                if use_recompute:
+                    x = recompute(resnet_block, x, t)
+                else:
+                    x = resnet_block(x, t)
 
-            x = attn_block(x, c)
+            if use_recompute:
+                x = recompute(attn_block, x, c)
+            else:
+                x = attn_block(x, c)
             up_hiddens.append(x)
-            x = upsample(x)
+            if use_recompute:
+                x = recompute(upsample, x)
+            else:
+                x = upsample(x)
 
         x = self.upsample_combiner(x, up_hiddens)
 
@@ -1481,5 +1517,17 @@ class Unet(nn.Layer):
 
         if exists(lowres_cond_img):
             x = paddle.concat((x, lowres_cond_img), axis=1)
+        
+        # output = self.final_conv(x)
 
+        # import numpy as np
+        # np.save("origin_data/output.npy", output.numpy())
+        
+        # if self.count == 1:
+        #     for name
+
+        # self.count += 1
+
+
+        # return output
         return self.final_conv(x)

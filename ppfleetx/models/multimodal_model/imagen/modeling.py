@@ -153,6 +153,7 @@ class ImagenModel(nn.Layer):
                  dynamic_thresholding_percentile=0.95,
                  only_train_unet_number=None,
                  use_recompute=False,
+                 recompute_granularity="full",
                  fused_linear=False):
         super().__init__()
 
@@ -164,6 +165,9 @@ class ImagenModel(nn.Layer):
         # channels
 
         self.channels = in_chans
+
+        # use recompute
+        self.use_recompute = use_recompute
 
         # automatically take care of ensuring that first unet is unconditional
         # while the rest of the unets are conditioned on the low resolution image produced by previous unet
@@ -691,7 +695,8 @@ class ImagenModel(nn.Layer):
             lowres_noise_times=self.lowres_noise_schedule.get_condition(
                 lowres_aug_times),
             lowres_cond_img=lowres_cond_img_noisy,
-            cond_drop_prob=self.cond_drop_prob, )
+            cond_drop_prob=self.cond_drop_prob,
+            use_recompute=self.use_recompute)
 
         # prediction objective
 
