@@ -54,11 +54,11 @@ def create_pretrained_dataset_auto(configs, input_path, eos_id):
     local_rank = int(os.getenv("PADDLE_RANK_IN_NODE", 0))
     if local_rank == 0:
         try:
-            import fleetx.data.data_tools.cpp.fast_index_map_helpers
+            import ppfleetx.data.data_tools.cpp.fast_index_map_helpers
         except Exception as e:
             start_time = time.time()
             print('> compiling dataset index builder ...')
-            from fleetx.data.data_tools.cpp.compile import compile_helper
+            from ppfleetx.data.data_tools.cpp.compile import compile_helper
             compile_helper()
             print(
                 '>>> done with dataset index builder. Compilation time: {:.3f} '
@@ -69,7 +69,7 @@ def create_pretrained_dataset_auto(configs, input_path, eos_id):
     if device_world_size > 1 and local_rank != 0:
         while True:
             try:
-                import fleetx.data.data_tools.cpp.fast_index_map_helpers
+                import ppfleetx.data.data_tools.cpp.fast_index_map_helpers
                 break
             except Exception as e:
                 print("> wait for helpers to be compiled!")
@@ -210,7 +210,7 @@ def construct_samples_and_shuffle_data(name, data_prefix, documents, sizes,
             assert doc_idx.dtype == np.int32
             assert sizes.dtype == np.int32
 
-            from fleetx.data.data_tools.cpp import fast_index_map_helpers
+            from ppfleetx.data.data_tools.cpp import fast_index_map_helpers
 
             sample_idx = fast_index_map_helpers.build_sample_idx(
                 sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch)

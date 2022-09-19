@@ -3,12 +3,12 @@
 
 ## 1. 环境准备
 
-这里介绍使用裸机或者 Docker 环境使用 FleetX 的方法，用户根据具体情况选择一种安装部署方式即可。
+这里介绍使用裸机或者 Docker 环境使用 PaddleFleetX 的方法，用户根据具体情况选择一种安装部署方式即可。
 使用多机训练时，需要在每台机器上都部署相应的环境。
 
 ### 1.1 Docker 环境部署
 
-推荐使用 Docker 安装部署 FleetX 进行大模型训练，Docker 环境的安装可以参考[文档](docker_install.md)。
+推荐使用 Docker 安装部署 PaddleFleetX 进行大模型训练，Docker 环境的安装可以参考[文档](docker_install.md)。
 
 请根据本地 CUDA 版本（使用 `nvidia-smi`命令查看）使用以下命令拉取对应或兼容的镜像，
 
@@ -71,10 +71,10 @@ python -m pip install paddlepaddle-gpu==0.0.0.post112 -f https://www.paddlepaddl
 
 **安装依赖**
 
-使用以下命令安装 FleetX 运行所需依赖。
+使用以下命令安装 PaddleFleetX 运行所需依赖。
 
 ```shell
-python -m pip install -r https://raw.githubusercontent.com/PaddlePaddle/FleetX/develop/requirements.txt -i https://mirror.baidu.com/pypi/simple
+python -m pip install -r https://raw.githubusercontent.com/PaddlePaddle/PaddleFleetX/develop/requirements.txt -i https://mirror.baidu.com/pypi/simple
 ```
 
 ## 2. 模型训练
@@ -82,7 +82,7 @@ python -m pip install -r https://raw.githubusercontent.com/PaddlePaddle/FleetX/d
 进入环境后首先使用以下命令拉取最新代码
 
 ```shell
-git clone https://github.com/PaddlePaddle/FleetX.git
+git clone https://github.com/PaddlePaddle/PaddleFleetX.git
 ```
 
 然后根据需求选择对应的训练方式。
@@ -94,7 +94,6 @@ git clone https://github.com/PaddlePaddle/FleetX.git
 mkdir data
 wget -O data/gpt_en_dataset_300m_ids.npy https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_ids.npy
 wget -O data/gpt_en_dataset_300m_idx.npz https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_idx.npz
-```
 ```
 
 然后使用以下命令运行程序，

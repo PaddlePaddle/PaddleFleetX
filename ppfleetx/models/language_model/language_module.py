@@ -126,6 +126,7 @@ class GPTModule(LanguageModule):
         self.tokenizer = GPTTokenizer.from_pretrained("gpt2")
 
         if self.nranks == 1:
+            model_setting.pop("sequence_parallel")
             model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
         else:
             model_setting[

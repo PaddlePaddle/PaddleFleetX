@@ -27,8 +27,9 @@ from .utils import process_configs
 class MultiModalModule(BasicModule):
     def __init__(self, configs):
         self.nranks = paddle.distributed.get_world_size()
-
         super(MultiModalModule, self).__init__(configs)
+
+        self.loss_fn = self.get_loss_fn()
 
     def process_configs(self, configs):
         configs = process_configs(configs)

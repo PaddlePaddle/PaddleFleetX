@@ -24,7 +24,14 @@ import time
 import numpy as np
 from tqdm import tqdm
 
-import ppfleetx.data.tokenizers as tfs
+try:
+    from ppfleetx.data import tokenizers as tfs
+except ImportError:
+    __dir__ = os.path.dirname(os.path.abspath(__file__))
+    sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../../')))
+    from ppfleetx.data import tokenizers as tfs
+    from ppfleetx.utils.logger import init_logger
+    init_logger()
 
 try:
     import nltk

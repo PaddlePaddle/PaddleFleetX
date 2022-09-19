@@ -1,15 +1,15 @@
 ## 模型接入规范
 
-本文讲述在FleetX repo接入一个新模型，该如何添加和修改文件，以及相应的规范化流程。
+本文讲述在PaddleFleetX repo接入一个新模型，该如何添加和修改文件，以及相应的规范化流程。
 
-### 1.FleetX 介绍
-FleetX是飞桨大模型训练推理一站式工具组件。。与Paddle.distributed、Paddle.fleet API的关系如下：
+### 1.PaddleFleetX 介绍
+PaddleFleetX是飞桨大模型训练推理一站式工具组件。与Paddle.distributed、Paddle.fleet API的关系如下：
 
 
 <div align="center">
 <img src="./images/fleetx_arc.png"  alt="drawing" width="500">
 
-<em> FleetX与Paddle的关系 </em>
+<em> PaddleFleetX与Paddle的关系 </em>
 </div>
 
 
@@ -19,7 +19,7 @@ FleetX是飞桨大模型训练推理一站式工具组件。。与Paddle.distrib
 
 ### 2.目录结构
 
-整体的FleetX的目录结构如下：
+整体的PaddleFleetX的目录结构如下：
 
 ```text
 .
@@ -318,4 +318,4 @@ Optimizer:
   tensor_fusion: False
 ```
 
-5、运行模型相关的配置文件以及相应的运行脚本，放置在[projects](https://github.com/PaddlePaddle/FleetX/tree/develop/projects)目录。
+5、运行模型相关的配置文件以及相应的运行脚本，放置在[projects](https://github.com/PaddlePaddle/PaddleFleetX/tree/develop/projects)目录。
