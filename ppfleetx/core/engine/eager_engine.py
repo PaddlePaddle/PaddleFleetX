@@ -259,7 +259,8 @@ class EagerEngine(BasicEngine):
         # Note(GuoxiaWang): Do not use len(train_data_loader()),
         # it will cause a memory leak.
         total_train_batch = len(train_data_loader)
-        total_eval_batch = len(valid_data_loader)
+        total_eval_batch = len(
+            valid_data_loader) if valid_data_loader is not None else 0
         for step, batch in enumerate(train_data_loader):
 
             if epoch_index == self._load_recovery['epoch']:
@@ -364,7 +365,7 @@ class EagerEngine(BasicEngine):
 
             eval_start = time.time()
             if self._run_mode == 'epoch' and epoch_index % self._eval_freq == 0:
-                self.evaluate(epoch_index, valid_data_loader)
+                self._evaluate_one_epoch(epoch_index, valid_data_loader)
                 self._module.model.train()
                 eval_cost = time.time() - eval_start
                 log_dict = {

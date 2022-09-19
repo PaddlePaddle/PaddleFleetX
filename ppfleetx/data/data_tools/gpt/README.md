@@ -14,11 +14,11 @@
 
 ## 目录切换
 ```
-# 如果您还未下载 FleetX 套件，请先 clone 套件
-# git clone https://github.com/PaddlePaddle/FleetX.git
-cd FleetX
+# 如果您还未下载 PaddleFleetX 套件，请先 clone 套件
+# git clone https://github.com/PaddlePaddle/PaddleFleetX.git
+cd PaddleFleetX
 
-# 以下所有命令都在 FleetX 根目录中执行
+# 以下所有命令都在 PaddleFleetX 根目录中执行
 ```
 
 ## 环境依赖
@@ -48,8 +48,8 @@ cd FleetX
 ### 原始数据
 首先下载样例数据：
 ```
-mkdir -p data/wikitext_103_en
-wget -O data/wikitext_103_en/wikitext-103-en.txt http://fleet.bj.bcebos.com/datasets/gpt/wikitext-103-en.txt
+mkdir -p dataset/wikitext_103_en
+wget -O dataset/wikitext_103_en/wikitext-103-en.txt http://fleet.bj.bcebos.com/datasets/gpt/wikitext-103-en.txt
 ```
 ### 原始数据转换 jsonl 格式
 使用`raw_trans_to_json.py`转化为json串格式，下面是脚本的使用说明
@@ -82,7 +82,7 @@ optional arguments:
 ```
 根据说明，我们使用下面简单命令，可以得到`wikitext_103_en.jsonl`文件。此处，我们对所有doc进行了shuffle。
 ```shell
-python ppfleetx/data/data_tools/gpt/raw_trans_to_json.py  --input_path ./data/wikitext_103_en --output_path ./data/wikitext_103_en/wikitext_103_en
+python ppfleetx/data/data_tools/gpt/raw_trans_to_json.py  --input_path ./dataset/wikitext_103_en --output_path ./dataset/wikitext_103_en/wikitext_103_en
 
 # output of terminal
 # Time to startup: 0.0075109004974365234
@@ -93,7 +93,7 @@ python ppfleetx/data/data_tools/gpt/raw_trans_to_json.py  --input_path ./data/wi
 # File shuffled!!!
 
 # 查看数据。因为对数据有 shuffle，下面的内容可能会不一样。
-tail -1 ./data/wikitext_103_en/wikitext_103_en.jsonl
+tail -1 ./dataset/wikitext_103_en/wikitext_103_en.jsonl
 {"text": "The album was released in June 1973 . Although it received good reviews , it did not sell well , except in Austin , where it sold more copies than earlier records by Nelson did nationwide . The recording led Nelson to a new style ; he later stated regarding his new musical identity that Shotgun Willie had \" cleared his throat . \" It became his breakthrough record , and one of the first of the outlaw movement , music created without the influence of the conservative Nashville Sound . The album — the first to feature Nelson with long hair and a beard on the cover — gained him the interest of younger audiences . It peaked at number 41 on Billboard 's album chart and the songs \" Shotgun Willie \" and \" Stay All Night ( Stay A Little Longer ) \" peaked at number 60 and 22 on Billboard Hot 100 respectively .\nRolling Stone wrote : \" With this flawless album , Willie Nelson finally demonstrates why he has for so long been regarded as a Country & Western singer @-@ songwriter 's singer @-@ songwriter ... At the age of 39 , Nelson finally seems destined for the stardom he deserves \" . Robert Christgau wrote : \" This attempt to turn Nelson into a star runs into trouble when it induces him to outshout Memphis horns or Western swing . \"\nBillboard wrote : \" This is Willie Nelson at his narrative best . He writes and sings with the love and the hurt and the down @-@ to @-@ earth things he feels , and he has a few peers . \" Texas Monthly praised Nelson and Wexler regarding the change in musical style : \" They 've switched his arrangements from Ray Price to Ray Charles — the result : a revitalized music . He 's the same old Willie , but veteran producer Jerry Wexler finally captured on wax the energy Nelson projects in person \" . School Library Journal wrote : \" Willie Nelson differs ( from ) rock artists framing their music with a country & western facade — in that he appears a honky @-@ tonk stardust cowboy to the core . This album abounds in unabashed sentimentalism , nasal singing , lyrics preoccupied with booze , religion , and love gone bad , and stereotyped Nashville instrumentation ( twangy steel guitars , fiddles , and a clean rhythm section characterized by the minimal use of bass drum and cymbals , both of which gain heavy mileage with rock performers ) .\nStephen Thomas Erlewine wrote in his review for Allmusic : \" Willie Nelson offered his finest record to date for his debut – possibly his finest album ever . Shotgun Willie encapsulates Willie 's world view and music , finding him at a peak as a composer , interpreter , and performer . This is laid @-@ back , deceptively complex music , equal parts country , rock attitude , jazz musicianship , and troubadour storytelling \" .\n"}
 ```
 
@@ -150,15 +150,15 @@ common config:
                         处理文本id化的进程个数。
 ```
 通过下面脚本转化，我们可以得到处理好的预训练数据，token ids:`wikitext_103_en.npy`, 文章索引信息`wikitext_103_en.npz`.
-在使用 `GPTTokenizer` 时需要用到 `gpt2-vocab.json` 与 `gpt2-merges.txt`，如果没有下载缓存过这两个文件，脚本会自动下载并缓存。当遇到网络问题时，可以自行下载并将这两个文件放置在 `~/.cache/fleetx/` 目录下。
+在使用 `GPTTokenizer` 时需要用到 `gpt2-vocab.json` 与 `gpt2-merges.txt`，如果没有下载缓存过这两个文件，脚本会自动下载并缓存。当遇到网络问题时，可以自行下载并将这两个文件放置在 `~/.cache/ppfleetx/` 目录下。
 ``` 
-python fleetx/data/data_tools/gpt/preprocess_data.py \
+python ppfleetx/data/data_tools/gpt/preprocess_data.py \
     --model_name gpt2 \
     --tokenizer_name GPTTokenizer \
     --data_format JSON \
-    --input_path ./data/wikitext_103_en/wikitext_103_en.jsonl \
+    --input_path ./dataset/wikitext_103_en/wikitext_103_en.jsonl \
     --append_eos \
-    --output_prefix ./data/wikitext_103_en/wikitext_103_en  \
+    --output_prefix ./dataset/wikitext_103_en/wikitext_103_en  \
     --workers 40 \
     --log_interval 1000
     

@@ -104,8 +104,9 @@ class InferenceEngine(object):
         device_id = int(os.environ.get('FLAGS_selected_gpus', 0))
         config = paddle.inference.Config(self.model_file, self.param_file)
 
+        config.enable_memory_optim()
+        config.switch_ir_optim(True)
         config.enable_use_gpu(100, device_id)
-        config.switch_use_feed_fetch_ops(False)
 
         # distributed config
         if self.mp_degree > 1:

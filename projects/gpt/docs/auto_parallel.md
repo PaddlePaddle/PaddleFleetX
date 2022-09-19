@@ -31,7 +31,7 @@ Data:
 
 ### 模型网络
 
-网络部分完成了网络的组网操作和自动并行半自动策略的适配，GPT在[FleetX/fleetx/models/gpt_model/modeling_auto.py]((https://github.com/PaddlePaddle/FleetX/tree/develop/fleetx/models/gpt_model/modeling_auto.py))下。 
+网络部分完成了网络的组网操作和自动并行半自动策略的适配，GPT在[PaddleFleetX/ppfleetx/models/gpt_model/modeling_auto.py]((https://github.com/PaddlePaddle/PaddleFleetX/blob/develop/ppfleetx/models/language_model/gpt/auto/modeling_auto.py))下。 
 可以使用配置文件配置模型的规模，如：
 
 ```yaml

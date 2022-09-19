@@ -56,7 +56,7 @@ Profiler:
 本节以 gpt混合并行 为例，首先进入目录，
 
 ```
-cd FleetX
+cd PaddleFleetX
 ```
 
 
