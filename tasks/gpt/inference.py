@@ -23,11 +23,11 @@ from paddle.distributed import fleet
 import paddle.distributed as dist
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
+sys.path.append(os.path.abspath(os.path.join(__dir__, '../../')))
 
 from ppfleetx.utils import config, env, logger
 from ppfleetx.utils.logger import init_logger
-from ppfleetx.data import build_dataloader
+from ppfleetx.data import build_dataloader, tokenizers
 from ppfleetx.models import build_module
 from ppfleetx.core import EagerEngine
 
@@ -45,14 +45,18 @@ if __name__ == "__main__":
     module = build_module(cfg)
     config.print_config(cfg)
 
+    tokenizer = tokenizers.GPTTokenizer.from_pretrained("gpt2")
     engine = EagerEngine(configs=cfg, module=module, mode='inference')
 
-    test_data_loader = build_dataloader(cfg.Data, "Test")
-    for iter_id, data in enumerate(test_data_loader()):
-        outs = engine.inference(data)
+    input_text = 'Hi, GPT2. Tell me who Jack Ma is.'
+    input_ids = [tokenizer.encode(input_text)]
 
-        if iter_id >= cfg.Engine.test_iters:
-            break
+    outs = engine.inference([input_ids])
 
-    logger.info("The inference process is complete.")
-    del test_data_loader
+    ids = list(outs.values())[0]
+    out_ids = [int(x) for x in ids[0]]
+    result = tokenizer.decode(out_ids)
+    result = input_text + result
+
+    print('Prompt:', input_text)
+    print('Generation:', result)

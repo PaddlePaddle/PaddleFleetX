@@ -486,10 +486,10 @@ class GPTModel(nn.Layer):
                  use_recompute=False,
                  initializer_range=0.02,
                  fused_linear=False,
-                 recompute_granularity="full"):
+                 recompute_granularity="full",
+                 sequence_parallel=False):
 
         super(GPTModel, self).__init__()
-
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size

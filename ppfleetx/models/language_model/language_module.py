@@ -126,11 +126,13 @@ class GPTModule(LanguageModule):
         self.tokenizer = GPTTokenizer.from_pretrained("gpt2")
 
         if self.nranks == 1:
+            model_setting.pop("sequence_parallel")
             model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
         else:
             model_setting[
                 'num_partitions'] = self.configs.Distributed.mp_degree
             if self.configs.Distributed.pp_degree == 1:
+                model_setting.pop("virtual_pp_degree", None)
                 model = gpt.GPTForPretrainingHybrid(
                     gpt.GPTModelHybrid(**model_setting))
             else:
