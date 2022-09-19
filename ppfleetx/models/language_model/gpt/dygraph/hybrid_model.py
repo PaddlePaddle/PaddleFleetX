@@ -920,7 +920,7 @@ class GPTForPretrainingPipe(PipelineLayer):
                 type_vocab_size=type_vocab_size,
                 initializer_range=0.02))
 
-        for _ in range(num_layers):
+        for i in range(num_layers):
             self.descs.append(
                 LayerDesc(
                     TransformerDecoderLayer,
@@ -939,7 +939,7 @@ class GPTForPretrainingPipe(PipelineLayer):
                     fused_linear=fused_linear,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
-                    recompute_start_layer=recompute_start_layer))
+                    do_recompute=i>=recompute_start_layer))
 
         self.descs.append(
             LayerDesc(
