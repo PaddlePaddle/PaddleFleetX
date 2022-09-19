@@ -53,7 +53,8 @@ if __name__ == "__main__":
     lr_configs = copy.deepcopy(cfg.Optimizer.lr)
     lr_configs.update({
         'epochs': cfg.Engine.num_train_epochs,
-        'step_each_epoch': len(train_data_loader)
+        'step_each_epoch': len(train_data_loader),
+        'total_steps': cfg.Engine.max_steps,
     })
     lr = build_lr_scheduler(lr_configs)
     optimizer = build_optimizer(cfg.Optimizer, module.model, lr)

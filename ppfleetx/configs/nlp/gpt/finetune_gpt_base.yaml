@@ -1,0 +1,14 @@
+Global:
+  device: gpu
+  seed: 42
+
+  global_batch_size: 
+  local_batch_size: 1
+  micro_batch_size: 1
+
+
+Profiler:
+  enable: False
+  scheduler: [1, 5]
+  profiler_log: profiler_log
+  detailed: False

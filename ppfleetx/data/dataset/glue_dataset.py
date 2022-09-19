@@ -55,19 +55,20 @@ class SST2(paddle.io.Dataset):
     DATASET_NAME = "SST2"
 
     _EXTRACTED_FILES = {
-        "train": os.path.join("SST-2", "train.tsv"),
-        "dev": os.path.join("SST-2", "dev.tsv"),
-        "test": os.path.join("SST-2", "test.tsv"),
+        "train": "train.tsv",
+        "dev": "dev.tsv",
+        "test": "test.tsv",
     }
 
-    def __init__(self, root, split):
+    def __init__(self, root, split, max_length=512):
 
         self.root = root
         self.split = split
         self.path = os.path.join(self.root, self._EXTRACTED_FILES[split])
-        self.max_seq_length = max_seq_length
+        self.max_length = max_length
 
-        self.tokenizer = GPTTokenizer.from_pretrained("gpt2")
+        self.tokenizer = GPTTokenizer.from_pretrained(
+            "gpt2", padding_side="right")
 
         assert split in ['train', 'dev', 'test']
 
@@ -89,9 +90,14 @@ class SST2(paddle.io.Dataset):
 
     def __getitem__(self, idx):
         sample = self.samples[idx]
-        input_ids = self.tokenizer.encode(sample[0])
-        # TODO(GuoxiaWang): add padding and truncate to max_seq_length
 
+        encoded_inputs = self.tokenizer(
+            sample[0],
+            padding="max_length",
+            max_length=self.max_length,
+            return_token_type_ids=False)
+        input_ids = encoded_inputs['input_ids']
+        input_ids = paddle.to_tensor(input_ids)
         if self.split != 'test':
             return input_ids, sample[1]
         else:

@@ -173,6 +173,125 @@ class GPTModule(LanguageModule):
                 print(ret_str)
 
 
+class GPTFinetuneModule(BasicModule):
+    def __init__(self, configs):
+        self.nranks = paddle.distributed.get_world_size()
+        self.data_world_size = env.get_data_world_size()
+        super(GPTFinetuneModule, self).__init__(configs)
+
+        self.loss_fn = paddle.nn.loss.CrossEntropyLoss()
+        self.metric = paddle.metric.Accuracy()
+
+    def process_configs(self, configs):
+        return configs
+
+    def get_model(self):
+        model_setting = copy.deepcopy(self.configs.Model)
+        model_setting.pop("module")
+        model_setting.pop("name")
+
+        pretrained = model_setting.pop("pretrained")
+        assert pretrained is not None
+
+        l = model_setting['num_layers']
+        h = model_setting['hidden_size']
+        v = model_setting['vocab_size']
+        s = self.configs.Data.Train.dataset.max_length
+        self.get_model_size(l, h, v, s)
+
+        self.tokenizer = GPTTokenizer.from_pretrained("gpt2")
+
+        if self.nranks == 1:
+            model = gpt.GPTForSequenceClassification(
+                gpt.GPTModel(**model_setting))
+        else:
+            raise NotImplementedError
+
+        pretrained_path = pretrained + ".pdparams"
+        import os
+        assert os.path.exists(
+            pretrained_path), f'{pretrained_path} is not exists!'
+        model_dict = paddle.load(pretrained_path)
+        model.set_state_dict(model_dict)
+        logger.info(f'Load pretrained weight from {pretrained_path}')
+
+        return model
+
+    def forward(self, tokens):
+        return self.model(tokens)
+
+    def training_step(self, batch):
+        input_ids, labels = batch
+
+        input_ids.stop_gradient = True
+        labels.stop_gradient = True
+
+        logits = self(input_ids)
+        loss = self.loss_fn(logits, labels)
+
+        return loss
+
+    def training_step_end(self, log_dict):
+        speed = 1. / log_dict['train_cost']
+        default_global_tokens_num = self.configs.Global.global_batch_size * \
+            self.configs.Data.Train.dataset.max_length
+
+        logger.info(
+            "[train] epoch: %d, step: [%d/%d], learning rate: %.7f, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
+            "ips_total: %.0f tokens/s, ips: %.0f tokens/s"
+            % (log_dict['epoch'], log_dict['batch'], log_dict['total_batch'], log_dict['lr'], log_dict['loss'], log_dict['train_cost'], speed,
+               speed * default_global_tokens_num, speed * default_global_tokens_num / self.data_world_size))
+
+    def validation_step(self, batch):
+        input_ids, labels = batch
+
+        input_ids.stop_gradient = True
+        labels.stop_gradient = True
+
+        logits = self(input_ids)
+        loss = self.loss_fn(logits, labels)
+        correct = self.metric.compute(logits, labels)
+        self.metric.update(correct)
+        return loss
+
+    def validation_step_end(self, log_dict):
+        speed = 1. / log_dict['eval_cost']
+        logger.info(
+            "[eval] epoch: %d, batch: %d, loss: %.9f, avg_eval_cost: %.5f sec, speed: %.2f step/s"
+            % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
+               log_dict['eval_cost'], speed))
+
+    def test_step(self, batch):
+        tokens, position_ids, labels, loss_mask = batch
+        preds = self(tokens, position_ids)
+        preds = paddle.cast(preds, dtype="float32")
+        loss = self.loss_fn(preds, labels, loss_mask)
+        return loss
+
+    def test_step_end(self, log_dict):
+        speed = 1. / log_dict['test_cost']
+        logger.info(
+            "[test] epoch: %d, batch: %d, loss: %.9f, avg_test_cost: %.5f sec, speed: %.2f step/s"
+            % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
+               log_dict['test_cost'], speed))
+
+    def get_model_size(self, l, h, v, s):
+        P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
+        logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 /
+                                                  1000.0))
+
+    def training_epoch_end(self, log_dict):
+        logger.info("[Training] epoch: %d, total time: %.5f sec" %
+                    (log_dict['epoch'], log_dict['train_cost']))
+
+    def validation_epoch_end(self, log_dict):
+        res = self.metric.accumulate()
+        self.metric.reset()
+
+        logger.info("[Eval] epoch: %d, total time: %.5f sec, Acc: %.5f" %
+                    (log_dict['epoch'], log_dict['eval_cost'], res))
+
+
 class GPTGenerationModule(BasicModule):
     def __init__(self, configs):
         self.configs = configs

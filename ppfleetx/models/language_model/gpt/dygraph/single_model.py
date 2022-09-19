@@ -686,8 +686,7 @@ class GPTForSequenceClassification(nn.Layer):
 
         pooled_logits = logits.gather_nd(
             paddle.stack(
-                [paddle.arange(sequence_output.shape[0]), sequence_lengths],
-                axis=-1))
+                [paddle.arange(output.shape[0]), sequence_lengths], axis=-1))
 
         return pooled_logits
 
