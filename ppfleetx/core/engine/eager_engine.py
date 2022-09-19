@@ -365,7 +365,7 @@ class EagerEngine(BasicEngine):
 
             eval_start = time.time()
             if self._run_mode == 'epoch' and epoch_index % self._eval_freq == 0:
-                self.evaluate(epoch_index, valid_data_loader)
+                self._evaluate_one_epoch(epoch_index, valid_data_loader)
                 self._module.model.train()
                 eval_cost = time.time() - eval_start
                 log_dict = {
