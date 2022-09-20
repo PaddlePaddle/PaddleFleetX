@@ -24,8 +24,8 @@ from functools import reduce
 def process_mesh_config(config):
     class Mesh:
         def __init__(self, config):
-            self.dp_idx = None
-            self.mp_idx = None
+            self.dp_dim = None
+            self.mp_dim = None
             self.process_mesh = None
             self.config = config
 
@@ -44,22 +44,22 @@ def process_mesh_config(config):
                     if len(topology) > 2:
                         # dpmppp
                         self.process_mesh = auto.ProcessMesh(
-                            np.array(processes).reshape(topology).tolist(),
+                            np.array(processes).reshape(topology),
                             dim_names=['pp', 'dp', 'mp'])
-                        self.dp_idx = 'dp'
-                        self.mp_idx = 'mp'
+                        self.dp_dim = 'dp'
+                        self.mp_dim = 'mp'
                     elif self.config['dp_degree'] > 1:
                         # dppp
                         self.process_mesh = auto.ProcessMesh(
-                            np.array(processes).reshape(topology).tolist(),
+                            np.array(processes).reshape(topology),
                             dim_names=['pp', 'dp'])
-                        self.dp_idx = 'dp'
+                        self.dp_dim = 'dp'
                     elif self.config['mp_degree'] > 1:
                         # mppp
                         self.process_mesh = auto.ProcessMesh(
-                            np.array(processes).reshape(topology).tolist(),
+                            np.array(processes).reshape(topology),
                             dim_names=['pp', 'mp'])
-                        self.mp_idx = 'mp'
+                        self.mp_dim = 'mp'
                 elif len(topology) == 1:
                     # pp
                     self.process_mesh = auto.ProcessMesh(
@@ -68,19 +68,22 @@ def process_mesh_config(config):
                 if len(topology) > 1:
                     # dpmp
                     self.process_mesh = auto.ProcessMesh(
-                        (processes).reshape(topology).tolist(),
+                        np.array(processes).reshape(topology),
                         dim_names=['dp', 'mp'])
-                    self.dp_idx = 'dp'
-                    self.mp_idx = 'mp'
+                    self.dp_dim = 'dp'
+                    self.mp_dim = 'mp'
                 elif self.config['dp_degree'] > 1:
+                    # dp
                     self.process_mesh = auto.ProcessMesh(
                         processes, dim_names=['dp'])
-                    self.dp_idx = 'dp'
+                    self.dp_dim = 'dp'
                 elif self.config['mp_degree'] > 1:
+                    # mp
                     self.process_mesh = auto.ProcessMesh(
                         processes, dim_names=['mp'])
-                    self.mp_idx = 'mp'
+                    self.mp_dim = 'mp'
                 else:
+                    # serial
                     self.process_mesh = auto.ProcessMesh(processes)
 
         def __getitem__(self, idx):
@@ -96,11 +99,11 @@ def process_mesh_config(config):
 
         @property
         def dp(self):
-            return self.dp_idx
+            return self.dp_dim
 
         @property
         def mp(self):
-            return self.mp_idx
+            return self.mp_dim
 
     return Mesh(config)
 

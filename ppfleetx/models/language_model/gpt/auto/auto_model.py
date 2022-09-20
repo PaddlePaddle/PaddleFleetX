@@ -503,8 +503,6 @@ class GPTModelAuto(nn.Layer):
             self.mesh)
 
         stages = self.mesh.stages(num_layers)
-        # layer_per_stage = num_layers // pp_degree
-        # stages = [i // layer_per_stage for i in range(num_layers)]
         decoder_layers = nn.LayerList()
         for i in range(num_layers):
             decoder_layers.append(
