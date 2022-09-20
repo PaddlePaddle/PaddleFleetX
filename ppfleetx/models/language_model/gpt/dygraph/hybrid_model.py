@@ -364,6 +364,7 @@ class TransformerDecoder(nn.Layer):
                  sequence_parallel=False,
                  no_recompute_layers=None):
         super(TransformerDecoder, self).__init__()
+
         if no_recompute_layers is None:
             no_recompute_layers = []
         self.no_recompute_layers = no_recompute_layers
@@ -651,9 +652,9 @@ class GPTModelHybrid(nn.Layer):
                  no_recompute_layers=None):
 
         super(GPTModelHybrid, self).__init__()
+
         if no_recompute_layers is None:
             no_recompute_layers = []
-
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
@@ -908,7 +909,7 @@ class GPTForPretrainingPipe(PipelineLayer):
             no_recompute_layers = []
         else:
             if recompute_granularity == 'full':
-                assert len(list(set(no_recompute_layers))) == num_layers, \
+                assert len(no_recompute_layers) == 0, \
                     "for pp with full recompute, no_recompute_layers is not support"
 
         assert sequence_parallel is False, "Sequence parallel strategy \

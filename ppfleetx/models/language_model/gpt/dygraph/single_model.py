@@ -501,6 +501,7 @@ class GPTModel(nn.Layer):
                  no_recompute_layers=None):
 
         super(GPTModel, self).__init__()
+
         if no_recompute_layers is None:
             no_recompute_layers = []
         self.initializer_range = initializer_range
