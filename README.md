@@ -27,7 +27,7 @@ TODO: A GIF showing the tasks supported by PaddleFleetX.
 ## Installation
 
 We recommend to get started with PaddleFleetX using [pre-build container](docs/quick_start.md#11-docker-环境部署) which comes with all requirements installed.
-If you prefer to install the requirements on your own, please following this installation guide.
+If you prefer to install the requirements on your own, please follow this installation guide.
 
 ### Requirements
 
