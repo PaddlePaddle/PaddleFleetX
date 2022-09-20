@@ -28,7 +28,6 @@ sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
 from ppfleetx.utils import config, env
 from ppfleetx.data import build_dataloader
 from ppfleetx.models import build_module
-from ppfleetx.optims import build_lr_scheduler, build_optimizer
 from ppfleetx.core import EagerEngine
 
 if __name__ == "__main__":
