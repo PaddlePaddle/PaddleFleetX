@@ -32,12 +32,12 @@ If you prefer to install the requirements on your own, please following this ins
 ### Requirements
 
 * [PaddlePaddle](https://www.paddlepaddle.org.cn/) GPU version must be installed **before** using PaddleFleetX.
-* GPUs are required to work with PaddleFleetX, Nvidia V100 or above are recommended. 
+* GPUs are required to work with PaddleFleetX, NVIDIA V100 or above are recommended. 
 * Other PyPI requirements are listed in `requirements.txt`.
 
 ### Install
 
-With PaddlePaddle well installed, you can fetch PaddleFleetX and install its dependents with the following commands,
+With PaddlePaddle well installed, you can fetch PaddleFleetX and install its dependencies with the following commands,
 
 ```shell
 git clone https://github.com/PaddlePaddle/PaddleFleetX.git
