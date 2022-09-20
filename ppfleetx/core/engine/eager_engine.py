@@ -313,6 +313,31 @@ class EagerEngine(BasicEngine):
         if self._load_recovery['rng_state'] != -1:
             paddle.set_cuda_rng_state(self._load_recovery['rng_state'])
 
+        model = self._module.model
+
+        parameters_list = []
+        for p in model.parameters():
+            # print(p.name)
+            parameters_list.append(p)
+
+        mp_rank = paddle.distributed.get_rank()
+        sta = paddle.load(
+            '/workspace/workspace/FleetX/output/model_state_mp_{:0>2d}.pdopt'.
+            format(mp_rank))
+
+        print("======" * 10)
+        index = 0
+        for k, v in sta.items():
+            # print(k, v)
+            # pass
+            parameters_list[index].name = k
+            index += 1
+        model.set_state_dict(sta)
+        for p in model.parameters():
+            pass
+            # print(p.name, p)
+
+        # paddle.seed(1024)
         for epoch_index in range(start_epoch, epoch):
             self._train_one_epoch(epoch_index, train_data_loader,
                                   valid_data_loader)

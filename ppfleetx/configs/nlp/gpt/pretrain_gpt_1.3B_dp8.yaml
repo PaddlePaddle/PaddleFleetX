@@ -8,8 +8,8 @@ Global:
 
 Model:
   vocab_size: 50304
-  hidden_size: 1024
-  num_layers: 1
+  hidden_size: 2048
+  num_layers: 24
   num_attention_heads: 8
   ffn_hidden_size: 
   hidden_dropout_prob: 0
