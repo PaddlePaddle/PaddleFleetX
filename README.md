@@ -15,7 +15,7 @@
 
 ## Features
 
-[PaddleFleetX](https://github.com/PaddlePaddle/PaddleFleetX) is an open source repo for ...
+[PaddleFleetX](https://github.com/PaddlePaddle/PaddleFleetX) is an end-to-end toolset to train and deploy large models efficiently.
 
 TODO: A GIF showing the tasks supported by PaddleFleetX.
 
@@ -51,13 +51,11 @@ Check out the [quick start](./docs/quick_start.md#2-模型训练) for training e
 ## Tutorials
 
 * [Quick Start](./docs/quick_start.md)
-* [Modules](./docs/modules.md)
-* [How to Training]()
+* [How to Training]
   * [GPT](projects/gpt/docs/README.md)
   * [VIT](projects/vit/README.md)
   * [Imagen](projects/imagen/)
   * [Ernie](projects/ernie/)
-* [How to Finetune]()
 * [How to Inference](./docs/inference.md)
 * [How to Develop by Yourself](./docs/standard.md)
 * [Cluster Deployment](./docs/cluster_deployment.md)
@@ -70,11 +68,6 @@ To download more useful pre-trained models see [model zoo]().
 ## Performance
 TODO: Chart showing PaddleFleetX performance benefits.
 
-For more performance see
-* [GPT]()
-* [ERNIE]()
-* [ViT]()
-* [Imagen]()
 
 ## Industrial Application
 Coming soon.
