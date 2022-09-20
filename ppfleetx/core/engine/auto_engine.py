@@ -67,7 +67,7 @@ class AutoEngine(BasicEngine):
         self._test_iters = self._configs['test_iters']
         self._logging_freq = self._configs['logging_freq']
         self._num_train_epochs = self._configs['num_train_epochs']
-        # self._strategy = self._configs['strategy']
+        self._strategy = self._configs['strategy']
 
         # save & load
         self._save_steps = self._configs['save_load']['save_steps']
@@ -84,7 +84,7 @@ class AutoEngine(BasicEngine):
         # init engine
         optimizer = optimizer if mode == 'train' else None
         self._auto_engine = auto.Engine(
-            module.model, module.loss_fn, optimizer, strategy=module.strategy)
+            module.model, module.loss_fn, optimizer, strategy=self._strategy)
 
     def fit(self, epoch=1, train_dataset=None, valid_dataset=None):
 
