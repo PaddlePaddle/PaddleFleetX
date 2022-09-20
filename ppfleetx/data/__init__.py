@@ -22,7 +22,10 @@ from ppfleetx.data import dataset, sampler, utils
 from ppfleetx.utils.log import logger
 
 
-def build_dataset_auto(config, mode):
+def build_auto_dataset(config, mode):
+    """
+    build dataset for auto parallel
+    """
     dataset = build_dataset(config, mode)
 
     collate_fn = None

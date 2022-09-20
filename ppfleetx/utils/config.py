@@ -416,7 +416,9 @@ def process_auto_engine_configs(config):
 
 
 def process_auto_strategy(config):
-
+    """
+    process auto strategy for auto parallel
+    """
     configs = config['Engine']
     strategy = auto.Strategy()
     strategy.auto_mode = "semi"
@@ -448,7 +450,7 @@ def process_auto_strategy(config):
 
 def get_auto_config(fname, overrides=None, show=False):
     """
-    Read config from file
+    Read config from file for auto parallel
     """
     assert os.path.exists(fname), (
         'config file({}) is not exist'.format(fname))
