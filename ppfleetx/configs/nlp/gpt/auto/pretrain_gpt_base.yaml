@@ -10,22 +10,16 @@ Global:
 Engine:
   max_steps: 500000
   num_train_epochs: 1
-  accumulate_steps: 1
-  logging_freq: 1
-  eval_freq: 500
+  eval_freq: 1
   eval_iters: 10
   test_iters:
-  auto_mode: "semi"
   mix_precision:
-    enable: True
     level: "o2"
-    init_loss_scaling: 32768.0
+    scale_loss: 32768.0
     custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
     custom_white_list: ["lookup_table", "lookup_table_v2"]
     use_fp16_guard: False
   save_load:
-    save_steps: 1000
-    save_epoch: 1
     output_dir: ./output
     ckpt_dir:
 
@@ -36,9 +30,9 @@ Model:
 
 
 Data:
-  collate_fn: gpt_collate_fn
-  sample_split: 2
   Train:
+    collate_fn: gpt_collate_fn
+    sample_split: 2
     dataset:
       name: GPTDataset
       input_dir: ./data/
@@ -46,6 +40,8 @@ Data:
       max_seq_len: 1024
 
   Eval:
+    collate_fn: gpt_collate_fn
+    sample_split: 2
     dataset:
       name: GPTDataset
       input_dir: ./data/

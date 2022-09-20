@@ -6,10 +6,6 @@ Global:
   micro_batch_size: 8
 
 
-Engine:
-  use_recompute: True
-
-
 Model:
   vocab_size: 50304
   hidden_size: 2048
@@ -21,6 +17,7 @@ Model:
   max_position_embeddings: 1024
   type_vocab_size: 16
   initializer_range: 0.02
+  use_recompute: True
 
 
 Distributed:
