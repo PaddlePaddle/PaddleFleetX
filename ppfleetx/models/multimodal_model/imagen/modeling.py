@@ -288,15 +288,15 @@ class ImagenModel(nn.Layer):
         assert 0 < unet_number <= len(self.unets)
         index = unet_number - 1
 
-        if isinstance(self.unets, nn.LayerList):
-            unets_list = [unet for unet in self.unets]
-            delattr(self, 'unets')
-            self.unets = unets_list
+        # if isinstance(self.unets, nn.LayerList):
+        #     unets_list = [unet for unet in self.unets]
+        #     delattr(self, 'unets')
+        #     self.unets = unets_list
         self.unet_being_trained_index = index
         return self.unets[index]
 
     def reset_unets(self, ):
-        self.unets = nn.LayerList([*self.unets])
+        # self.unets = nn.LayerList([*self.unets])
         self.unet_being_trained_index = -1
 
     @contextmanager

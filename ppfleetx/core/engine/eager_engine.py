@@ -123,6 +123,7 @@ class EagerEngine(BasicEngine):
         self._test_iters = self._configs['test_iters']
         self._logging_freq = self._configs['logging_freq']
         self._num_train_epochs = self._configs['num_train_epochs']
+        print("__init__ accumulation steps: ", self._configs['accumulate_steps'])
         self._accumulate_steps = self._configs['accumulate_steps']
 
         self._use_pure_fp16 = self._configs['mix_precision']['use_pure_fp16']
@@ -267,7 +268,7 @@ class EagerEngine(BasicEngine):
                 if step < self._load_recovery['step']:
                     continue
 
-            loss = self._fit_impl(batch)
+            loss = self._fit_impl(batch, step)
             # Sync for profile time, delete it may be a little faster
             paddle.device.cuda.synchronize()
             train_costs = time.time() - train_start
@@ -380,23 +381,32 @@ class EagerEngine(BasicEngine):
         if self.profiler:
             self._profiler_done()
 
-    def _fit_impl(self, batch):
+    def _fit_impl(self, batch, step):
         batch = self._module.pretreating_batch(batch)
         if self._pp_degree == 1:
+            print("accumulate steps: ", self._accumulate_steps)
+            update_parameters = (step != 0 and step % self._accumulate_steps == 0)
             if self._use_recompute and isinstance(self._module.model,
                                                   paddle.DataParallel):
                 with self._module.model.no_sync():
                     loss = self._model_forward_backward(batch)
-                if not hasattr(self._optimizer, "all_fused_tensors"
-                               ) or self._optimizer.all_fused_tensors is None:
-                    fused_allreduce_gradients(
-                        list(self._module.model.parameters()), None)
-                else:
-                    all_reduce_parameters(self._optimizer.all_fused_tensors,
-                                          self._dp_group)
+                if update_parameters:
+                    if not hasattr(self._optimizer, "all_fused_tensors"
+                                ) or self._optimizer.all_fused_tensors is None:
+                        fused_allreduce_gradients(
+                            list(self._module.model.parameters()), None)
+                    else:
+                        all_reduce_parameters(self._optimizer.all_fused_tensors,
+                                            self._dp_group)
             else:
-                loss = self._model_forward_backward(batch)
-            self._optim_update_params()
+                if update_parameters:
+                    loss = self._model_forward_backward(batch)
+                else:
+                    with self._module.model.no_sync():
+                        loss = self._model_forward_backward(batch)
+            if update_parameters:
+                print("current step: {}, update parameters".format(step), "****" * 40)
+                self._optim_update_params()
         else:
             with paddle.amp.auto_cast(
                     self._use_pure_fp16,

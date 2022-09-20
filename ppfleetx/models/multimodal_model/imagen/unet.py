@@ -874,7 +874,6 @@ class Unet(nn.Layer):
 
         # save locals to take care of some hyperparameters for cascading DDPM
 
-        self.count = 0
 
         self._locals = locals()
         self._locals.pop('self', None)
@@ -1449,9 +1448,9 @@ class Unet(nn.Layer):
                 
 
             if use_recompute:
-                x = init_block(x, t, c)
+                x = recompute(init_block, x, t, c)     
             else:
-                x = recompute(init_block, x, t, c)
+                x = init_block(x, t, c)
 
             for resnet_block in resnet_blocks:
                 if use_recompute:
@@ -1518,16 +1517,4 @@ class Unet(nn.Layer):
         if exists(lowres_cond_img):
             x = paddle.concat((x, lowres_cond_img), axis=1)
         
-        # output = self.final_conv(x)
-
-        # import numpy as np
-        # np.save("origin_data/output.npy", output.numpy())
-        
-        # if self.count == 1:
-        #     for name
-
-        # self.count += 1
-
-
-        # return output
         return self.final_conv(x)
