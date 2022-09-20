@@ -28,8 +28,8 @@ python tools/export.py \
 
 ## 2. 推理部署
 
-模型导出后，可通过`tools/inference.py`脚本进行推理部署。
+模型导出后，可通过`tasks/gpt/inference.py`脚本进行推理部署。
 
 ```bash
-python tools/inference.py -c ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml
+python tasks/gpt/inference.py -c ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml
 ```

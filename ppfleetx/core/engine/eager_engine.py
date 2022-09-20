@@ -175,7 +175,7 @@ class EagerEngine(BasicEngine):
             self._lr_scheduler) if mode == 'train' else None
 
         # distributed configs
-        self._distributed = dist.is_initialized()
+        self._distributed = (dist.get_world_size() > 1)
 
         if self._distributed:
             self._hcg = fleet.get_hybrid_communicate_group()
