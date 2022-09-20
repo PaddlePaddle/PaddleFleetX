@@ -19,7 +19,7 @@ tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
 
 ```bash
 python tools/export.py \
-    -c ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_single_card.yaml \
+    -c ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml \
     -o Engine.save_load.ckpt_dir=./ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00
 ```
 
