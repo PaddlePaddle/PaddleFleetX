@@ -13,15 +13,14 @@
     <a href="https://github.com/PaddlePaddle/PaddleFleetX/stargazers"><img src="https://img.shields.io/github/stars/PaddlePaddle/PaddleFleetX?color=ccf"></a>
 </p>
 
-## 特性
+## 简介
 
-[PaddleFleetX](https://github.com/PaddlePaddle/PaddleFleetX) is an end-to-end toolset to train and deploy large models efficiently.
-
+PaddleFleetX旨在打造一套简单易用、性能领先、且功能强大的端到端大模型工具库，覆盖大模型环境部署、数据处理、预训练、微调、模型压缩、推理部署全流程，并支持语言、视觉、多模态等多个领域的前沿大模型算法。
 
 
 ## 最新消息 🔥
 
-**更新 (2022-09-16):** PaddleFleetX 发布 v0.1 版本.
+**更新 (2022-09-21):** PaddleFleetX 发布 v0.1 版本.
 
 
 ## 安装
@@ -64,14 +63,14 @@ python -m pip  install -r requirements.txt
 
 
 ## 模型库
-即将发布更多模型...
+
 
 ## 性能
-即将发布更多性能...
+
 
 
 ## 工业级应用
-即将发布更多工业级行业应用范例...
+
 
 
 ## 许可
