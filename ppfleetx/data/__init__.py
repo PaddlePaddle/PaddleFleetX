@@ -22,7 +22,7 @@ from ppfleetx.data import dataset, sampler, utils
 from ppfleetx.utils.log import logger
 
 
-def build_dataloader(config, mode):
+def build_dataset(config, mode):
     assert mode in ['Train', 'Eval', 'Test'
                     ], "Dataset mode should be Train, Eval, Test"
 
@@ -35,6 +35,12 @@ def build_dataloader(config, mode):
     dataset = eval("dataset.{}".format(dataset_name))(**config_dataset)
 
     logger.debug("build dataset({}) success...".format(dataset))
+
+    return dataset
+
+
+def build_dataloader(config, mode):
+    dataset = build_dataset(config, mode)
 
     batch_sampler = None
     # build sampler
