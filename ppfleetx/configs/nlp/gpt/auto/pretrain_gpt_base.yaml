@@ -1,0 +1,70 @@
+Global:
+  device: gpu
+  seed: 1024
+
+  global_batch_size: 
+  local_batch_size: 1
+  micro_batch_size: 1
+
+
+Engine:
+  max_steps: 500000
+  num_train_epochs: 1
+  accumulate_steps: 1
+  logging_freq: 1
+  eval_freq: 500
+  eval_iters: 10
+  test_iters:
+  auto_mode: "semi"
+  mix_precision:
+    enable: True
+    level: "o2"
+    init_loss_scaling: 32768.0
+    custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
+    custom_white_list: ["lookup_table", "lookup_table_v2"]
+    use_fp16_guard: False
+  save_load:
+    save_steps: 1000
+    save_epoch: 1
+    output_dir: ./output
+    ckpt_dir:
+
+
+Model:
+  module: "GPTModuleAuto"
+  name: "GPT"
+
+
+Data:
+  collate_fn: gpt_collate_fn
+  sample_split: 2
+  Train:
+    dataset:
+      name: GPTDataset
+      input_dir: ./data/
+      split: [949, 50, 1]
+      max_seq_len: 1024
+
+  Eval:
+    dataset:
+      name: GPTDataset
+      input_dir: ./data/
+      split: [949, 50, 1]
+      max_seq_len: 1024
+
+
+Optimizer:
+  name: AdamW
+  weight_decay: 0.01
+  beta1: 0.9
+  beta2: 0.999
+  epsilon: 1.0e-8
+  lr:
+    name: CosineAnnealingWithWarmupDecay
+    decay_steps: 360000
+    warmup_rate: 0.01
+    max_lr: 5.0e-5
+    min_lr: 1.0e-5
+  grad_clip:
+    name: "ClipGradByGlobalNorm"
+    clip_norm: 1.0
