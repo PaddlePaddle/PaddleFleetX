@@ -416,24 +416,28 @@ def process_auto_engine_configs(config):
 
 
 def process_auto_strategy(config):
-
+    """
+    process auto strategy for auto parallel
+    """
     configs = config['Engine']
     strategy = auto.Strategy()
-    strategy.auto_mode = configs["auto_mode"]
+    strategy.auto_mode = "semi"
     strategy.seed = config['Global']['seed']
 
     amp_configs = configs['mix_precision']
     amp = strategy.amp
-    amp.enable = amp_configs['enable']
+    amp.enable = amp_configs['level'] in ['o1', 'o2', 'o3']
     amp.use_pure_fp16 = amp_configs['level'] in ['o2', 'o3']
-    amp.use_optimizer_fp16 = amp_configs['level'] == 'o3'
+    amp.use_optimizer_fp16 = amp_configs['level'] in ['o3']
     amp.use_fp16_guard = amp_configs['use_fp16_guard']
-    amp.init_loss_scaling = amp_configs['init_loss_scaling']
+    amp.init_loss_scaling = amp_configs['scale_loss']
     amp.custom_black_list = amp_configs['custom_black_list']
     amp.custom_white_list = amp_configs['custom_white_list']
 
+    config['Engine']['use_recompute'] = config['Model'].pop('use_recompute',
+                                                            None)
     recompute = strategy.recompute
-    recompute.enable = configs['use_recompute']
+    recompute.enable = config['Engine']['use_recompute']
 
     sharding_configs = config['Distributed']['sharding']
     sharding = strategy.sharding
@@ -446,7 +450,7 @@ def process_auto_strategy(config):
 
 def get_auto_config(fname, overrides=None, show=False):
     """
-    Read config from file
+    Read config from file for auto parallel
     """
     assert os.path.exists(fname), (
         'config file({}) is not exist'.format(fname))

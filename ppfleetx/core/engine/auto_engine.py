@@ -65,20 +65,14 @@ class AutoEngine(BasicEngine):
         self._eval_freq = self._configs['eval_freq']
         self._eval_iters = self._configs['eval_iters']
         self._test_iters = self._configs['test_iters']
-        self._logging_freq = self._configs['logging_freq']
         self._num_train_epochs = self._configs['num_train_epochs']
         self._strategy = self._configs['strategy']
 
         # save & load
-        self._save_steps = self._configs['save_load']['save_steps']
         self._output_dir = self._configs['save_load']['output_dir']
         self._ckpt_dir = self._configs['save_load']['ckpt_dir']
 
         # engine fit inputs
-        collate_fn_name = configs['Data']['collate_fn']
-        self.collate_fn = getattr(
-            utils, collate_fn_name) if collate_fn_name is not None else None
-        self.sample_split = configs['Data']['sample_split']
         self.batch_size = configs['Global']['global_batch_size']
 
         # init engine
@@ -90,32 +84,32 @@ class AutoEngine(BasicEngine):
 
         self._auto_engine.fit(train_data=train_dataset,
                               valid_data=valid_dataset,
-                              train_sample_split=self.sample_split,
-                              valid_sample_split=self.sample_split,
+                              train_sample_split=train_dataset.sample_split,
+                              valid_sample_split=valid_dataset.sample_split,
                               epochs=self._num_train_epochs,
                               batch_size=self.batch_size,
                               steps_per_epoch=self._max_steps,
                               valid_steps=self._eval_iters,
                               valid_freq=self._eval_freq,
-                              collate_fn=self.collate_fn)
+                              collate_fn=train_dataset.collate_fn)
 
     def evaluate(self, valid_dataset=None):
 
         self._auto_engine.evaluate(
             valid_data=valid_dataset,
-            valid_sample_split=self.sample_split,
+            valid_sample_split=valid_dataset.sample_split,
             batch_size=self.batch_size,
             steps=self._max_steps,
-            collate_fn=self.collate_fn)
+            collate_fn=valid_dataset.collate_fn)
 
     def predict(self, test_dataset=None):
 
         self._auto_engine.predict(
             test_data=test_dataset,
-            test_sample_split=self.sample_split,
+            test_sample_split=test_dataset.sample_split,
             batch_size=self.batch_size,
             steps=self._max_steps,
-            collate_fn=self.collate_fn)
+            collate_fn=test_dataset.collate_fn)
 
     def save(self, training=True):
         if self._output_dir and isinstance(self._output_dir, str):

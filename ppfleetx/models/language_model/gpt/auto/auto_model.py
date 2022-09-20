@@ -549,8 +549,9 @@ class GPTModelAuto(nn.Layer):
 
         input_ids.stop_gradient = True
         position_ids.stop_gradient = True
-        auto.shard_tensor(input_ids, self.mesh[0], [self.mesh.dp_idx] +
-                          [None for i in range(len(input_ids.shape) - 1)])
+        auto.shard_tensor(
+            input_ids, self.mesh[0],
+            [self.mesh.dp] + [None for i in range(len(input_ids.shape) - 1)])
 
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)

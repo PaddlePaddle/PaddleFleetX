@@ -29,7 +29,7 @@ sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
 from ppfleetx.utils import config
 from ppfleetx.utils.log import logger
 from ppfleetx.models import build_module
-from ppfleetx.data import build_dataset
+from ppfleetx.data import build_auto_dataset
 from ppfleetx.optims import build_lr_scheduler, build_optimizer
 from ppfleetx.core import AutoEngine
 
@@ -41,8 +41,8 @@ if __name__ == "__main__":
     module = build_module(cfg)
     config.print_config(cfg)
 
-    train_data = build_dataset(cfg.Data, "Train")
-    eval_data = build_dataset(cfg.Data, "Eval")
+    train_data = build_auto_dataset(cfg.Data, "Train")
+    eval_data = build_auto_dataset(cfg.Data, "Eval")
 
     lr_configs = copy.deepcopy(cfg.Optimizer.lr)
     lr_configs.update({
