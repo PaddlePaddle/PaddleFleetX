@@ -13,19 +13,19 @@
 请根据本地 CUDA 版本（使用 `nvidia-smi`命令查看）使用以下命令拉取对应或兼容的镜像，
 
 ```
-docker pull registry.baidubce.com/kuizhiqing/fleetx-cuda11.2-cudnn8:alpha
+docker pull registry.baidubce.com/kuizhiqing/ppfleetx-cuda11.2-cudnn8:v0.1.0
 ```
 
 如本地环境cuda版本较低可以使用以下镜像，并在后续使用中替换。
 
 ```
-docker pull registry.baidubce.com/kuizhiqing/fleetx-cuda10.2-cudnn7:alpha
+docker pull registry.baidubce.com/kuizhiqing/ppfleetx-cuda10.2-cudnn7:v0.1.0
 ```
 
 大模型训练需要使用GPU，如已安装 nvida-container-runtime 可以使用以下命令运行镜像，
 
 ```
-docker run -it --name=paddle --net=host -v /dev/shm:/dev/shm --shm-size=32G -v $PWD:/paddle --runtime=nvidia registry.baidubce.com/kuizhiqing/fleetx-cuda11.2-cudnn8:alpha bash
+docker run -it --name=paddle --net=host -v /dev/shm:/dev/shm --shm-size=32G -v $PWD:/paddle --runtime=nvidia registry.baidubce.com/kuizhiqing/ppfleetx-cuda11.2-cudnn8:v0.1.0 bash
 ```
 
 未安装 nvida-container-runtime 或启动后无法执行 `nvidia-smi` 查看GPU信息时可以尝试通过如下脚本启动运行，
@@ -45,7 +45,7 @@ ${CUDA_SO} ${DEVICES} \
 --shm-size=32G \
 -v $nvsmi:$nvsmi \
 -it \
-registry.baidubce.com/kuizhiqing/fleetx-cuda11.2-cudnn8:alpha \
+registry.baidubce.com/kuizhiqing/ppfleetx-cuda11.2-cudnn8:v0.1.0 \
 bash
 ```
 

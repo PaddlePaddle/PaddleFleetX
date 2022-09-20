@@ -26,17 +26,27 @@ TODO: A GIF showing the tasks supported by PaddleFleetX.
 
 ## Installation
 
-### From Pip Install
+We recommend to get started with PaddleFleetX using [pre-build container](docs/quick_start.md#11-docker-环境部署) which comes with all requirements installed.
+If you prefer to install the requirements on your own, please following this installation guide.
+
+### Requirements
+
+* [PaddlePaddle](https://www.paddlepaddle.org.cn/) GPU version must be installed **before** using PaddleFleetX.
+* GPUs are required to work with PaddleFleetX, Nvidia V100 or above are recommended. 
+* Other PyPI requirements are listed in `requirements.txt`.
+
+### Install
+
+With PaddlePaddle well installed, you can fetch PaddleFleetX and install its dependents with the following commands,
+
 ```shell
 git clone https://github.com/PaddlePaddle/PaddleFleetX.git
+
 cd PaddleFleetX
-pip install -r requirements.txt
+python -m pip  install -r requirements.txt
 ```
 
-### Use Docker
-See [Docker Install](./docs/docker_install.md).
-
-
+Check out the [quick start](./docs/quick_start.md#2-模型训练) for training examples and further usage.
 
 ## Tutorials
 
