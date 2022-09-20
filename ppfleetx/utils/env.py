@@ -23,6 +23,9 @@ from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 
 __all__ = ['init_dist_env']
 
+_seed = None
+_dp_seed = None
+
 
 def set_seed(seed):
     if dist.get_world_size() > 1:
@@ -44,6 +47,21 @@ def set_seed(seed):
     tracker = get_rng_state_tracker()
     tracker.add('global_seed', global_seed)
     tracker.add('local_seed', local_seed)
+
+    global _seed
+    global _dp_seed
+    _seed = seed
+    _dp_seed = global_seed
+
+
+def get_seed():
+    global _seed
+    return _seed
+
+
+def get_dp_seed():
+    global _dp_seed
+    return _dp_seed
 
 
 def init_dist_env(config):

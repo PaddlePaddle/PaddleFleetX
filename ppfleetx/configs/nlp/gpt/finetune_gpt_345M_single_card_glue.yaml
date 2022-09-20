@@ -61,7 +61,7 @@ Optimizer:
   lr:
     name: LinearDecayWithWarmup
     warmup: 0.1
-    learning_rate: 3e-5
+    learning_rate: 2e-5
   tensor_fusion: False
     
     

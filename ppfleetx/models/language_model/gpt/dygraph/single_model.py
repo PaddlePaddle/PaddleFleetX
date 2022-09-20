@@ -671,6 +671,24 @@ class GPTForSequenceClassification(nn.Layer):
         self.score = nn.Linear(
             self.gpt.hidden_size, num_classes, bias_attr=False)
 
+        self.apply(self.init_weights)
+
+    def init_weights(self, layer):
+        """ Initialization hook """
+        # no hook
+        return
+        if isinstance(layer, (nn.Linear, nn.Embedding)):
+            # In the dygraph mode, use the `set_value` to reset the parameter directly,
+            # and reset the `state_dict` to update parameter in static mode.
+            if isinstance(layer.weight, paddle.Tensor):
+                layer.weight.set_value(
+                    paddle.tensor.normal(
+                        mean=0.0,
+                        std=self.initializer_range
+                        if hasattr(self, "initializer_range") else
+                        self.gpt.config["initializer_range"],
+                        shape=layer.weight.shape))
+
     def forward(self, input_ids, position_ids=None, attention_mask=None):
 
         output = self.gpt(input_ids,
