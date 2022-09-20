@@ -13,31 +13,32 @@
     <a href="https://github.com/PaddlePaddle/PaddleFleetX/stargazers"><img src="https://img.shields.io/github/stars/PaddlePaddle/PaddleFleetX?color=ccf"></a>
 </p>
 
-## Features
+## 特性
 
 [PaddleFleetX](https://github.com/PaddlePaddle/PaddleFleetX) is an end-to-end toolset to train and deploy large models efficiently.
 
-TODO: A GIF showing the tasks supported by PaddleFleetX.
-
-## Top News 🔥
-
-**Update (2022-09-16):** PaddleFleetX v0.1 is released.
 
 
-## Installation
+## 最新消息 🔥
 
-We recommend to get started with PaddleFleetX using [pre-build container](docs/quick_start.md#11-docker-环境部署) which comes with all requirements installed.
-If you prefer to install the requirements on your own, please follow this installation guide.
+**更新 (2022-09-16):** PaddleFleetX 发布 v0.1 版本.
 
-### Requirements
 
-* [PaddlePaddle](https://www.paddlepaddle.org.cn/) GPU version must be installed **before** using PaddleFleetX.
-* GPUs are required to work with PaddleFleetX, NVIDIA V100 or above are recommended. 
-* Other PyPI requirements are listed in `requirements.txt`.
+## 安装
 
-### Install
+我们推荐从[预编译docker镜像](docs/quick_start.md#11-docker-环境部署)开始使用 PaddleFleetX，其中已经安装好了所有环境依赖。
 
-With PaddlePaddle well installed, you can fetch PaddleFleetX and install its dependencies with the following commands,
+如果您倾向根据自己的喜好安装环境，请根据以下的安装指导进行安装。
+
+### 环境说明
+
+* [PaddlePaddle](https://www.paddlepaddle.org.cn/) PaddleFleetX 必须要求 GPU 版本，请在使用前安装。
+* PaddleFleetX 要求运行在 GPU 上，推荐使用 NVIDIA V100 或更高性能的 GPU。
+* 其他的 PyPI 依赖参见 `requirements.txt`。
+
+### 安装 PyPI 依赖
+
+当 PaddlePaddle 已经安装完毕，使用以下命令克隆 PaddleFleetX 和安装依赖：
 
 ```shell
 git clone https://github.com/PaddlePaddle/PaddleFleetX.git
@@ -46,38 +47,38 @@ cd PaddleFleetX
 python -m pip  install -r requirements.txt
 ```
 
-Check out the [quick start](./docs/quick_start.md#2-模型训练) for training examples and further usage.
+通过 [模型训练](./docs/quick_start.md#2-模型训练) 快速体验 PaddleFleetX 以及熟悉使用。
 
-## Tutorials
+## 教程
 
-* [Quick Start](./docs/quick_start.md)
-* How to Training
+* [快速开始](./docs/quick_start.md)
+* 训练
   * [GPT](projects/gpt/docs/README.md)
   * [VIT](projects/vit/README.md)
   * [Imagen](projects/imagen/)
   * [Ernie](projects/ernie/)
-* [How to Inference](./docs/inference.md)
-* [How to Develop by Yourself](./docs/standard.md)
-* [Cluster Deployment](./docs/cluster_deployment.md)
-* [Deployment FAQ](./docs/deployment_faq.md)
+* [推理](./docs/inference.md)
+* [开发规范](./docs/standard.md)
+* [集群部署](./docs/cluster_deployment.md)
+* [部署常见问题](./docs/deployment_faq.md)
 
 
-## Model Zoo
-To download more useful pre-trained models see [model zoo]().
+## 模型库
+即将发布更多模型...
 
-## Performance
-TODO: Chart showing PaddleFleetX performance benefits.
-
-
-## Industrial Application
-Coming soon.
+## 性能
+即将发布更多性能...
 
 
-## License
+## 工业级应用
+即将发布更多工业级行业应用范例...
 
-This project is released under the [Apache 2.0 license](./LICENSE).
 
-## Citation
+## 许可
+PaddleFleetX 基于 [Apache 2.0 license](./LICENSE) 许可发布。
+
+
+## 引用
 
 ```
 @misc{paddlefleetx,
