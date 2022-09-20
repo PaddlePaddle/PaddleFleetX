@@ -24,8 +24,7 @@ import paddle.distributed.auto_parallel as auto
 
 from paddle.fluid import layers
 from paddle.nn.layer.transformer import _convert_param_attr_to_list
-
-from .config import configurable
+from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 
 
 class MultiHeadAttention(nn.Layer):
@@ -107,12 +106,8 @@ class MultiHeadAttention(nn.Layer):
         to reduce redundant calculations.
 
         """
-        auto.shard_tensor(
-            self.q_proj.weight,
-            dist_attr={
-                "process_mesh": self.mesh[self.mesh_idx],
-                "dims_mapping": [-1, self.mesh.mp]
-            })
+        auto.shard_tensor(self.q_proj.weight, self.mesh[self.mesh_idx],
+                          [None, self.mesh.mp])
 
         q = self.q_proj(query)
         q = tensor.reshape(x=q, shape=[0, 0, self.num_heads, self.head_dim])
@@ -145,18 +140,11 @@ class MultiHeadAttention(nn.Layer):
         to construct cache for inference.
 
         """
-        auto.shard_tensor(
-            self.k_proj.weight,
-            dist_attr={
-                "process_mesh": self.mesh[self.mesh_idx],
-                "dims_mapping": [-1, self.mesh.mp]
-            })
-        auto.shard_tensor(
-            self.v_proj.weight,
-            dist_attr={
-                "process_mesh": self.mesh[self.mesh_idx],
-                "dims_mapping": [-1, self.mesh.mp]
-            })
+        auto.shard_tensor(self.k_proj.weight, self.mesh[self.mesh_idx],
+                          [None, self.mesh.mp])
+        auto.shard_tensor(self.v_proj.weight, self.mesh[self.mesh_idx],
+                          [None, self.mesh.mp])
+
         k = self.k_proj(key)
         v = self.v_proj(value)
         k = tensor.reshape(x=k, shape=[0, 0, self.num_heads, self.head_dim])
@@ -190,6 +178,33 @@ class MultiHeadAttention(nn.Layer):
             # incremental_state with initial value, mainly for usage like UniLM
             return self.Cache(key, value)
 
+    def core_attn(self, q, k, v, attn_mask=None):
+        # scale dot product attention
+        product = layers.matmul(
+            x=q, y=k, transpose_y=True, alpha=self.head_dim**-0.5)
+
+        if attn_mask is not None:
+            product = product + attn_mask
+            weights = F.softmax(product)
+        else:
+            weights = incubate.softmax_mask_fuse_upper_triangle(product)
+
+        if self.dropout:
+            # with get_rng_state_tracker().rng_state('local_seed'):
+            weights = F.dropout(
+                weights,
+                self.dropout,
+                training=self.training,
+                mode="upscale_in_train")
+
+        out = tensor.matmul(weights, v)
+
+        # combine heads
+        out = tensor.transpose(out, perm=[0, 2, 1, 3])
+        out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
+
+        return out, weights
+
     def forward(self,
                 query,
                 key,
@@ -218,36 +233,11 @@ class MultiHeadAttention(nn.Layer):
                 q, k, v, cache = self._prepare_qkv(query, key, value,
                                                    use_cache, cache)
 
-        # scale dot product attention
-        product = layers.matmul(
-            x=q, y=k, transpose_y=True, alpha=self.head_dim**-0.5)
+        out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
 
-        # if attn_mask is not None:
-        #     product = product + attn_mask
+        auto.shard_tensor(self.out_proj.weight, self.mesh[self.mesh_idx],
+                          [self.mesh.mp, None])
 
-        # weights = F.softmax(product)
-
-        weights = incubate.softmax_mask_fuse_upper_triangle(product)
-
-        if self.dropout:
-            weights = F.dropout(
-                weights,
-                self.dropout,
-                training=self.training,
-                mode="upscale_in_train")
-
-        out = tensor.matmul(weights, v)
-
-        # combine heads
-        out = tensor.transpose(out, perm=[0, 2, 1, 3])
-        out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
-
-        auto.shard_tensor(
-            self.out_proj.weight,
-            dist_attr={
-                "process_mesh": self.mesh[self.mesh_idx],
-                "dims_mapping": [self.mesh.mp, -1]
-            })
         # project to output
         out = self.out_proj(out)
 
@@ -294,12 +284,8 @@ class TransformerDecoder(nn.Layer):
 
         for i, mod in enumerate(self.layers):
             auto.shard_tensor(
-                output,
-                dist_attr={
-                    "process_mesh": mod.mesh[mod.mesh_idx],
-                    "dims_mapping": [mod.mesh.dp] +
-                    [-1 for i in range(len(output.shape) - 1)]
-                })
+                output, mod.mesh[mod.mesh_idx],
+                [mod.mesh.dp] + [None for i in range(len(output.shape) - 1)])
 
             if cache is None:
                 if use_cache:
@@ -380,8 +366,10 @@ class TransformerDecoderLayer(nn.Layer):
             bias_attr=bias_attrs[0],
             mesh=mesh,
             mesh_idx=mesh_idx)
+
         self.linear1 = nn.Linear(
             d_model, dim_feedforward, weight_attrs[2], bias_attr=bias_attrs[2])
+
         self.linear2 = nn.Linear(
             dim_feedforward, d_model, weight_attrs[2], bias_attr=bias_attrs[2])
 
@@ -393,18 +381,10 @@ class TransformerDecoderLayer(nn.Layer):
 
     def forward(self, tgt, memory, tgt_mask=None, use_cache=False, cache=None):
 
-        auto.shard_tensor(
-            self.linear1.weight,
-            dist_attr={
-                "process_mesh": self.mesh[self.mesh_idx],
-                "dims_mapping": [-1, self.mesh.mp]
-            })
-        auto.shard_tensor(
-            self.linear2.weight,
-            dist_attr={
-                "process_mesh": self.mesh[self.mesh_idx],
-                "dims_mapping": [self.mesh.mp, -1]
-            })
+        auto.shard_tensor(self.linear1.weight, self.mesh[self.mesh_idx],
+                          [None, self.mesh.mp])
+        auto.shard_tensor(self.linear2.weight, self.mesh[self.mesh_idx],
+                          [self.mesh.mp, None])
 
         residual = tgt
 
@@ -416,16 +396,22 @@ class TransformerDecoderLayer(nn.Layer):
         else:
             tgt, incremental_cache = self.self_attn(tgt, tgt, tgt, tgt_mask,
                                                     use_cache, cache)
+
+        # with get_rng_state_tracker().rng_state('global_seed'):
         tgt = residual + self.dropout1(tgt)
+
         if not self.normalize_before:
             tgt = self.norm1(tgt)
 
         residual = tgt
         if self.normalize_before:
             tgt = self.norm2(tgt)
+
+        # with get_rng_state_tracker().rng_state('global_seed'):
         tgt = self.dropout2(
             self.linear2(F.gelu(
                 self.linear1(tgt), approximate=True)))
+
         tgt = residual + tgt
 
         if not self.normalize_before:
@@ -475,12 +461,8 @@ class GPTEmbeddings(nn.Layer):
             seq_length = paddle.cumsum(ones, axis=-1)
             position_ids = seq_length - ones
 
-        auto.shard_tensor(
-            self.word_embeddings.weight,
-            dist_attr={
-                "process_mesh": self.mesh[0],
-                "dims_mapping": [self.mesh.mp, -1]
-            })
+        auto.shard_tensor(self.word_embeddings.weight, self.mesh[0],
+                          [self.mesh.mp, None])
 
         input_embedings = self.word_embeddings(input_ids)
         position_embeddings = self.position_embeddings(position_ids)
@@ -489,8 +471,7 @@ class GPTEmbeddings(nn.Layer):
         return embeddings
 
 
-class GPTModel(nn.Layer):
-    @configurable
+class GPTModelAuto(nn.Layer):
     def __init__(self,
                  vocab_size=51200,
                  hidden_size=768,
@@ -504,7 +485,7 @@ class GPTModel(nn.Layer):
                  initializer_range=0.02,
                  mesh=None):
 
-        super(GPTModel, self).__init__()
+        super(GPTModelAuto, self).__init__()
 
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
@@ -547,30 +528,12 @@ class GPTModel(nn.Layer):
             hidden_size=hidden_size)
         self.checkpoints = []
 
-    @classmethod
-    def from_config(cls, cfg):
-        return {
-            "vocab_size": cfg['vocab_size'],
-            "hidden_size": cfg['hidden_size'],
-            "num_layers": cfg['num_layers'],
-            "num_attention_heads": cfg['num_attention_heads'],
-            "ffn_hidden_size": cfg['ffn_hidden_size'],
-            "hidden_dropout_prob": cfg['hidden_dropout_prob'],
-            "attention_probs_dropout_prob":
-            cfg['attention_probs_dropout_prob'],
-            "max_position_embeddings": cfg['max_position_embeddings'],
-            "type_vocab_size": cfg['type_vocab_size'],
-            "initializer_range": cfg['initializer_range'],
-            "mesh": cfg['mesh'],
-        }
-
     def forward(self,
                 input_ids,
                 position_ids=None,
                 attention_mask=None,
                 use_cache=False,
                 cache=None):
-
         if position_ids is None:
             past_length = 0
             if cache is not None:
@@ -583,21 +546,27 @@ class GPTModel(nn.Layer):
             # .expand_as(input_ids)
             position_ids = paddle.fluid.layers.expand_as(position_ids,
                                                          input_ids)
+
+        input_ids.stop_gradient = True
+        position_ids.stop_gradient = True
+        auto.shard_tensor(input_ids, self.mesh[0], [self.mesh.dp_idx] +
+                          [None for i in range(len(input_ids.shape) - 1)])
+
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
 
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
-            # tgt_mask=attention_mask,
-            tgt_mask=None,  # use softmax_mask_fuse_upper_triangle
+            tgt_mask=None if self.training else
+            attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
         self.checkpoints.extend(self.decoder.checkpoints)
         return encoder_outputs
 
 
-class GPTForPretraining(nn.Layer):
+class GPTForPretrainingAuto(nn.Layer):
     """
     GPT Model with pretraining tasks on top.
 
@@ -608,7 +577,7 @@ class GPTForPretraining(nn.Layer):
     """
 
     def __init__(self, gpt):
-        super(GPTForPretraining, self).__init__()
+        super(GPTForPretrainingAuto, self).__init__()
         self.gpt = gpt
 
     def forward(self,
@@ -629,21 +598,16 @@ class GPTForPretraining(nn.Layer):
         else:
             encoder_outputs = outputs
 
-        x = encoder_outputs
-        w = self.gpt.embeddings.word_embeddings.weight
-        matmul = auto.shard_op(
-            paddle.matmul,
-            dist_attr={
-                'process_mesh': self.gpt.mesh[-1],
-                x: {
-                    "dims_mapping": [self.gpt.mesh.dp] +
-                    [-1 for i in range(len(x.shape) - 1)]
-                },
-                w: {
-                    "dims_mapping": [self.gpt.mesh.mp, -1]
-                }
-            })
-        logits = matmul(x, w, transpose_y=True)
+        x_dims_mapping = [self.gpt.mesh.dp] + [
+            None for i in range(len(encoder_outputs.shape) - 1)
+        ]
+        w_dims_mapping = [self.gpt.mesh.mp, None]
+        matmul = auto.shard_op(paddle.matmul, self.gpt.mesh[-1],
+                               [x_dims_mapping, w_dims_mapping, None])
+        logits = matmul(
+            encoder_outputs,
+            self.gpt.embeddings.word_embeddings.weight,
+            transpose_y=True)
 
         if use_cache:
             return logits, cached_kvs
@@ -651,13 +615,13 @@ class GPTForPretraining(nn.Layer):
             return logits
 
 
-class GPTPretrainingCriterion(nn.Layer):
+class GPTPretrainingCriterionAuto(nn.Layer):
     """
     Criterion for GPT. It calculates the final loss.
     """
 
-    def __init__(self, mesh, topo=None):
-        super(GPTPretrainingCriterion, self).__init__()
+    def __init__(self, mesh):
+        super(GPTPretrainingCriterionAuto, self).__init__()
         self.mesh = mesh
         self.loss_func = paddle.nn.CrossEntropyLoss(reduction="none")
 
@@ -680,14 +644,11 @@ class GPTPretrainingCriterion(nn.Layer):
             Tensor: The pretraining loss. Its data type should be float32 and its shape is [1].
 
         """
+        masked_lm_labels.stop_gradient = True
         loss_mask.stop_gradient = True
         auto.shard_tensor(
-            loss_mask,
-            dist_attr={
-                "process_mesh": self.mesh[-1],
-                "dims_mapping": [self.mesh.dp] +
-                [-1 for i in range(len(loss_mask.shape) - 1)]
-            })
+            loss_mask, self.mesh[-1],
+            [self.mesh.dp] + [None for i in range(len(loss_mask.shape) - 1)])
 
         masked_lm_loss = self.loss_func(prediction_scores,
                                         masked_lm_labels.unsqueeze(2))

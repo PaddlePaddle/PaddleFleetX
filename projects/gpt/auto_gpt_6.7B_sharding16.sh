@@ -1,5 +1,5 @@
 #! /bin/bash
-
+# Runs the "1.3B" parameter model
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,7 +17,7 @@
 log_dir=log_auto
 rm -rf $log_dir
 
-# 1.3B+dp8 run_pretrain
+# 6.7B+sharding16 run_pretrain
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
     ./tools/auto.py \
-    -c ./ppfleetx/configs/nlp/gpt/auto/pretrain_gpt_1.3B_dp8.yaml
+    -c ./ppfleetx/configs/nlp/gp/auto/pretrain_gpt_6.7B_sharding16.yaml
