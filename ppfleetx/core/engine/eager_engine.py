@@ -123,7 +123,6 @@ class EagerEngine(BasicEngine):
         self._test_iters = self._configs['test_iters']
         self._logging_freq = self._configs['logging_freq']
         self._num_train_epochs = self._configs['num_train_epochs']
-        print("__init__ accumulation steps: ", self._configs['accumulate_steps'])
         self._accumulate_steps = self._configs['accumulate_steps']
 
         self._use_pure_fp16 = self._configs['mix_precision']['use_pure_fp16']
@@ -384,7 +383,6 @@ class EagerEngine(BasicEngine):
     def _fit_impl(self, batch, step):
         batch = self._module.pretreating_batch(batch)
         if self._pp_degree == 1:
-            print("accumulate steps: ", self._accumulate_steps)
             update_parameters = (step != 0 and step % self._accumulate_steps == 0)
             if self._use_recompute and isinstance(self._module.model,
                                                   paddle.DataParallel):
@@ -405,7 +403,6 @@ class EagerEngine(BasicEngine):
                     with self._module.model.no_sync():
                         loss = self._model_forward_backward(batch)
             if update_parameters:
-                print("current step: {}, update parameters".format(step), "****" * 40)
                 self._optim_update_params()
         else:
             with paddle.amp.auto_cast(

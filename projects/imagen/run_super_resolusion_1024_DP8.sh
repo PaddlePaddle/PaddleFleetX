@@ -17,7 +17,7 @@
 log_dir=log_imagen_1024_DP8
 rm -rf $log_dir
 
-export CUDA_VISIBLE_DEVICES=0,1,2,3
-python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3" \
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
        tools/train.py -c ppfleetx/configs/multimodal/imagen/imagen_super_resolusion_1024.yaml \
        -o Data.Train.loader.num_workers=8
