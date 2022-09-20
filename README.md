@@ -15,7 +15,7 @@
 
 ## Features
 
-[PaddleFleetX](https://github.com/PaddlePaddle/PaddleFleetX) is an open source repo for ...
+[PaddleFleetX](https://github.com/PaddlePaddle/PaddleFleetX) is an end-to-end toolset to train and deploy large models efficiently.
 
 TODO: A GIF showing the tasks supported by PaddleFleetX.
 
@@ -26,28 +26,36 @@ TODO: A GIF showing the tasks supported by PaddleFleetX.
 
 ## Installation
 
-### From Pip Install
+We recommend to get started with PaddleFleetX using [pre-build container](docs/quick_start.md#11-docker-环境部署) which comes with all requirements installed.
+If you prefer to install the requirements on your own, please follow this installation guide.
+
+### Requirements
+
+* [PaddlePaddle](https://www.paddlepaddle.org.cn/) GPU version must be installed **before** using PaddleFleetX.
+* GPUs are required to work with PaddleFleetX, NVIDIA V100 or above are recommended. 
+* Other PyPI requirements are listed in `requirements.txt`.
+
+### Install
+
+With PaddlePaddle well installed, you can fetch PaddleFleetX and install its dependencies with the following commands,
+
 ```shell
 git clone https://github.com/PaddlePaddle/PaddleFleetX.git
+
 cd PaddleFleetX
-pip install -r requirements.txt
+python -m pip  install -r requirements.txt
 ```
 
-### Use Docker
-See [Docker Install](./docs/docker_install.md).
-
-
+Check out the [quick start](./docs/quick_start.md#2-模型训练) for training examples and further usage.
 
 ## Tutorials
 
 * [Quick Start](./docs/quick_start.md)
-* [Modules](./docs/modules.md)
-* [How to Training]()
+* How to Training
   * [GPT](projects/gpt/docs/README.md)
   * [VIT](projects/vit/README.md)
   * [Imagen](projects/imagen/)
   * [Ernie](projects/ernie/)
-* [How to Finetune]()
 * [How to Inference](./docs/inference.md)
 * [How to Develop by Yourself](./docs/standard.md)
 * [Cluster Deployment](./docs/cluster_deployment.md)
@@ -60,11 +68,6 @@ To download more useful pre-trained models see [model zoo]().
 ## Performance
 TODO: Chart showing PaddleFleetX performance benefits.
 
-For more performance see
-* [GPT]()
-* [ERNIE]()
-* [ViT]()
-* [Imagen]()
 
 ## Industrial Application
 Coming soon.
