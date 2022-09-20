@@ -1,3 +1,4 @@
+
 #! /bin/bash
 
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
@@ -14,10 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-log_dir=log_auto
-rm -rf $log_dir
 
-# 1.3B+dp8 run_pretrain
-python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
-    ./tools/auto.py \
-    -c ./ppfleetx/configs/nlp/gpt/auto/pretrain_gpt_1.3B_dp8.yaml
+export CUDA_VISIBLE_DEVICES=0
+python ./tools/auto.py -c ./ppfleetx/configs/nlp/gpt/auto/pretrain_gpt_1.3B_single_card.yaml 

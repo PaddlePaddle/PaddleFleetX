@@ -27,6 +27,7 @@ from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 from paddle.profiler import SummaryView
 
+from ppfleetx.optims import build_lr_scheduler, build_optimizer
 from ppfleetx.utils.log import logger
 from ppfleetx.core.engine import BasicEngine, InferenceEngine
 from ppfleetx.core.module import BasicModule
@@ -166,8 +167,12 @@ class EagerEngine(BasicEngine):
         else:
             self._scaler = None
 
-        self._optimizer = optimizer if mode == 'train' else None
-        self._lr_scheduler = lr if mode == 'train' else None
+        self._lr_scheduler = build_lr_scheduler(
+            configs.Optimizer.lr) if mode == 'train' else None
+
+        self._optimizer = build_optimizer(
+            configs.Optimizer, self._module.model,
+            self._lr_scheduler) if mode == 'train' else None
 
         # distributed configs
         self._distributed = (dist.get_world_size() > 1)
