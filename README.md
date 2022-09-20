@@ -51,7 +51,7 @@ Check out the [quick start](./docs/quick_start.md#2-模型训练) for training e
 ## Tutorials
 
 * [Quick Start](./docs/quick_start.md)
-* [How to Training]
+* How to Training
   * [GPT](projects/gpt/docs/README.md)
   * [VIT](projects/vit/README.md)
   * [Imagen](projects/imagen/)
