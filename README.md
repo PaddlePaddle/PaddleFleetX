@@ -58,7 +58,7 @@ Check out the [quick start](./docs/quick_start.md#2-模型训练) for training e
   * [Imagen](projects/imagen/)
   * [Ernie](projects/ernie/)
 * [How to Finetune]()
-* [How to Inference]()
+* [How to Inference](./docs/inference.md)
 * [How to Develop by Yourself](./docs/standard.md)
 * [Cluster Deployment](./docs/cluster_deployment.md)
 * [Deployment FAQ](./docs/deployment_faq.md)
