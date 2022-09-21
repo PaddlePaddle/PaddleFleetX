@@ -32,7 +32,6 @@ PaddleFleetX旨在打造一套简单易用、性能领先、且功能强大的�
 ### 环境说明
 
 * PaddleFleetX 依赖 GPU 版本的 [PaddlePaddle](https://www.paddlepaddle.org.cn/) ，请在使用前确保 PaddlePaddle 已经正确安装。
-* PaddleFleetX 的功能依赖 GPU，推荐使用 NVIDIA V100 或更高性能的 GPU。
 * 其他的 PyPI 依赖参见 `requirements.txt`。
 
 ### 安装 PyPI 依赖
