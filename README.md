@@ -55,11 +55,11 @@ git clone https://github.com/PaddlePaddle/PaddleFleetX.git
 
 ## 性能
 
-相对于业界主流套件Megatron-LM，PaddleFleetX可以达到更高的训练吞吐。下表列出了在同等模型规模下，PaddleFleetX与Megatron-LM<sup>*</sup>的性能对比。
+相对于业界主流套件Megatron-LM，PaddleFleetX可以达到更高的训练吞吐。下表列出了在同等模型规模下，在一台拥有八张A100-SXM4-40GB GPU的服务器上，PaddleFleetX与Megatron-LM<sup>*</sup>的性能对比。
 
 <img src="./docs/images/throughput_compare.png">
 
-<font size=2>**Megatron-LM commit id: 0bb597b42c53355a567aba2a1357cc34b9d99ddd*</font>
+*<font size=2>*Megatron-LM commit id: 0bb597b42c53355a567aba2a1357cc34b9d99ddd (Commits on Jul 21, 2022)</font>*
 
 
 ## 工业级应用
