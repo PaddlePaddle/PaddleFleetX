@@ -1441,11 +1441,7 @@ class Unet(nn.Layer):
 
         for pre_downsample, init_block, resnet_blocks, attn_block, post_downsample in self.downs:
             if exists(pre_downsample):
-                if use_recompute:
-                    x = recompute(pre_downsample, x)
-                else:
-                    x = pre_downsample(x)
-                
+                x = pre_downsample(x)
 
             if use_recompute:
                 x = recompute(init_block, x, t, c)     
@@ -1453,10 +1449,7 @@ class Unet(nn.Layer):
                 x = init_block(x, t, c)
 
             for resnet_block in resnet_blocks:
-                if use_recompute:
-                    x = recompute(resnet_block, x, t)
-                else:
-                    x = resnet_block(x, t)
+                x = resnet_block(x, t)
                 hiddens.append(x)
 
             if use_recompute:
@@ -1466,17 +1459,20 @@ class Unet(nn.Layer):
             hiddens.append(x)
 
             if exists(post_downsample):
-                if use_recompute:
-                    x = recompute(post_downsample, x)
-                else:
-                    x = post_downsample(x)
+                x = post_downsample(x)
 
-        x = self.mid_block1(x, t, c)
+        if use_recompute:
+            x = recompute(self.mid_block1, x, t, c)
+        else:
+            x = self.mid_block1(x, t, c)
 
         if exists(self.mid_attn):
             x = self.mid_attn(x)
 
-        x = self.mid_block2(x, t, c)
+        if use_recompute:
+            x = recompute(self.mid_block2, x, t, c)
+        else:
+            x = self.mid_block2(x, t, c)
 
         add_skip_connection = lambda x: paddle.concat((x, hiddens.pop() * self.skip_connect_scale), axis=1)
 
@@ -1491,20 +1487,14 @@ class Unet(nn.Layer):
 
             for resnet_block in resnet_blocks:
                 x = add_skip_connection(x)
-                if use_recompute:
-                    x = recompute(resnet_block, x, t)
-                else:
-                    x = resnet_block(x, t)
+                x = resnet_block(x, t)
 
             if use_recompute:
                 x = recompute(attn_block, x, c)
             else:
                 x = attn_block(x, c)
             up_hiddens.append(x)
-            if use_recompute:
-                x = recompute(upsample, x)
-            else:
-                x = upsample(x)
+            x = upsample(x)
 
         x = self.upsample_combiner(x, up_hiddens)
 

@@ -162,7 +162,7 @@ class EagerEngine(BasicEngine):
             # Save dtype is the same as model dtype. Also can set save_dtype='float32' when 
             # training with pure fp16 strategy, but will cause the rise of memory.
             self._module.model = paddle.amp.decorate(
-                models=self._module.model, level='O2')
+                models=self._module.model, level='O2', dtype='bfloat16')
         else:
             self._scaler = None
 
@@ -382,6 +382,8 @@ class EagerEngine(BasicEngine):
 
     def _fit_impl(self, batch, step):
         batch = self._module.pretreating_batch(batch)
+        with paddle.no_grad():
+            batch = [paddle.cast(t, dtype=paddle.bfloat16) if t.dtype == paddle.float32 else t for t in batch]
         if self._pp_degree == 1:
             update_parameters = (step != 0 and step % self._accumulate_steps == 0)
             if self._use_recompute and isinstance(self._module.model,
@@ -397,7 +399,8 @@ class EagerEngine(BasicEngine):
                         all_reduce_parameters(self._optimizer.all_fused_tensors,
                                             self._dp_group)
             else:
-                if update_parameters:
+                if update_parameters or not isinstance(self._module.model,
+                                                  paddle.DataParallel):
                     loss = self._model_forward_backward(batch)
                 else:
                     with self._module.model.no_sync():
@@ -409,7 +412,8 @@ class EagerEngine(BasicEngine):
                     self._use_pure_fp16,
                     custom_black_list=self._custom_black_list,
                     custom_white_list=self._custom_white_list,
-                    level='O2'):
+                    level='O2',
+                    dtype='bfloat16'):
                 loss = self._module.model.train_batch(
                     batch,
                     optimizer=self._optimizer,
@@ -422,7 +426,8 @@ class EagerEngine(BasicEngine):
                 self._use_pure_fp16,
                 custom_black_list=self._custom_black_list,
                 custom_white_list=self._custom_white_list,
-                level='O2'):
+                level='O2',
+                dtype='bfloat16'):
             loss = self._module.training_step(batch)
 
         loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss

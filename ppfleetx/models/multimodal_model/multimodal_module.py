@@ -76,7 +76,7 @@ class MultiModalModule(BasicModule):
         return loss
 
     def test_step_end(self, log_dict):
-        speed = self.configs.Engine.logging_freq / log_dict['test_cost']
+        speed = 1.0 / log_dict['test_cost']
         logger.info(
             "[test] epoch: %d, batch: %d, loss: %.9f, avg_test_cost: %.5f sec, speed: %.2f step/s"
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
