@@ -277,7 +277,7 @@ master_port=可用的空闲端口号
 log_dir=log_sharding16
 python -m paddle.distributed.launch --log_dir $log_dir \
     --master=$master_ip:$master_port --nnodes=2 --devices "0,1,2,3,4,5,6,7" \
-    ./tools/auto.py -c ./ppfleetx/configs/nlp/gp/auto/pretrain_gpt_6.7B_sharding16.yaml
+    ./tools/auto.py -c ./ppfleetx/configs/nlp/gpt/auto/pretrain_gpt_6.7B_sharding16.yaml
 ```
 
 若要在显存容量更小的16G V100环境下进行GPT模型两机训练，也可通过减小`Model.hidden_size`调整模型规模至合适大小再启动训练，命令如下：
@@ -289,6 +289,6 @@ master_port=可用的空闲端口号
 log_dir=log_sharding16
 python -m paddle.distributed.launch --log_dir $log_dir \
     --master=$master_ip:$master_port --nnodes=2 --devices "0,1,2,3,4,5,6,7" \
-    ./tools/auto.py -c ./ppfleetx/configs/nlp/gp/auto/pretrain_gpt_6.7B_sharding16.yaml \
+    ./tools/auto.py -c ./ppfleetx/configs/nlp/gpt/auto/pretrain_gpt_6.7B_sharding16.yaml \
     -o Model.hidden_size=2048
 ```
