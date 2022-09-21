@@ -22,31 +22,6 @@ PaddleFleetX旨在打造一套简单易用、性能领先、且功能强大的�
 
 **更新 (2022-09-21):** PaddleFleetX 发布 v0.1 版本.
 
-
-## 安装
-
-我们推荐从[预编译docker镜像](docs/quick_start.md#11-docker-环境部署)开始使用 PaddleFleetX，其中已经安装好了所有环境依赖。
-
-如果您倾向根据自己的喜好安装环境，请根据以下的安装指导进行安装。
-
-### 环境说明
-
-* PaddleFleetX 依赖 GPU 版本的 [PaddlePaddle](https://www.paddlepaddle.org.cn/) ，请在使用前确保 PaddlePaddle 已经正确安装。
-* 其他的 PyPI 依赖参见 `requirements.txt`。
-
-### 安装 PyPI 依赖
-
-请使用以下命令获取 PaddleFleetX 代码和安装依赖：
-
-```shell
-git clone https://github.com/PaddlePaddle/PaddleFleetX.git
-
-cd PaddleFleetX
-python -m pip  install -r requirements.txt
-```
-
-通过 [模型训练](./docs/quick_start.md#2-模型训练) 快速体验 PaddleFleetX 以及熟悉使用。
-
 ## 教程
 
 * [快速开始](./docs/quick_start.md)
@@ -61,8 +36,22 @@ python -m pip  install -r requirements.txt
 * [部署常见问题](./docs/deployment_faq.md)
 
 
+## 安装
+
+首先，您需要准备 PaddleFleetX 所需的运行环境。我们强烈推荐您使用 Docker 的方式来安装环境 ，具体安装方式请参考[Docker环境部署](docs/quick_start.md#11-docker-环境部署)。其他安装方式如裸机安装，请参考[裸机部署](docs/quick_start.md#12-裸机部署)。
+
+环境安装完成后，您可以使用以下命令将 PaddleFleetX 下载到本地，然后根据实际需要、参考[教程](#教程)运行相应的模型代码。
+
+```shell
+git clone https://github.com/PaddlePaddle/PaddleFleetX.git
+```
+
+
 ## 模型库
 
+| **模型** | **参数量** | **预训练文件** |
+|---------|-----------|---------------|
+| GPT | 345M |  [GPT_345M](http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz)  |
 
 ## 性能
 
