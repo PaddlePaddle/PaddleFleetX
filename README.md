@@ -38,7 +38,7 @@ PaddleFleetX旨在打造一套简单易用、性能领先、且功能强大的�
 
 ## 安装
 
-首先，您需要准备 PaddleFleetX 所需的运行环境。我们强烈推荐您使用 Docker 的方式来安装环境 ，具体安装方式请参考 [Docker 环境部署](docs/quick_start.md#11-docker-环境部署)。其他安装方式如裸机安装，请参考 [裸机部署](docs/quick_start.md#12-裸机部署)。
+首先，您需要准备 PaddleFleetX 所需的运行环境。我们强烈推荐您使用 Docker 的方式来安装环境 ，具体安装方式请参考[Docker环境部署](docs/quick_start.md#11-docker-环境部署)。其他安装方式如裸机安装，请参考[裸机部署](docs/quick_start.md#12-裸机部署)。
 
 环境安装完成后，您可以使用以下命令将 PaddleFleetX 下载到本地，然后根据实际需要、参考[教程](#教程)运行相应的模型代码。
 
