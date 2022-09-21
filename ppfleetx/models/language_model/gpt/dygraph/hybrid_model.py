@@ -907,11 +907,6 @@ class GPTForPretrainingPipe(PipelineLayer):
 
         if no_recompute_layers is None:
             no_recompute_layers = []
-        else:
-            # TODO: support this is pp_layer
-            if recompute_granularity == 'full':
-                assert len(no_recompute_layers) == 0, \
-                    "for pp with full recompute, no_recompute_layers is not support"
 
         assert sequence_parallel is False, "Sequence parallel strategy \
                     is not supported in GPTForPretrainingPipe model now."
@@ -982,7 +977,8 @@ class GPTForPretrainingPipe(PipelineLayer):
             recompute_ctx={
                 "mp_group": fleet.fleet._hcg.get_model_parallel_group(),
                 "offload": False,
-                "partition": False
+                "partition": False,
+                "no_recompute_layers": no_recompute_layers
             },
             num_virtual_pipeline_stages=virtual_pp_degree)
 
