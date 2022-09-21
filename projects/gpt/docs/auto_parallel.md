@@ -224,6 +224,18 @@ GPT训练默认使用AdamW优化器以及cosine学习率衰减，这里通过配
 | sharding stage3 | ✓             | ✓               | ✓                 | ✓         | ✓         |
 
 
+### 单卡训练
+
+以单机1.3B模型训练为例，该gpt程序需要单卡32G V100以运行
+
+**启动命令**
+```shell
+cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
+
+export FLAGS_USE_STANDALONE_EXECUTOR=False # 设置执行器环境变量
+python ./tools/auto.py -c ./ppfleetx/configs/nlp/gpt/auto/pretrain_gpt_1.3B_single_card.yaml
+```
+
 ### 单机训练
 
 以单机1.3B模型数据并行训练为例，通过``paddle.distributed.launch``启动多进程训练，该gpt程序需要8卡32G V100以运行。
@@ -277,7 +289,7 @@ master_port=可用的空闲端口号
 log_dir=log_sharding16
 python -m paddle.distributed.launch --log_dir $log_dir \
     --master=$master_ip:$master_port --nnodes=2 --devices "0,1,2,3,4,5,6,7" \
-    ./tools/auto.py -c ./ppfleetx/configs/nlp/gp/auto/pretrain_gpt_6.7B_sharding16.yaml
+    ./tools/auto.py -c ./ppfleetx/configs/nlp/gpt/auto/pretrain_gpt_6.7B_sharding16.yaml
 ```
 
 若要在显存容量更小的16G V100环境下进行GPT模型两机训练，也可通过减小`Model.hidden_size`调整模型规模至合适大小再启动训练，命令如下：
@@ -289,6 +301,6 @@ master_port=可用的空闲端口号
 log_dir=log_sharding16
 python -m paddle.distributed.launch --log_dir $log_dir \
     --master=$master_ip:$master_port --nnodes=2 --devices "0,1,2,3,4,5,6,7" \
-    ./tools/auto.py -c ./ppfleetx/configs/nlp/gp/auto/pretrain_gpt_6.7B_sharding16.yaml \
+    ./tools/auto.py -c ./ppfleetx/configs/nlp/gpt/auto/pretrain_gpt_6.7B_sharding16.yaml \
     -o Model.hidden_size=2048
 ```
