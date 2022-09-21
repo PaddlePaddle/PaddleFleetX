@@ -93,16 +93,16 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
 **运行日志**
 
 ```
-[2022/09/16 09:34:38] ppfleetx INFO: [train] epoch: 0, batch: 0, loss: 10.999595642, avg_batch_cost: 3.50859 sec, speed: 0.29 step/s, ips_total: 2335 tokens/s, ips: 2335 tokens/s, learning rate: 2.77778e-08
-[2022/09/16 09:34:39] ppfleetx INFO: [train] epoch: 0, batch: 1, loss: 10.997043610, avg_batch_cost: 0.66441 sec, speed: 1.51 step/s, ips_total: 12330 tokens/s, ips: 12330 tokens/s, learning rate: 4.16667e-08
-[2022/09/16 09:34:39] ppfleetx INFO: [train] epoch: 0, batch: 2, loss: 10.994422913, avg_batch_cost: 0.66781 sec, speed: 1.50 step/s, ips_total: 12267 tokens/s, ips: 12267 tokens/s, learning rate: 5.55556e-08
-[2022/09/16 09:34:40] ppfleetx INFO: [train] epoch: 0, batch: 3, loss: 11.005314827, avg_batch_cost: 0.66650 sec, speed: 1.50 step/s, ips_total: 12291 tokens/s, ips: 12291 tokens/s, learning rate: 6.94444e-08
-[2022/09/16 09:34:41] ppfleetx INFO: [train] epoch: 0, batch: 4, loss: 10.988011360, avg_batch_cost: 0.66635 sec, speed: 1.50 step/s, ips_total: 12294 tokens/s, ips: 12294 tokens/s, learning rate: 8.33333e-08
-[2022/09/16 09:34:41] ppfleetx INFO: [train] epoch: 0, batch: 5, loss: 10.982966423, avg_batch_cost: 0.66437 sec, speed: 1.51 step/s, ips_total: 12330 tokens/s, ips: 12330 tokens/s, learning rate: 9.72222e-08
-[2022/09/16 09:34:42] ppfleetx INFO: [train] epoch: 0, batch: 6, loss: 10.988498688, avg_batch_cost: 0.66345 sec, speed: 1.51 step/s, ips_total: 12348 tokens/s, ips: 12348 tokens/s, learning rate: 1.11111e-07
-[2022/09/16 09:34:43] ppfleetx INFO: [train] epoch: 0, batch: 7, loss: 10.966865540, avg_batch_cost: 0.66505 sec, speed: 1.50 step/s, ips_total: 12318 tokens/s, ips: 12318 tokens/s, learning rate: 1.25000e-07
-[2022/09/16 09:34:43] ppfleetx INFO: [train] epoch: 0, batch: 8, loss: 10.980158806, avg_batch_cost: 0.66787 sec, speed: 1.50 step/s, ips_total: 12266 tokens/s, ips: 12266 tokens/s, learning rate: 1.38889e-07
-[2022/09/16 09:34:44] ppfleetx INFO: [train] epoch: 0, batch: 9, loss: 10.966165543, avg_batch_cost: 0.66881 sec, speed: 1.50 step/s, ips_total: 12249 tokens/s, ips: 12249 tokens/s, learning rate: 1.52778e-07
+[2022-09-21 05:43:58,797] [    INFO] - [train] epoch: 0, batch: 0, loss: 10.992407799, avg_batch_cost: 5.51734 sec, speed: 0.18 step/s, ips_total: 11878 tokens/s, ips: 1485 tokens/s, learning rate: 2.77778e-08
+[2022-09-21 05:43:59,508] [    INFO] - [train] epoch: 0, batch: 1, loss: 11.000075340, avg_batch_cost: 0.71029 sec, speed: 1.41 step/s, ips_total: 92267 tokens/s, ips: 11533 tokens/s, learning rate: 4.16667e-08
+[2022-09-21 05:44:00,242] [    INFO] - [train] epoch: 0, batch: 2, loss: 11.017463684, avg_batch_cost: 0.73301 sec, speed: 1.36 step/s, ips_total: 89406 tokens/s, ips: 11176 tokens/s, learning rate: 5.55556e-08
+[2022-09-21 05:44:00,965] [    INFO] - [train] epoch: 0, batch: 3, loss: 10.983654976, avg_batch_cost: 0.72319 sec, speed: 1.38 step/s, ips_total: 90620 tokens/s, ips: 11328 tokens/s, learning rate: 6.94444e-08
+[2022-09-21 05:44:01,678] [    INFO] - [train] epoch: 0, batch: 4, loss: 11.014451981, avg_batch_cost: 0.71223 sec, speed: 1.40 step/s, ips_total: 92016 tokens/s, ips: 11502 tokens/s, learning rate: 8.33333e-08
+[2022-09-21 05:44:02,385] [    INFO] - [train] epoch: 0, batch: 5, loss: 11.005180359, avg_batch_cost: 0.70707 sec, speed: 1.41 step/s, ips_total: 92687 tokens/s, ips: 11586 tokens/s, learning rate: 9.72222e-08
+[2022-09-21 05:44:03,100] [    INFO] - [train] epoch: 0, batch: 6, loss: 10.989698410, avg_batch_cost: 0.71402 sec, speed: 1.40 step/s, ips_total: 91785 tokens/s, ips: 11473 tokens/s, learning rate: 1.11111e-07
+[2022-09-21 05:44:03,806] [    INFO] - [train] epoch: 0, batch: 7, loss: 10.992337227, avg_batch_cost: 0.70554 sec, speed: 1.42 step/s, ips_total: 92888 tokens/s, ips: 11611 tokens/s, learning rate: 1.25000e-07
+[2022-09-21 05:44:04,516] [    INFO] - [train] epoch: 0, batch: 8, loss: 10.972790718, avg_batch_cost: 0.71011 sec, speed: 1.41 step/s, ips_total: 92290 tokens/s, ips: 11536 tokens/s, learning rate: 1.38889e-07
+[2022-09-21 05:44:05,228] [    INFO] - [train] epoch: 0, batch: 9, loss: 10.983499527, avg_batch_cost: 0.71128 sec, speed: 1.41 step/s, ips_total: 92138 tokens/s, ips: 11517 tokens/s, learning rate: 1.52778e-07
 ```
 
 ### 多机训练
@@ -287,8 +287,8 @@ python -m paddle.distributed.launch --devices "0" tools/export.py \
 导出脚本输出如下：
 
 ```bash
-[2022/09/16 09:41:06] ppfleetx INFO: disable use_pure_fp16 in export mode
-[2022/09/16 09:41:07] ppfleetx INFO: export inference model saved in ./output/rank_0
+[2022-09-21 05:25:28,662] [    INFO] - disable use_pure_fp16 in export mode
+[2022-09-21 05:25:28,662] [    INFO] - export inference model saved in ./output/rank_0
 ```
 
 #### 预测部署

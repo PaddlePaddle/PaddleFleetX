@@ -3,7 +3,10 @@
 ## 模型介绍
 GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)/[3](https://arxiv.org/pdf/2005.14165.pdf) 是以[Transformer](https://arxiv.org/abs/1706.03762) 解码器为网络基本组件，使用自回归的方式在大规模无标注文本语料上进行预训练得到的语言生成模型。
 
-本项目是语言模型 GPT 的 PaddlePaddle 大模型实现。下是本例的简要目录结构及说明：
+本项目是语言模型 GPT 的 PaddlePaddle 大模型实现。目前，PaddleFleetX 提供了 [GPT-345M](http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz) 的预训练模型文件；基于[LAMBADA](https://raw.githubusercontent.com/cybertronai/bflm/master/lambada_test.jsonl)数据集，采用ACC(accuracy)指标后评估结果为 44.17% 。
+
+
+下面是本例的简要目录结构及说明：
 
 ```text
 .
