@@ -89,13 +89,13 @@ python tools/train.py \
 cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 mkdir -p ckpt
-wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
-tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
+wget -O ckpt/GPT_345M.tar.gz https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz
+tar -xzf ckpt/GPT_345M.tar.gz -C ckpt/
 
 wget -O wikitext-103-v1.zip https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-103-v1.zip
 unzip -q wikitext-103-v1.zip
 
-ckpt_dir=ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00/
+ckpt_dir=ckpt/PaddleFleetX_GPT_345M_220826//
 eval_dir=./wikitext-103
 
 python tools/eval.py -c ppfleetx/configs/nlp/gpt/eval_gpt_345M_single_card.yaml \
@@ -126,12 +126,12 @@ python tools/eval.py -c ppfleetx/configs/nlp/gpt/eval_gpt_345M_single_card.yaml 
 cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 mkdir -p ckpt
-wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
-tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
+wget -O ckpt/GPT_345M.tar.gz https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz
+tar -xzf ckpt/GPT_345M.tar.gz -C ckpt/
 
 wget -O lambada_test.jsonl https://raw.githubusercontent.com/cybertronai/bflm/master/lambada_test.jsonl
 
-ckpt_dir=ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00/
+ckpt_dir=ckpt/PaddleFleetX_GPT_345M_220826//
 
 python tools/eval.py -c ppfleetx/configs/nlp/gpt/eval_gpt_345M_single_card.yaml \
     -o Engine.save_load.ckpt_dir=$ckpt_dir \
@@ -194,12 +194,12 @@ python tools/eval.py -c ppfleetx/configs/nlp/gpt/eval_gpt_345M_single_card.yaml 
 cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 mkdir -p ckpt
-wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
-tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
+wget -O ckpt/GPT_345M.tar.gz https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz
+tar -xzf ckpt/GPT_345M.tar.gz -C ckpt/
 
 python tasks/gpt/generation.py \
     -c ppfleetx/configs/nlp/gpt/generation_gpt_345M_single_card.yaml \
-    -o Engine.save_load.ckpt_dir=./ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00
+    -o Engine.save_load.ckpt_dir=./ckpt/PaddleFleetX_GPT_345M_220826/
 
 # 生成的文本，由于 checkpoint 不同，超参不同，随机数不同，您执行可能会生成不一样的内容
 
@@ -268,8 +268,8 @@ I think that we are going to become a very important player in the logistics ind
 cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 mkdir -p ckpt
-wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
-tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
+wget -O ckpt/GPT_345M.tar.gz https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz
+tar -xzf ckpt/GPT_345M.tar.gz -C ckpt/
 ```
 
 2. 导出预测模型
@@ -277,7 +277,7 @@ tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
 ```bash
 python tools/export.py \
     -c ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml \
-    -o Engine.save_load.ckpt_dir=./ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00
+    -o Engine.save_load.ckpt_dir=./ckpt/PaddleFleetX_GPT_345M_220826/
 ```
 
 导出的模型默认保存在`./output`目录，可通过配置文件中`Engine.save_load.output_dir`或通过`-o Engine.save_load.output_dir=`指定
