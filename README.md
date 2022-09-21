@@ -59,7 +59,7 @@ git clone https://github.com/PaddlePaddle/PaddleFleetX.git
 
 <img src="./docs/images/throughput_compare.png">
 
-*<font size=2>*Megatron-LM commit id: 0bb597b42c53355a567aba2a1357cc34b9d99ddd (Commits on Jul 21, 2022)</font>*
+*<font size=2>*Megatron-LM commit id: 0bb597b42c53355a567aba2a1357cc34b9d99ddd (Commit on Jul 21, 2022)</font>*
 
 
 ## 工业级应用
