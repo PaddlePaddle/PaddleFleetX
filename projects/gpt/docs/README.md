@@ -184,7 +184,7 @@ Engine训练设置完成模型训练/验证/推理等过程中的参数设置，
 | initializer_range            | 参数初始化的范围               |
 | use_recompute     | 是否使用recompute训练                      |
 | recompute_granularity | recompute训练的粒度，可选 `full` `full_attn` `core_attn`，full即recompute全部transformer，full_attn表明只recompute所有self attention部分，core_attn表明只recompute `softmax(qkT)v` 部分。注：显存占用方面，`core_attn` > `full_attn` > `full`，若所选策略产生OOM错误，可以适当更改recompute_granularity |
-|no_recompute_layers| list of integer，标识哪些层的transformer不需要进行recompute。所有在该list中的值应该 >= 0 同时应该 < num_layers ｜
+|no_recompute_layers| list of integer，标识哪些层的transformer不需要进行recompute。所有在该list中的值应该 >= 0 同时应该 < num_layers。向该参数中增加不进行recompute 的层数可以提升模型训练的整体吞吐，但是会适当的增加显存。若训练中发现有显存富裕，可以适当增加不进行recompute的层数。如果使用该参数后出现OOM错误，可以适当减小不进行recompute的层数。 ｜
 | fused_linear      | 是否使用fused_linear代替传统Linear加速训练。注：该功能需要cuda 11.6及以上编译的paddle支持。       |
 | virtual_pp_degree | 虚拟流水线并行维度，该参数会减小流水线bubble的占比以提升流水线的吞吐。但是该参数会增加流水线间的通讯，所以该参数的推荐值为2。并且，只有 num_layers可以被 pp_degree * virtual_pp_degree 整除时，才可以使用虚拟流水线并行。 |
 ### 数据集
