@@ -27,7 +27,7 @@ PaddleFleetX旨在打造一套简单易用、性能领先、且功能强大的�
 * [快速开始](./docs/quick_start.md)
 * 训练
   * [GPT](projects/gpt/docs/README.md)
-  * [VIT](projects/vit/README.md)
+  * [VIT](projects/vit/)
   * [Imagen](projects/imagen/)
   * [Ernie](projects/ernie/)
 * [推理](./docs/inference.md)
@@ -51,7 +51,7 @@ git clone https://github.com/PaddlePaddle/PaddleFleetX.git
 
 | **模型** | **参数量** | **预训练文件** |
 |---------|-----------|---------------|
-| GPT | 345M |  [GPT_345M](http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz)  |
+| GPT | 345M |  [GPT_345M](https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz)  |
 
 ## 性能
 
