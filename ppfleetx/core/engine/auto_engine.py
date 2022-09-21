@@ -28,13 +28,14 @@ from ppfleetx.core.engine import BasicEngine
 from ppfleetx.core.module import BasicModule
 from ppfleetx.utils.version import version_check
 from ppfleetx.data import utils
+from ppfleetx.optims import build_lr_scheduler, build_optimizer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 class AutoEngine(BasicEngine):
-    def __init__(self, configs, module, optimizer=None, lr=None, mode='train'):
+    def __init__(self, configs, module, mode='train'):
         super().__init__()
         version_check()
 
@@ -75,8 +76,13 @@ class AutoEngine(BasicEngine):
         # engine fit inputs
         self.batch_size = configs['Global']['global_batch_size']
 
+        # lr_scheduler and optimizer
+        lr = build_lr_scheduler(
+            configs.Optimizer.lr) if mode == "train" else None
+        optimizer = build_optimizer(configs.Optimizer, module.model,
+                                    lr) if mode == "train" else None
+
         # init engine
-        optimizer = optimizer if mode == 'train' else None
         self._auto_engine = auto.Engine(
             module.model, module.loss_fn, optimizer, strategy=self._strategy)
 
