@@ -908,6 +908,7 @@ class GPTForPretrainingPipe(PipelineLayer):
         if no_recompute_layers is None:
             no_recompute_layers = []
         else:
+            # TODO: support this is pp_layer
             if recompute_granularity == 'full':
                 assert len(no_recompute_layers) == 0, \
                     "for pp with full recompute, no_recompute_layers is not support"
