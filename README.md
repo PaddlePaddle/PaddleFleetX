@@ -55,6 +55,15 @@ git clone https://github.com/PaddlePaddle/PaddleFleetX.git
 
 ## 性能
 
+DeepSpeed Example Repo: https://github.com/microsoft/Megatron-DeepSpeed
+
+DeepSpeed Example Commit: 5e0f373ca512e5d23aab858645860d1f6667a4d1
+
+DeepSpeed version: 0.7.3
+
+DeepSpeed Speed: 1 tokens/s
+
+PaddleFleetx Speed: 2 tokens/s
 
 
 ## 工业级应用
