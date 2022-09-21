@@ -17,4 +17,34 @@
 
 
 export CUDA_VISIBLE_DEVICES=0
-python ./tools/train.py -c ./ppfleetx/configs/nlp/gpt/finetune_gpt_345M_single_card_glue.yaml
+
+if [ $1 == "MNLI" ]
+then
+    python ./tools/train.py -c ./ppfleetx/configs/nlp/gpt/finetune_gpt_345M_single_card_glue.yaml \
+      -o Data.Train.dataset.name=MNLI \
+      -o Data.Train.dataset.root=./dataset/multinli_1.0 \
+      -o Data.Eval.dataset.name=MNLI \
+      -o Data.Eval.dataset.root=./dataset/multinli_1.0 \
+      -o Data.Eval.dataset.split=dev_matched \
+      -o Model.num_classes=3
+elif [ $1 == "SST2" ]
+then
+    python ./tools/train.py -c ./ppfleetx/configs/nlp/gpt/finetune_gpt_345M_single_card_glue.yaml \
+      -o Data.Train.dataset.name=SST2 \
+      -o Data.Train.dataset.root=./dataset/SST-2/ \
+      -o Data.Eval.dataset.name=SST2 \
+      -o Data.Eval.dataset.root=./dataset/SST-2/ \
+      -o Data.Eval.dataset.split=dev \
+      -o Model.num_classes=2
+elif [ $1 == "CoLA" ]
+then
+    python ./tools/train.py -c ./ppfleetx/configs/nlp/gpt/finetune_gpt_345M_single_card_glue.yaml \
+      -o Data.Train.dataset.name=CoLA \
+      -o Data.Train.dataset.root=./dataset/cola_public/ \
+      -o Data.Eval.dataset.name=CoLA \
+      -o Data.Eval.dataset.root=./dataset/cola_public/ \
+      -o Data.Eval.dataset.split=dev \
+      -o Model.num_classes=2
+else
+   echo "Task name not recognized, please input MNLI, SST2, CoLA."
+fi

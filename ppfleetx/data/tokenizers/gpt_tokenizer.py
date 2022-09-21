@@ -20,6 +20,7 @@ from __future__ import (absolute_import, division, print_function,
 import sys
 import json
 import logging
+import warnings
 import os
 import regex as re
 from io import open
@@ -225,6 +226,10 @@ class GPTTokenizer(object):
                  return_overflowing_tokens=False,
                  return_length=False):
         assert padding in [True, False, "longest", "max_length", "do_not_pad"]
+
+        if max_length is not None and padding is False and truncation is False:
+            truncation = "longest_first"
+
         if padding is True:
             padding = "longest"
         elif padding is False:
@@ -424,7 +429,7 @@ class GPTTokenizer(object):
                     )
                 logger.error(error_msg)
         elif truncation == "longest_first":
-            logger.warning(
+            warnings.warn(
                 "Be aware, overflowing tokens are not returned for the setting you have chosen,"
                 f" i.e. sequence pairs with the '{truncation}' "
                 "truncation strategy. So the returned list will always be empty even if some "
@@ -698,7 +703,7 @@ class GPTTokenizer(object):
             else:
                 ids.append(self.encoder.get(token, 0))
         if len(ids) > self.max_len:
-            logger.warning(
+            warnings.warn(
                 "Token indices sequence length is longer than the specified maximum "
                 " sequence length for this OpenAI GPT model ({} > {}). Running this"
                 " sequence through the model will result in indexing errors".
@@ -768,7 +773,7 @@ class GPTTokenizer(object):
             for bpe_tokens, token_index in sorted(
                     self.bpe_ranks.items(), key=lambda kv: kv[1]):
                 if index != token_index:
-                    logger.warning(
+                    warnings.warn(
                         "Saving vocabulary to {}: BPE merge indices are not consecutive."
                         " Please check that the tokenizer is not corrupted!".
                         format(merge_file))
@@ -781,7 +786,7 @@ class GPTTokenizer(object):
             for token, token_index in sorted(
                     self.special_tokens.items(), key=lambda kv: kv[1]):
                 if index != token_index:
-                    logger.warning(
+                    warnings.warn(
                         "Saving special tokens vocabulary to {}: BPE indices are not consecutive."
                         " Please check that the tokenizer is not corrupted!".
                         format(special_tokens_file))

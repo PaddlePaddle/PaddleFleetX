@@ -194,6 +194,7 @@ class GPTFinetuneModule(BasicModule):
         model_setting.pop("name")
 
         pretrained = model_setting.pop("pretrained")
+        num_classes = model_setting.pop("num_classes", 2)
         assert pretrained is not None
 
         l = model_setting['num_layers']
@@ -206,7 +207,7 @@ class GPTFinetuneModule(BasicModule):
 
         if self.nranks == 1:
             model = gpt.GPTForSequenceClassification(
-                gpt.GPTModel(**model_setting))
+                gpt.GPTModel(**model_setting), num_classes)
         else:
             raise NotImplementedError
 

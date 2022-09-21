@@ -15,6 +15,8 @@
 import os
 import csv
 import zipfile
+from typing import Iterable, Callable
+
 import paddle
 from ppfleetx.utils.env import work_at_local_rank0
 
@@ -28,16 +30,40 @@ def unzip(zip_path, mode="r", out_dir=None, delete=False):
         os.remove(zip_path)
 
 
-def parse_csv(path, skip_lines=0, delimiter=' ', quotechar='|', func=None):
+def parse_csv(path,
+              skip_lines=0,
+              delimiter=' ',
+              quotechar='|',
+              quoting=csv.QUOTE_NONE,
+              map_funcs=None,
+              filter_funcs=None):
 
     with open(path, newline='') as csvfile:
         data = []
         spamreader = csv.reader(
-            csvfile, delimiter=delimiter, quotechar=quotechar)
+            csvfile, delimiter=delimiter, quotechar=quotechar, quoting=quoting)
         for idx, row in enumerate(spamreader):
             if idx < skip_lines:
                 continue
-            if func is not None:
-                row = func(row)
+            filter_flag = True
+            if filter_funcs is not None:
+                if isinstance(filter_funcs, Iterable):
+                    for func in filter_funcs:
+                        filter_flag = func(row)
+                        if filter_flag is False:
+                            break
+                else:
+                    assert isinstance(filter_funcs, Callable)
+                    filter_flag = filter_funcs(row)
+            if filter_flag is False:
+                continue
+
+            if map_funcs is not None:
+                if isinstance(map_funcs, Iterable):
+                    for func in map_funcs:
+                        row = func(row)
+                else:
+                    assert isinstance(map_funcs, Callable)
+                    row = map_funcs(row)
             data.append(row)
         return data
