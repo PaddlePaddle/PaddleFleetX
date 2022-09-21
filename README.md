@@ -55,15 +55,11 @@ git clone https://github.com/PaddlePaddle/PaddleFleetX.git
 
 ## 性能
 
-DeepSpeed Example Repo: https://github.com/microsoft/Megatron-DeepSpeed
+相对于业界主流套件Megatron-LM，PaddleFleetX可以达到更高的训练吞吐。下表列出了在同等模型规模下，PaddleFleetX与Megatron-LM<sup>*</sup>的性能对比。
 
-DeepSpeed Example Commit: 5e0f373ca512e5d23aab858645860d1f6667a4d1
+<img src="./docs/images/throughput_compare.png">
 
-DeepSpeed version: 0.7.3
-
-DeepSpeed Speed: 1 tokens/s
-
-PaddleFleetx Speed: 2 tokens/s
+<font size=2>**Megatron-LM commit id: 0bb597b42c53355a567aba2a1357cc34b9d99ddd*</font>
 
 
 ## 工业级应用
