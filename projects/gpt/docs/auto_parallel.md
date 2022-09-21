@@ -224,6 +224,18 @@ GPT训练默认使用AdamW优化器以及cosine学习率衰减，这里通过配
 | sharding stage3 | ✓             | ✓               | ✓                 | ✓         | ✓         |
 
 
+### 单卡训练
+
+以单机1.3B模型训练为例，该gpt程序需要单卡32G V100以运行
+
+**启动命令**
+```shell
+cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
+
+export FLAGS_USE_STANDALONE_EXECUTOR=False # 设置执行器环境变量
+python ./tools/auto.py -c ./ppfleetx/configs/nlp/gpt/auto/pretrain_gpt_1.3B_single_card.yaml
+```
+
 ### 单机训练
 
 以单机1.3B模型数据并行训练为例，通过``paddle.distributed.launch``启动多进程训练，该gpt程序需要8卡32G V100以运行。
