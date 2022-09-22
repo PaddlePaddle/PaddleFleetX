@@ -392,7 +392,10 @@ class TransformerDecoderLayer(nn.Layer):
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.dropout1 = nn.Dropout(dropout, mode="upscale_in_train")
         self.dropout2 = nn.Dropout(act_dropout, mode="upscale_in_train")
-        self.activation = getattr(F, activation)
+        if activation == 'gelu':
+            self.activation = nn.GELU(approximate=True)
+        else:
+            self.activation = getattr(F, activation)
 
     def forward(self, tgt, memory, tgt_mask=None, use_cache=False, cache=None):
         residual = tgt
@@ -416,9 +419,7 @@ class TransformerDecoderLayer(nn.Layer):
         residual = tgt
         if self.normalize_before:
             tgt = self.norm2(tgt)
-        tgt = self.dropout2(
-            self.linear2(F.gelu(
-                self.linear1(tgt), approximate=True)))
+        tgt = self.dropout2(self.linear2(self.activation(self.linear1(tgt))))
         tgt = residual + tgt
 
         if not self.normalize_before:
@@ -671,23 +672,9 @@ class GPTForSequenceClassification(nn.Layer):
         self.score = nn.Linear(
             self.gpt.hidden_size, num_classes, bias_attr=False)
 
-        self.apply(self.init_weights)
-
-    def init_weights(self, layer):
-        """ Initialization hook """
-        # no hook
-        return
-        if isinstance(layer, (nn.Linear, nn.Embedding)):
-            # In the dygraph mode, use the `set_value` to reset the parameter directly,
-            # and reset the `state_dict` to update parameter in static mode.
-            if isinstance(layer.weight, paddle.Tensor):
-                layer.weight.set_value(
-                    paddle.tensor.normal(
-                        mean=0.0,
-                        std=self.initializer_range
-                        if hasattr(self, "initializer_range") else
-                        self.gpt.config["initializer_range"],
-                        shape=layer.weight.shape))
+        from paddle.nn.initializer import Constant
+        zeros_ = Constant(value=0.)
+        zeros_(self.score.weight)
 
     def forward(self, input_ids, position_ids=None, attention_mask=None):
 

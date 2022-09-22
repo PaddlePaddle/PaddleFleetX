@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import sys
 import copy
 import math
+import numpy as np
 
 import paddle
 from paddle.static import InputSpec
@@ -25,6 +27,7 @@ from ppfleetx.utils import logger, env
 import paddleslim
 from .utils import process_configs
 from ppfleetx.data.tokenizers import GPTTokenizer
+from .metrics import *
 
 
 class LanguageModule(BasicModule):
@@ -181,8 +184,33 @@ class GPTFinetuneModule(BasicModule):
         self.data_world_size = env.get_data_world_size()
         super(GPTFinetuneModule, self).__init__(configs)
 
-        self.loss_fn = paddle.nn.loss.CrossEntropyLoss()
-        self.metric = paddle.metric.Accuracy()
+        # self.loss_config will be init in super class by get_model()
+        assert self.loss_config is not None
+        assert 'train' in self.loss_config
+        assert 'eval' in self.loss_config
+
+        train_loss = copy.deepcopy(self.loss_config.train)
+        train_loss_cls = train_loss.pop('name')
+        self.loss_fn = eval(f'paddle.nn.loss.{train_loss_cls}')(**train_loss)
+
+        eval_loss = copy.deepcopy(self.loss_config.eval)
+        eval_loss_cls = eval_loss.pop('name')
+        self.eval_loss_fn = eval(f'paddle.nn.loss.{eval_loss_cls}')(
+            **eval_loss)
+
+        # self.metric_config will be init in super class by get_model()
+        assert self.metric_config is not None
+        assert 'eval' in self.metric_config
+
+        if 'train' in self.metric_config:
+            train_metric = copy.deepcopy(self.metric_config.train)
+            train_metric_cls = train_metric.pop('name')
+            self.train_metric = eval(f'{train_metric_cls}')(**train_metric)
+
+        eval_metric = copy.deepcopy(self.metric_config.eval)
+        eval_metric_cls = eval_metric.pop('name')
+        self.eval_metric = eval(f'{eval_metric_cls}')(**eval_metric)
+
         self.best_metric = 0.0
 
     def process_configs(self, configs):
@@ -193,6 +221,9 @@ class GPTFinetuneModule(BasicModule):
         model_setting.pop("module")
         model_setting.pop("name")
 
+        self.metric_config = model_setting.pop("metric", None)
+        self.loss_config = model_setting.pop("loss", None)
+
         pretrained = model_setting.pop("pretrained")
         num_classes = model_setting.pop("num_classes", 2)
         assert pretrained is not None
@@ -200,6 +231,7 @@ class GPTFinetuneModule(BasicModule):
         l = model_setting['num_layers']
         h = model_setting['hidden_size']
         v = model_setting['vocab_size']
+        num_heads = model_setting['num_attention_heads']
         s = self.configs.Data.Train.dataset.max_length
         self.get_model_size(l, h, v, s)
 
@@ -212,10 +244,79 @@ class GPTFinetuneModule(BasicModule):
             raise NotImplementedError
 
         pretrained_path = pretrained + ".pdparams"
-        import os
         assert os.path.exists(
             pretrained_path), f'{pretrained_path} is not exists!'
         model_dict = paddle.load(pretrained_path)
+
+        # Note(GuoxiaWang): Guess whether to convert fused vs non-fused parameters.
+        # 'q_proj' vs 'qkv_proj'
+        def is_fused(model_state):
+            for key in model_state:
+                if 'qkv_proj' in key:
+                    return True
+            return False
+
+        def split_params(model_state, num_layers):
+            for idx in range(num_layers):
+                qkv_b = model_state.pop(
+                    f'gpt.decoder.layers.{idx}.self_attn.qkv_proj.bias')
+                qkv_w = model_state.pop(
+                    f'gpt.decoder.layers.{idx}.self_attn.qkv_proj.weight')
+
+                q_w, k_w, v_w = np.split(qkv_w, 3, axis=-1)
+                q_b, k_b, v_b = np.split(qkv_b, 3, axis=-1)
+
+                model_state[
+                    f'gpt.decoder.layers.{idx}.self_attn.q_proj.bias'] = q_b
+                model_state[
+                    f'gpt.decoder.layers.{idx}.self_attn.q_proj.weight'] = q_w
+
+                model_state[
+                    f'gpt.decoder.layers.{idx}.self_attn.k_proj.bias'] = k_b
+                model_state[
+                    f'gpt.decoder.layers.{idx}.self_attn.k_proj.weight'] = k_w
+
+                model_state[
+                    f'gpt.decoder.layers.{idx}.self_attn.v_proj.bias'] = v_b
+                model_state[
+                    f'gpt.decoder.layers.{idx}.self_attn.v_proj.weight'] = v_w
+
+            return model_state
+
+        def fuse_params(model_state, num_layers):
+            for idx in range(num_layers):
+                q_b = model_state.pop(
+                    f'gpt.decoder.layers.{idx}.self_attn.q_proj.bias')
+                q_w = model_state.pop(
+                    f'gpt.decoder.layers.{idx}.self_attn.q_proj.weight')
+
+                k_b = model_state.pop(
+                    f'gpt.decoder.layers.{idx}.self_attn.k_proj.bias')
+                k_w = model_state.pop(
+                    f'gpt.decoder.layers.{idx}.self_attn.k_proj.weight')
+
+                v_b = model_state.pop(
+                    f'gpt.decoder.layers.{idx}.self_attn.v_proj.bias')
+                v_w = model_state.pop(
+                    f'gpt.decoder.layers.{idx}.self_attn.v_proj.weight')
+
+                qkv_w = np.concatenate([q_w, k_w, v_w], axis=-1)
+                qkv_b = np.concatenate([q_b, k_b, v_b], axis=-1)
+
+                model_state[
+                    f'gpt.decoder.layers.{idx}.self_attn.qkv_proj.weight'] = qkv_w
+                model_state[
+                    f'gpt.decoder.layers.{idx}.self_attn.qkv_proj.bias'] = qkv_b
+            return model_state
+
+        fused = is_fused(model.state_dict())
+        load_fused = is_fused(model_dict)
+
+        if fused is True and load_fused is False:
+            model_dict = fuse_params(model_dict, l)
+        elif fused is False and load_fused is True:
+            model_dict = split_params(model_dict, l)
+
         model.set_state_dict(model_dict)
         logger.info(f'Load pretrained weight from {pretrained_path}')
 
@@ -253,9 +354,9 @@ class GPTFinetuneModule(BasicModule):
         labels.stop_gradient = True
 
         logits = self(input_ids)
-        loss = self.loss_fn(logits, labels)
-        correct = self.metric.compute(logits, labels)
-        self.metric.update(correct)
+        loss = self.eval_loss_fn(logits, labels)
+        correct = self.eval_metric.compute(logits, labels)
+        self.eval_metric.update(correct)
         return loss
 
     def validation_step_end(self, log_dict):
@@ -269,7 +370,7 @@ class GPTFinetuneModule(BasicModule):
         tokens, position_ids, labels, loss_mask = batch
         preds = self(tokens, position_ids)
         preds = paddle.cast(preds, dtype="float32")
-        loss = self.loss_fn(preds, labels, loss_mask)
+        loss = self.eval_loss_fn(preds, labels, loss_mask)
         return loss
 
     def test_step_end(self, log_dict):
@@ -289,15 +390,29 @@ class GPTFinetuneModule(BasicModule):
                     (log_dict['epoch'], log_dict['train_cost']))
 
     def validation_epoch_end(self, log_dict):
-        res = self.metric.accumulate()
-        self.metric.reset()
-        if res > self.best_metric:
-            self.best_metric = res
+        res = self.eval_metric.accumulate()
+        self.eval_metric.reset()
+        if isinstance(self.eval_metric, AccuracyAndF1):
+            msg = "acc: %.5f, precision: %.5f, recall: %.5f, f1: %.5f, acc and f1: %.5f" % (
+                res[0], res[1], res[2], res[3], res[4])
+            metric = res[4]
+        elif isinstance(self.eval_metric, Mcc):
+            msg = "mcc: %.5f" % (res[0])
+            metric = res[0]
+        elif isinstance(self.eval_metric, PearsonAndSpearman):
+            msg = "pearson: %.5f, spearman: %.5f, pearson and spearman: %.5f" % (
+                res[0], res[1], res[2])
+            metric = res[2]
+        else:
+            msg = "acc: %.5f" % (res)
+            metric = res
+
+        if metric > self.best_metric:
+            self.best_metric = metric
 
         logger.info(
-            "[Eval] epoch: %d, total time: %.5f sec, acc: %.5f, best_metric: %.5f"
-            %
-            (log_dict['epoch'], log_dict['eval_cost'], res, self.best_metric))
+            "[Eval] epoch: %d, total time: %.5f sec, %s, best_metric: %.5f" %
+            (log_dict['epoch'], log_dict['eval_cost'], msg, self.best_metric))
 
 
 class GPTGenerationModule(BasicModule):
