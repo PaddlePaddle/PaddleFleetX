@@ -21,7 +21,7 @@ import sys
 
 import paddle
 from paddle import is_compiled_with_cuda
-from . import logger
+from .log import logger
 
 
 def check_version():

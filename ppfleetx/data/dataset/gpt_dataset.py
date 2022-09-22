@@ -22,7 +22,8 @@ import json
 
 import paddle
 
-from ppfleetx.utils import logger, env
+from ppfleetx.utils import env
+from ppfleetx.utils.log import logger
 from ppfleetx.data.tokenizers import GPTTokenizer
 
 mode_to_index = {"Train": 0, "Eval": 1, "Test": 2}
@@ -67,11 +68,14 @@ class GPTDataset(paddle.io.Dataset):
                     print("> wait for helpers to be compiled!")
                     time.sleep(1)
 
-        data_world_size = env.get_data_world_size()
+        try:
+            data_world_size = env.get_data_world_size()
 
-        logger.info(
-            "The distributed run, total device num:{}, distinct dataflow num:{}.".
-            format(device_world_size, data_world_size))
+            logger.info(
+                "The distributed run, total device num:{}, distinct dataflow num:{}.".
+                format(device_world_size, data_world_size))
+        except AttributeError:
+            pass
 
         assert len(input_dir) == 1, "GPT only support one dataset for now."
 
@@ -138,6 +142,8 @@ class GPTDataset(paddle.io.Dataset):
         loss_mask[np.where(np.array(tokens) == self.eos_id)] = 0.0
         position_ids = np.arange(0, seq_length, dtype="int64")
 
+        labels = np.array(labels).astype("int64")
+        tokens = np.array(tokens).astype("int64")
         if self.mode == "Test":
             return [tokens, position_ids]
         else:
@@ -351,9 +357,12 @@ def construct_samples_and_shuffle_data(name, data_prefix, documents, sizes,
     # Restore random state
     np_rng.set_state(savedState)
 
-    if paddle.distributed.get_world_size() > 1:
-        if paddle.in_dynamic_mode():
-            paddle.distributed.barrier()
+    try:
+        if paddle.distributed.get_world_size() > 1:
+            if paddle.in_dynamic_mode():
+                paddle.distributed.barrier()
+    except AssertionError:
+        pass
 
     # Load mappings.
     doc_idx = np.load(doc_idx_filename, allow_pickle=True, mmap_mode='r')

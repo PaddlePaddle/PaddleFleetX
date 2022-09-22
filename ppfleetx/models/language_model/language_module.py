@@ -21,7 +21,8 @@ from paddle.static import InputSpec
 
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.language_model.gpt as gpt
-from ppfleetx.utils import logger, env
+from ppfleetx.utils import env
+from ppfleetx.utils.log import logger
 import paddleslim
 from .utils import process_configs
 from ppfleetx.data.tokenizers import GPTTokenizer
