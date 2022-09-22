@@ -40,7 +40,7 @@ def transformer_data_generator(src_vocab_fpath,
                                unk_mark="<unk>",
                                max_length=256,
                                n_head=8):
-    data_loader = fluid.io.DataLoader.from_generator(
+    data_loader = paddle.io.DataLoader.from_generator(
         feed_list=inputs, capacity=70, iterable=True)
     processor = DataProcessor(
         train_filelist=train_filelist,
