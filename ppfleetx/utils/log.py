@@ -79,7 +79,7 @@ class Logger(object):
                                                            conf['level'])
 
         self.format = colorlog.ColoredFormatter(
-            '%(log_color)s[%(asctime)-15s] [%(levelname)8s]%(reset)s - %(message)s',
+            '%(log_color)s[%(asctime)-15s] [%(levelname)s]%(reset)s - %(message)s',
             log_colors={
                 key: conf['color']
                 for key, conf in log_config.items()
@@ -156,7 +156,7 @@ def advertise():
     ==                                                       ==
     ==   For more info please go to the following website.   ==
     ==                                                       ==
-    ==       https://github.com/PaddlePaddle/PaddleClas      ==
+    ==       https://github.com/PaddlePaddle/PaddleFleetX    ==
     ===========================================================
     """
     copyright = "PaddleFleetX is powered by PaddlePaddle !"
