@@ -125,7 +125,8 @@ function _train(){
                 ${train_cmd}"
             workerlog_id=0
             ;;
-        DP8-MP1-PP1|DP1-MP2-PP4|DP1-MP4-PP2|DP2-MP2-PP2|DP2-MP8-PP2|DP4-MP8-PP1|DP1-MP8-PP4) echo "run run_mode: ${run_mode}"
+        DP8-MP1-PP1|DP1-MP8-PP1|DP1-MP1-PP8|DP1-MP2-PP4|DP1-MP4-PP2|DP2-MP2-PP2| \
+        DP2-MP8-PP2|DP4-MP8-PP1|DP1-MP8-PP4) echo "run run_mode: ${run_mode}"
             train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 \
                 tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
                 ${train_cmd}"
