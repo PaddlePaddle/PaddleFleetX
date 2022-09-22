@@ -121,8 +121,10 @@ def process_optim_configs(config):
 
     nranks = dist.get_world_size()
     dp_degree = config['Distributed']['dp_degree']
+    sharding_degree = config['Distributed']['sharding']['sharding_degree']
     if config['Optimizer']['tensor_fusion']:
-        assert nranks == dp_degree, "tensor_fusion only support single card train or data parallel train"
+        assert nranks == dp_degree * sharding_degree, \
+            "tensor_fusion only support single card train or data/sharding parallel train"
 
 
 def process_data_configs(config):
