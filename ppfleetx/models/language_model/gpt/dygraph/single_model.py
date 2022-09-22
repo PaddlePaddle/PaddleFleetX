@@ -672,9 +672,9 @@ class GPTForSequenceClassification(nn.Layer):
         self.score = nn.Linear(
             self.gpt.hidden_size, num_classes, bias_attr=False)
 
-        from paddle.nn.initializer import Constant
-        zeros_ = Constant(value=0.)
-        zeros_(self.score.weight)
+        from paddle.nn.initializer import Normal
+        normal_ = Normal(std=self.gpt.initializer_range)
+        normal_(self.score.weight)
 
     def forward(self, input_ids, position_ids=None, attention_mask=None):
 
