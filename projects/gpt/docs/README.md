@@ -3,11 +3,20 @@
 ## 模型介绍
 GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)/[3](https://arxiv.org/pdf/2005.14165.pdf) 是以[Transformer](https://arxiv.org/abs/1706.03762) 解码器为网络基本组件，使用自回归的方式在大规模无标注文本语料上进行预训练得到的语言生成模型。
 
-本项目是语言模型 GPT 的 PaddlePaddle 大模型实现。下是本例的简要目录结构及说明：
+本项目是语言模型 GPT 的 PaddlePaddle 大模型实现。目前，PaddleFleetX 提供了 [GPT-345M](https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz) 的预训练模型文件；分别基于 [LAMBADA](https://raw.githubusercontent.com/cybertronai/bflm/master/lambada_test.jsonl) 和 [WikiText](https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-103-v1.zip) 数据集，采用 ACC(accuracy) 和 PPL(perplexity) 指标后的评估结果如下：
+
+| **模型文件** | **ACC** | **PPL** |
+|---------|-----------|---------------|
+| GPT-345M | 44.17% |  18.01  |
+
+下面是本例的简要目录结构及说明：
 
 ```text
 .
+├── auto_gpt_345M_single_card.sh           # 自动并行345M模型单卡预训练入口
+├── auto_gpt_1.3B_single_card.sh           # 自动并行1.3B模型单卡预训练入口
 ├── auto_gpt_1.3B_dp8.sh                   # 自动并行1.3B模型数据并行预训练入口
+├── auto_gpt_6.7B_sharding16.sh            # 自动并行6.7B模型分组切片并行预训练入口
 ├── evaluate_gpt_345M_single_card.sh       # 单卡345M模型评估入口
 ├── export_gpt_345M_single_card.sh         # 单卡345M模型动转静导出入口
 ├── inference_gpt_345M_single_card.sh      # 单卡345M模型推理入口

@@ -27,13 +27,12 @@ __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
 
 from ppfleetx.utils import config, env
-from ppfleetx.utils.logger import init_logger
+from ppfleetx.utils.log import logger
 from ppfleetx.data import build_dataloader
 from ppfleetx.models import build_module
-from ppfleetx.optims import build_lr_scheduler, build_optimizer
 from ppfleetx.core import EagerEngine
 
-init_logger()
+#init_logger()
 
 if __name__ == "__main__":
     args = config.parse_args()
@@ -50,17 +49,13 @@ if __name__ == "__main__":
     train_data_loader = build_dataloader(cfg.Data, "Train")
     eval_data_loader = build_dataloader(cfg.Data, "Eval")
 
-    lr_configs = copy.deepcopy(cfg.Optimizer.lr)
-    lr_configs.update({
+    cfg.Optimizer.lr.update({
         'epochs': cfg.Engine.num_train_epochs,
         'step_each_epoch': len(train_data_loader),
         'total_steps': cfg.Engine.max_steps,
     })
-    lr = build_lr_scheduler(lr_configs)
-    optimizer = build_optimizer(cfg.Optimizer, module.model, lr)
 
-    engine = EagerEngine(
-        configs=cfg, module=module, optimizer=optimizer, lr=lr)
+    engine = EagerEngine(configs=cfg, module=module)
 
     if cfg.Engine.save_load.ckpt_dir is not None:
         engine.load()

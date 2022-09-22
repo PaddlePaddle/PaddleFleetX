@@ -189,7 +189,7 @@ with paddle.no_grad():
 ### 4.模型接入示例
 
 
-1、构建组网文件，放置在ppfleex/models目录下。
+1、构建组网文件，放置在`ppfleex/models`目录下。
 
 ```python
 class SimpleNet(nn.Layer):
@@ -216,7 +216,7 @@ class LossLayer(nn.Layer):
         return F.cross_entropy(image, label)
 ```
 
-2、构建BasicModule，设置符合要求的组网形式，放置在fleetx/example目录下。
+2、构建BasicModule，设置符合要求的组网形式，放置在`ppfleetx/models`目录下；并引入`ppfleetx/models/__init__.py`
 
 ```python
 class TestModule(BasicModule):
@@ -264,7 +264,7 @@ class TestModule(BasicModule):
 ```
 3、通过config配置Dataset
 
-Dataset可以通过config文件进行配置。新增Dataset类型放置在 ppfleetx/data/dataset,同时其构造参数于其对应的Dataset字段一致。比如：
+Dataset可以通过config文件进行配置。新增Dataset类型放置在 `ppfleetx/data/dataset`,同时其构造参数于其对应的Dataset字段一致。比如：
 
 ```python
 class GPTDataset(paddle.io.Dataset):

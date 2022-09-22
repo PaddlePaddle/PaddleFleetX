@@ -16,7 +16,7 @@ import os
 import paddle
 import logging
 
-from . import logger
+from .log import logger
 
 __all__ = ['export_inference_model']
 

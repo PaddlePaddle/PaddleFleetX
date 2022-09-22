@@ -25,7 +25,7 @@ import numpy as np
 from PIL import Image
 from paddle.vision.transforms import ColorJitter as PPColorJitter
 
-from ppfleetx.utils import logger
+from ppfleetx.utils.log import logger
 
 
 class OperatorParamError(ValueError):
