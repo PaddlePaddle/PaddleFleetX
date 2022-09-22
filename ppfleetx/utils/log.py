@@ -156,7 +156,7 @@ def advertise():
     ==                                                       ==
     ==   For more info please go to the following website.   ==
     ==                                                       ==
-    ==       https://github.com/PaddlePaddle/PaddleClas      ==
+    ==       https://github.com/PaddlePaddle/PaddleFleetX    ==
     ===========================================================
     """
     copyright = "PaddleFleetX is powered by PaddlePaddle !"
