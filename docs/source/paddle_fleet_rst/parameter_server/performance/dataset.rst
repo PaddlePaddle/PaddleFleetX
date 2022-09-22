@@ -51,17 +51,13 @@
 ~~~~~~~~~~~~~~~~~~~~
 
 在上文我们提到了由\ ``my_data_generator.py``\ 实现具体的数据管道读取规则，那么，怎样为dataset创建数据读取的规则呢？
-以下是\ ``reader.py``\ 的全部代码，具体流程如下： 1.
-首先我们需要引入data_generator的类，位于\ ``paddle.distributed.fleet.data_generator``\ 。
-2.
-声明一些在数据读取中会用到的类和库。
-3.
-创建一个子类\ ``WideDeepDatasetReader``\ ，继承\ ``fleet.data_generator``\ 的基类，基类有多种选择，如果是多种数据类型混合，并且需要转化为数值进行预处理的，建议使用\ ``MultiSlotDataGenerator``\ ；若已经完成了预处理并保存为数据文件，可以直接以\ ``string``\ 的方式进行读取，使用\ ``MultiSlotStringDataGenerator``\ ，能够进一步加速。在示例代码，我们继承并实现了名为\ ``Word2VecReader``\ 的data_generator子类，使用\ ``MultiSlotDataGenerator``\ 方法。
-4.
-继承并实现基类中的\ ``generate_sample``\ 函数，逐行读取数据。该函数应返回一个可以迭代的reader方法(带有yield的函数不再是一个普通的函数，而是一个生成器generator，成为了可以迭代的对象，等价于一个数组、链表、文件、字符串etc.)
-5.
-在这个可以迭代的函数中，如示例代码中的\ ``def wd_reader()``\ ，我们定义数据读取的逻辑。例如对以行为单位的数据进行截取，转换及预处理。
+以下是\ ``reader.py``\ 的全部代码，具体流程如下： 
 
+1. 首先我们需要引入data_generator的类，位于\ ``paddle.distributed.fleet.data_generator``\ 。
+2. 声明一些在数据读取中会用到的类和库。
+3. 创建一个子类\ ``WideDeepDatasetReader``\ ，继承\ ``fleet.data_generator``\ 的基类，基类有多种选择，如果是多种数据类型混合，并且需要转化为数值进行预处理的，建议使用\ ``MultiSlotDataGenerator``\ ；若已经完成了预处理并保存为数据文件，可以直接以\ ``string``\ 的方式进行读取，使用\ ``MultiSlotStringDataGenerator``\ ，能够进一步加速。在示例代码，我们继承并实现了名为\ ``Word2VecReader``\ 的data_generator子类，使用\ ``MultiSlotDataGenerator``\ 方法。
+4. 继承并实现基类中的\ ``generate_sample``\ 函数，逐行读取数据。该函数应返回一个可以迭代的reader方法(带有yield的函数不再是一个普通的函数，而是一个生成器generator，成为了可以迭代的对象，等价于一个数组、链表、文件、字符串etc.)
+5. 在这个可以迭代的函数中，如示例代码中的\ ``def wd_reader()``\ ，我们定义数据读取的逻辑。例如对以行为单位的数据进行截取，转换及预处理。
 6. 最后，我们需要将数据整理为特定的batch的格式，才能够被dataset正确读取，并灌入的训练的网络中。使用基类中的\ ``generate_batch``\ 函数, 我们无需再做声明
    根据设定的’batch_size’,
    该函数会在\ ``generator_sample``\ 函数产生样本数达到\ ``batch_size``\ 时，调用该函数内队逐条样本的处理逻辑，如示例代码中的\ ``def local_iter()``\ 。
