@@ -78,11 +78,11 @@ def data_augmentation_for_imagen(img, resolution):
     arr = deepcopy(img)
     while min(*arr.size) >= 2 * resolution:
         arr = arr.resize(
-            tuple(x // 2 for x in arr.size), resample=Image.Resampling.BOX)
+            tuple(x // 2 for x in arr.size), resample=Image.BOX)
     scale = resolution / min(*arr.size)
     arr = arr.resize(
         tuple(round(x * scale) for x in arr.size),
-        resample=Image.Resampling.BICUBIC)
+        resample=Image.BICUBIC)
 
     arr = np.array(arr.convert("RGB"))
     crop_y = (arr.shape[0] - resolution) // 2
