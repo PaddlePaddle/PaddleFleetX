@@ -23,10 +23,6 @@ from paddle import expm1
 # helper functions
 
 
-def exists(val):
-    return val is not None
-
-
 def identity(t, *args, **kwargs):
     return t
 
@@ -40,7 +36,7 @@ def first(arr, d=None):
 def maybe(fn):
     @wraps(fn)
     def inner(x):
-        if not exists(x):
+        if x is None:
             return x
         return fn(x)
 
@@ -48,7 +44,7 @@ def maybe(fn):
 
 
 def default(val, d):
-    if exists(val):
+    if val is not None:
         return val
     return d() if callable(d) else d
 
@@ -59,7 +55,7 @@ def cast_tuple(val, length=None):
 
     output = val if isinstance(val, tuple) else ((val, ) * default(length, 1))
 
-    if exists(length):
+    if length is not None:
         assert len(output) == length
 
     return output
@@ -95,7 +91,7 @@ zeros_ = nn.initializer.Constant(value=0.)
 
 def zero_init_(m):
     zeros_(m.weight)
-    if exists(m.bias):
+    if m.bias is not None:
         zeros_(m.bias)
 
 
@@ -135,7 +131,7 @@ def resize_image_to(image, target_image_size, clamp_range=None):
 
     out = F.interpolate(image, target_image_size, mode='nearest')
 
-    if exists(clamp_range):
+    if clamp_range is not None:
         out = out.clip(*clamp_range)
 
     return out
@@ -292,7 +288,7 @@ def log(t, eps: float=1e-12):
 
 
 def masked_mean(t, *, axis, mask=None):
-    if not exists(mask):
+    if mask is None:
         return t.mean(axis=axis)
 
     denom = mask.sum(axis=axis, keepdim=True)

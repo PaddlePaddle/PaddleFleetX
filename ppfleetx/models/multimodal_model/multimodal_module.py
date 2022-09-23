@@ -48,7 +48,7 @@ class MultiModalModule(BasicModule):
         return loss
 
     def training_step_end(self, log_dict):
-        speed = self.configs.Engine.logging_freq / log_dict['train_cost']
+        speed = 1. / log_dict['train_cost']
 
         logger.info(
             "[train] epoch: %d, batch: %d, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, learning rate: %.5e"
