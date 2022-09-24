@@ -105,7 +105,13 @@ class GPTDataset(paddle.io.Dataset):
         self.input_dir = input_dir
         self.max_seq_len = max_seq_len
         self.mode = mode
+
         self.name = "gpt_" + mode
+        self.name = self.name.lower()
+
+        if self.name == "gpt_eval":
+            self.name = "gpt_valid"
+
         self.eos_id = tokenizer.eos_token_id
         self.sample_ids = sample_ids
         self.sample_lens = sample_lens

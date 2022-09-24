@@ -33,6 +33,8 @@ class CosineAnnealingWithWarmupDecay(LRScheduler):
         self.warmup_step = warmup_rate * decay_steps
         self.max_lr = max_lr
         self.min_lr = min_lr
+
+        print(self.max_lr, self.min_lr, self.warmup_step)
         super(CosineAnnealingWithWarmupDecay, self).__init__(
             max_lr, last_epoch, verbose)
 

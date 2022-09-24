@@ -585,7 +585,7 @@ class GPTEmbeddings(nn.Layer):
                  initializer_range=0.02,
                  sequence_parallel=False):
         super(GPTEmbeddings, self).__init__()
-
+        # print("hidden_dropout_prob: ", hidden_dropout_prob)
         self.sequence_parallel = sequence_parallel
         self.word_embeddings = fleet.meta_parallel.VocabParallelEmbedding(
             vocab_size,
@@ -612,6 +612,10 @@ class GPTEmbeddings(nn.Layer):
         embeddings = input_embedings + position_embeddings
         # if sequence parallel is true, change embedding shape [b, s, h] to [s, b, h]
         # set the sequence dim as first, so the split in sequence dim is data-continuous
+        # print("input_ids", input_ids)
+        # print("embeddings", embeddings)
+        # print("embeddings_weight", self.word_embeddings.weight)
+
         if self.sequence_parallel:
             embeddings = paddle.transpose(embeddings, perm=[1, 0, 2])
             embeddings = ScatterOp.apply(embeddings)
@@ -619,6 +623,7 @@ class GPTEmbeddings(nn.Layer):
                 embeddings = self.dropout(embeddings)
         else:
             embeddings = self.dropout(embeddings)
+
         return embeddings
 
 
@@ -647,7 +652,7 @@ class GPTModelHybrid(nn.Layer):
         self.vocab_size = vocab_size
 
         hcg = fleet.get_hybrid_communicate_group()
-        mp_size = hcg.get_model_parallel_world_size() 
+        mp_size = hcg.get_model_parallel_world_size()
         if mp_size <= 1:
             sequence_parallel = False
 

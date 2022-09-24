@@ -293,44 +293,6 @@ class EagerEngine(BasicEngine):
                 train_start = time.time()
                 train_losses = []
 
-            if self._run_mode == 'step' and not skip_first:
-                if step % self._eval_freq == 0:
-                    self._module.model.eval()
-
-                    eval_losses = []
-                    eval_start = time.time()
-
-                    for eval_step, batch in enumerate(valid_data_loader):
-                        loss = self._evaluate_impl(batch)
-                        eval_losses.append(loss)
-
-                        if eval_step >= self._eval_iters - 1:
-                            break
-
-                    paddle.device.cuda.synchronize()
-                    eval_cost = time.time() - eval_start
-                    eval_loss = sum(eval_losses) / len(eval_losses)
-
-                    log_dict = {
-                        'loss': eval_loss.numpy()[0],
-                        'epoch': epoch_index,
-                        'batch': eval_step,
-                        'total_batch': total_eval_batch,
-                        'eval_cost': eval_cost / self._logging_freq,
-                    }
-                    self._module.validation_step_end(log_dict)
-
-                    self._module.model.train()
-
-                if self._save_steps > 0 and step % self._save_steps == 0:
-                    self.save(epoch=epoch_index, step=step)
-            else:
-                skip_first = False
-
-            if self._run_mode == 'step' and step >= self._max_steps:
-                logger.info("The training process is complete.")
-                return
-
             if self.profiler:
                 self.profiler.step()
 
@@ -356,6 +318,31 @@ class EagerEngine(BasicEngine):
         if self._load_recovery['rng_state'] != -1:
             paddle.set_cuda_rng_state(self._load_recovery['rng_state'])
 
+        model = self._module.model
+
+        parameters_list = []
+        for p in model.parameters():
+            # print(p.name)
+            parameters_list.append(p)
+
+        mp_rank = paddle.distributed.get_rank()
+        sta = paddle.load(
+            '/workspace/workspace/FleetX/output/model_state_mp_{:0>2d}.pdopt'.
+            format(mp_rank))
+
+        print("======" * 10)
+        index = 0
+        for k, v in sta.items():
+            # print(k, v)
+            # pass
+            parameters_list[index].name = k
+            index += 1
+        model.set_state_dict(sta)
+        for p in model.parameters():
+            pass
+            # print(p.name, p)
+
+        # paddle.seed(1024)
         for epoch_index in range(start_epoch, epoch):
             self._train_one_epoch(epoch_index, train_data_loader,
                                   valid_data_loader)
@@ -438,6 +425,7 @@ class EagerEngine(BasicEngine):
                         p.bw_storage.scale_(1.0 / self._dp_group.nranks)
                         dist.all_reduce(p.bw_storage, group=self._dp_group)
 
+        # print(">>>", self._optimizer._parameter_list)
         if self._use_pure_fp16:
             self._scaler.step(self._optimizer)
             self._scaler.update()
