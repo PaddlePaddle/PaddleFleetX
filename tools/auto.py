@@ -29,9 +29,10 @@ sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
 from ppfleetx.utils import config
 from ppfleetx.utils.log import logger
 from ppfleetx.models import build_module
-from ppfleetx.data import build_dataset
-from ppfleetx.optims import build_lr_scheduler, build_optimizer
+from ppfleetx.data import build_auto_dataset
 from ppfleetx.core import AutoEngine
+
+#init_logger()
 
 if __name__ == "__main__":
     args = config.parse_args()
@@ -41,18 +42,15 @@ if __name__ == "__main__":
     module = build_module(cfg)
     config.print_config(cfg)
 
-    train_data = build_dataset(cfg.Data, "Train")
-    eval_data = build_dataset(cfg.Data, "Eval")
+    train_data = build_auto_dataset(cfg.Data, "Train")
+    eval_data = build_auto_dataset(cfg.Data, "Eval")
 
-    lr_configs = copy.deepcopy(cfg.Optimizer.lr)
-    lr_configs.update({
+    cfg.Optimizer.lr.update({
         'epochs': cfg.Engine.num_train_epochs,
         'step_each_epoch': len(train_data)
     })
-    lr = build_lr_scheduler(lr_configs)
-    optimizer = build_optimizer(cfg.Optimizer, module.model, lr)
 
-    engine = AutoEngine(configs=cfg, module=module, optimizer=optimizer, lr=lr)
+    engine = AutoEngine(configs=cfg, module=module)
 
     if cfg.Engine.save_load.ckpt_dir is not None:
         engine.load()

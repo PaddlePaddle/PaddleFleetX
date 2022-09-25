@@ -13,19 +13,19 @@
 请根据本地 CUDA 版本（使用 `nvidia-smi`命令查看）使用以下命令拉取对应或兼容的镜像，
 
 ```
-docker pull registry.baidubce.com/kuizhiqing/fleetx-cuda11.2-cudnn8:alpha
+docker pull registry.baidubce.com/ppfleetx/ppfleetx-cuda11.2-cudnn8:v0.1.0
 ```
 
 如本地环境cuda版本较低可以使用以下镜像，并在后续使用中替换。
 
 ```
-docker pull registry.baidubce.com/kuizhiqing/fleetx-cuda10.2-cudnn7:alpha
+docker pull registry.baidubce.com/ppfleetx/ppfleetx-cuda10.2-cudnn7:v0.1.0
 ```
 
 大模型训练需要使用GPU，如已安装 nvida-container-runtime 可以使用以下命令运行镜像，
 
 ```
-docker run -it --name=paddle --net=host -v /dev/shm:/dev/shm --shm-size=32G -v $PWD:/paddle --runtime=nvidia registry.baidubce.com/kuizhiqing/fleetx-cuda11.2-cudnn8:alpha bash
+docker run -it --name=paddle --net=host -v /dev/shm:/dev/shm --shm-size=32G -v $PWD:/paddle --runtime=nvidia registry.baidubce.com/ppfleetx/ppfleetx-cuda11.2-cudnn8:v0.1.0 bash
 ```
 
 未安装 nvida-container-runtime 或启动后无法执行 `nvidia-smi` 查看GPU信息时可以尝试通过如下脚本启动运行，
@@ -45,7 +45,7 @@ ${CUDA_SO} ${DEVICES} \
 --shm-size=32G \
 -v $nvsmi:$nvsmi \
 -it \
-registry.baidubce.com/kuizhiqing/fleetx-cuda11.2-cudnn8:alpha \
+registry.baidubce.com/ppfleetx/ppfleetx-cuda11.2-cudnn8:v0.1.0 \
 bash
 ```
 
@@ -107,13 +107,13 @@ python ./tools/train.py -c ./ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_single_c
 **运行日志**
 
 ```
-[2022/09/15 11:12:56] ppfleetx INFO: [train] epoch: 0, batch: 0, loss: 11.011782646, avg_batch_cost: 2.47890 sec, speed: 0.40 step/s, ips_total: 3305 tokens/s, ips: 3305 tokens/s, learning rate: 2.77778e-08
-[2022/09/15 11:12:57] ppfleetx INFO: [train] epoch: 0, batch: 1, loss: 11.006950378, avg_batch_cost: 0.51867 sec, speed: 1.93 step/s, ips_total: 15794 tokens/s, ips: 15794 tokens/s, learning rate: 4.16667e-08
-[2022/09/15 11:12:57] ppfleetx INFO: [train] epoch: 0, batch: 2, loss: 11.006834030, avg_batch_cost: 0.50565 sec, speed: 1.98 step/s, ips_total: 16201 tokens/s, ips: 16201 tokens/s, learning rate: 5.55556e-08
-[2022/09/15 11:12:58] ppfleetx INFO: [train] epoch: 0, batch: 3, loss: 11.015736580, avg_batch_cost: 0.50558 sec, speed: 1.98 step/s, ips_total: 16203 tokens/s, ips: 16203 tokens/s, learning rate: 6.94444e-08
-[2022/09/15 11:12:58] ppfleetx INFO: [train] epoch: 0, batch: 4, loss: 11.006859779, avg_batch_cost: 0.50530 sec, speed: 1.98 step/s, ips_total: 16212 tokens/s, ips: 16212 tokens/s, learning rate: 8.33333e-08
-[2022/09/15 11:12:59] ppfleetx INFO: [train] epoch: 0, batch: 5, loss: 11.004158020, avg_batch_cost: 0.50550 sec, speed: 1.98 step/s, ips_total: 16206 tokens/s, ips: 16206 tokens/s, learning rate: 9.72222e-08
-[2022/09/15 11:12:59] ppfleetx INFO: [train] epoch: 0, batch: 6, loss: 11.000040054, avg_batch_cost: 0.50496 sec, speed: 1.98 step/s, ips_total: 16223 tokens/s, ips: 16223 tokens/s, learning rate: 1.11111e-07
+[2022-09-21 05:42:26,980] [    INFO] - [train] epoch: 0, batch: 0, loss: 10.999595642, avg_batch_cost: 2.73014 sec, speed: 0.37 step/s, ips_total: 3001 tokens/s, ips: 3001 tokens/s, learning rate: 2.77778e-08
+[2022-09-21 05:42:27,492] [    INFO] - [train] epoch: 0, batch: 1, loss: 10.997043610, avg_batch_cost: 0.51164 sec, speed: 1.95 step/s, ips_total: 16011 tokens/s, ips: 16011 tokens/s, learning rate: 4.16667e-08
+[2022-09-21 05:42:27,997] [    INFO] - [train] epoch: 0, batch: 2, loss: 10.994422913, avg_batch_cost: 0.50457 sec, speed: 1.98 step/s, ips_total: 16236 tokens/s, ips: 16236 tokens/s, learning rate: 5.55556e-08
+[2022-09-21 05:42:28,503] [    INFO] - [train] epoch: 0, batch: 3, loss: 11.005314827, avg_batch_cost: 0.50497 sec, speed: 1.98 step/s, ips_total: 16223 tokens/s, ips: 16223 tokens/s, learning rate: 6.94444e-08
+[2022-09-21 05:42:29,009] [    INFO] - [train] epoch: 0, batch: 4, loss: 10.988020897, avg_batch_cost: 0.50480 sec, speed: 1.98 step/s, ips_total: 16228 tokens/s, ips: 16228 tokens/s, learning rate: 8.33333e-08
+[2022-09-21 05:42:29,513] [    INFO] - [train] epoch: 0, batch: 5, loss: 10.983006477, avg_batch_cost: 0.50393 sec, speed: 1.98 step/s, ips_total: 16256 tokens/s, ips: 16256 tokens/s, learning rate: 9.72222e-08
+[2022-09-21 05:42:30,018] [    INFO] - [train] epoch: 0, batch: 6, loss: 10.988539696, avg_batch_cost: 0.50427 sec, speed: 1.98 step/s, ips_total: 16245 tokens/s, ips: 16245 tokens/s, learning rate: 1.11111e-07
 ```
 
 
@@ -178,7 +178,7 @@ LAUNCH INFO 2022-08-15 07:37:38,948 Job: default, mode collective, replicas 1[1:
 LAUNCH INFO 2022-08-15 07:37:38,949 Run Pod: vqhbut, replicas 8, status ready
 LAUNCH INFO 2022-08-15 07:37:39,063 Watching Pod: vqhbut, replicas 8, status running
 ## 启动配置
-[2022/09/15 11:44:11] ppfleetx INFO: [train] epoch: 0, batch: 0, loss: 11.255846024, avg_batch_cost: 7.06713 sec, speed: 0.14 step/s, ips_total: 9273 tokens/s, ips: 1159 tokens/s, learning rate: 2.77778e-08
+[2022-08-15 07:41:23,063] [    INFO] - [train] epoch: 0, batch: 0, loss: 11.255846024, avg_batch_cost: 7.06713 sec, speed: 0.14 step/s, ips_total: 9273 tokens/s, ips: 1159 tokens/s, learning rate: 2.77778e-08
 ## 更多训练日志
 ```
 

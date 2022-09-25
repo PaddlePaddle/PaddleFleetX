@@ -42,7 +42,7 @@ Data:
       split: [949, 50, 1]
       max_seq_len: 1024
     sampler:
-      name: DistributedBatchSampler
+      name: GPTBatchSampler
       shuffle: False
       drop_last: True
     loader:
