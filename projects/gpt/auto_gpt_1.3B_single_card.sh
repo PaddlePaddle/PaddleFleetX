@@ -1,4 +1,3 @@
-
 #! /bin/bash
 
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
