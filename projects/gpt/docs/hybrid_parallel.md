@@ -26,6 +26,7 @@
       sharding_degree: 1
       sharding_stage: 1
       sharding_offload: False
+      comm_overlap: False
 ```
 
 其中参数说明：
@@ -38,6 +39,7 @@
 | sharding_degree  | 分组切分并行维度                             |
 | sharding_stage   | 切分策略；1表示仅切分优化器状态，2表示再切分梯度，3表示再切分前向参数 |
 | sharding_offload | CPU offload策略                        |
+|comm_overlap| 是否在sharding stage 2的模式下进行通讯与计算overlap，该策略暂时不支持sharding_offload|
 
 ## 运行方式
 本目录中按照345M、1.3B、6.7B和175B规模大小，给出32G V100环境下GPT模型混合并行训练的策略配置如下：

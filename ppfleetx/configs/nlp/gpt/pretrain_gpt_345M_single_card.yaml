@@ -30,3 +30,4 @@ Distributed:
     sharding_degree: 1
     sharding_stage: 1
     sharding_offload: False
+    comm_overlap: False
