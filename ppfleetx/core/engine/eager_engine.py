@@ -153,6 +153,9 @@ class EagerEngine(BasicEngine):
             'sharding_degree']
         self._sharding_offload = self._dist_configs['sharding'][
             'sharding_offload']
+        self._comm_overlap = self._dist_configs['sharding']['comm_overlap']
+        if self._sharding_degree > 1 and self._comm_overlap:
+            assert self._sharding_stage == 2 and not self._sharding_offload
         self._use_recompute = configs['Model']['use_recompute']
 
         if self._use_pure_fp16:
@@ -244,7 +247,8 @@ class EagerEngine(BasicEngine):
             level=level,
             scaler=self._scaler,
             group=self._sharding_group,
-            offload=self._sharding_offload)
+            offload=self._sharding_offload,
+            comm_overlap=self._comm_overlap)
 
     def _wrap_3D_parallel(self):
         self._module.model = fleet.distributed_model(self._module.model)
