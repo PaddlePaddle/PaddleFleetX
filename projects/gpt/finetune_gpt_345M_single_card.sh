@@ -25,7 +25,7 @@ then
       -o Data.Eval.dataset.root=./dataset/cola_public/ \
       -o Data.Eval.dataset.split=dev \
       -o Model.metric.train.name=Mcc \
-      -o Model.metric.eval.name=Mcc
+      -o Model.metric.eval.name=Mcc \
       -o Model.num_classes=2
 elif [ $1 == "SST2" ]
 then
@@ -72,7 +72,7 @@ then
       -o Model.metric.train.name=PearsonAndSpearman \
       -o Model.metric.eval.name=PearsonAndSpearman \
       -o Model.loss.train.name=MSELoss \
-      -o Model.loss.eval.name=MSELoss \
+      -o Model.loss.eval.name=MSELoss
 # Inference Tasks
 elif [ $1 == "MNLI" ]
 then
@@ -81,7 +81,7 @@ then
       -o Data.Train.dataset.root=./dataset/multinli_1.0 \
       -o Data.Eval.dataset.name=MNLI \
       -o Data.Eval.dataset.root=./dataset/multinli_1.0 \
-      -o Data.Eval.dataset.split=dev_matched \
+      -o Data.Eval.dataset.split=${2:-"dev_matched"} \
       -o Model.num_classes=3
 elif [ $1 == "QNLI" ]
 then

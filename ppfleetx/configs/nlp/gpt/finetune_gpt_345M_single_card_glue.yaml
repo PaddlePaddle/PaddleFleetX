@@ -27,7 +27,7 @@ Model:
   module: "GPTFinetuneModule"
   name: "GPT"
   num_classes: 2
-  pretrained: './pretrained/gpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00/model'
+  pretrained: './ckpt/PaddleFleetX_GPT_345M_220826/model'
   fused_linear: False
   vocab_size: 50304
   hidden_size: 1024

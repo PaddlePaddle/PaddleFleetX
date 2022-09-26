@@ -73,6 +73,10 @@ cd .. # 回到 PaddleFleetX 根目录下
 
 - [混合并行预训练模型文本生成](./hybrid_parallel.md#GPT-Zero-shot-文本生成)
 
+### GLUE 下游任务微调
+
+- [单卡微调](./single_finetune.md)
+
 
 ## 参数释义
 
