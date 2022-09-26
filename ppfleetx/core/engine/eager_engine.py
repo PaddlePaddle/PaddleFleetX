@@ -635,6 +635,14 @@ class EagerEngine(BasicEngine):
 
             if os.path.exists(model_path):
                 model_dict = paddle.load(model_path)
+                for name, param in self._module.model.state_dict().items():
+                    assert name in model_dict.keys(
+                    ), "No param named `{}` was found in checkpoint file.".format(
+                        name)
+
+                    if param.dtype != model_dict[name].dtype:
+                        model_dict[name] = model_dict[name].cast(param.dtype)
+
                 self._module.model.set_state_dict(model_dict)
             else:
                 raise ValueError("No optimizer checkpoint file found in %s." %
