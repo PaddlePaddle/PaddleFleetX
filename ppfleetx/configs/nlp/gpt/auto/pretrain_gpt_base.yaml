@@ -27,6 +27,7 @@ Engine:
 Model:
   module: "GPTModuleAuto"
   name: "GPT"
+  fuse_attn_qkv: False
 
 
 Data:
