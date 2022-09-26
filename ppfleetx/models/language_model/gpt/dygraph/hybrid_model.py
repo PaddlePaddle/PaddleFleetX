@@ -86,7 +86,7 @@ class MultiHeadAttention(nn.Layer):
                  need_weights=False,
                  weight_attr=None,
                  bias_attr=None,
-                 fuse=True,
+                 fuse_attn_qkv=False,
                  num_partitions=1,
                  fused_linear=False,
                  use_recompute=False,
@@ -100,7 +100,7 @@ class MultiHeadAttention(nn.Layer):
         self.num_heads = num_heads
         self.dropout = dropout
         self.need_weights = need_weights
-        self.fuse = fuse
+        self.fuse_attn_qkv = fuse_attn_qkv
         self.use_recompute = use_recompute
         self.recompute_granularity = recompute_granularity
         self.do_recompute = do_recompute
@@ -120,7 +120,7 @@ class MultiHeadAttention(nn.Layer):
             self.num_heads, num_partitions)
         self.num_heads = self.num_heads // num_partitions
 
-        if self.fuse:
+        if self.fuse_attn_qkv:
             assert self.kdim == embed_dim
             assert self.vdim == embed_dim
 
@@ -318,13 +318,13 @@ class MultiHeadAttention(nn.Layer):
         # after reshape, q, k, v shape should be [b, num_heads/n, s, head_dim]
         # compute q ,k ,v
         if use_cache is False:
-            if self.fuse:
+            if self.fuse_attn_qkv:
                 q, k, v = self._fuse_prepare_qkv(query, use_cache, cache)
             else:
                 q, k, v = self._prepare_qkv(query, key, value, use_cache,
                                             cache)
         else:
-            if self.fuse:
+            if self.fuse_attn_qkv:
                 q, k, v, cache = self._fuse_prepare_qkv(query, use_cache,
                                                         cache)
             else:
@@ -463,6 +463,7 @@ class TransformerDecoderLayer(nn.Layer):
                  bias_attr=None,
                  num_partitions=1,
                  fused_linear=False,
+                 fuse_attn_qkv=False,
                  recompute_attn=False,
                  use_recompute=False,
                  recompute_granularity="full",
@@ -499,6 +500,7 @@ class TransformerDecoderLayer(nn.Layer):
             bias_attr=bias_attrs[0],
             num_partitions=num_partitions,
             fused_linear=fused_linear,
+            fuse_attn_qkv=fuse_attn_qkv,
             use_recompute=use_recompute,
             recompute_granularity=recompute_granularity,
             sequence_parallel=sequence_parallel,
@@ -647,6 +649,7 @@ class GPTModelHybrid(nn.Layer):
                  num_partitions=1,
                  use_recompute=False,
                  fused_linear=False,
+                 fuse_attn_qkv=False,
                  recompute_granularity="full",
                  sequence_parallel=False,
                  no_recompute_layers=None):
@@ -660,7 +663,7 @@ class GPTModelHybrid(nn.Layer):
         self.vocab_size = vocab_size
 
         hcg = fleet.get_hybrid_communicate_group()
-        mp_size = hcg.get_model_parallel_world_size() 
+        mp_size = hcg.get_model_parallel_world_size()
         if mp_size <= 1:
             sequence_parallel = False
 
@@ -687,6 +690,7 @@ class GPTModelHybrid(nn.Layer):
                     bias_attr=None,
                     num_partitions=num_partitions,
                     fused_linear=fused_linear,
+                    fuse_attn_qkv=fuse_attn_qkv,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
                     sequence_parallel=sequence_parallel,
@@ -897,6 +901,7 @@ class GPTForPretrainingPipe(PipelineLayer):
                  topology=None,
                  use_recompute=False,
                  fused_linear=False,
+                 fuse_attn_qkv=False,
                  recompute_granularity="full",
                  virtual_pp_degree=1,
                  sequence_parallel=False,
@@ -944,6 +949,7 @@ class GPTForPretrainingPipe(PipelineLayer):
                     bias_attr=None,
                     num_partitions=num_partitions,
                     fused_linear=fused_linear,
+                    fuse_attn_qkv=fuse_attn_qkv,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
                     do_recompute=i not in no_recompute_layers))
