@@ -60,7 +60,7 @@ class MultiHeadAttention(nn.Layer):
                  need_weights=False,
                  weight_attr=None,
                  bias_attr=None,
-                 fuse=True,
+                 fuse_attn_qkv=False,
                  fused_linear=False,
                  use_recompute=False,
                  recompute_granularity="full",
@@ -72,7 +72,7 @@ class MultiHeadAttention(nn.Layer):
         self.num_heads = num_heads
         self.dropout = dropout
         self.need_weights = need_weights
-        self.fuse = fuse
+        self.fuse_attn_qkv = fuse_attn_qkv
         self.use_recompute = use_recompute
         self.recompute_granularity = recompute_granularity
         self.do_recompute = do_recompute
@@ -82,7 +82,7 @@ class MultiHeadAttention(nn.Layer):
 
         Linear = FusedLinear if fused_linear else nn.Linear
 
-        if self.fuse:
+        if self.fuse_attn_qkv:
             assert self.kdim == embed_dim
             assert self.vdim == embed_dim
             self.qkv_proj = Linear(
@@ -229,13 +229,13 @@ class MultiHeadAttention(nn.Layer):
         value = query if value is None else value
         # compute q ,k ,v
         if use_cache is False:
-            if self.fuse:
+            if self.fuse_attn_qkv:
                 q, k, v = self._fuse_prepare_qkv(query, use_cache, cache)
             else:
                 q, k, v = self._prepare_qkv(query, key, value, use_cache,
                                             cache)
         else:
-            if self.fuse:
+            if self.fuse_attn_qkv:
                 q, k, v, cache = self._fuse_prepare_qkv(query, use_cache,
                                                         cache)
             else:
@@ -363,6 +363,7 @@ class TransformerDecoderLayer(nn.Layer):
                  weight_attr=None,
                  bias_attr=None,
                  fused_linear=False,
+                 fuse_attn_qkv=False,
                  use_recompute=False,
                  recompute_granularity="full",
                  do_recompute=True):
@@ -390,6 +391,7 @@ class TransformerDecoderLayer(nn.Layer):
             weight_attr=weight_attrs[0],
             bias_attr=bias_attrs[0],
             fused_linear=fused_linear,
+            fuse_attn_qkv=fuse_attn_qkv,
             use_recompute=use_recompute,
             recompute_granularity=recompute_granularity,
             do_recompute=do_recompute)
@@ -496,6 +498,7 @@ class GPTModel(nn.Layer):
                  use_recompute=False,
                  initializer_range=0.02,
                  fused_linear=False,
+                 fuse_attn_qkv=False,
                  recompute_granularity="full",
                  sequence_parallel=False,
                  no_recompute_layers=None):
@@ -528,6 +531,7 @@ class GPTModel(nn.Layer):
                             mean=0.0, std=self.initializer_range)),
                     bias_attr=None,
                     fused_linear=fused_linear,
+                    fuse_attn_qkv=fuse_attn_qkv,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
                     do_recompute=i not in no_recompute_layers))
@@ -1134,5 +1138,5 @@ class GPTForGeneration(nn.Layer):
                               pad_token_id, eos_token_id, top_k, top_p,
                               temperature, **model_kwargs)
         else:
-            raise ValueError(f'Not support {decoding_strategy} strategy yet!')
+            raise ValueError(f'Not support {decode_strategy} strategy yet!')
         return ret
