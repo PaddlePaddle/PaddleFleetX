@@ -247,8 +247,9 @@ class EagerEngine(BasicEngine):
             level=level,
             scaler=self._scaler,
             group=self._sharding_group,
-            offload=self._sharding_offload,
-            comm_overlap=self._comm_overlap)
+            offload=self._sharding_offload)
+        if self._comm_overlap:
+            self._module.model._set_comm_overlap(self._comm_overlap)
 
     def _wrap_3D_parallel(self):
         self._module.model = fleet.distributed_model(self._module.model)
