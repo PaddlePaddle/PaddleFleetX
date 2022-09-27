@@ -37,7 +37,6 @@ from ppfleetx.core.module.basic_module import BasicModule
 
 class LanguageModuleAuto(BasicModule):
     def __init__(self, configs):
-        super().__init__(configs)
         self.nranks = dist.get_world_size()
         super(LanguageModuleAuto, self).__init__(configs)
 
