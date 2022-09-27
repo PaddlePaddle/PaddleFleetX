@@ -404,7 +404,10 @@ class TransformerDecoderLayer(nn.Layer):
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.dropout1 = nn.Dropout(dropout, mode="upscale_in_train")
         self.dropout2 = nn.Dropout(act_dropout, mode="upscale_in_train")
-        self.activation = getattr(F, activation)
+        if activation == 'gelu':
+            self.activation = nn.GELU(approximate=True)
+        else:
+            self.activation = getattr(F, activation)
 
     def forward(self, tgt, memory, tgt_mask=None, use_cache=False, cache=None):
         residual = tgt
@@ -428,9 +431,7 @@ class TransformerDecoderLayer(nn.Layer):
         residual = tgt
         if self.normalize_before:
             tgt = self.norm2(tgt)
-        tgt = self.dropout2(
-            self.linear2(F.gelu(
-                self.linear1(tgt), approximate=True)))
+        tgt = self.dropout2(self.linear2(self.activation(self.linear1(tgt))))
         tgt = residual + tgt
 
         if not self.normalize_before:
@@ -671,6 +672,48 @@ class GPTPretrainingCriterion(nn.Layer):
         masked_lm_loss = paddle.sum(masked_lm_loss.reshape([-1]) * loss_mask)
         loss = masked_lm_loss / loss_mask.sum()
         return loss
+
+
+class GPTForSequenceClassification(nn.Layer):
+    """
+    GPT Model with a sequence classification/regression head on top (a linear layer on top of the pooled output) e.g.
+    for GLUE tasks.
+    Args:
+        gpt (:class:`GPTModel`):
+            An instance of GPTModel.
+        num_classes (int, optional):
+            The number of classes. Defaults to `2`.
+            
+    """
+
+    def __init__(self, gpt, num_classes=2):
+        super(GPTForSequenceClassification, self).__init__()
+        self.gpt = gpt
+        self.score = nn.Linear(
+            self.gpt.hidden_size, num_classes, bias_attr=False)
+
+        from paddle.nn.initializer import Normal
+        normal_ = Normal(std=self.gpt.initializer_range)
+        normal_(self.score.weight)
+
+    def forward(self, input_ids, position_ids=None, attention_mask=None):
+
+        output = self.gpt(input_ids,
+                          position_ids=position_ids,
+                          attention_mask=attention_mask)
+
+        logits = self.score(output)
+        # padding index maybe 0
+        eos_token_id = 0
+        # sequence_lengths shape [bs,]
+        sequence_lengths = (input_ids != eos_token_id).astype("int64").sum(
+            axis=-1) - 1
+
+        pooled_logits = logits.gather_nd(
+            paddle.stack(
+                [paddle.arange(output.shape[0]), sequence_lengths], axis=-1))
+
+        return pooled_logits
 
 
 class GPTForGeneration(nn.Layer):

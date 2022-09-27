@@ -18,6 +18,12 @@ import warnings
 from paddle import Tensor
 from paddle.optimizer.lr import LRScheduler
 
+__all__ = [
+    'CosineAnnealingWithWarmupDecay',
+    'LinearDecayWithWarmup',
+    'ViTLRScheduler',
+]
+
 
 class CosineAnnealingWithWarmupDecay(LRScheduler):
     def __init__(self,
@@ -48,6 +54,32 @@ class CosineAnnealingWithWarmupDecay(LRScheduler):
         decay_ratio = float(num_step_) / float(decay_steps_)
         coeff = 0.5 * (math.cos(math.pi * decay_ratio) + 1.0)
         return self.min_lr + coeff * (self.max_lr - self.min_lr)
+
+
+class LinearDecayWithWarmup(LRScheduler):
+    def __init__(self,
+                 learning_rate,
+                 step_each_epoch,
+                 epochs,
+                 warmup=0,
+                 verbose=False,
+                 last_epoch=-1,
+                 **kwargs):
+        if kwargs.get('total_steps', -1) > 0:
+            self.T_max = total_steps
+        else:
+            self.T_max = epochs * step_each_epoch
+
+        self.warmup_steps = warmup if isinstance(
+            warmup, int) else int(math.floor(warmup * self.T_max))
+        super(LinearDecayWithWarmup, self).__init__(learning_rate, last_epoch,
+                                                    verbose)
+
+    def get_lr(self):
+        if self.last_epoch < self.warmup_steps:
+            return self.base_lr * (float(self.last_epoch) /
+                                   float(max(1, self.warmup_steps)))
+        return self.base_lr * max(0.0, 1.0 - self.last_epoch / self.T_max)
 
 
 class ViTLRScheduler(LRScheduler):

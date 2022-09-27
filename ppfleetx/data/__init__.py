@@ -15,10 +15,13 @@
 import os
 import sys
 import copy
+import random
+import numpy as np
 
 import paddle
 
 from ppfleetx.data import dataset, sampler, utils
+from ppfleetx.utils import env
 from ppfleetx.utils.log import logger
 
 
@@ -80,10 +83,16 @@ def build_dataloader(config, mode):
         collate_fn = getattr(
             utils, collate_fn_name) if collate_fn_name is not None else None
 
+    def worker_init_fn(worker_id):
+        """ set seed in subproces for dataloader when num_workers > 0"""
+        np.random.seed(env.get_dp_seed() + worker_id)
+        random.seed(env.get_dp_seed() + worker_id)
+
     data_loader = paddle.io.DataLoader(
         dataset=dataset,
         batch_sampler=batch_sampler,
         collate_fn=collate_fn,
+        worker_init_fn=worker_init_fn,
         **config_loader)
 
     logger.debug("build data_loader({}) success...".format(data_loader))
