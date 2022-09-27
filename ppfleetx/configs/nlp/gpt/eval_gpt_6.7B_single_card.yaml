@@ -1,0 +1,24 @@
+_base_: ./pretrain_gpt_6.7B_sharding16.yaml
+
+
+Model:
+  module: GPTEvalModule
+
+
+Distributed:
+  dp_degree:
+  mp_degree: 1
+  pp_degree: 1
+  sharding:
+    sharding_degree: 1
+    sharding_stage: 2
+    sharding_offload: False
+
+
+Offline_Eval:
+  eval_path: ./wikitext-103/wiki.valid.tokens
+  cloze_eval: False
+  overlapping_eval: 32
+  batch_size: 8
+  max_seq_len: 1024
+  logging_freq: 1
