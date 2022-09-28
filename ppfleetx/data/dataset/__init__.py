@@ -15,4 +15,5 @@
 from .vision_dataset import GeneralClsDataset, ImageFolder, CIFAR
 from .multimodal_dataset import ImagenDataset
 from .gpt_dataset import GPTDataset, LM_Eval_Dataset, Lambada_Eval_Dataset
+from .glue_dataset import *
 # from .ernie_dataset import ErnieDataset

@@ -25,7 +25,8 @@ from paddle.fluid import core
 import argparse
 from functools import reduce
 
-from ppfleetx.utils import env, logger
+from ppfleetx.utils import env
+from ppfleetx.utils.log import logger
 
 
 def is_fused_matmul_bias_supported():
@@ -62,6 +63,17 @@ def process_model_configs(config):
     if configs['use_recompute']:
         if not configs['recompute_granularity']:
             configs['recompute_granularity'] = 'full'
+        if not configs['no_recompute_layers']:
+            configs['no_recompute_layers'] = []
+        else:
+            assert isinstance(configs['no_recompute_layers'], list), "no_recompute_layers should be a list"
+            for i in configs['no_recompute_layers']:
+                assert isinstance(i, int), "all values in no_recompute_layers should be an integer"
+            assert min(configs['no_recompute_layers']) >= 0, \
+                "the min value in no_recompute_layers should >= 0"
+            assert max(configs['no_recompute_layers']) < configs['num_layers'], \
+                "the max value in no_recompute_layers should < num_layers"
+            configs['no_recompute_layers'] = sorted(list(set(configs['no_recompute_layers'])))
 
     if configs['fused_linear'] and not is_fused_matmul_bias_supported():
         configs['fused_linear'] = False
@@ -109,8 +121,10 @@ def process_optim_configs(config):
 
     nranks = dist.get_world_size()
     dp_degree = config['Distributed']['dp_degree']
+    sharding_degree = config['Distributed']['sharding']['sharding_degree']
     if config['Optimizer']['tensor_fusion']:
-        assert nranks == dp_degree, "tensor_fusion only support single card train or data parallel train"
+        assert nranks == dp_degree * sharding_degree, \
+            "tensor_fusion only support single card train or data/sharding parallel train"
 
 
 def process_data_configs(config):

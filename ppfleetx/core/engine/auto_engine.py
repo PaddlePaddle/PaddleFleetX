@@ -15,26 +15,31 @@
 import os
 import time
 import sys
+import logging
 
 import paddle
 import paddle.nn as nn
+import paddle.distributed as dist
+from paddle.distributed.fleet import auto
+from paddle.optimizer.lr import LRScheduler
 
-from paddle.distributed import fleet
-from paddle.distributed.auto_parallel.engine import Engine
+from ppfleetx.utils.log import logger
+from ppfleetx.core.engine import BasicEngine
+from ppfleetx.core.module import BasicModule
+from ppfleetx.utils.version import version_check
+from ppfleetx.data import utils
+from ppfleetx.optims import build_lr_scheduler, build_optimizer
 
-import ppfleetx.utils.logger as logger
-from ppfleetx.core.engine.basic_engine import BasicEngine
-from ppfleetx.core.module.basic_module import BasicModule
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class AutoEngine(BasicEngine):
-    def __init__(self,
-                 module,
-                 configs=None,
-                 inputs_spec=None,
-                 labels_spec=None,
-                 strategy=None):
+    def __init__(self, configs, module, mode='train'):
         super().__init__()
+        version_check()
+
+        self.mode = mode
 
         if not isinstance(module, BasicModule):
             raise TypeError(
@@ -48,105 +53,80 @@ class AutoEngine(BasicEngine):
                 "'model' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.model.__class__.__name__}."
             )
 
-        if module.loss_fn and not isinstance(
-                module.loss_fn, nn.Layer) and not callable(module.loss_fn):
-            raise TypeError(
-                "'loss_fn' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.loss_fn.__class__.__name__}."
-            )
+        if mode == 'train':
+            if module.loss_fn and not isinstance(
+                    module.loss_fn, nn.Layer) and not callable(module.loss_fn):
+                raise TypeError(
+                    "'loss_fn' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.loss_fn.__class__.__name__}."
+                )
 
         # engine configs
         self._configs = configs['Engine']
-
         self._max_steps = self._configs['max_steps']
         self._eval_freq = self._configs['eval_freq']
         self._eval_iters = self._configs['eval_iters']
         self._test_iters = self._configs['test_iters']
-        self._logging_freq = self._configs['logging_freq']
         self._num_train_epochs = self._configs['num_train_epochs']
+        self._strategy = self._configs['strategy']
 
-        self._save_steps = self._configs['save_load']['save_steps']
+        # save & load
         self._output_dir = self._configs['save_load']['output_dir']
         self._ckpt_dir = self._configs['save_load']['ckpt_dir']
 
-        self._data_configs = configs['Data']
+        # engine fit inputs
+        self.batch_size = configs['Global']['global_batch_size']
 
-        optimizer = module.configure_optimizers()
-        if optimizer and not isinstance(optimizer, (
-                paddle.optimizer.Optimizer, paddle.fluid.optimizer.Optimizer)):
-            raise TypeError(
-                    "'optimizer' must be object of class `paddle.optimizer.Optimizer`" \
-                        " or `paddle.fluid.optimizer.Optimizer`."
-                )
+        # lr_scheduler and optimizer
+        lr = build_lr_scheduler(
+            configs.Optimizer.lr) if mode == "train" else None
+        optimizer = build_optimizer(configs.Optimizer, module.model,
+                                    lr) if mode == "train" else None
 
-        if not strategy:
-            strategy = fleet.DistributedStrategy()
-            strategy.semi_auto = True
+        # init engine
+        self._auto_engine = auto.Engine(
+            module.model, module.loss_fn, optimizer, strategy=self._strategy)
 
-        self._auto_engine = Engine(
-            module.model, inputs_spec, labels_spec, strategy=strategy)
-        self._auto_engine.prepare(optimizer, module.loss_fn)
+    def fit(self, epoch=1, train_dataset=None, valid_dataset=None):
 
-    def fit(self,
-            train_dataset,
-            batch_size=1,
-            epochs=1,
-            fetches=None,
-            steps_per_epoch=None,
-            collate_fn=None,
-            use_cache=True,
-            return_numpy=True):
+        self._auto_engine.fit(train_data=train_dataset,
+                              valid_data=valid_dataset,
+                              train_sample_split=train_dataset.sample_split,
+                              valid_sample_split=valid_dataset.sample_split,
+                              epochs=self._num_train_epochs,
+                              batch_size=self.batch_size,
+                              steps_per_epoch=self._max_steps,
+                              valid_steps=self._eval_iters,
+                              valid_freq=self._eval_freq,
+                              collate_fn=train_dataset.collate_fn)
 
-        self._auto_engine.fit(train_dataset,
-                              batch_size=batch_size,
-                              epochs=epochs,
-                              fetches=fetches,
-                              steps_per_epoch=steps_per_epoch,
-                              collate_fn=collate_fn,
-                              use_cache=use_cache,
-                              return_numpy=return_numpy)
-
-    def evaluate(self,
-                 valid_dataset,
-                 batch_size=1,
-                 fetches=None,
-                 collate_fn=None,
-                 use_cache=True,
-                 return_numpy=True):
+    def evaluate(self, valid_dataset=None):
 
         self._auto_engine.evaluate(
-            valid_dataset,
-            batch_size=batch_size,
-            fetches=fetches,
-            collate_fn=collate_fn,
-            use_cache=use_cache,
-            return_numpy=return_numpy)
+            valid_data=valid_dataset,
+            valid_sample_split=valid_dataset.sample_split,
+            batch_size=self.batch_size,
+            steps=self._max_steps,
+            collate_fn=valid_dataset.collate_fn)
 
-    def predict(self,
-                test_dataset,
-                batch_size=1,
-                fetches=None,
-                collate_fn=None,
-                use_cache=True,
-                return_numpy=True):
+    def predict(self, test_dataset=None):
 
         self._auto_engine.predict(
-            test_dataset,
-            batch_size=batch_size,
-            fetches=fetches,
-            collate_fn=collate_fn,
-            use_cache=use_cache,
-            return_numpy=return_numpy)
+            test_data=test_dataset,
+            test_sample_split=test_dataset.sample_split,
+            batch_size=self.batch_size,
+            steps=self._max_steps,
+            collate_fn=test_dataset.collate_fn)
 
-    def save(self, training=False):
+    def save(self, training=True):
         if self._output_dir and isinstance(self._output_dir, str):
             path = os.path.join(self._output_dir, "auto")
-            self._auto_engine.save(path, training=training, mode="train")
+            self._auto_engine.save(path, training=training)
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
 
     def load(self):
         if self._ckpt_dir and isinstance(self._ckpt_dir, str):
             path = os.path.join(self._ckpt_dir, "auto")
-            self._auto_engine.load(path, mode="train")
+            self._auto_engine.load(path)
         else:
             logger.warning("`load` requires a valid value of `ckpt_dir`.")

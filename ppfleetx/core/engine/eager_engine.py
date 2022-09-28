@@ -27,7 +27,8 @@ from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 from paddle.profiler import SummaryView
 
-from ppfleetx.utils import logger
+from ppfleetx.optims import build_lr_scheduler, build_optimizer
+from ppfleetx.utils.log import logger
 from ppfleetx.core.engine import BasicEngine, InferenceEngine
 from ppfleetx.core.module import BasicModule
 from ppfleetx.utils.tensor_fusion_helper import all_reduce_parameters
@@ -166,11 +167,15 @@ class EagerEngine(BasicEngine):
         else:
             self._scaler = None
 
-        self._optimizer = optimizer if mode == 'train' else None
-        self._lr_scheduler = lr if mode == 'train' else None
+        self._lr_scheduler = build_lr_scheduler(
+            configs.Optimizer.lr) if mode == 'train' else None
+
+        self._optimizer = build_optimizer(
+            configs.Optimizer, self._module.model,
+            self._lr_scheduler) if mode == 'train' else None
 
         # distributed configs
-        self._distributed = dist.is_initialized()
+        self._distributed = (dist.get_world_size() > 1)
 
         if self._distributed:
             self._hcg = fleet.get_hybrid_communicate_group()
@@ -276,6 +281,7 @@ class EagerEngine(BasicEngine):
             if step % self._logging_freq == 0:
                 log_dict = {
                     'epoch': epoch_index,
+                    'total_epoch': self._num_train_epochs,
                     'batch': step,
                     'total_batch': total_train_batch,
                     'train_cost': train_costs
@@ -642,6 +648,14 @@ class EagerEngine(BasicEngine):
 
             if os.path.exists(model_path):
                 model_dict = paddle.load(model_path)
+                for name, param in self._module.model.state_dict().items():
+                    assert name in model_dict.keys(
+                    ), "No param named `{}` was found in checkpoint file.".format(
+                        name)
+
+                    if param.dtype != model_dict[name].dtype:
+                        model_dict[name] = model_dict[name].cast(param.dtype)
+
                 self._module.model.set_state_dict(model_dict)
             else:
                 raise ValueError("No optimizer checkpoint file found in %s." %

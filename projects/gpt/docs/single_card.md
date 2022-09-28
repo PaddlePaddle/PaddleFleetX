@@ -37,16 +37,16 @@ python tools/train.py \
 **运行日志**
 
 ```
-[2022/09/16 09:34:38] ppfleetx INFO: [train] epoch: 0, batch: 0, loss: 10.999595642, avg_batch_cost: 3.50859 sec, speed: 0.29 step/s, ips_total: 2335 tokens/s, ips: 2335 tokens/s, learning rate: 2.77778e-08
-[2022/09/16 09:34:39] ppfleetx INFO: [train] epoch: 0, batch: 1, loss: 10.997043610, avg_batch_cost: 0.66441 sec, speed: 1.51 step/s, ips_total: 12330 tokens/s, ips: 12330 tokens/s, learning rate: 4.16667e-08
-[2022/09/16 09:34:39] ppfleetx INFO: [train] epoch: 0, batch: 2, loss: 10.994422913, avg_batch_cost: 0.66781 sec, speed: 1.50 step/s, ips_total: 12267 tokens/s, ips: 12267 tokens/s, learning rate: 5.55556e-08
-[2022/09/16 09:34:40] ppfleetx INFO: [train] epoch: 0, batch: 3, loss: 11.005314827, avg_batch_cost: 0.66650 sec, speed: 1.50 step/s, ips_total: 12291 tokens/s, ips: 12291 tokens/s, learning rate: 6.94444e-08
-[2022/09/16 09:34:41] ppfleetx INFO: [train] epoch: 0, batch: 4, loss: 10.988011360, avg_batch_cost: 0.66635 sec, speed: 1.50 step/s, ips_total: 12294 tokens/s, ips: 12294 tokens/s, learning rate: 8.33333e-08
-[2022/09/16 09:34:41] ppfleetx INFO: [train] epoch: 0, batch: 5, loss: 10.982966423, avg_batch_cost: 0.66437 sec, speed: 1.51 step/s, ips_total: 12330 tokens/s, ips: 12330 tokens/s, learning rate: 9.72222e-08
-[2022/09/16 09:34:42] ppfleetx INFO: [train] epoch: 0, batch: 6, loss: 10.988498688, avg_batch_cost: 0.66345 sec, speed: 1.51 step/s, ips_total: 12348 tokens/s, ips: 12348 tokens/s, learning rate: 1.11111e-07
-[2022/09/16 09:34:43] ppfleetx INFO: [train] epoch: 0, batch: 7, loss: 10.966865540, avg_batch_cost: 0.66505 sec, speed: 1.50 step/s, ips_total: 12318 tokens/s, ips: 12318 tokens/s, learning rate: 1.25000e-07
-[2022/09/16 09:34:43] ppfleetx INFO: [train] epoch: 0, batch: 8, loss: 10.980158806, avg_batch_cost: 0.66787 sec, speed: 1.50 step/s, ips_total: 12266 tokens/s, ips: 12266 tokens/s, learning rate: 1.38889e-07
-[2022/09/16 09:34:44] ppfleetx INFO: [train] epoch: 0, batch: 9, loss: 10.966165543, avg_batch_cost: 0.66881 sec, speed: 1.50 step/s, ips_total: 12249 tokens/s, ips: 12249 tokens/s, learning rate: 1.52778e-07
+[2022-09-21 05:45:27,009] [    INFO] - [train] epoch: 0, batch: 0, loss: 10.999595642, avg_batch_cost: 2.53083 sec, speed: 0.40 step/s, ips_total: 3237 tokens/s, ips: 3237 tokens/s, learning rate: 2.77778e-08
+[2022-09-21 05:45:27,518] [    INFO] - [train] epoch: 0, batch: 1, loss: 10.997043610, avg_batch_cost: 0.50907 sec, speed: 1.96 step/s, ips_total: 16092 tokens/s, ips: 16092 tokens/s, learning rate: 4.16667e-08
+[2022-09-21 05:45:28,021] [    INFO] - [train] epoch: 0, batch: 2, loss: 10.994422913, avg_batch_cost: 0.50265 sec, speed: 1.99 step/s, ips_total: 16298 tokens/s, ips: 16298 tokens/s, learning rate: 5.55556e-08
+[2022-09-21 05:45:28,526] [    INFO] - [train] epoch: 0, batch: 3, loss: 11.005314827, avg_batch_cost: 0.50378 sec, speed: 1.98 step/s, ips_total: 16261 tokens/s, ips: 16261 tokens/s, learning rate: 6.94444e-08
+[2022-09-21 05:45:29,029] [    INFO] - [train] epoch: 0, batch: 4, loss: 10.988020897, avg_batch_cost: 0.50237 sec, speed: 1.99 step/s, ips_total: 16307 tokens/s, ips: 16307 tokens/s, learning rate: 8.33333e-08
+[2022-09-21 05:45:29,531] [    INFO] - [train] epoch: 0, batch: 5, loss: 10.983006477, avg_batch_cost: 0.50179 sec, speed: 1.99 step/s, ips_total: 16326 tokens/s, ips: 16326 tokens/s, learning rate: 9.72222e-08
+[2022-09-21 05:45:30,035] [    INFO] - [train] epoch: 0, batch: 6, loss: 10.988540649, avg_batch_cost: 0.50379 sec, speed: 1.98 step/s, ips_total: 16261 tokens/s, ips: 16261 tokens/s, learning rate: 1.11111e-07
+[2022-09-21 05:45:30,540] [    INFO] - [train] epoch: 0, batch: 7, loss: 10.966930389, avg_batch_cost: 0.50387 sec, speed: 1.98 step/s, ips_total: 16258 tokens/s, ips: 16258 tokens/s, learning rate: 1.25000e-07
+[2022-09-21 05:45:31,044] [    INFO] - [train] epoch: 0, batch: 8, loss: 10.980175018, avg_batch_cost: 0.50365 sec, speed: 1.99 step/s, ips_total: 16265 tokens/s, ips: 16265 tokens/s, learning rate: 1.38889e-07
+[2022-09-21 05:45:31,562] [    INFO] - [train] epoch: 0, batch: 9, loss: 10.966150284, avg_batch_cost: 0.51796 sec, speed: 1.93 step/s, ips_total: 15816 tokens/s, ips: 15816 tokens/s, learning rate: 1.52778e-07
 ```
 
 
@@ -89,13 +89,13 @@ python tools/train.py \
 cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 mkdir -p ckpt
-wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
-tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
+wget -O ckpt/GPT_345M.tar.gz https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz
+tar -xzf ckpt/GPT_345M.tar.gz -C ckpt/
 
 wget -O wikitext-103-v1.zip https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-103-v1.zip
 unzip -q wikitext-103-v1.zip
 
-ckpt_dir=ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00/
+ckpt_dir=ckpt/PaddleFleetX_GPT_345M_220826/
 eval_dir=./wikitext-103
 
 python tools/eval.py -c ppfleetx/configs/nlp/gpt/eval_gpt_345M_single_card.yaml \
@@ -107,17 +107,17 @@ python tools/eval.py -c ppfleetx/configs/nlp/gpt/eval_gpt_345M_single_card.yaml 
 
 评估日志如下：
 ```shell
-[2022/09/15 12:22:42] ppfleetx INFO: [eval] epoch: 0, batch: 0, loss: 0.170368048, speed: 0.31 step/s
-[2022/09/15 12:22:56] ppfleetx INFO: [eval] epoch: 0, batch: 10, loss: 0.231640193, speed: 0.75 step/s
-[2022/09/15 12:23:09] ppfleetx INFO: [eval] epoch: 0, batch: 20, loss: 0.292417919, speed: 0.74 step/s
-[2022/09/15 12:23:23] ppfleetx INFO: [eval] epoch: 0, batch: 30, loss: 0.351391476, speed: 0.74 step/s
-[2022/09/15 12:23:36] ppfleetx INFO: [eval] epoch: 0, batch: 40, loss: 0.415404772, speed: 0.74 step/s
+[2022-09-21 05:28:26,263] [    INFO] - [eval] epoch: 0, batch: 0, loss: 0.170368048, speed: 0.29 step/s
+[2022-09-21 05:28:39,642] [    INFO] - [eval] epoch: 0, batch: 10, loss: 0.231640193, speed: 0.75 step/s
+[2022-09-21 05:28:53,469] [    INFO] - [eval] epoch: 0, batch: 20, loss: 0.292417919, speed: 0.72 step/s
+[2022-09-21 05:29:07,012] [    INFO] - [eval] epoch: 0, batch: 30, loss: 0.351391476, speed: 0.74 step/s
+[2022-09-21 05:29:27,359] [    INFO] - [eval] epoch: 0, batch: 40, loss: 0.415404772, speed: 0.49 step/s
 ```
 
 评估结果如下：
 
 ```shell
-[2022/09/15 12:34:37] ppfleetx INFO: validation results on ./wikitext-103/wiki.valid.tokens | avg loss: 2.9554E+00 | ppl: 1.9210E+01 | adjusted ppl: 2.4948E+01 | token ratio: 1.0884484081583892
+[2022-09-21 05:40:32,820] [    INFO] - validation results on ./wikitext-103/wiki.valid.tokens | avg loss: 2.9554E+00 | ppl: 1.9210E+01 | adjusted ppl: 2.4948E+01 | token ratio: 1.0884484081583892
 ```
 
 ### LAMBADA数据集评估
@@ -126,12 +126,12 @@ python tools/eval.py -c ppfleetx/configs/nlp/gpt/eval_gpt_345M_single_card.yaml 
 cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 mkdir -p ckpt
-wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
-tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
+wget -O ckpt/GPT_345M.tar.gz https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz
+tar -xzf ckpt/GPT_345M.tar.gz -C ckpt/
 
 wget -O lambada_test.jsonl https://raw.githubusercontent.com/cybertronai/bflm/master/lambada_test.jsonl
 
-ckpt_dir=ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00/
+ckpt_dir=ckpt/PaddleFleetX_GPT_345M_220826/
 
 python tools/eval.py -c ppfleetx/configs/nlp/gpt/eval_gpt_345M_single_card.yaml \
     -o Engine.save_load.ckpt_dir=$ckpt_dir \
@@ -143,17 +143,17 @@ python tools/eval.py -c ppfleetx/configs/nlp/gpt/eval_gpt_345M_single_card.yaml 
 
 评估日志如下：
 ```shell
-[2022/09/15 12:29:25] ppfleetx INFO: [eval] epoch: 0, batch: 0, number correct: 50.000000000, speed: 0.30 step/s
-[2022/09/15 12:29:38] ppfleetx INFO: [eval] epoch: 0, batch: 10, number correct: 130.000000000, speed: 0.76 step/s
-[2022/09/15 12:29:52] ppfleetx INFO: [eval] epoch: 0, batch: 20, number correct: 209.000000000, speed: 0.76 step/s
-[2022/09/15 12:30:05] ppfleetx INFO: [eval] epoch: 0, batch: 30, number correct: 279.000000000, speed: 0.76 step/s
-[2022/09/15 12:30:18] ppfleetx INFO: [eval] epoch: 0, batch: 40, number correct: 343.000000000, speed: 0.75 step/s
+[2022-09-21 05:18:24,152] [    INFO] - [eval] epoch: 0, batch: 0, number correct: 50.000000000, speed: 0.29 step/s
+[2022-09-21 05:18:37,264] [    INFO] - [eval] epoch: 0, batch: 10, number correct: 130.000000000, speed: 0.76 step/s
+[2022-09-21 05:18:50,408] [    INFO] - [eval] epoch: 0, batch: 20, number correct: 209.000000000, speed: 0.76 step/s
+[2022-09-21 05:19:03,578] [    INFO] - [eval] epoch: 0, batch: 30, number correct: 279.000000000, speed: 0.76 step/s
+[2022-09-21 05:19:16,760] [    INFO] - [eval] epoch: 0, batch: 40, number correct: 343.000000000, speed: 0.76 step/s
 ```
 
 评估结果如下：
 
 ```shell
-[2022/09/15 12:46:29] ppfleetx INFO: validation results on ./lambada_test.jsonl | number correct: 2.1240E+03 | total examples: 5.1530E+03 | avg accuracy: 4.1219E-01
+[2022-09-21 05:25:28,662] [    INFO] - validation results on ./lambada_test.jsonl | number correct: 2.1240E+03 | total examples: 5.1530E+03 | avg accuracy: 4.1219E-01
 ```
 
 # GPT Zero-shot 文本生成
@@ -194,12 +194,12 @@ python tools/eval.py -c ppfleetx/configs/nlp/gpt/eval_gpt_345M_single_card.yaml 
 cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 mkdir -p ckpt
-wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
-tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
+wget -O ckpt/GPT_345M.tar.gz https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz
+tar -xzf ckpt/GPT_345M.tar.gz -C ckpt/
 
 python tasks/gpt/generation.py \
     -c ppfleetx/configs/nlp/gpt/generation_gpt_345M_single_card.yaml \
-    -o Engine.save_load.ckpt_dir=./ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00
+    -o Engine.save_load.ckpt_dir=./ckpt/PaddleFleetX_GPT_345M_220826/
 
 # 生成的文本，由于 checkpoint 不同，超参不同，随机数不同，您执行可能会生成不一样的内容
 
@@ -268,8 +268,8 @@ I think that we are going to become a very important player in the logistics ind
 cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 mkdir -p ckpt
-wget -O ckpt/GPT_345M_300B_DP_20220826.tgz http://fleet.bj.bcebos.com/pretrained/gpt/GPT_345M_300B_DP_20220826.tgz
-tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
+wget -O ckpt/GPT_345M.tar.gz https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz
+tar -xzf ckpt/GPT_345M.tar.gz -C ckpt/
 ```
 
 2. 导出预测模型
@@ -277,7 +277,7 @@ tar -xzf ckpt/GPT_345M_300B_DP_20220826.tgz -C ckpt/
 ```bash
 python tools/export.py \
     -c ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml \
-    -o Engine.save_load.ckpt_dir=./ckpt/GPT_345M_300B_DP_20220826/mp_00_sharding_00_pp_00
+    -o Engine.save_load.ckpt_dir=./ckpt/PaddleFleetX_GPT_345M_220826/
 ```
 
 导出的模型默认保存在`./output`目录，可通过配置文件中`Engine.save_load.output_dir`或通过`-o Engine.save_load.output_dir=`指定
@@ -285,8 +285,8 @@ python tools/export.py \
 导出脚本输出如下：
 
 ```bash
-[2022/09/16 09:35:50] ppfleetx INFO: disable use_pure_fp16 in export mode
-[2022/09/16 09:35:51] ppfleetx INFO: export inference model saved in ./output/rank_0
+[2022-09-21 05:25:28,662] [    INFO] - disable use_pure_fp16 in export mode
+[2022-09-21 05:25:28,662] [    INFO] - export inference model saved in ./output/rank_0
 ```
 
 #### 预测部署

@@ -19,7 +19,8 @@ import paddle
 
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.multimodal_model.imagen as imagen
-from ppfleetx.utils import logger
+from ppfleetx.utils.log import logger
+
 import paddleslim
 from .utils import process_configs
 

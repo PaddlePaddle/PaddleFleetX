@@ -31,6 +31,7 @@ Model:
   module: "GPTModule"
   name: "GPT"
   fused_linear: False
+  fuse_attn_qkv: True
   sequence_parallel: False
 
 
@@ -42,7 +43,7 @@ Data:
       split: [949, 50, 1]
       max_seq_len: 1024
     sampler:
-      name: DistributedBatchSampler
+      name: GPTBatchSampler
       shuffle: False
       drop_last: True
     loader:
