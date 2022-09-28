@@ -8,6 +8,7 @@ run_mode=DP4-MP8-PP1
 device_num=N4C32
 
 model=gpt
+micro_bs=4
 
 cd ./benchmarks
 bash ./test_tipc/gpt/hybrid_parallel/benchmark_common/prepare.sh
