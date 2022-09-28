@@ -14,18 +14,18 @@ tar -xzf ckpt/GPT_345M.tar.gz -C ckpt/
 
 ```
 # cd path/to/PaddleFleetX
-# sh projects/gpt/finetune_gpt_345M_single_card.sh taskname [split]
+# bash projects/gpt/finetune_gpt_345M_single_card.sh taskname [split]
 
 # taskname 可选: CoLA, SST2, MRPC, QQP, STSB, MNLI, QNLI, RTE, WNLI
-# 例如 sh projects/gpt/finetune_gpt_345M_single_card.sh CoLA
+# 例如 bash projects/gpt/finetune_gpt_345M_single_card.sh CoLA
 
 # 注：当数据集为 MNLI 时，验证集有两种，分别是 dev_matched 和 dev_mismatched，
 # 其他数据集，只有一种验证集，因此不用选择
-# 可以通过 sh projects/gpt/finetune_gpt_345M_single_card.sh MNLI dev_matched
-# 或者 sh projects/gpt/finetune_gpt_345M_single_card.sh MNLI dev_mismatched
+# 可以通过 bash projects/gpt/finetune_gpt_345M_single_card.sh MNLI dev_matched
+# 或者 bash projects/gpt/finetune_gpt_345M_single_card.sh MNLI dev_mismatched
 # 进行 finetune 训练
 
-sh projects/gpt/finetune_gpt_345M_single_card.sh SST2
+bash projects/gpt/finetune_gpt_345M_single_card.sh SST2
 ```
 
 ## GLUE benchmark 数据集
