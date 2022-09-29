@@ -153,6 +153,11 @@ class EagerEngine(BasicEngine):
             'sharding_degree']
         self._sharding_offload = self._dist_configs['sharding'][
             'sharding_offload']
+        self._comm_overlap = self._dist_configs['sharding']['comm_overlap']
+        if self._sharding_degree > 1 and self._comm_overlap:
+            if self._sharding_stage == 3 or self._sharding_offload:
+                self._comm_overlap = False
+                logger.warning("comm overlap only valid for sharding stage 2 without offload")
         self._use_recompute = configs['Model']['use_recompute']
 
         if self._use_pure_fp16:
@@ -245,6 +250,8 @@ class EagerEngine(BasicEngine):
             scaler=self._scaler,
             group=self._sharding_group,
             offload=self._sharding_offload)
+        if self._comm_overlap:
+            self._module.model._set_comm_overlap(self._comm_overlap)
 
     def _wrap_3D_parallel(self):
         self._module.model = fleet.distributed_model(self._module.model)
