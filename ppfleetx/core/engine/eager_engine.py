@@ -155,7 +155,9 @@ class EagerEngine(BasicEngine):
             'sharding_offload']
         self._comm_overlap = self._dist_configs['sharding']['comm_overlap']
         if self._sharding_degree > 1 and self._comm_overlap:
-            assert self._sharding_stage == 2 and not self._sharding_offload
+            if self._sharding_stage == 3 or self._sharding_offload:
+                self._comm_overlap = False
+                logger.warning("comm overlap only valid for sharding stage 2 without offload")
         self._use_recompute = configs['Model']['use_recompute']
 
         if self._use_pure_fp16:
