@@ -25,7 +25,7 @@ import numpy as np
 import paddle
 import paddle.distributed as dist
 from paddle import LazyGuard
-from paddle.distributed.fleet import auto
+#from paddle.distributed.fleet import auto
 
 from .auto_utils import process_configs
 

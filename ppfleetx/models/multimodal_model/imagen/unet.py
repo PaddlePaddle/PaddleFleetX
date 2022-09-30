@@ -20,6 +20,7 @@ import paddle
 from paddle import nn
 from paddle import nn, einsum
 import paddle.nn.functional as F
+from paddle.distributed.fleet.utils import recompute
 
 from .utils import (zeros_, zero_init_, default, cast_tuple,
                     resize_image_to, prob_mask_like, masked_mean, Identity,
@@ -941,7 +942,7 @@ class Unet(nn.Layer):
             self.to_lowres_time_tokens = nn.Sequential(
                 nn.Linear(time_cond_dim, cond_dim * num_time_tokens),
                 Rearrange(
-                    'b (r d) -> b r d', r=num_time_tokens))
+                    'b (n d) -> b n d', n=num_time_tokens))
 
         # normalizations
 
@@ -1153,6 +1154,8 @@ class Unet(nn.Layer):
 
             skip_connect_dim = skip_connect_dims.pop()
 
+            upsample_fmap_dims.append(dim_out)
+
             self.ups.append(
                 nn.LayerList([
                     resnet_klass(
@@ -1214,17 +1217,15 @@ class Unet(nn.Layer):
 
     # if the current settings for the unet are not correct
     # for cascading DDPM, then reinit the unet with the right settings
-    def cast_model_parameters(self, lowres_cond, text_embed_dim, channels,
+    def cast_model_parameters(self, text_embed_dim, channels,
                               channels_out, cond_on_text):
-        if lowres_cond == self.lowres_cond and \
-            channels == self.channels and \
+        if channels == self.channels and \
             cond_on_text == self.cond_on_text and \
             text_embed_dim == self._locals['text_embed_dim'] and \
             channels_out == self.channels_out:
             return self
 
         updated_kwargs = dict(
-            lowres_cond=lowres_cond,
             text_embed_dim=text_embed_dim,
             channels=channels,
             channels_out=channels_out,
@@ -1286,9 +1287,17 @@ class Unet(nn.Layer):
                 lowres_noise_times=None,
                 text_embeds=None,
                 text_mask=None,
+                self_cond=None,
                 cond_images=None,
-                cond_drop_prob=0.):
+                cond_drop_prob=0.,
+                use_recompute=False):
         batch_size = x.shape[0]
+
+        # condition on self
+
+        if self.self_cond:
+            self_cond = default(self_cond, lambda: paddle.zeros_like(x))
+            x = paddle.concat((x, self_cond), axis=1)
 
         # add low resolution conditioning, if present
 
@@ -1306,11 +1315,6 @@ class Unet(nn.Layer):
             self.has_cond_image ^ (cond_images is not None)
         ), 'you either requested to condition on an image on the unet, but the conditioning image is not supplied, or vice versa'
 
-        if cond_images is not None:
-            assert cond_images.shape[
-                1] == self.cond_images_channels, 'the number of channels on the conditioning image you are passing in does not match what you specified on initialiation of the unet'
-            cond_images = resize_image_to(cond_images, x.shape[-1])
-            x = paddle.concat((cond_images, x), axis=1)
 
         # initial convolution
 
@@ -1386,7 +1390,7 @@ class Unet(nn.Layer):
                 text_tokens.dtype)  # for some reason pypaddle AMP not working
 
             text_tokens = paddle.where(
-                text_keep_mask_embed.cast(paddle.uint8),  # fixed
+                text_keep_mask_embed,
                 text_tokens,
                 null_text_embed)
 
@@ -1431,7 +1435,7 @@ class Unet(nn.Layer):
                 x = resnet_block(x, t)
                 hiddens.append(x)
 
-            x = attn_block(x, c)
+            x = attn_block(x, c) if not use_recompute else recompute(attn_block, x, c)
             hiddens.append(x)
 
             if post_downsample is not None:
@@ -1456,7 +1460,7 @@ class Unet(nn.Layer):
                 x = add_skip_connection(x)
                 x = resnet_block(x, t)
 
-            x = attn_block(x, c)
+            x = attn_block(x, c) if not use_recompute else recompute(attn_block, x, c)
             up_hiddens.append(x)
             x = upsample(x)
 

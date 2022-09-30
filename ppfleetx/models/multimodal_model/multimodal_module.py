@@ -14,10 +14,12 @@
 
 import sys
 import copy
+from collections import OrderedDict
 
 import paddle
 
 from ppfleetx.core.module.basic_module import BasicModule
+import ppfleetx.models.multimodal_model.clip as clip 
 import ppfleetx.models.multimodal_model.imagen as imagen
 from ppfleetx.utils.log import logger
 
@@ -41,7 +43,6 @@ class MultiModalModule(BasicModule):
             samples, text_embeds=text_embeds, text_masks=text_masks)
 
     def training_step(self, batch):
-        samples, text_embeds, text_masks = batch
         preds, targets, log_snr, p2_loss_weight_gamma = self(
             samples, text_embeds, text_masks)
         loss = self.loss_fn(preds, targets, log_snr, p2_loss_weight_gamma)
@@ -114,6 +115,65 @@ class ImagenModule(MultiModalModule):
     def get_loss_fn(self):
         model_setting = copy.deepcopy(self.configs.Loss)
         loss_fn = imagen.ImagenCriterion(**model_setting)
+        return loss_fn
+
+    def pretreating_batch(self, batch):
+        return batch
+
+    def training_step(self, batch):
+        samples, text_embeds, text_masks = batch
+        preds, targets, log_snr, p2_loss_weight_gamma = self(
+            samples, text_embeds, text_masks)
+        loss = self.loss_fn(preds, targets, log_snr, p2_loss_weight_gamma)
+        return loss
+
+
+class ImagenSampleModule(BasicModule):
+    def __init__(self, configs):
+        self.configs = configs
+        super().__init__(configs)
+
+    def process_configs(self, configs):
+        configs = process_configs(configs)
+        return configs
+
+    def get_model(self):
+        model_setting = copy.deepcopy(self.configs.Model)
+        model_setting.pop("module")
+        imagen_model = model_setting.pop("name")
+        model = getattr(imagen, imagen_model)(**model_setting)
+        checkpoint = paddle.load('run_imagen_text2im_397m_420m-ep1-step171000.pd', return_numpy=True) 
+        model.set_state_dict(checkpoint['model'])
+        #model.unets[0].set_state_dict(checkpoint['model'])
+        checkpoint = paddle.load('run_imagen_sr512_checkpoint-ep0-step20000.pd', return_numpy=True) 
+        new = OrderedDict()
+        for k, v in checkpoint['model'].items():
+            new[k.replace('unets.0', 'unets.1')] = v
+        model.set_state_dict(new)
+        model.eval()
+        return model
+
+
+    def forward(self, input_ids, text_masks):
+        samples = self.model.sample(
+            input_ids=input_ids, text_masks=text_masks)
+        return samples 
+
+
+class CLIPModule(MultiModalModule):
+    def __init__(self, configs):
+        super(CLIPModule, self).__init__(configs)
+
+    def get_model(self):
+        model_setting = copy.deepcopy(self.configs.Model)
+        model_setting.pop("module")
+        clip_model = model_setting.pop("name")
+        model = getattr(clip, clip_model)(**model_setting)
+        return model
+
+    def get_loss_fn(self):
+        loss_setting = copy.deepcopy(self.configs.Loss)
+        loss_fn = getattr(clip, loss_setting.pop("name"))()
         return loss_fn
 
     def pretreating_batch(self, batch):

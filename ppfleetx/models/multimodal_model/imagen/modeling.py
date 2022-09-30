@@ -21,6 +21,7 @@ from paddle import nn
 import paddle.vision.transforms as T
 
 from .unet import Unet
+from ppfleetx.models.language_model.t5 import get_t5_model, t5_encode_text, get_encoded_dim
 from .utils import (GaussianDiffusionContinuousTimes, default, cast_tuple,
                     first, maybe, eval_decorator, identity,
                     pad_tuple_to_length, right_pad_dims_to, resize_image_to,
@@ -152,6 +153,8 @@ class ImagenModel(nn.Layer):
                  dynamic_thresholding=True,
                  dynamic_thresholding_percentile=0.95,
                  only_train_unet_number=None,
+                 return_all_unet_outputs=False,
+                 use_t5=False,
                  use_recompute=False,
                  fused_linear=False):
         super().__init__()
@@ -160,6 +163,7 @@ class ImagenModel(nn.Layer):
 
         self.condition_on_text = condition_on_text
         self.unconditional = not condition_on_text
+        self.return_all_unet_outputs = return_all_unet_outputs 
 
         # channels
 
@@ -211,6 +215,10 @@ class ImagenModel(nn.Layer):
         self.text_encoder_name = text_encoder_name
         self.text_embed_dim = default(text_embed_dim, lambda: 1024)
 
+        if use_t5:
+            self.t5_encoder = get_t5_model(name=text_encoder_name, pretrained=True)
+            self.t5_encode_text = t5_encode_text
+
         # construct unets
 
         self.unets = nn.LayerList([])
@@ -223,7 +231,6 @@ class ImagenModel(nn.Layer):
             is_first = ind == 0
 
             one_unet = one_unet.cast_model_parameters(
-                lowres_cond=not is_first,
                 cond_on_text=self.condition_on_text,
                 text_embed_dim=self.text_embed_dim
                 if self.condition_on_text else None,
@@ -235,16 +242,12 @@ class ImagenModel(nn.Layer):
         # unet image sizes
 
         self.image_sizes = cast_tuple(image_sizes)
-        assert num_unets == len(image_sizes)
 
         self.sample_channels = cast_tuple(self.channels, num_unets)
 
         # cascading ddpm related stuff
 
         lowres_conditions = tuple(map(lambda t: t.lowres_cond, self.unets))
-        assert lowres_conditions == (
-            False, *((True, ) * (num_unets - 1))
-        ), 'the first unet must be unconditioned (by low resolution image), and the rest of the unets must have `lowres_cond` set to True'
 
         self.lowres_sample_noise_level = lowres_sample_noise_level
         self.per_sample_random_aug_noise_level = per_sample_random_aug_noise_level
@@ -267,7 +270,6 @@ class ImagenModel(nn.Layer):
 
         # p2 loss weight
 
-        #self.p2_loss_weight_k = p2_loss_weight_k
         self.p2_loss_weight_gamma = cast_tuple(p2_loss_weight_gamma, num_unets)
 
         assert all([
@@ -291,7 +293,6 @@ class ImagenModel(nn.Layer):
 
     @contextmanager
     def one_unet_in_gpu(self, unet_number=None, unet=None):
-        assert (unet_number is not None) ^ (unet is not None)
 
         if unet_number is not None:
             unet = self.unets[unet_number - 1]
@@ -496,7 +497,7 @@ class ImagenModel(nn.Layer):
     @eval_decorator
     def sample(
             self,
-            texts=None,
+            input_ids=None,
             text_masks=None,
             text_embeds=None,
             cond_images=None,
@@ -509,12 +510,14 @@ class ImagenModel(nn.Layer):
             cond_scale=1.,
             lowres_sample_noise_level=None,
             stop_at_unet_number=None,
-            return_all_unet_outputs=False,
             return_pil_images=False, ):
         self.reset_unets()
 
         cond_images = maybe(cast_uint8_images_to_float)(cond_images)
 
+        if input_ids is not None and text_embeds is None and not self.unconditional:
+            text_embeds, _= self.t5_encode_text(
+                self.t5_encoder, input_ids, text_masks, return_mask=True)
         if not self.unconditional:
             text_masks = default(
                 text_masks, lambda: paddle.any(text_embeds != 0., axis=-1))
@@ -558,58 +561,55 @@ class ImagenModel(nn.Layer):
                     self.pred_objectives, self.dynamic_thresholding,
                     cond_scale, init_images, skip_steps)):
 
-            context = self.one_unet_in_gpu(unet=unet)
+            lowres_cond_img = lowres_noise_times = None
+            shape = (batch_size, channel, image_size, image_size)
 
-            with context:
-                lowres_cond_img = lowres_noise_times = None
-                shape = (batch_size, channel, image_size, image_size)
+            if unet.lowres_cond:
+                lowres_noise_times = self.lowres_noise_schedule.get_times(
+                    batch_size, lowres_sample_noise_level)
 
-                if unet.lowres_cond:
-                    lowres_noise_times = self.lowres_noise_schedule.get_times(
-                        batch_size, lowres_sample_noise_level)
+                lowres_cond_img = resize_image_to(img, image_size)
+                lowres_cond_img = self.normalize_img(
+                    lowres_cond_img)  # new
+                lowres_cond_img, _ = self.lowres_noise_schedule.q_sample(
+                    x_start=lowres_cond_img,
+                    t=lowres_noise_times,
+                    noise=paddle.randn(
+                        shape=lowres_cond_img.shape,
+                        dtype=lowres_cond_img.dtype))
 
-                    lowres_cond_img = resize_image_to(img, image_size)
-                    lowres_cond_img = self.normalize_img(
-                        lowres_cond_img)  # new
-                    lowres_cond_img, _ = self.lowres_noise_schedule.q_sample(
-                        x_start=lowres_cond_img,
-                        t=lowres_noise_times,
-                        noise=paddle.randn(
-                            shape=lowres_cond_img.shape,
-                            dtype=lowres_cond_img.dtype))
+            shape = (batch_size, self.channels, image_size, image_size)
 
-                shape = (batch_size, self.channels, image_size, image_size)
+            img = self.p_sample_loop(
+                unet,
+                shape,
+                text_embeds=text_embeds,
+                text_mask=text_masks,
+                cond_images=cond_images,
+                inpaint_images=inpaint_images,
+                inpaint_masks=inpaint_masks,
+                inpaint_resample_times=inpaint_resample_times,
+                init_images=unet_init_images,
+                skip_steps=unet_skip_steps,
+                cond_scale=unet_cond_scale,
+                lowres_cond_img=lowres_cond_img,
+                lowres_noise_times=lowres_noise_times,
+                noise_scheduler=noise_scheduler,
+                pred_objective=pred_objective,
+                dynamic_threshold=dynamic_threshold)
 
-                img = self.p_sample_loop(
-                    unet,
-                    shape,
-                    text_embeds=text_embeds,
-                    text_mask=text_masks,
-                    cond_images=cond_images,
-                    inpaint_images=inpaint_images,
-                    inpaint_masks=inpaint_masks,
-                    inpaint_resample_times=inpaint_resample_times,
-                    init_images=unet_init_images,
-                    skip_steps=unet_skip_steps,
-                    cond_scale=unet_cond_scale,
-                    lowres_cond_img=lowres_cond_img,
-                    lowres_noise_times=lowres_noise_times,
-                    noise_scheduler=noise_scheduler,
-                    pred_objective=pred_objective,
-                    dynamic_threshold=dynamic_threshold)
-
-                outputs.append(img)
+            outputs.append(img)
 
             if stop_at_unet_number is not None and stop_at_unet_number == unet_number:
                 break
 
-        output_index = -1 if not return_all_unet_outputs else slice(
+        output_index = -1 if not self.return_all_unet_outputs else slice(
             None)  # either return last unet output or all unet outputs
 
         if not return_pil_images:
             return outputs[output_index]
 
-        if not return_all_unet_outputs:
+        if not self.return_all_unet_outputs:
             outputs = outputs[-1:]
 
         pil_images = list(
@@ -669,18 +669,39 @@ class ImagenModel(nn.Layer):
                 noise=paddle.randn(
                     shape=lowres_cond_img.shape, dtype=lowres_cond_img.dtype))
 
-        # get prediction
+        # time condition
 
-        pred = unet.forward(
-            x_noisy,
-            noise_scheduler.get_condition(times),
+        noise_cond = noise_scheduler.get_condition(times)
+
+
+        # unet kwargs
+
+        unet_kwargs = dict(
             text_embeds=text_embeds,
             text_mask=text_mask,
             cond_images=cond_images,
             lowres_noise_times=self.lowres_noise_schedule.get_condition(
                 lowres_aug_times),
             lowres_cond_img=lowres_cond_img_noisy,
-            cond_drop_prob=self.cond_drop_prob, )
+            cond_drop_prob=self.cond_drop_prob,
+            use_recompute=self.use_recompute)
+
+        # self condition
+
+        if unet.self_cond and random() < 0.5:
+            with paddle.no_grad():
+                pred = unet.forward(x_noisy, noise_cond,
+                                    **unet_kwargs).detach()
+
+                x_start = noise_scheduler.predict_start_from_noise(
+                    x_noisy, t=times,
+                    noise=pred) if pred_objective == 'noise' else pred
+
+                unet_kwargs = { ** unet_kwargs, 'self_cond': x_start}
+
+        # get prediction
+
+        pred = unet.forward(x_noisy, noise_cond, **unet_kwargs)
 
         # prediction objective
 
@@ -722,14 +743,21 @@ class ImagenModel(nn.Layer):
         pred_objective = self.pred_objectives[unet_index]
         target_image_size = self.image_sizes[unet_index]
         random_crop_size = self.random_crop_sizes[unet_index]
-        prev_image_size = self.image_sizes[unet_index -
-                                           1] if unet_index > 0 else None
+        prev_image_size = self.image_sizes[unet_index - 1]
         b, c, h, w = images.shape
 
         assert images.shape[1] == self.channels
         assert h >= target_image_size and w >= target_image_size
 
         times = noise_scheduler.sample_random_times(b)
+
+        if texts is not None and not text_embeds is not None and not self.unconditional:
+            assert len(texts) == len(
+                images
+            ), 'number of text captions does not match up with the number of images given'
+
+            text_embeds, text_masks = self.encode_text(
+                texts, return_attn_mask=True)
 
         if not self.unconditional:
             text_masks = default(
@@ -804,6 +832,17 @@ def imagen_SR256(**kwargs):
 
 def imagen_SR512(**kwargs):
     model = ImagenModel(unets=SRUnet1024(), image_sizes=(512, ), **kwargs)
+    return model
+
+def imagen_64to512(**kwargs):
+    if 'lowres_cond' in kwargs:
+        lowres_cond = kwargs.pop('lowres_cond')
+    else:
+        lowres_cond = False
+    model = ImagenModel(
+        unets=(Unet64_397M(), SRUnet1024(lowres_cond=True)),
+        image_sizes=(64,512),
+        **kwargs)
     return model
 
 def imagen_SR1024(**kwargs):
