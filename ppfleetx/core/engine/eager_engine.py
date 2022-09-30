@@ -153,11 +153,20 @@ class EagerEngine(BasicEngine):
             'sharding_degree']
         self._sharding_offload = self._dist_configs['sharding'][
             'sharding_offload']
-        self._comm_overlap = self._dist_configs['sharding']['comm_overlap']
-        if self._sharding_degree > 1 and self._comm_overlap:
+        self._reduce_overlap = self._dist_configs['sharding']['reduce_overlap']
+        if self._sharding_degree > 1 and self._reduce_overlap:
             if self._sharding_stage == 3 or self._sharding_offload:
-                self._comm_overlap = False
-                logger.warning("comm overlap only valid for sharding stage 2 without offload")
+                self._reduce_overlap = False
+                logger.warning("reduce overlap only valid for sharding stage 2 without offload")
+        self._broadcast_overlap = self._dist_configs['sharding']['_broadcast_overlap']
+        if self._sharding_degree > 1 and self._broadcast_overlap:
+            if self._sharding_stage == 3 or self._sharding_offload:
+                self._broadcast_overlap = False
+                logger.warning("broadcast overlap only valid for sharding stage 2 without offload")
+        if self._broadcast_overlap and self._logging_freq == 1:
+            logger.warning("Set logging_freq to 1 will disable broadcast_overlap. "
+                           "If you want to overlap the broadcast, please increase the logging_freq.")
+            self._broadcast_overlap = False
         self._use_recompute = configs['Model']['use_recompute']
 
         if self._use_pure_fp16:
@@ -243,6 +252,7 @@ class EagerEngine(BasicEngine):
                 src_rank=self._dp_group.ranks[0])
 
         level = "p_g_os" if self._sharding_stage == 3 else "os_g"
+        origin_modle = self._module.model
         self._module.model, self._optimizer, self._scaler = group_sharded_parallel(
             model=self._module.model,
             optimizer=self._optimizer,
@@ -250,8 +260,10 @@ class EagerEngine(BasicEngine):
             scaler=self._scaler,
             group=self._sharding_group,
             offload=self._sharding_offload)
-        if self._comm_overlap:
-            self._module.model._set_comm_overlap(self._comm_overlap)
+        if self._reduce_overlap:
+            self._module.model._set_reduce_overlap(self._reduce_overlap)
+        if self._broadcast_overlap:
+            self._optimizer._set_broadcast_overlap(self._reduce_overlap, origin_modle)
 
     def _wrap_3D_parallel(self):
         self._module.model = fleet.distributed_model(self._module.model)
@@ -280,12 +292,12 @@ class EagerEngine(BasicEngine):
                     continue
 
             loss = self._fit_impl(batch)
-            # Sync for profile time, delete it may be a little faster
-            paddle.device.cuda.synchronize()
-            train_costs = time.time() - train_start
-            train_losses.append(loss.numpy()[0])
 
             if step % self._logging_freq == 0:
+                # Sync for profile time, delete it may be a little faster
+                paddle.device.cuda.synchronize()
+                train_costs = time.time() - train_start
+                train_losses.append(loss.numpy()[0])
                 log_dict = {
                     'epoch': epoch_index,
                     'total_epoch': self._num_train_epochs,
@@ -303,6 +315,7 @@ class EagerEngine(BasicEngine):
 
             if self._run_mode == 'step' and not skip_first:
                 if step % self._eval_freq == 0:
+                    paddle.device.cuda.synchronize()
                     self._module.model.eval()
 
                     eval_losses = []
@@ -331,6 +344,7 @@ class EagerEngine(BasicEngine):
                     self._module.model.train()
 
                 if self._save_steps > 0 and step % self._save_steps == 0:
+                    paddle.device.cuda.synchronize()
                     self.save(epoch=epoch_index, step=step)
             else:
                 skip_first = False

@@ -31,10 +31,12 @@ from ppfleetx.utils.log import logger
 from ppfleetx.data import build_dataloader
 from ppfleetx.models import build_module
 from ppfleetx.core import EagerEngine
+from paddle.fluid.reader import use_pinned_memory
 
 #init_logger()
 
 if __name__ == "__main__":
+    use_pinned_memory(False)
     args = config.parse_args()
     cfg = config.get_config(args.config, overrides=args.override, show=False)
 
