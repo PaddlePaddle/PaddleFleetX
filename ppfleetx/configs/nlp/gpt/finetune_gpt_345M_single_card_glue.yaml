@@ -28,6 +28,7 @@ Model:
   name: "GPT"
   num_classes: 2
   pretrained: './ckpt/PaddleFleetX_GPT_345M_220826/model'
+  fuse_attn_qkv: True
   fused_linear: False
   vocab_size: 50304
   hidden_size: 1024
