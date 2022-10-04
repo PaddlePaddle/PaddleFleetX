@@ -24,7 +24,11 @@ import paddle
 
 from ppfleetx.utils import env
 from ppfleetx.utils.log import logger
-from ppfleetx.data.tokenizers import GPTTokenizer, GPTChineseTokenizer
+from ppfleetx.data.tokenizers import GPTTokenizer
+
+# TODO(haohongxiang): to solve the problem of cross-reference
+import paddlenlp
+from paddlenlp.transformers.gpt.tokenizer import GPTChineseTokenizer
 
 mode_to_index = {"Train": 0, "Eval": 1, "Test": 2}
 

@@ -27,8 +27,12 @@ from ppfleetx.utils import env
 from ppfleetx.utils.log import logger
 import paddleslim
 from .utils import process_configs
-from ppfleetx.data.tokenizers import GPTTokenizer, GPTChineseTokenizer
+from ppfleetx.data.tokenizers import GPTTokenizer
 from .metrics import *
+
+# TODO(haohongxiang): to solve the problem of cross-reference
+import paddlenlp
+from paddlenlp.transformers.gpt.tokenizer import GPTChineseTokenizer
 
 MODEL_CLASSES = {
     "GPT": (GPTTokenizer, "gpt2"),

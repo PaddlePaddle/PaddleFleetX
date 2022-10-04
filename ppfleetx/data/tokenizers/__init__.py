@@ -13,7 +13,3 @@
 # limitations under the License.
 
 from .gpt_tokenizer import GPTTokenizer
-
-# TODO(haohongxiang): to solve the problem of cross-reference
-import paddlenlp
-from paddlenlp.transformers.gpt.tokenizer import GPTChineseTokenizer
