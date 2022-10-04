@@ -463,6 +463,10 @@ class GPTGenerationModule(BasicModule):
         model_setting = copy.deepcopy(self.configs.Model)
         model_setting.pop("module")
 
+        model_name = model_setting.pop("name")
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
+        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
+
         if self.nranks == 1:
             model = gpt.GPTForGeneration(
                 gpt.GPTModel(**model_setting), self.generation_cfgs)
@@ -471,10 +475,6 @@ class GPTGenerationModule(BasicModule):
                 "only support single card and data parallel in generation task."
             model = gpt.GPTForGenerationHybrid(
                 gpt.GPTModelHybrid(**model_setting), self.generation_cfgs)
-
-        model_name = model_setting.pop("name")
-        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
-        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
 
         self.generation_cfgs['max_dec_len'] = self.adjust_length_to_model(
             self.generation_cfgs['max_dec_len'], 512)
