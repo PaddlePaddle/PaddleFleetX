@@ -263,9 +263,21 @@ class GPTFinetuneModule(BasicModule):
                     f'gpt.decoder.layers.{idx}.self_attn.qkv_proj.bias')
                 qkv_w = model_state.pop(
                     f'gpt.decoder.layers.{idx}.self_attn.qkv_proj.weight')
+                
+                qkv_b = qkv_b.reshape((num_heads, 3, -1))
+                qkv_w = qkv_w.reshape((h, num_heads, 3, -1))
+                
 
-                q_w, k_w, v_w = np.split(qkv_w, 3, axis=-1)
-                q_b, k_b, v_b = np.split(qkv_b, 3, axis=-1)
+                q_w, k_w, v_w = np.split(qkv_w, 3, axis=2)
+                q_w = q_w.reshape((h, -1))
+                k_w = k_w.reshape((h, -1))
+                v_w = v_w.reshape((h, -1))
+                
+                
+                q_b, k_b, v_b = np.split(qkv_b, 3, axis=1)
+                q_b = q_b.reshape((-1))
+                k_b = k_b.reshape((-1))
+                v_b = v_b.reshape((-1))
 
                 model_state[
                     f'gpt.decoder.layers.{idx}.self_attn.q_proj.bias'] = q_b
@@ -300,9 +312,19 @@ class GPTFinetuneModule(BasicModule):
                     f'gpt.decoder.layers.{idx}.self_attn.v_proj.bias')
                 v_w = model_state.pop(
                     f'gpt.decoder.layers.{idx}.self_attn.v_proj.weight')
+                
+                q_w = q_w.reshape((h, num_heads, -1))
+                k_w = k_w.reshape((h, num_heads, -1))
+                v_w = v_w.reshape((h, num_heads, -1))
+                
+                qkv_w = np.stack([q_w, k_w, v_w], axis=2)
+                qkv_w = qkv_w.reshape((h, -1))
 
-                qkv_w = np.concatenate([q_w, k_w, v_w], axis=-1)
-                qkv_b = np.concatenate([q_b, k_b, v_b], axis=-1)
+                q_b = q_b.reshape((num_heads, -1))
+                k_b = k_b.reshape((num_heads, -1))
+                v_b = v_b.reshape((num_heads, -1))
+                qkv_b = np.stack([q_b, k_b, v_b], axis=1)
+                qkv_b = qkv_b.reshape((-1))
 
                 model_state[
                     f'gpt.decoder.layers.{idx}.self_attn.qkv_proj.weight'] = qkv_w
@@ -317,6 +339,10 @@ class GPTFinetuneModule(BasicModule):
             model_dict = fuse_params(model_dict, l)
         elif fused is False and load_fused is True:
             model_dict = split_params(model_dict, l)
+            
+        for name, param in model.state_dict().items():
+            if name in model_dict and param.dtype != model_dict[name].dtype:
+                model_dict[name] = model_dict[name].cast(param.dtype)
 
         model.set_state_dict(model_dict)
         logger.info(f'Load pretrained weight from {pretrained_path}')
