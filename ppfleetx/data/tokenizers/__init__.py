@@ -13,3 +13,6 @@
 # limitations under the License.
 
 from .gpt_tokenizer import GPTTokenizer
+
+import paddlenlp
+from paddlenlp.transformers.gpt.tokenizer import GPTChineseTokenizer
