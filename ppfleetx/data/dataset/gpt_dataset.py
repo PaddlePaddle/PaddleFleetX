@@ -29,7 +29,7 @@ from ppfleetx.data.tokenizers import GPTTokenizer, GPTChineseTokenizer
 mode_to_index = {"Train": 0, "Eval": 1, "Test": 2}
 
 MODEL_CLASSES = {
-    "GPT": (GPTTokenizer, "gpt"),
+    "GPT": (GPTTokenizer, "gpt2"),
     "GPT-cn": (GPTChineseTokenizer, "gpt-cpm-large-cn"),
 }
 

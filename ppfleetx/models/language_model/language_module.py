@@ -31,7 +31,7 @@ from ppfleetx.data.tokenizers import GPTTokenizer, GPTChineseTokenizer
 from .metrics import *
 
 MODEL_CLASSES = {
-    "GPT": (GPTTokenizer, "gpt"),
+    "GPT": (GPTTokenizer, "gpt2"),
     "GPT-cn": (GPTChineseTokenizer, "gpt-cpm-large-cn"),
 }
 
