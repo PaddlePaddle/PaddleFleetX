@@ -66,14 +66,18 @@ def process_model_configs(config):
         if not configs['no_recompute_layers']:
             configs['no_recompute_layers'] = []
         else:
-            assert isinstance(configs['no_recompute_layers'], list), "no_recompute_layers should be a list"
+            assert isinstance(configs['no_recompute_layers'],
+                              list), "no_recompute_layers should be a list"
             for i in configs['no_recompute_layers']:
-                assert isinstance(i, int), "all values in no_recompute_layers should be an integer"
+                assert isinstance(
+                    i, int
+                ), "all values in no_recompute_layers should be an integer"
             assert min(configs['no_recompute_layers']) >= 0, \
                 "the min value in no_recompute_layers should >= 0"
             assert max(configs['no_recompute_layers']) < configs['num_layers'], \
                 "the max value in no_recompute_layers should < num_layers"
-            configs['no_recompute_layers'] = sorted(list(set(configs['no_recompute_layers'])))
+            configs['no_recompute_layers'] = sorted(
+                list(set(configs['no_recompute_layers'])))
 
     if configs['fused_linear'] and not is_fused_matmul_bias_supported():
         configs['fused_linear'] = False
@@ -150,6 +154,7 @@ def process_data_configs(config):
                 mode]
             cfg_data[mode]['dataset']['mode'] = mode
             cfg_data[mode]['dataset']['seed'] = cfg_global['seed']
+            cfg_data[mode]['dataset']['model_type'] = config['Model']['name']
             cfg_data[mode]['sampler']['batch_size'] = cfg_global[
                 'local_batch_size']
 
