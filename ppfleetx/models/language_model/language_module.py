@@ -31,12 +31,12 @@ from ppfleetx.data.tokenizers import GPTTokenizer
 from .metrics import *
 
 # TODO(haohongxiang): to solve the problem of cross-reference
-import paddlenlp
-from paddlenlp.transformers.gpt.tokenizer import GPTChineseTokenizer
+# import paddlenlp
+# from paddlenlp.transformers.gpt.tokenizer import GPTChineseTokenizer
 
 MODEL_CLASSES = {
     "GPT": (GPTTokenizer, "gpt2"),
-    "GPT-cn": (GPTChineseTokenizer, "gpt-cpm-large-cn"),
+    # "GPT-cn": (GPTChineseTokenizer, "gpt-cpm-large-cn"),
 }
 
 

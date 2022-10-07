@@ -23,8 +23,13 @@ import paddle.incubate as incubate
 import paddle.distributed.auto_parallel as auto
 
 from paddle.fluid import layers
+from paddle.common_ops_import import convert_dtype
 from paddle.nn.layer.transformer import _convert_param_attr_to_list
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
+from ..dygraph.processor import (
+    LogitsProcessorList, MinLengthLogitsProcessor,
+    HammingDiversityLogitsProcessor, RepetitionPenaltyLogitsProcessor,
+    ForcedBOSTokenLogitsProcessor, ForcedEOSTokenLogitsProcessor)
 
 
 class MultiHeadAttention(nn.Layer):
@@ -563,6 +568,22 @@ class GPTModelAuto(nn.Layer):
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
 
+        if self.training == False:
+            # TODO, use registered buffer
+            causal_mask = paddle.tensor.triu(
+                paddle.ones(
+                    (paddle.shape(input_ids)[-1], paddle.shape(input_ids)[-1]))
+                * -1e4,
+                diagonal=1)
+            if attention_mask is not None:
+                if len(attention_mask.shape) == 2:
+                    attention_mask = attention_mask[:, None, None, :]
+                attention_mask = attention_mask + causal_mask
+            else:
+                attention_mask = causal_mask
+            # The tensor returned by triu not in static graph.
+            attention_mask.stop_gradient = True
+
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
@@ -665,3 +686,484 @@ class GPTPretrainingCriterionAuto(nn.Layer):
         masked_lm_loss = paddle.sum(masked_lm_loss.reshape([-1]) * loss_mask)
         loss = masked_lm_loss / loss_mask.sum()
         return loss
+
+
+class GPTForGenerationAuto(nn.Layer):
+    """
+    GPT Model with pretraining tasks on top.
+
+    Args:
+        gpt (:class:`GPTModel`):
+            An instance of :class:`GPTModel`.
+
+    """
+
+    def __init__(self, gpt, configs):
+        super(GPTForGenerationAuto, self).__init__()
+        self.gpt = gpt
+        self.configs = configs
+
+        self.max_length = self.configs.get('max_dec_len', 20)
+        self.min_length = self.configs.get('min_dec_len', 0)
+        self.decode_strategy = self.configs.get('decode_strategy', 'sampling')
+        self.temperature = self.configs.get('temperature', 1.0)
+        self.top_k = self.configs.get('top_k', 0)
+        self.top_p = self.configs.get('top_p', 1.0)
+        self.repetition_penalty = self.configs.get('repetition_penalty', 1.0)
+        self.num_beams = self.configs.get('num_beams', 1)
+        self.num_beam_groups = self.configs.get('num_beam_groups', 1)
+        self.length_penalty = self.configs.get('length_penalty', 0.0)
+        self.early_stopping = self.configs.get('early_stopping', False)
+        self.bos_token_id = self.configs.get('bos_token_id', None)
+        self.eos_token_id = self.configs.get('eos_token_id', None)
+        self.pad_token_id = self.configs.get('pad_token_id', None)
+        self.decoder_start_token_id = self.configs.get(
+            'decoder_start_token_id', None)
+        self.forced_bos_token_id = self.configs.get('forced_bos_token_id',
+                                                    None)
+        self.forced_eos_token_id = self.configs.get('forced_eos_token_id',
+                                                    None)
+        self.num_return_sequences = self.configs.get('num_return_sequences', 1)
+        self.diversity_rate = self.configs.get('diversity_rate', 0.0)
+        self.use_cache = self.configs.get('use_cache', True)
+
+    def prepare_input_ids_for_generation(self,
+                                         bos_token_id,
+                                         encoder_output=None):
+        batch_size = 1
+        if bos_token_id is None:
+            raise ValueError("`bos_token_id` should be defined when no "
+                             "`input_ids` are provided.")
+        if encoder_output is not None:
+            batch_size = encoder_output.shape[0]
+        return paddle.ones([batch_size, 1], dtype="int64") * bos_token_id
+
+    def prepare_attention_mask_for_generation(self, input_ids, pad_token_id,
+                                              eos_token_id):
+        is_pad_token_in_inputs_ids = (pad_token_id is not None) and paddle.any(
+            input_ids == pad_token_id).numpy().item()
+        is_pad_token_not_equal_to_eos_token_id = (eos_token_id is None) or (
+            (eos_token_id is not None) and (pad_token_id != eos_token_id))
+        if is_pad_token_in_inputs_ids and is_pad_token_not_equal_to_eos_token_id:
+            attention_mask = (input_ids == pad_token_id
+                              ).astype(paddle.get_default_dtype()) * -1e9
+        else:
+            attention_mask = paddle.zeros_like(
+                input_ids, dtype=paddle.get_default_dtype())
+        return paddle.unsqueeze(attention_mask, axis=[1, 2])
+
+    def update_scores_for_generation(self, scores, next_scores, length,
+                                     unfinished_flag):
+        # update scores
+
+        unfinished_scores = (scores * length + next_scores) / (length + 1)
+        scores = paddle.where(unfinished_flag, unfinished_scores, scores)
+        return scores
+
+    def get_logits_processor(self,
+                             min_length=None,
+                             max_length=None,
+                             eos_token_id=None,
+                             forced_bos_token_id=None,
+                             forced_eos_token_id=None,
+                             num_beams=1,
+                             num_beam_groups=1,
+                             diversity_rate=0.0,
+                             repetition_penalty=None):
+        processors = LogitsProcessorList()
+
+        if min_length is not None and eos_token_id is not None and min_length > -1:
+            processors.append(
+                MinLengthLogitsProcessor(min_length, eos_token_id))
+        if num_beam_groups > 1 and diversity_rate > 0.0:
+            processors.append(
+                HammingDiversityLogitsProcessor(
+                    diversity_rate=diversity_rate,
+                    num_beams=num_beams,
+                    num_beam_groups=num_beam_groups))
+        if repetition_penalty is not None and repetition_penalty != 1.0:
+            processors.append(
+                RepetitionPenaltyLogitsProcessor(penalty=repetition_penalty))
+        if forced_bos_token_id is not None:
+            processors.append(
+                ForcedBOSTokenLogitsProcessor(forced_bos_token_id))
+        if forced_eos_token_id is not None:
+            processors.append(
+                ForcedEOSTokenLogitsProcessor(max_length, forced_eos_token_id))
+        # TODO
+        # Add more pre_processing for distribution
+
+        return processors
+
+    def expand_inputs_for_generation(self,
+                                     input_ids,
+                                     expand_size,
+                                     attention_mask=None,
+                                     **model_kwargs):
+
+        index = paddle.tile(
+            paddle.arange(paddle.shape(input_ids)[0]).unsqueeze(-1),
+            [1, expand_size]).reshape([-1])
+
+        input_ids = paddle.gather(input_ids, index)
+
+        if attention_mask is not None:
+            model_kwargs["attention_mask"] = paddle.gather(attention_mask,
+                                                           index)
+
+        if "token_type_ids" in model_kwargs and model_kwargs[
+                "token_type_ids"] is not None:
+            token_type_ids = model_kwargs["token_type_ids"]
+            model_kwargs["token_type_ids"] = paddle.gather(token_type_ids,
+                                                           index)
+
+        if "position_ids" in model_kwargs and model_kwargs[
+                "position_ids"] is not None:
+            position_ids = model_kwargs["position_ids"]
+            model_kwargs["position_ids"] = paddle.gather(position_ids, index)
+
+        if "seq_len" in model_kwargs and model_kwargs["seq_len"] is not None:
+            seq_len = model_kwargs["seq_len"]
+            model_kwargs["seq_len"] = paddle.gather(seq_len, index)
+
+        if "encoder_output" in model_kwargs and model_kwargs[
+                "encoder_output"] is not None:
+            encoder_output = model_kwargs["encoder_output"]
+            model_kwargs["encoder_output"] = paddle.gather(encoder_output,
+                                                           index)
+
+        if "role_ids" in model_kwargs and model_kwargs["role_ids"] is not None:
+            role_ids = model_kwargs["role_ids"]
+            model_kwargs["role_ids"] = paddle.gather(role_ids, index)
+
+        return input_ids, model_kwargs
+
+    def prepare_inputs_for_generation(self,
+                                      input_ids,
+                                      use_cache=False,
+                                      cache=None,
+                                      **kwargs):
+        # only last token for inputs_ids if cache is defined in kwargs
+        position_ids = kwargs.get("position_ids", None)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            if len(attention_mask.shape) == 4:
+                attention_mask = attention_mask[:, -1, -1, :]
+            if "int" in paddle.common_ops_import.convert_dtype(
+                    attention_mask.dtype):
+                attention_mask = (1.0 - attention_mask) * -1e4
+        if cache is not None:
+            input_ids = input_ids[:, -1].unsqueeze(-1)
+            if position_ids is not None:
+                position_ids = position_ids[:, -1].unsqueeze(-1)
+        return {
+            "input_ids": input_ids,
+            "position_ids": position_ids,
+            "attention_mask": attention_mask,
+            "cache": cache
+        }
+
+    def update_model_kwargs_for_generation(self,
+                                           outputs,
+                                           model_kwargs,
+                                           is_encoder_decoder=False):
+        # Update the model inputs during generation.
+        # Note that If `token_type_ids` and `attention_mask` in `model_kwargs`
+        # and they contain pad value, the result vectors updated by this method
+        # may be different from expected. In this case, you need to rewrite the
+        # method.
+
+        # update cache
+        if isinstance(outputs, tuple):
+            model_kwargs["cache"] = outputs[1]
+
+        # update token_type_ids with last value
+        if "token_type_ids" in model_kwargs and model_kwargs[
+                "token_type_ids"] is not None:
+            token_type_ids = model_kwargs["token_type_ids"]
+            model_kwargs["token_type_ids"] = paddle.concat(
+                [token_type_ids, token_type_ids[:, -1:]], axis=-1)
+
+        # update position_ids
+        if "position_ids" in model_kwargs and model_kwargs[
+                "position_ids"] is not None:
+            position_ids = model_kwargs["position_ids"]
+            model_kwargs["position_ids"] = paddle.concat(
+                [position_ids, position_ids[:, -1:] + 1], axis=-1)
+
+        # update attention_mask
+        if not is_encoder_decoder and "attention_mask" in model_kwargs:
+            attention_mask = model_kwargs["attention_mask"]
+            # nn.Pad2D don't support the data type `bool`
+            if convert_dtype(attention_mask.dtype) == 'bool':
+                attention_mask = paddle.cast(attention_mask, 'int64')
+            if len(attention_mask.shape) == 4:
+                attention_mask = nn.Pad2D(
+                    [0, 0, 0, 1], mode='replicate')(attention_mask)
+                attention_mask = nn.Pad2D(
+                    [0, 1, 0, 0], value=-1e4)(attention_mask)
+                dtype = convert_dtype(attention_mask.dtype)
+                if 'int' in dtype:
+                    attention_mask[:, :, -1, -1] = 1
+                elif 'float' in dtype:
+                    attention_mask[:, :, -1, -1] = 0.0
+                else:
+                    raise ValueError(
+                        'The data type of input `attention_mask` must '
+                        'be bool, int or float')
+            else:
+                attention_mask = paddle.concat(
+                    [
+                        attention_mask, paddle.ones(
+                            [attention_mask.shape[0], 1], dtype="int64")
+                    ],
+                    axis=-1)
+            model_kwargs["attention_mask"] = attention_mask
+
+        # update role_ids
+        if "role_ids" in model_kwargs and model_kwargs["role_ids"] is not None:
+            role_ids = model_kwargs["role_ids"]
+            model_kwargs["role_ids"] = paddle.concat(
+                [role_ids, role_ids[:, -1:]], axis=-1)
+
+        return model_kwargs
+
+    def sample(self,
+               input_ids,
+               logits_processors,
+               max_length,
+               pad_token_id,
+               eos_token_id,
+               top_k=None,
+               top_p=None,
+               temperature=None,
+               min_tokens_to_keep=1,
+               **model_kwargs):
+        def TopKProcess(probs, top_k, min_tokens_to_keep):
+            top_k = min(max(top_k, min_tokens_to_keep), probs.shape[-1])
+            # Remove all tokens with a probability less than the last token of the top-k
+            topk_probs, _ = paddle.topk(probs, k=top_k)
+            probs = paddle.where(probs >= topk_probs[:, -1:], probs,
+                                 paddle.full_like(probs, 0.0))
+            return probs
+
+        def TopPProcess(probs, top_p, min_tokens_to_keep):
+            sorted_probs = paddle.sort(probs, descending=True)
+            sorted_indices = paddle.argsort(probs, descending=True)
+            cumulative_probs = paddle.cumsum(sorted_probs, axis=-1)
+
+            # Remove tokens with cumulative probs above the top_p, But keep at
+            # least min_tokens_to_keep tokens
+            sorted_indices_to_remove = cumulative_probs > top_p
+            if min_tokens_to_keep > 1:
+                # Set 'min_tokens_to_keep - 1' because the first token is kept
+                sorted_indices_to_remove[:, :min_tokens_to_keep - 1] = 0
+            # Keep the first token
+            sorted_indices_to_remove = paddle.cast(
+                sorted_indices_to_remove, dtype='int64')
+            sorted_indices_to_remove[:, 1:] = (
+                sorted_indices_to_remove[:, :-1].clone())
+            sorted_indices_to_remove[:, 0] = 0
+
+            # Scatter sorted tensors to original indexing
+            sorted_indices = sorted_indices + paddle.arange(probs.shape[
+                0]).unsqueeze(-1) * probs.shape[-1]
+            condition = paddle.scatter(sorted_indices_to_remove.flatten(),
+                                       sorted_indices.flatten(),
+                                       sorted_indices_to_remove.flatten())
+            condition = paddle.cast(condition, 'bool').reshape(probs.shape)
+            probs = paddle.where(condition,
+                                 paddle.full_like(probs, 0.0), probs)
+            return probs
+
+        batch_size, cur_len = input_ids.shape
+        origin_len = input_ids.shape[1]
+        unfinished_flag = paddle.full([batch_size, 1], True, dtype='bool')
+        scores = paddle.full(
+            [batch_size, 1], 0.0, dtype=paddle.get_default_dtype())
+
+        # use_cache is immutable, we split it off other mutable kwargs.
+        assert 'use_cache' in model_kwargs
+        immutable = {'use_cache': model_kwargs['use_cache']}
+        del model_kwargs['use_cache']
+
+        def _forward_(**args):
+            model_inputs = self.prepare_inputs_for_generation(
+                input_ids, **args, **immutable)
+            return self.gpt(**model_inputs, **immutable)
+
+        def _post_process_(outputs, input_ids, cur_len, origin_len, scores,
+                           unfinished_flag, model_kwargs):
+
+            logits = outputs[0] if isinstance(outputs, tuple) else outputs
+
+            # logits = paddle.matmul(
+            #     logits,
+            #     self.gpt.embeddings.word_embeddings.weight,
+            #     transpose_y=True)
+
+            x_dims_mapping = [self.gpt.mesh.dp] + [
+                None for i in range(len(logits.shape) - 1)
+            ]
+            w_dims_mapping = [self.gpt.mesh.mp, None]
+            matmul = auto.shard_op(paddle.matmul, self.gpt.mesh[-1],
+                                   [x_dims_mapping, w_dims_mapping, None])
+            logits = matmul(
+                logits,
+                self.gpt.embeddings.word_embeddings.weight,
+                transpose_y=True)
+
+            # [batch_size, vocab_size]
+            logits = logits[:, -1, :]
+
+            # pre-process distribution
+            logits = logits_processors(input_ids, logits)
+
+            # sample
+            origin_probs = F.softmax(logits)
+            origin_probs = paddle.log(origin_probs)
+            if temperature is not None and temperature != 1.0:
+                logits = logits / temperature
+            probs = F.softmax(logits)
+            if top_k is not None and top_k != 0:
+                probs = TopKProcess(probs, top_k, min_tokens_to_keep)
+            if top_p is not None and top_p < 1.0:
+                probs = TopPProcess(probs, top_p, min_tokens_to_keep)
+            next_tokens = paddle.multinomial(probs)
+
+            next_scores = paddle.index_sample(origin_probs, next_tokens)
+
+            if eos_token_id is not None:
+                next_tokens = paddle.where(
+                    unfinished_flag, next_tokens,
+                    paddle.full_like(next_tokens, pad_token_id))
+
+            scores = self.update_scores_for_generation(
+                scores, next_scores, cur_len - origin_len, unfinished_flag)
+
+            input_ids = paddle.concat([input_ids, next_tokens], axis=1)
+
+            if eos_token_id is not None:
+                unfinished_flag = paddle.logical_and(
+                    unfinished_flag, next_tokens != eos_token_id)
+
+            model_kwargs = self.update_model_kwargs_for_generation(
+                outputs,
+                model_kwargs,
+                is_encoder_decoder=self.is_encoder_decoder)
+
+            return input_ids, scores, unfinished_flag, model_kwargs
+
+        # Note(GuoxiaWang):Pre-while call for inference, simulate a do while loop statement
+        # the value in model_kwargs should be tensor before while loop
+        outputs = _forward_(**model_kwargs)
+
+        input_ids, scores, unfinished_flag, model_kwargs = _post_process_(
+            outputs, input_ids, cur_len, origin_len, scores, unfinished_flag,
+            model_kwargs)
+        cur_len += 1
+
+        attn_mask = model_kwargs['attention_mask']
+        # make the shape of attention_mask = (-1, -1, -1, -1) in dy2static.
+        model_kwargs['attention_mask'] = paddle.reshape(
+            attn_mask, paddle.shape(attn_mask))
+        model_kwargs['cache'] = outputs[1] if isinstance(outputs,
+                                                         tuple) else None
+        max_length = paddle.to_tensor(max_length)
+        while cur_len < max_length:
+            # Note(GuoxiaWang): Remove outputs = _forward_(**model_kwargs) 
+            # and change it to pass directly to _post_process_ to avoid 
+            # closed-loop problem of dynamic-to-static model
+            input_ids, scores, unfinished_flag, model_kwargs = _post_process_(
+                _forward_(**model_kwargs), input_ids, cur_len, origin_len,
+                scores, unfinished_flag, model_kwargs)
+            cur_len += 1
+
+            if not paddle.any(unfinished_flag):
+                break
+
+        return input_ids[:, origin_len:], scores
+
+    def forward(self, input_ids=None, **model_kwargs):
+
+        max_length = self.max_length
+        min_length = self.min_length
+        decode_strategy = self.decode_strategy
+        temperature = self.temperature
+        top_k = self.top_k
+        top_p = self.top_p
+        repetition_penalty = self.repetition_penalty
+        num_beams = self.num_beams
+        num_beam_groups = self.num_beam_groups
+        length_penalty = self.length_penalty
+        early_stopping = self.early_stopping
+        bos_token_id = self.bos_token_id
+        eos_token_id = self.eos_token_id
+        pad_token_id = self.pad_token_id
+        decoder_start_token_id = self.decoder_start_token_id
+        forced_bos_token_id = self.forced_bos_token_id
+        forced_eos_token_id = self.forced_eos_token_id
+        num_return_sequences = self.num_return_sequences
+        diversity_rate = self.diversity_rate
+        use_cache = self.use_cache
+
+        assert (
+            decode_strategy in ["greedy_search", "sampling", "beam_search"]
+        ), "`decode_strategy` must be one of 'greedy_search', 'sampling' or 'beam_search' but received {}.".format(
+            decode_strategy)
+
+        bos_token_id = bos_token_id if bos_token_id is not None else getattr(
+            self.gpt, 'bos_token_id', None)
+        eos_token_id = eos_token_id if eos_token_id is not None else getattr(
+            self.gpt, 'eos_token_id', None)
+        pad_token_id = pad_token_id if pad_token_id is not None else getattr(
+            self.gpt, 'pad_token_id', None)
+        forced_bos_token_id = forced_bos_token_id if forced_bos_token_id is not None else getattr(
+            self.gpt, 'forced_bos_token_id', None)
+        forced_eos_token_id = forced_eos_token_id if forced_eos_token_id is not None else getattr(
+            self.gpt, 'forced_eos_token_id', None)
+        decoder_start_token_id = decoder_start_token_id if decoder_start_token_id is not None else getattr(
+            self.gpt, 'decoder_start_token_id', None)
+
+        # params check
+        if input_ids is None:
+            # Init `input_ids` with bos_token_id
+            input_ids = self.prepare_input_ids_for_generation(bos_token_id)
+
+        if model_kwargs.get("attention_mask", None) is None:
+            # TODO
+            # Init `attention_mask` depending on `pad_token_id`
+            model_kwargs[
+                "attention_mask"] = self.prepare_attention_mask_for_generation(
+                    input_ids, pad_token_id, eos_token_id)
+        self.is_encoder_decoder = False
+
+        model_kwargs["use_cache"] = use_cache
+
+        max_length += input_ids.shape[-1]
+        min_length += input_ids.shape[-1]
+
+        logits_processors = self.get_logits_processor(
+            min_length=min_length,
+            max_length=max_length,
+            eos_token_id=eos_token_id,
+            forced_bos_token_id=forced_bos_token_id,
+            forced_eos_token_id=forced_eos_token_id,
+            num_beams=num_beams,
+            num_beam_groups=num_beam_groups,
+            diversity_rate=diversity_rate,
+            repetition_penalty=repetition_penalty)
+
+        if decode_strategy == 'sampling':
+            if num_return_sequences > 1:
+                input_ids, model_kwargs = self.expand_inputs_for_generation(
+                    input_ids,
+                    expand_size=num_return_sequences,
+                    **model_kwargs)
+
+            ret = self.sample(input_ids, logits_processors, max_length,
+                              pad_token_id, eos_token_id, top_k, top_p,
+                              temperature, **model_kwargs)
+        else:
+            raise ValueError(f'Not support {decode_strategy} strategy yet!')
+        return ret

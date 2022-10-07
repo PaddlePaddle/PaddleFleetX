@@ -27,14 +27,14 @@ from ppfleetx.utils.log import logger
 from ppfleetx.data.tokenizers import GPTTokenizer
 
 # TODO(haohongxiang): to solve the problem of cross-reference
-import paddlenlp
-from paddlenlp.transformers.gpt.tokenizer import GPTChineseTokenizer
+# import paddlenlp
+# from paddlenlp.transformers.gpt.tokenizer import GPTChineseTokenizer
 
 mode_to_index = {"Train": 0, "Eval": 1, "Test": 2}
 
 MODEL_CLASSES = {
     "GPT": (GPTTokenizer, "gpt2"),
-    "GPT-cn": (GPTChineseTokenizer, "gpt-cpm-large-cn"),
+    # "GPT-cn": (GPTChineseTokenizer, "gpt-cpm-large-cn"),
 }
 
 
