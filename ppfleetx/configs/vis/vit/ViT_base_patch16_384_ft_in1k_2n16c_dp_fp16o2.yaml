@@ -11,7 +11,7 @@ Engine:
   accumulate_steps: 1
   logging_freq: 10
   mix_precision:
-    use_pure_fp16: True
+    use_pure_fp16: False
     scale_loss: 32768.0
     custom_black_list: ["reduce_sum", "elementwise_div"]
     custom_white_list: []
@@ -51,12 +51,13 @@ Optimizer:
   momentum: 0.9
   lr:
     name: ViTLRScheduler
-    learning_rate: 0.03
+    learning_rate: 0.004
     decay_type: cosine
     warmup_steps: 500
   grad_clip:
     name: "ClipGradByGlobalNorm"
-    clip_norm: 1.0
+    clip_norm: 0.35
+
 
 Data:
   Train:
