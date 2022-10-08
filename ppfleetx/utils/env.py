@@ -23,6 +23,9 @@ from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 
 __all__ = ['init_dist_env']
 
+_seed = None
+_dp_seed = None
+
 
 def set_seed(seed):
     if dist.get_world_size() > 1:
@@ -32,7 +35,7 @@ def set_seed(seed):
         pp_rank = hcg.get_stage_id()
         data_world_rank = get_data_world_rank()
     else:
-        mp_rank, pp_rank, data_world_rank = 1, 1, 1
+        mp_rank, pp_rank, data_world_rank = 0, 0, 0
 
     random.seed(seed + data_world_rank)
     np.random.seed(seed + data_world_rank)
@@ -44,6 +47,21 @@ def set_seed(seed):
     tracker = get_rng_state_tracker()
     tracker.add('global_seed', global_seed)
     tracker.add('local_seed', local_seed)
+
+    global _seed
+    global _dp_seed
+    _seed = seed
+    _dp_seed = global_seed
+
+
+def get_seed():
+    global _seed
+    return _seed
+
+
+def get_dp_seed():
+    global _dp_seed
+    return _dp_seed
 
 
 def init_dist_env(config):
@@ -94,3 +112,15 @@ def get_data_world_rank():
     sharding_size = hcg.get_sharding_parallel_world_size()
 
     return dp_rank * sharding_size + sharding_rank
+
+
+def work_at_local_rank0(func):
+    def wrapper(*args, **kwargs):
+        local_rank = 0
+        if paddle.fluid.core.is_compiled_with_dist(
+        ) and paddle.distributed.get_world_size() > 1:
+            local_rank = paddle.distributed.ParallelEnv().dev_id
+        if local_rank == 0:
+            func(*args, **kwargs)
+
+    return wrapper

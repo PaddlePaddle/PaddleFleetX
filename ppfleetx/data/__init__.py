@@ -15,17 +15,34 @@
 import os
 import sys
 import copy
+import random
+import numpy as np
 
 import paddle
 
-__dir__ = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
-
 from ppfleetx.data import dataset, sampler, utils
-from ppfleetx.utils import logger
+from ppfleetx.utils import env
+from ppfleetx.utils.log import logger
 
 
-def build_dataloader(config, mode):
+def build_auto_dataset(config, mode):
+    """
+    build dataset for auto parallel
+    """
+    dataset = build_dataset(config, mode)
+
+    collate_fn = None
+    if 'collate_fn' in config[mode].keys():
+        collate_fn_name = config[mode].pop('collate_fn', None)
+        collate_fn = getattr(
+            utils, collate_fn_name) if collate_fn_name is not None else None
+
+    dataset.collate_fn = collate_fn
+    dataset.sample_split = config[mode].pop('sample_split', None)
+    return dataset
+
+
+def build_dataset(config, mode):
     assert mode in ['Train', 'Eval', 'Test'
                     ], "Dataset mode should be Train, Eval, Test"
 
@@ -38,6 +55,12 @@ def build_dataloader(config, mode):
     dataset = eval("dataset.{}".format(dataset_name))(**config_dataset)
 
     logger.debug("build dataset({}) success...".format(dataset))
+
+    return dataset
+
+
+def build_dataloader(config, mode):
+    dataset = build_dataset(config, mode)
 
     batch_sampler = None
     # build sampler
@@ -60,10 +83,16 @@ def build_dataloader(config, mode):
         collate_fn = getattr(
             utils, collate_fn_name) if collate_fn_name is not None else None
 
+    def worker_init_fn(worker_id):
+        """ set seed in subproces for dataloader when num_workers > 0"""
+        np.random.seed(env.get_dp_seed() + worker_id)
+        random.seed(env.get_dp_seed() + worker_id)
+
     data_loader = paddle.io.DataLoader(
         dataset=dataset,
         batch_sampler=batch_sampler,
         collate_fn=collate_fn,
+        worker_init_fn=worker_init_fn,
         **config_loader)
 
     logger.debug("build data_loader({}) success...".format(data_loader))

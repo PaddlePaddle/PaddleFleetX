@@ -25,9 +25,6 @@ from paddle.fluid import core
 import argparse
 from functools import reduce
 
-__dir__ = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../')))
-
 from ppfleetx.utils import env
 
 
@@ -130,43 +127,11 @@ def process_engine_configs(config):
         // config['Global']['micro_batch_size']
 
 
-def process_data_configs(config):
-    """
-    process data configs for hybrid parallel
-    """
-    cfg_global = config['Global']
-    cfg_data = config['Data']
-
-    mode_to_num_samples = {
-        "Train":
-        cfg_global['global_batch_size'] * config['Engine']['max_steps'],
-        "Eval": cfg_global['global_batch_size'] *
-        (config['Engine']['max_steps'] // config['Engine']['eval_freq'] + 1) *
-        config['Engine']['eval_iters'],
-        "Test":
-        cfg_global['global_batch_size'] * config['Engine']['test_iters'],
-    }
-
-    #for mode in ("Train", "Eval", "Test"):
-    #    if mode in cfg_data.keys():
-
-
-#cfg_data[mode]['dataset']['num_samples'] = mode_to_num_samples[
-#    mode]
-#cfg_data[mode]['dataset']['mode'] = mode
-#cfg_data[mode]['dataset']['seed'] = cfg_global['seed']
-#cfg_data[mode]['sampler']['batch_size'] = cfg_global[
-#    'local_batch_size']
-
-
 def process_configs(config):
 
-    process_global_configs(config)
     process_fused_configs(config)
     process_model_configs(config)
     process_optim_configs(config)
-    process_engine_configs(config)
-    process_data_configs(config)
     process_inference_configs(config)
 
     return config

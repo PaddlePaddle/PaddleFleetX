@@ -16,16 +16,26 @@ import os
 import sys
 import time
 import numpy as np
+import re
+import math
+import json
 
 import paddle
 
-__dir__ = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../')))
-
-from ppfleetx.utils import logger, env
+from ppfleetx.utils import env
+from ppfleetx.utils.log import logger
 from ppfleetx.data.tokenizers import GPTTokenizer
 
+# TODO(haohongxiang): to solve the problem of cross-reference
+import paddlenlp
+from paddlenlp.transformers.gpt.tokenizer import GPTChineseTokenizer
+
 mode_to_index = {"Train": 0, "Eval": 1, "Test": 2}
+
+MODEL_CLASSES = {
+    "GPT": (GPTTokenizer, "gpt2"),
+    "GPT-cn": (GPTChineseTokenizer, "gpt-cpm-large-cn"),
+}
 
 
 class GPTDataset(paddle.io.Dataset):
@@ -35,6 +45,7 @@ class GPTDataset(paddle.io.Dataset):
                  max_seq_len,
                  num_samples,
                  mode,
+                 model_type,
                  seed=1234):
 
         files = get_train_data_file(input_dir)
@@ -45,7 +56,7 @@ class GPTDataset(paddle.io.Dataset):
 
         if local_rank == 0:
             try:
-                import fleetx.data.data_tools.cpp.fast_index_map_helpers
+                import ppfleetx.data.data_tools.cpp.fast_index_map_helpers
             except Exception as e:
                 start_time = time.time()
                 print('> compiling dataset index builder ...')
@@ -67,11 +78,14 @@ class GPTDataset(paddle.io.Dataset):
                     print("> wait for helpers to be compiled!")
                     time.sleep(1)
 
-        data_world_size = env.get_data_world_size()
+        try:
+            data_world_size = env.get_data_world_size()
 
-        logger.info(
-            "The distributed run, total device num:{}, distinct dataflow num:{}.".
-            format(device_world_size, data_world_size))
+            logger.info(
+                "The distributed run, total device num:{}, distinct dataflow num:{}.".
+                format(device_world_size, data_world_size))
+        except AttributeError:
+            pass
 
         assert len(input_dir) == 1, "GPT only support one dataset for now."
 
@@ -96,10 +110,12 @@ class GPTDataset(paddle.io.Dataset):
             -1], "The document nums should larger than max of splits, but %s < %s" % (
                 len(sample_lens), splits[-1])
 
-        tokenizer = GPTTokenizer.from_pretrained("gpt2")
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_type]
+        tokenizer = tokenizer_class.from_pretrained(pretrained_name)
 
         self.input_dir = input_dir
         self.max_seq_len = max_seq_len
+        self.mode = mode
         self.name = "gpt_" + mode
         self.eos_id = tokenizer.eos_token_id
         self.sample_ids = sample_ids
@@ -137,10 +153,12 @@ class GPTDataset(paddle.io.Dataset):
         loss_mask[np.where(np.array(tokens) == self.eos_id)] = 0.0
         position_ids = np.arange(0, seq_length, dtype="int64")
 
-        # attention_mask = (attention_mask - 1.0) * 1e9
-        # attention_mask = attention_mask.astype("float32")
-        # return [tokens, loss_mask, attention_mask, position_ids, labels]
-        return [tokens, position_ids, labels, loss_mask]
+        labels = np.array(labels).astype("int64")
+        tokens = np.array(tokens).astype("int64")
+        if self.mode == "Test":
+            return [tokens, position_ids]
+        else:
+            return [tokens, position_ids, labels, loss_mask]
 
     def _get_single_sample_from_idx(self, doc_index_f, doc_index_l, offset_f,
                                     offset_l):
@@ -304,7 +322,7 @@ def construct_samples_and_shuffle_data(name, data_prefix, documents, sizes,
             assert doc_idx.dtype == np.int32
             assert sizes.dtype == np.int32
 
-            from fleetx.data.data_tools.cpp import fast_index_map_helpers
+            from ppfleetx.data.data_tools.cpp import fast_index_map_helpers
 
             sample_idx = fast_index_map_helpers.build_sample_idx(
                 sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch)
@@ -350,9 +368,12 @@ def construct_samples_and_shuffle_data(name, data_prefix, documents, sizes,
     # Restore random state
     np_rng.set_state(savedState)
 
-    if paddle.distributed.get_world_size() > 1:
-        if paddle.in_dynamic_mode():
-            paddle.distributed.barrier()
+    try:
+        if paddle.distributed.get_world_size() > 1:
+            if paddle.in_dynamic_mode():
+                paddle.distributed.barrier()
+    except AssertionError:
+        pass
 
     # Load mappings.
     doc_idx = np.load(doc_idx_filename, allow_pickle=True, mmap_mode='r')
@@ -447,3 +468,177 @@ def _build_shuffle_idx(num_samples, total_size, np_rng):
     np_rng.shuffle(shuffle_idx_last)
 
     return np.concatenate((shuffle_idx_first, shuffle_idx_last))
+
+
+class LM_Eval_Dataset(paddle.io.Dataset):
+    def __init__(self,
+                 input_dir,
+                 max_seq_len,
+                 model_type,
+                 overlapping_eval=None,
+                 **kwargs):
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_type]
+        tokenizer = tokenizer_class.from_pretrained(pretrained_name)
+
+        with open(input_dir, "rb") as reader:
+            entire_data = reader.read().decode('utf-8')
+
+        self.num_original_tokens = len(entire_data.strip().split(" "))
+        entire_data = self._wikitext_detokenizer(entire_data)
+        self.tokens = tokenizer.encode(entire_data)
+        self.num_tokenized_tokens = len(self.tokens)
+        print('Original Tokens: %d, Detokenized tokens: %d' %
+              (self.num_original_tokens, self.num_tokenized_tokens))
+
+        self.seq_len = max_seq_len
+        self.pad_idx = tokenizer.eos_token_id
+        self.overlapping_eval = overlapping_eval
+        if self.overlapping_eval is None:
+            self.overlapping_eval = self.seq_len
+        self.overlapping_eval = max(1, self.overlapping_eval)
+
+        self.total_targets = len(self.tokens) - 1
+        # remove first sequence tokens
+        targets = max(self.total_targets - self.overlapping_eval, 0)
+        self.total_sequences = max(
+            math.ceil(targets / self.overlapping_eval) + 1, 1)
+
+    def __len__(self):
+        return self.total_sequences
+
+    def _construct_sample(self, tokens):
+        tokens = np.array(tokens).astype("int64").tolist()
+        labels = tokens[1:]
+        tokens = tokens[:-1]
+        seq_length = len(tokens)
+        # attention mask for the attention calulate
+        attention_mask = np.tri(seq_length, seq_length).reshape(
+            (1, seq_length, seq_length))
+
+        # the pad and eos tokens do not contribute the loss
+        loss_mask = np.ones(seq_length, dtype="float32")
+        loss_mask[np.where(np.array(tokens) == self.pad_idx)] = 0.0
+        position_ids = np.arange(0, seq_length, dtype="int64")
+
+        # -INF mask value as default
+        # attention_mask = (attention_mask - 1.0) * 1e9
+        # Bool mask of attention
+        attention_mask = attention_mask.astype("float32")
+        return [tokens, loss_mask, attention_mask, position_ids, labels]
+
+    def __getitem__(self, idx):
+        start_idx = idx * self.overlapping_eval
+        end_idx = start_idx + self.seq_len
+        tokens = self.tokens[start_idx:end_idx + 1]
+        num_tokens = len(tokens)
+        if num_tokens < self.seq_len + 1:
+            num_pad = (self.seq_len + 1 - num_tokens)
+            tokens += [self.pad_idx] * num_pad
+        [tokens, loss_mask, attention_mask, position_ids,
+         labels] = self._construct_sample(tokens)
+        if self.overlapping_eval != self.seq_len and idx != 0:
+            loss_mask[:-self.overlapping_eval] *= 0
+
+        return [tokens, loss_mask, attention_mask, position_ids, labels, \
+            np.array([self.num_original_tokens, self.num_tokenized_tokens])]
+
+    def _wikitext_detokenizer(self, string):
+        # contractions
+        string = string.replace("s '", "s'")
+        string = re.sub(r"/' [0-9]/", r"/'[0-9]/", string)
+        # number separators
+        string = string.replace(" @-@ ", "-")
+        string = string.replace(" @,@ ", ",")
+        string = string.replace(" @.@ ", ".")
+        # punctuation
+        string = string.replace(" : ", ": ")
+        string = string.replace(" ; ", "; ")
+        string = string.replace(" . ", ". ")
+        string = string.replace(" ! ", "! ")
+        string = string.replace(" ? ", "? ")
+        string = string.replace(" , ", ", ")
+        # double brackets
+        string = re.sub(r"\(\s*([^\)]*?)\s*\)", r"(\1)", string)
+        string = re.sub(r"\[\s*([^\]]*?)\s*\]", r"[\1]", string)
+        string = re.sub(r"{\s*([^}]*?)\s*}", r"{\1}", string)
+        string = re.sub(r"\"\s*([^\"]*?)\s*\"", r'"\1"', string)
+        string = re.sub(r"'\s*([^']*?)\s*'", r"'\1'", string)
+        # miscellaneous
+        string = string.replace("= = = =", "====")
+        string = string.replace("= = =", "===")
+        string = string.replace("= =", "==")
+        string = string.replace(" " + chr(176) + " ", chr(176))
+        string = string.replace(" \n", "\n")
+        string = string.replace("\n ", "\n")
+        string = string.replace(" N ", " 1 ")
+        string = string.replace(" 's", "'s")
+        return string
+
+
+class Lambada_Eval_Dataset(paddle.io.Dataset):
+    def __init__(self, input_dir, max_seq_len, model_type, **kwargs):
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_type]
+        tokenizer = tokenizer_class.from_pretrained(pretrained_name)
+
+        tokenized_data = []
+        tokenized_label = []
+        with open(input_dir, 'r') as f:
+            for line in f.readlines():
+                text = json.loads(line)['text']
+                tokens, labels = self._get_tokens(tokenizer, text)
+                tokenized_data.append(tokens)
+                tokenized_label.append(labels)
+
+        self.pad_idx = tokenizer.eos_token_id
+        self.seq_len = max_seq_len
+        self.tokens = tokenized_data
+        self.labels = tokenized_label
+
+    def __len__(self):
+        return len(self.tokens)
+
+    def _construct_sample(self, tokens):
+        tokens = np.array(tokens).astype("int64").tolist()
+        labels = tokens[1:]
+        tokens = tokens[:-1]
+
+        seq_length = len(tokens)
+        # attention mask for the attention calulate
+        attention_mask = np.tri(seq_length, seq_length).reshape(
+            (1, seq_length, seq_length))
+
+        # the pad and eos tokens do not contribute the loss
+        position_ids = np.arange(0, seq_length, dtype="int64")
+
+        # -INF mask value as default
+        #attention_mask = (attention_mask - 1.0) * 1e9
+        # Bool mask of attention
+        attention_mask = attention_mask.astype("float32")
+        return [tokens, attention_mask, position_ids, labels]
+
+    def __getitem__(self, idx):
+        tokens = self.tokens[idx][:self.seq_len]
+        labels = self.labels[idx]
+        tokens = tokens + labels
+        num_tokens = len(tokens)
+        if num_tokens < self.seq_len + 1:
+            num_pad = (self.seq_len + 1 - num_tokens)
+            tokens += [self.pad_idx] * num_pad
+        loss_mask = np.zeros(self.seq_len, dtype="float32")
+        loss_mask[num_tokens - len(labels) - 1:num_tokens - 1] = 1.
+        [tokens, attention_mask, position_ids,
+         labels] = self._construct_sample(tokens)
+        return [
+            tokens, loss_mask, attention_mask, position_ids, labels,
+            np.array([self.__len__()])
+        ]
+
+    def _get_tokens(self, tokenizer, text, strict=True):
+        if not strict:
+            tokens = tokenizer.encode(text)
+            return tokens[:-1], [tokens[-1]]
+        last_token = text.split()[-1]
+        start_idx = text.rfind(last_token)
+        beginning_tokens = tokenizer.encode(text[:start_idx].strip())
+        last_token = tokenizer.encode(' ' + last_token)
+        return beginning_tokens, last_token

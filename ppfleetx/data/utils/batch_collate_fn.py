@@ -24,9 +24,6 @@ try:
 except:
     from collections import Sequence, Mapping
 
-__dir__ = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
-
 from ppfleetx.data.sampler import Stack, Tuple
 
 
@@ -96,6 +93,14 @@ def default_collate_fn(batch_transform=None):
 
 def gpt_collate_fn(batch):
     return Tuple(Stack(), Stack(), Stack(), Stack())(batch)
+
+
+def gpt_inference_collate_fn(batch):
+    return Tuple(Stack(), Stack())(batch)
+
+
+def gpt_eval_collate_fn(batch):
+    return Tuple(Stack(), Stack(), Stack(), Stack(), Stack(), Stack())(batch)
 
 
 def imagen_collate_fn(batch):

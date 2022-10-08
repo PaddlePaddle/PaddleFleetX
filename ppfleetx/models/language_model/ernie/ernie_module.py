@@ -16,10 +16,11 @@ import sys
 import copy
 
 import paddle
-sys.path.append("../../../../../")
+
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.language_model.gpt as gpt
-from ppfleetx.utils import logger
+from ppfleetx.utils.log import logger
+
 from .single_model import ErnieModel, ErnieForPretraining, ErniePretrainingCriterion
 from ppfleetx.models.language_model.utils import process_configs
 

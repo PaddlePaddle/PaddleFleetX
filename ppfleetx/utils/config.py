@@ -18,9 +18,11 @@ import argparse
 import yaml
 import codecs
 import sys
-from . import logger
+from .log import logger, advertise
+
 from . import check
 import paddle.distributed as dist
+import paddle.distributed.auto_parallel as auto
 
 __all__ = ['get_config', 'print_config']
 
@@ -63,12 +65,42 @@ def process_dist_config(config):
         'dp_degree'] == 0, "unreasonable config of dist_strategy."
 
 
+def process_global_configs(config):
+    """
+    process global configs for hybrid parallel
+    """
+    dp_degree = config['Distributed']['dp_degree']
+    sharding_degree = config['Distributed']['sharding']['sharding_degree']
+
+    configs = config['Global']
+    if configs['global_batch_size'] is None and configs[
+            'local_batch_size'] is None:
+        raise ValueError(
+            "global_batch_size or local_batch_size should be set.")
+    elif configs['global_batch_size'] is not None and configs[
+            'local_batch_size'] is not None:
+        assert configs['global_batch_size'] // configs['local_batch_size'] == (dp_degree * sharding_degree), "global_batch_size[{}] should be divided by local_batch_size[{}] "\
+            "when dp_degree is [{}] and sharding_degree is [{}]".format(configs['global_batch_size'],
+            configs['local_batch_size'], dp_degree, sharding_degree)
+    elif configs['global_batch_size'] is not None and configs[
+            'local_batch_size'] is None:
+        assert configs['global_batch_size'] % (dp_degree * sharding_degree) == 0, \
+            "global_batch_size[{}] should be divided by dp_degree[{}] times sharding_degree[{}]"\
+            .format(configs['global_batch_size'], dp_degree, sharding_degree)
+        configs['local_batch_size'] = configs['global_batch_size'] // (
+            dp_degree * sharding_degree)
+    else:
+        configs['global_batch_size'] = configs[
+            'local_batch_size'] * dp_degree * sharding_degree
+    assert configs['local_batch_size'] % configs['micro_batch_size'] == 0
+
+
 def process_engine_config(config):
     """
     process engine
     """
-    if config.get('save_load', None):
-        save_load_cfg = config.save_load
+    if config.Engine.get('save_load', None):
+        save_load_cfg = config.Engine.save_load
         save_steps = save_load_cfg.get('save_steps', None)
         save_epoch = save_load_cfg.get('save_epoch', None)
         if save_steps is None or save_steps == -1:
@@ -77,6 +109,12 @@ def process_engine_config(config):
 
         if save_epoch is None or save_epoch == -1:
             save_load_cfg['save_epoch'] = 1
+
+        config.Engine.test_iters = config.Engine.eval_iters * 10 \
+            if config.Engine.get('test_iters', None) is None \
+            else config.Engine.test_iters
+
+        config.Engine.accumulate_steps = config.Global.local_batch_size // config.Global.micro_batch_size
 
 
 class AttrDict(dict):
@@ -190,7 +228,7 @@ def print_config(config):
     Arguments:
         config: configs
     """
-    logger.advertise()
+    advertise()
     print_dict(config)
 
 
@@ -282,7 +320,147 @@ def get_config(fname, overrides=None, show=False):
     override_config(config, overrides)
 
     process_dist_config(config['Distributed'])
-    process_engine_config(config['Engine'])
+    process_global_configs(config)
+    process_engine_config(config)
+
+    if show:
+        print_config(config)
+    check_config(config)
+    return config
+
+
+def process_auto_dist_configs(config):
+    """
+    process distributed strategy for auto parallel
+    """
+    configs = config['Distributed']
+    nranks = dist.get_world_size()
+
+    configs['mp_degree'] = 1 \
+        if configs.get('mp_degree', None) is None \
+        else configs['mp_degree']
+
+    configs['pp_degree'] = 1 \
+        if configs.get('pp_degree', None) is None \
+        else configs['pp_degree']
+
+    configs['sharding']['sharding_degree'] = 1 \
+        if configs['sharding'].get('sharding_degree', None) is None \
+        else configs['sharding']['sharding_degree']
+
+    other_degree = configs['mp_degree'] * configs['pp_degree']
+
+    assert nranks % other_degree == 0, "Requires nranks should be divided by mp_degree*pp_degree."
+
+    if not configs.get('dp_degree', None):
+        configs['dp_degree'] = nranks // other_degree
+    else:
+        if configs['dp_degree'] * other_degree != nranks:
+            logger.warning('Mismatched config using {} cards with dp_degree[{}], ' \
+                'mp_degree[{}], pp_degree[{}] and sharding_degree[{}]. So adaptively ' \
+                'adjust dp_degree to {}'.format(nranks, configs['dp_degree'], configs['mp_degree'],
+                configs['pp_degree'], configs['sharding']['sharding_degree'], nranks // other_degree))
+    assert nranks % configs[
+        'dp_degree'] == 0, "unreasonable config of dist_strategy."
+    assert configs['dp_degree'] % configs['sharding']['sharding_degree'] == 0, \
+        "dp_degree[{}] should be divided by sharding_degree[{}].".format(configs['dp_degree'], configs['sharding']['sharding_degree'])
+
+
+def process_auto_global_configs(config):
+    """
+    process global configs for auto parallel
+    """
+    dp_degree = config['Distributed']['dp_degree']
+    # sharding_degree = config['Distributed']['sharding_degree']
+
+    configs = config['Global']
+    if configs['global_batch_size'] is None and configs[
+            'local_batch_size'] is None:
+        raise ValueError(
+            "global_batch_size or local_batch_size should be set.")
+    elif configs['global_batch_size'] is not None and configs[
+            'local_batch_size'] is not None:
+        assert configs['global_batch_size'] // configs['local_batch_size'] == dp_degree, \
+            "global_batch_size[{}] should be divided by local_batch_size[{}] when dp_degree is [{}]"\
+                .format(configs['global_batch_size'], configs['local_batch_size'], dp_degree)
+    elif configs['global_batch_size'] is not None and configs[
+            'local_batch_size'] is None:
+        assert configs['global_batch_size'] % dp_degree == 0, \
+            "global_batch_size[{}] should be divided by dp_degree[{}]".format(configs['global_batch_size'], dp_degree)
+        configs['local_batch_size'] = configs['global_batch_size'] // dp_degree
+    else:
+        configs['global_batch_size'] = configs['local_batch_size'] * dp_degree
+    assert configs['local_batch_size'] % configs['micro_batch_size'] == 0
+
+
+def process_auto_engine_configs(config):
+    """
+    process engine configs for auto parallel
+    """
+    if config.Engine.get('save_load', None):
+        save_load_cfg = config.Engine.save_load
+        save_steps = save_load_cfg.get('save_steps', None)
+        save_epoch = save_load_cfg.get('save_epoch', None)
+        if save_steps is None or save_steps == -1:
+            save_load_cfg[
+                'save_steps'] = sys.maxsize if sys.version > '3' else sys.maxint
+
+        if save_epoch is None or save_epoch == -1:
+            save_load_cfg['save_epoch'] = 1
+
+        config.Engine.test_iters = config.Engine.eval_iters * 10 \
+            if config.Engine.get('test_iters', None) is None \
+            else config.Engine.test_iters
+
+        config.Engine.accumulate_steps = config.Global.local_batch_size // config.Global.micro_batch_size
+
+
+def process_auto_strategy(config):
+    """
+    process auto strategy for auto parallel
+    """
+    configs = config['Engine']
+    strategy = auto.Strategy()
+    strategy.auto_mode = "semi"
+    strategy.seed = config['Global']['seed']
+
+    amp_configs = configs['mix_precision']
+    amp = strategy.amp
+    amp.enable = amp_configs['level'] in ['o1', 'o2', 'o3']
+    amp.use_pure_fp16 = amp_configs['level'] in ['o2', 'o3']
+    amp.use_optimizer_fp16 = amp_configs['level'] in ['o3']
+    amp.use_fp16_guard = amp_configs['use_fp16_guard']
+    amp.init_loss_scaling = amp_configs['scale_loss']
+    amp.custom_black_list = amp_configs['custom_black_list']
+    amp.custom_white_list = amp_configs['custom_white_list']
+
+    config['Engine']['use_recompute'] = config['Model'].pop('use_recompute',
+                                                            None)
+    recompute = strategy.recompute
+    recompute.enable = config['Engine']['use_recompute']
+
+    sharding_configs = config['Distributed']['sharding']
+    sharding = strategy.sharding
+    sharding.enable = sharding_configs['sharding_degree'] > 1
+    sharding.degree = sharding_configs['sharding_degree']
+    sharding.stage = sharding_configs['sharding_stage']
+
+    configs['strategy'] = strategy
+
+
+def get_auto_config(fname, overrides=None, show=False):
+    """
+    Read config from file for auto parallel
+    """
+    assert os.path.exists(fname), (
+        'config file({}) is not exist'.format(fname))
+    config = parse_config(fname)
+    override_config(config, overrides)
+
+    process_auto_dist_configs(config)
+    process_auto_global_configs(config)
+    process_auto_engine_configs(config)
+    process_auto_strategy(config)
 
     if show:
         print_config(config)

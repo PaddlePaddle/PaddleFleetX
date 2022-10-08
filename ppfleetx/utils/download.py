@@ -16,7 +16,8 @@ import os
 import time
 import requests
 import shutil
-from . import logger
+from ppfleetx.utils.log import logger
+
 from tqdm import tqdm
 import paddle
 

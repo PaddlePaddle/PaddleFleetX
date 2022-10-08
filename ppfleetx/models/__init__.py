@@ -15,12 +15,14 @@
 import sys
 import copy
 
-sys.path.append("../../")
 from ppfleetx.core.module.basic_module import BasicModule
-from ppfleetx.models.language_model.language_module import GPTModule
+from ppfleetx.models.language_model.language_module import GPTModule, GPTGenerationModule, GPTEvalModule, GPTFinetuneModule
+from ppfleetx.models.language_model.gpt.auto.auto_module import GPTModuleAuto
 from ppfleetx.models.vision_model.general_classification_module import GeneralClsModule
 from ppfleetx.models.multimodal_model.multimodal_module import ImagenModule
 from ppfleetx.models.language_model.ernie import ErnieModule
+
+from ppfleetx.models.multimodal_model.multimodal_module import ImagenModule
 
 
 def build_module(config):

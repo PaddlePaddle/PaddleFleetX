@@ -10,10 +10,11 @@ Global:
 Engine:
   max_steps: 500000
   num_train_epochs: 1
-  accumulate_steps: 1
+  accumulate_steps:
   logging_freq: 1
   eval_freq: 500
   eval_iters: 10
+  test_iters:
   mix_precision:
     use_pure_fp16: True
     scale_loss: 32768.0
@@ -30,6 +31,8 @@ Model:
   module: "GPTModule"
   name: "GPT"
   fused_linear: False
+  fuse_attn_qkv: True
+  sequence_parallel: False
 
 
 Data:
@@ -40,7 +43,7 @@ Data:
       split: [949, 50, 1]
       max_seq_len: 1024
     sampler:
-      name: DistributedBatchSampler
+      name: GPTBatchSampler
       shuffle: False
       drop_last: True
     loader:
@@ -87,8 +90,3 @@ Profiler:
   scheduler: [1, 5]
   profiler_log: profiler_log
   detailed: False
-
-
-Inference:
-  model_dir: ./output
-  mp_degree: 1

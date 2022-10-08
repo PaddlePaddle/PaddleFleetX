@@ -74,7 +74,10 @@ class BasicModule(nn.Layer):
 
     def input_spec(self):
         raise NotImplementedError(
-            "Please input Module.input_spec for model export")
+            "Please redefine Module.input_spec for model export")
+
+    def inference_end(self, outputs):
+        pass
 
     def training_epoch_end(self, *args, **kwargs):
         pass

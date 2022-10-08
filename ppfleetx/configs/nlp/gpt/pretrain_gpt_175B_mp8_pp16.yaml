@@ -19,6 +19,8 @@ Model:
   initializer_range: 0.02
   use_recompute: True
   recompute_granularity:
+  no_recompute_layers:
+  virtual_pp_degree: 1
   
 
 Distributed:
@@ -29,3 +31,4 @@ Distributed:
     sharding_degree: 1
     sharding_stage: 1
     sharding_offload: False
+    comm_overlap: False

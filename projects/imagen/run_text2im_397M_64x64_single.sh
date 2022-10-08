@@ -14,6 +14,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-cd ../../
-python tools/train.py -c ppfleetx/configs/multimodal/imagen/imagen_397M_text2im_64x64.yaml -o Data.Train.loader.num_workers=8
+export CUDA_VISIBLE_DEVICES=0
+python3 tools/train.py -c ppfleetx/configs/multimodal/imagen/imagen_397M_text2im_64x64.yaml -o Data.Train.loader.num_workers=8
