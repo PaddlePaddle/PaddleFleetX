@@ -91,7 +91,7 @@ void build_blending_indices(
 
 py::array build_sample_idx(const py::array_t<int64_t> &sizes_,
                            const py::array_t<int64_t> &doc_idx_,
-                           const int64_t seq_length, const int64_t num_epochs,
+                           const int32_t seq_length, const int32_t num_epochs,
                            const int64_t tokens_per_epoch) {
   /* Sample index (sample_idx) is used for gpt2 like dataset for which
      the documents are flattened and the samples are built based on this
