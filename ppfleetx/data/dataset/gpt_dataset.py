@@ -45,7 +45,7 @@ class GPTDataset(paddle.io.Dataset):
                  max_seq_len,
                  num_samples,
                  mode,
-                 model_type,
+                 model_type="GPT",
                  seed=1234):
 
         files = get_train_data_file(input_dir)
@@ -474,7 +474,7 @@ class LM_Eval_Dataset(paddle.io.Dataset):
     def __init__(self,
                  input_dir,
                  max_seq_len,
-                 model_type,
+                 model_type="GPT",
                  overlapping_eval=None,
                  **kwargs):
         tokenizer_class, pretrained_name = MODEL_CLASSES[model_type]
@@ -576,7 +576,7 @@ class LM_Eval_Dataset(paddle.io.Dataset):
 
 
 class Lambada_Eval_Dataset(paddle.io.Dataset):
-    def __init__(self, input_dir, max_seq_len, model_type, **kwargs):
+    def __init__(self, input_dir, max_seq_len, model_type="GPT", **kwargs):
         tokenizer_class, pretrained_name = MODEL_CLASSES[model_type]
         tokenizer = tokenizer_class.from_pretrained(pretrained_name)
 
