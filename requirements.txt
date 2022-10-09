@@ -3,7 +3,7 @@ regex==2022.7.25
 colorlog==6.6.0
 colorama==0.4.5
 omegaconf==2.2.2
-tqdm==4.54.1
+tqdm>=4.62.1
 pybind11==2.10.0
 numpy==1.21.6
 paddleslim>=2.3.4
