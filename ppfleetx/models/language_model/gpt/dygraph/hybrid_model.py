@@ -877,6 +877,34 @@ class EmbeddingPipe(GPTEmbeddings):
             input_ids=input_ids, position_ids=position_ids)
         return embeddings
 
+class LayerNormPipe(nn.Layer):
+    def __init__(self,
+                 normalized_shape,
+                 epsilon=1e-05,
+                 weight_attr=None,
+                 bias_attr=None,
+                 name=None,
+                 sequence_parallel=False,
+                 is_last=False):
+        super(LayerNormPipe, self).__init__()
+        self.sequence_parallel = sequence_parallel
+        self.is_last = is_last
+        self.norm = nn.LayerNorm(normalized_shape=normalized_shape,
+                                 epsilon=epsilon,
+                                 weight_attr=weight_attr,
+                                 bias_attr=bias_attr,
+                                 name=name)
+        if self.sequence_parallel:
+            self.norm.weight.register_hook(all_reduce_gradient_hook)
+            self.norm.bias.register_hook(all_reduce_gradient_hook)
+    
+    def forward(self, input):
+        output = self.norm(input)
+        if self.sequence_parallel and self.is_last:
+            output = GatherOp.apply(output)
+            output = paddle.transpose(output, [1, 0, 2])
+        return output
+
 
 class GPTForPretrainingPipe(PipelineLayer):
     """GPTForPretraining adapted for pipeline parallelism.
@@ -917,8 +945,10 @@ class GPTForPretrainingPipe(PipelineLayer):
                 assert len(no_recompute_layers) == 0, \
                     "for pp with full recompute, no_recompute_layers is not support"
 
-        assert sequence_parallel is False, "Sequence parallel strategy \
-                    is not supported in GPTForPretrainingPipe model now."
+        hcg = fleet.get_hybrid_communicate_group()
+        mp_size = hcg.get_model_parallel_world_size()
+        if mp_size <= 1:
+            sequence_parallel = False
 
         self.descs.append(
             SharedLayerDesc(
@@ -930,7 +960,8 @@ class GPTForPretrainingPipe(PipelineLayer):
                 hidden_dropout_prob=hidden_dropout_prob,
                 max_position_embeddings=max_position_embeddings,
                 type_vocab_size=type_vocab_size,
-                initializer_range=0.02))
+                initializer_range=0.02,
+                sequence_parallel=sequence_parallel))
 
         for i in range(num_layers):
             self.descs.append(
@@ -952,11 +983,13 @@ class GPTForPretrainingPipe(PipelineLayer):
                     fuse_attn_qkv=fuse_attn_qkv,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
+                    sequence_parallel=sequence_parallel,
                     do_recompute=i not in no_recompute_layers))
 
         self.descs.append(
             LayerDesc(
-                nn.LayerNorm, normalized_shape=hidden_size))
+                LayerNormPipe, normalized_shape=hidden_size,
+                sequence_parallel=sequence_parallel, is_last=True))
 
         def _logits_helper(embedding, output):
             return parallel_matmul(output, embedding.embedding_weight, True)
