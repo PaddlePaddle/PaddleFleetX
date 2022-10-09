@@ -474,8 +474,8 @@ class LM_Eval_Dataset(paddle.io.Dataset):
     def __init__(self,
                  input_dir,
                  max_seq_len,
-                 model_type="GPT",
                  overlapping_eval=None,
+                 model_type="GPT",
                  **kwargs):
         tokenizer_class, pretrained_name = MODEL_CLASSES[model_type]
         tokenizer = tokenizer_class.from_pretrained(pretrained_name)
