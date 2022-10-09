@@ -153,12 +153,12 @@ class EagerEngine(BasicEngine):
             'sharding_degree']
         self._sharding_offload = self._dist_configs['sharding'][
             'sharding_offload']
-        self._reduce_overlap = self._dist_configs['sharding']['reduce_overlap']
+        self._reduce_overlap = getattr(self._dist_configs['sharding'], 'reduce_overlap', False)
         if self._sharding_degree > 1 and self._reduce_overlap:
             if self._sharding_stage == 3 or self._sharding_offload:
                 self._reduce_overlap = False
                 logger.warning("reduce overlap only valid for sharding stage 2 without offload")
-        self._broadcast_overlap = self._dist_configs['sharding']['broadcast_overlap']
+        self._broadcast_overlap = getattr(self._dist_configs['sharding'], 'broadcast_overlap', False)
         if self._sharding_degree > 1 and self._broadcast_overlap:
             if self._sharding_stage == 3 or self._sharding_offload:
                 self._broadcast_overlap = False
