@@ -3,7 +3,7 @@
 This project implements the (Vision Transformer) proposed by google [An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale](https://arxiv.org/abs/2010.11929).
 
 
-## How to pretrain from scratch on imagenet 1k
+## How to pretrain from scratch on imagenet2012
 
 ### Go to the main repo directory
 All commands are executed in the home directory.
@@ -36,6 +36,21 @@ Note: ViT-B/16 needs run on 2 nodes with 16 A100 GPUs. If you only have a low-me
 
 The following commands need to be run on each node.
 ```shell
-
 python -m paddle.distributed.launch --gpus="0,1,2,3,4,5,6,7" tools/train.py -c ppfleetx/configs/vis/vit/ViT_base_patch16_224_pt_in1k_2n16c_dp_fp16o2.yaml
 ```
+
+## How to finetune on imagenet2012
+Finetune is similar to pre-training on ImageNet2012 dataset, we have provided the configured yaml file.
+
+```shell
+python -m paddle.distributed.launch --gpus="0,1,2,3,4,5,6,7" tools/train.py -c ppfleetx/configs/vis/vit/ViT_base_patch16_384_ft_in1k_2n16c_dp_fp16o2.yaml
+```
+
+
+## Model
+
+| Model    | Phase    | Size   | Dataset      | Resolution | GPUs        | Img/sec | Top1 Acc | Pre-trained checkpoint                                                                             | Fine-tuned checkpoint | Log                                                                                      |
+|----------|----------|--------|--------------|------------|-------------|---------|----------|----------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| ViT-B_16 | pretrain | 167MiB | ImageNet2012 | 224        | A100*N2C16  | 7350    | 74.75%   | [download](https://paddlefleetx.bj.bcebos.com/model/vision/vit/imagenet2012-ViT-B_16-224.pdparams) | -                                                                                               | [log](https://paddlefleetx.bj.bcebos.com/model/vision/vit/imagenet2012-ViT-B_16-224.log) |
+| ViT-B_16 | finetune | 167MiB | ImageNet2012 | 384        | A100*N2C16  | 1580    | 77.68%   | [download](https://paddlefleetx.bj.bcebos.com/model/vision/vit/imagenet2012-ViT-B_16-224.pdparams) | [download](https://paddlefleetx.bj.bcebos.com/model/vision/vit/imagenet2012-ViT-B_16-384.pdparams)          | [log](https://paddlefleetx.bj.bcebos.com/model/vision/vit/imagenet2012-ViT-B_16-384.log) |
+| ViT-L_16 | finetune | 582MiB | ImageNet2012 | 384        | A100*N2C16  | 519     | 85.13%   | [download](https://paddlefleetx.bj.bcebos.com/model/vision/vit/imagenet21k-jax-ViT-L_16-224.pdparams) | [download](https://paddlefleetx.bj.bcebos.com/model/vision/vit/imagenet21k+imagenet2012-ViT-L_16-384.pdparams)          | [log](https://paddlefleetx.bj.bcebos.com/model/vision/vit/imagenet21k+imagenet2012-ViT-L_16-384.log) |

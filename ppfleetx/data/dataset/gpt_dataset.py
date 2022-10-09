@@ -22,10 +22,20 @@ import json
 
 import paddle
 
-from ppfleetx.utils import logger, env
+from ppfleetx.utils import env
+from ppfleetx.utils.log import logger
 from ppfleetx.data.tokenizers import GPTTokenizer
 
+# TODO(haohongxiang): to solve the problem of cross-reference
+import paddlenlp
+from paddlenlp.transformers.gpt.tokenizer import GPTChineseTokenizer
+
 mode_to_index = {"Train": 0, "Eval": 1, "Test": 2}
+
+MODEL_CLASSES = {
+    "GPT": (GPTTokenizer, "gpt2"),
+    "GPT-cn": (GPTChineseTokenizer, "gpt-cpm-large-cn"),
+}
 
 
 class GPTDataset(paddle.io.Dataset):
@@ -35,6 +45,7 @@ class GPTDataset(paddle.io.Dataset):
                  max_seq_len,
                  num_samples,
                  mode,
+                 model_type,
                  seed=1234):
 
         files = get_train_data_file(input_dir)
@@ -67,11 +78,14 @@ class GPTDataset(paddle.io.Dataset):
                     print("> wait for helpers to be compiled!")
                     time.sleep(1)
 
-        data_world_size = env.get_data_world_size()
+        try:
+            data_world_size = env.get_data_world_size()
 
-        logger.info(
-            "The distributed run, total device num:{}, distinct dataflow num:{}.".
-            format(device_world_size, data_world_size))
+            logger.info(
+                "The distributed run, total device num:{}, distinct dataflow num:{}.".
+                format(device_world_size, data_world_size))
+        except AttributeError:
+            pass
 
         assert len(input_dir) == 1, "GPT only support one dataset for now."
 
@@ -96,7 +110,8 @@ class GPTDataset(paddle.io.Dataset):
             -1], "The document nums should larger than max of splits, but %s < %s" % (
                 len(sample_lens), splits[-1])
 
-        tokenizer = GPTTokenizer.from_pretrained("gpt2")
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_type]
+        tokenizer = tokenizer_class.from_pretrained(pretrained_name)
 
         self.input_dir = input_dir
         self.max_seq_len = max_seq_len
@@ -138,6 +153,8 @@ class GPTDataset(paddle.io.Dataset):
         loss_mask[np.where(np.array(tokens) == self.eos_id)] = 0.0
         position_ids = np.arange(0, seq_length, dtype="int64")
 
+        labels = np.array(labels).astype("int64")
+        tokens = np.array(tokens).astype("int64")
         if self.mode == "Test":
             return [tokens, position_ids]
         else:
@@ -351,9 +368,12 @@ def construct_samples_and_shuffle_data(name, data_prefix, documents, sizes,
     # Restore random state
     np_rng.set_state(savedState)
 
-    if paddle.distributed.get_world_size() > 1:
-        if paddle.in_dynamic_mode():
-            paddle.distributed.barrier()
+    try:
+        if paddle.distributed.get_world_size() > 1:
+            if paddle.in_dynamic_mode():
+                paddle.distributed.barrier()
+    except AssertionError:
+        pass
 
     # Load mappings.
     doc_idx = np.load(doc_idx_filename, allow_pickle=True, mmap_mode='r')
@@ -451,9 +471,14 @@ def _build_shuffle_idx(num_samples, total_size, np_rng):
 
 
 class LM_Eval_Dataset(paddle.io.Dataset):
-    def __init__(self, input_dir, max_seq_len, overlapping_eval=None,
+    def __init__(self,
+                 input_dir,
+                 max_seq_len,
+                 model_type,
+                 overlapping_eval=None,
                  **kwargs):
-        tokenizer = GPTTokenizer.from_pretrained("gpt2")
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_type]
+        tokenizer = tokenizer_class.from_pretrained(pretrained_name)
 
         with open(input_dir, "rb") as reader:
             entire_data = reader.read().decode('utf-8')
@@ -551,8 +576,9 @@ class LM_Eval_Dataset(paddle.io.Dataset):
 
 
 class Lambada_Eval_Dataset(paddle.io.Dataset):
-    def __init__(self, input_dir, max_seq_len, **kwargs):
-        tokenizer = GPTTokenizer.from_pretrained("gpt2")
+    def __init__(self, input_dir, max_seq_len, model_type, **kwargs):
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_type]
+        tokenizer = tokenizer_class.from_pretrained(pretrained_name)
 
         tokenized_data = []
         tokenized_label = []

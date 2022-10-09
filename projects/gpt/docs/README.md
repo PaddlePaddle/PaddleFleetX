@@ -3,11 +3,20 @@
 ## 模型介绍
 GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)/[3](https://arxiv.org/pdf/2005.14165.pdf) 是以[Transformer](https://arxiv.org/abs/1706.03762) 解码器为网络基本组件，使用自回归的方式在大规模无标注文本语料上进行预训练得到的语言生成模型。
 
-本项目是语言模型 GPT 的 PaddlePaddle 大模型实现。下是本例的简要目录结构及说明：
+本项目是语言模型 GPT 的 PaddlePaddle 大模型实现。目前，PaddleFleetX 提供了 [GPT-345M](https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz) 的预训练模型文件；分别基于 [LAMBADA](https://raw.githubusercontent.com/cybertronai/bflm/master/lambada_test.jsonl) 和 [WikiText](https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-103-v1.zip) 数据集，采用 ACC(accuracy) 和 PPL(perplexity) 指标后的评估结果如下：
+
+| **模型文件** | **ACC** | **PPL** |
+|---------|-----------|---------------|
+| GPT-345M | 44.17% |  18.01  |
+
+下面是本例的简要目录结构及说明：
 
 ```text
 .
+├── auto_gpt_345M_single_card.sh           # 自动并行345M模型单卡预训练入口
+├── auto_gpt_1.3B_single_card.sh           # 自动并行1.3B模型单卡预训练入口
 ├── auto_gpt_1.3B_dp8.sh                   # 自动并行1.3B模型数据并行预训练入口
+├── auto_gpt_6.7B_sharding16.sh            # 自动并行6.7B模型分组切片并行预训练入口
 ├── evaluate_gpt_345M_single_card.sh       # 单卡345M模型评估入口
 ├── export_gpt_345M_single_card.sh         # 单卡345M模型动转静导出入口
 ├── inference_gpt_345M_single_card.sh      # 单卡345M模型推理入口
@@ -60,9 +69,13 @@ cd .. # 回到 PaddleFleetX 根目录下
 
 ### 文本生成
 
-- [单卡预训练模型文本生成](./single_card.md)
+- [单卡预训练模型文本生成](./single_card.md#GPT-Zero-shot-文本生成)
 
-- [混合并行预训练模型文本生成](./hybrid_parallel.md)
+- [混合并行预训练模型文本生成](./hybrid_parallel.md#GPT-Zero-shot-文本生成)
+
+### GLUE 下游任务微调
+
+- [单卡微调](./single_finetune.md)
 
 
 ## 参数释义
@@ -155,7 +168,9 @@ Engine训练设置完成模型训练/验证/推理等过程中的参数设置，
     initializer_range: 0.02
     use_recompute: True
     recompute_granularity:
+    no_recompute_layers:
     fused_linear: True
+    fuse_attn_qkv: True
 ```
 
 其中参数对应的释义如下：
@@ -174,7 +189,9 @@ Engine训练设置完成模型训练/验证/推理等过程中的参数设置，
 | initializer_range            | 参数初始化的范围               |
 | use_recompute     | 是否使用recompute训练                      |
 | recompute_granularity | recompute训练的粒度，可选 `full` `full_attn` `core_attn`，full即recompute全部transformer，full_attn表明只recompute所有self attention部分，core_attn表明只recompute `softmax(qkT)v` 部分。注：显存占用方面，`core_attn` > `full_attn` > `full`，若所选策略产生OOM错误，可以适当更改recompute_granularity |
+|no_recompute_layers| list of integer，标识哪些层的transformer不需要进行recompute。所有在该list中的值应该 >= 0 同时应该 < num_layers。向该参数中增加不进行recompute 的层数可以提升模型训练的整体吞吐，但是会适当的增加显存。若训练中发现有显存富裕，可以适当增加不进行recompute的层数。如果使用该参数后出现OOM错误，可以适当减小不进行recompute的层数。 ｜
 | fused_linear      | 是否使用fused_linear代替传统Linear加速训练。注：该功能需要cuda 11.6及以上编译的paddle支持。       |
+| fuse_attn_qkv     | 是否对attention层中的qkv计算使用fuse策略以加速训练 |
 | virtual_pp_degree | 虚拟流水线并行维度，该参数会减小流水线bubble的占比以提升流水线的吞吐。但是该参数会增加流水线间的通讯，所以该参数的推荐值为2。并且，只有 num_layers可以被 pp_degree * virtual_pp_degree 整除时，才可以使用虚拟流水线并行。 |
 ### 数据集
 

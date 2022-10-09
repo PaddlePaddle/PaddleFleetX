@@ -19,7 +19,8 @@ import paddle
 
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.multimodal_model.imagen as imagen
-from ppfleetx.utils import logger
+from ppfleetx.utils.log import logger
+
 import paddleslim
 from .utils import process_configs
 
@@ -27,8 +28,9 @@ from .utils import process_configs
 class MultiModalModule(BasicModule):
     def __init__(self, configs):
         self.nranks = paddle.distributed.get_world_size()
-
         super(MultiModalModule, self).__init__(configs)
+
+        self.loss_fn = self.get_loss_fn()
 
     def process_configs(self, configs):
         configs = process_configs(configs)

@@ -60,10 +60,11 @@ class MultiHeadAttention(nn.Layer):
                  need_weights=False,
                  weight_attr=None,
                  bias_attr=None,
-                 fuse=True,
+                 fuse_attn_qkv=False,
                  fused_linear=False,
                  use_recompute=False,
-                 recompute_granularity="full"):
+                 recompute_granularity="full",
+                 do_recompute=True):
         super(MultiHeadAttention, self).__init__()
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
@@ -71,16 +72,17 @@ class MultiHeadAttention(nn.Layer):
         self.num_heads = num_heads
         self.dropout = dropout
         self.need_weights = need_weights
-        self.fuse = fuse
+        self.fuse_attn_qkv = fuse_attn_qkv
         self.use_recompute = use_recompute
         self.recompute_granularity = recompute_granularity
+        self.do_recompute = do_recompute
 
         self.head_dim = embed_dim // num_heads
         assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
 
         Linear = FusedLinear if fused_linear else nn.Linear
 
-        if self.fuse:
+        if self.fuse_attn_qkv:
             assert self.kdim == embed_dim
             assert self.vdim == embed_dim
             self.qkv_proj = Linear(
@@ -227,20 +229,20 @@ class MultiHeadAttention(nn.Layer):
         value = query if value is None else value
         # compute q ,k ,v
         if use_cache is False:
-            if self.fuse:
+            if self.fuse_attn_qkv:
                 q, k, v = self._fuse_prepare_qkv(query, use_cache, cache)
             else:
                 q, k, v = self._prepare_qkv(query, key, value, use_cache,
                                             cache)
         else:
-            if self.fuse:
+            if self.fuse_attn_qkv:
                 q, k, v, cache = self._fuse_prepare_qkv(query, use_cache,
                                                         cache)
             else:
                 q, k, v, cache = self._prepare_qkv(query, key, value,
                                                    use_cache, cache)
 
-        if self.use_recompute and self.recompute_granularity == "core_attn":
+        if self.use_recompute and self.recompute_granularity == "core_attn" and self.do_recompute:
             out, weights = recompute(self.core_attn, q, k, v, attn_mask)
         else:
             out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
@@ -267,8 +269,13 @@ class TransformerDecoder(nn.Layer):
                  norm=None,
                  hidden_size=None,
                  use_recompute=False,
-                 recompute_granularity="full"):
+                 recompute_granularity="full",
+                 no_recompute_layers=None):
         super(TransformerDecoder, self).__init__()
+
+        if no_recompute_layers is None:
+            no_recompute_layers = []
+        self.no_recompute_layers = no_recompute_layers
 
         self.num_layers = num_layers
         self.layers = decoder_layers
@@ -305,7 +312,7 @@ class TransformerDecoder(nn.Layer):
                                             cache=cache)
                     new_caches.append(new_cache)
                 else:
-                    if self.use_recompute and self.recompute_granularity == "full":
+                    if self.use_recompute and self.recompute_granularity == "full" and i not in self.no_recompute_layers:
                         output = recompute(mod, output, memory, tgt_mask,
                                            use_cache, cache)
                     else:
@@ -356,8 +363,10 @@ class TransformerDecoderLayer(nn.Layer):
                  weight_attr=None,
                  bias_attr=None,
                  fused_linear=False,
+                 fuse_attn_qkv=False,
                  use_recompute=False,
-                 recompute_granularity="full"):
+                 recompute_granularity="full",
+                 do_recompute=True):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
@@ -368,6 +377,7 @@ class TransformerDecoderLayer(nn.Layer):
         self.normalize_before = normalize_before
         self.use_recompute = use_recompute
         self.recompute_granularity = recompute_granularity
+        self.do_recompute = do_recompute
 
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
@@ -381,8 +391,10 @@ class TransformerDecoderLayer(nn.Layer):
             weight_attr=weight_attrs[0],
             bias_attr=bias_attrs[0],
             fused_linear=fused_linear,
+            fuse_attn_qkv=fuse_attn_qkv,
             use_recompute=use_recompute,
-            recompute_granularity=recompute_granularity)
+            recompute_granularity=recompute_granularity,
+            do_recompute=do_recompute)
         self.linear1 = Linear(
             d_model, dim_feedforward, weight_attrs[2], bias_attr=bias_attrs[2])
         self.linear2 = Linear(
@@ -392,7 +404,10 @@ class TransformerDecoderLayer(nn.Layer):
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.dropout1 = nn.Dropout(dropout, mode="upscale_in_train")
         self.dropout2 = nn.Dropout(act_dropout, mode="upscale_in_train")
-        self.activation = getattr(F, activation)
+        if activation == 'gelu':
+            self.activation = nn.GELU(approximate=True)
+        else:
+            self.activation = getattr(F, activation)
 
     def forward(self, tgt, memory, tgt_mask=None, use_cache=False, cache=None):
         residual = tgt
@@ -401,7 +416,7 @@ class TransformerDecoderLayer(nn.Layer):
             tgt = self.norm1(tgt)
 
         if use_cache is False:
-            if self.use_recompute and self.recompute_granularity == "full_attn":
+            if self.use_recompute and self.recompute_granularity == "full_attn" and self.do_recompute:
                 tgt = recompute(self.self_attn, tgt, None, None, tgt_mask,
                                 use_cache, cache)
             else:
@@ -416,9 +431,7 @@ class TransformerDecoderLayer(nn.Layer):
         residual = tgt
         if self.normalize_before:
             tgt = self.norm2(tgt)
-        tgt = self.dropout2(
-            self.linear2(F.gelu(
-                self.linear1(tgt), approximate=True)))
+        tgt = self.dropout2(self.linear2(self.activation(self.linear1(tgt))))
         tgt = residual + tgt
 
         if not self.normalize_before:
@@ -486,10 +499,15 @@ class GPTModel(nn.Layer):
                  use_recompute=False,
                  initializer_range=0.02,
                  fused_linear=False,
+                 fuse_attn_qkv=False,
                  recompute_granularity="full",
-                 sequence_parallel=False):
+                 sequence_parallel=False,
+                 no_recompute_layers=None):
 
         super(GPTModel, self).__init__()
+
+        if no_recompute_layers is None:
+            no_recompute_layers = []
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
@@ -514,8 +532,10 @@ class GPTModel(nn.Layer):
                             mean=0.0, std=self.initializer_range)),
                     bias_attr=None,
                     fused_linear=fused_linear,
+                    fuse_attn_qkv=fuse_attn_qkv,
                     use_recompute=use_recompute,
-                    recompute_granularity=recompute_granularity))
+                    recompute_granularity=recompute_granularity,
+                    do_recompute=i not in no_recompute_layers))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
@@ -523,7 +543,8 @@ class GPTModel(nn.Layer):
             norm="LayerNorm",
             hidden_size=hidden_size,
             use_recompute=use_recompute,
-            recompute_granularity=recompute_granularity)
+            recompute_granularity=recompute_granularity,
+            no_recompute_layers=no_recompute_layers)
 
     def forward(self,
                 input_ids,
@@ -651,6 +672,48 @@ class GPTPretrainingCriterion(nn.Layer):
         masked_lm_loss = paddle.sum(masked_lm_loss.reshape([-1]) * loss_mask)
         loss = masked_lm_loss / loss_mask.sum()
         return loss
+
+
+class GPTForSequenceClassification(nn.Layer):
+    """
+    GPT Model with a sequence classification/regression head on top (a linear layer on top of the pooled output) e.g.
+    for GLUE tasks.
+    Args:
+        gpt (:class:`GPTModel`):
+            An instance of GPTModel.
+        num_classes (int, optional):
+            The number of classes. Defaults to `2`.
+            
+    """
+
+    def __init__(self, gpt, num_classes=2):
+        super(GPTForSequenceClassification, self).__init__()
+        self.gpt = gpt
+        self.score = nn.Linear(
+            self.gpt.hidden_size, num_classes, bias_attr=False)
+
+        from paddle.nn.initializer import Normal
+        normal_ = Normal(std=self.gpt.initializer_range)
+        normal_(self.score.weight)
+
+    def forward(self, input_ids, position_ids=None, attention_mask=None):
+
+        output = self.gpt(input_ids,
+                          position_ids=position_ids,
+                          attention_mask=attention_mask)
+
+        logits = self.score(output)
+        # padding index maybe 0
+        eos_token_id = 0
+        # sequence_lengths shape [bs,]
+        sequence_lengths = (input_ids != eos_token_id).astype("int64").sum(
+            axis=-1) - 1
+
+        pooled_logits = logits.gather_nd(
+            paddle.stack(
+                [paddle.arange(output.shape[0]), sequence_lengths], axis=-1))
+
+        return pooled_logits
 
 
 class GPTForGeneration(nn.Layer):
@@ -1118,5 +1181,5 @@ class GPTForGeneration(nn.Layer):
                               pad_token_id, eos_token_id, top_k, top_p,
                               temperature, **model_kwargs)
         else:
-            raise ValueError(f'Not support {decoding_strategy} strategy yet!')
+            raise ValueError(f'Not support {decode_strategy} strategy yet!')
         return ret

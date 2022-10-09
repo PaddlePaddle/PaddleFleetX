@@ -27,7 +27,8 @@ from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 from paddle.profiler import SummaryView
 
-from ppfleetx.utils import logger
+from ppfleetx.optims import build_lr_scheduler, build_optimizer
+from ppfleetx.utils.log import logger
 from ppfleetx.core.engine import BasicEngine, InferenceEngine
 from ppfleetx.core.module import BasicModule
 from ppfleetx.utils.tensor_fusion_helper import all_reduce_parameters
@@ -152,6 +153,11 @@ class EagerEngine(BasicEngine):
             'sharding_degree']
         self._sharding_offload = self._dist_configs['sharding'][
             'sharding_offload']
+        self._comm_overlap = self._dist_configs['sharding']['comm_overlap']
+        if self._sharding_degree > 1 and self._comm_overlap:
+            if self._sharding_stage == 3 or self._sharding_offload:
+                self._comm_overlap = False
+                logger.warning("comm overlap only valid for sharding stage 2 without offload")
         self._use_recompute = configs['Model']['use_recompute']
 
         if self._use_pure_fp16:
@@ -166,11 +172,15 @@ class EagerEngine(BasicEngine):
         else:
             self._scaler = None
 
-        self._optimizer = optimizer if mode == 'train' else None
-        self._lr_scheduler = lr if mode == 'train' else None
+        self._lr_scheduler = build_lr_scheduler(
+            configs.Optimizer.lr) if mode == 'train' else None
+
+        self._optimizer = build_optimizer(
+            configs.Optimizer, self._module.model,
+            self._lr_scheduler) if mode == 'train' else None
 
         # distributed configs
-        self._distributed = dist.is_initialized()
+        self._distributed = (dist.get_world_size() > 1)
 
         if self._distributed:
             self._hcg = fleet.get_hybrid_communicate_group()
@@ -240,6 +250,8 @@ class EagerEngine(BasicEngine):
             scaler=self._scaler,
             group=self._sharding_group,
             offload=self._sharding_offload)
+        if self._comm_overlap:
+            self._module.model._set_comm_overlap(self._comm_overlap)
 
     def _wrap_3D_parallel(self):
         self._module.model = fleet.distributed_model(self._module.model)
@@ -259,7 +271,8 @@ class EagerEngine(BasicEngine):
         # Note(GuoxiaWang): Do not use len(train_data_loader()),
         # it will cause a memory leak.
         total_train_batch = len(train_data_loader)
-        total_eval_batch = len(valid_data_loader)
+        total_eval_batch = len(
+            valid_data_loader) if valid_data_loader is not None else 0
         for step, batch in enumerate(train_data_loader):
 
             if epoch_index == self._load_recovery['epoch']:
@@ -275,6 +288,7 @@ class EagerEngine(BasicEngine):
             if step % self._logging_freq == 0:
                 log_dict = {
                     'epoch': epoch_index,
+                    'total_epoch': self._num_train_epochs,
                     'batch': step,
                     'total_batch': total_train_batch,
                     'train_cost': train_costs
@@ -364,7 +378,7 @@ class EagerEngine(BasicEngine):
 
             eval_start = time.time()
             if self._run_mode == 'epoch' and epoch_index % self._eval_freq == 0:
-                self.evaluate(epoch_index, valid_data_loader)
+                self._evaluate_one_epoch(epoch_index, valid_data_loader)
                 self._module.model.train()
                 eval_cost = time.time() - eval_start
                 log_dict = {
@@ -629,6 +643,14 @@ class EagerEngine(BasicEngine):
 
             if os.path.exists(model_path):
                 model_dict = paddle.load(model_path)
+                for name, param in self._module.model.state_dict().items():
+                    assert name in model_dict.keys(
+                    ), "No param named `{}` was found in checkpoint file.".format(
+                        name)
+
+                    if param.dtype != model_dict[name].dtype:
+                        model_dict[name] = model_dict[name].cast(param.dtype)
+
                 self._module.model.set_state_dict(model_dict)
             else:
                 raise ValueError("No optimizer checkpoint file found in %s." %
