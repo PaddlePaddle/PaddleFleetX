@@ -280,12 +280,13 @@ class EagerEngine(BasicEngine):
                     continue
 
             loss = self._fit_impl(batch)
+            train_losses.append(loss)
 
             if step % self._logging_freq == 0:
                 # Sync for profile time, delete it may be a little faster
                 paddle.device.cuda.synchronize()
                 train_costs = time.time() - train_start
-                train_losses.append(loss.numpy()[0])
+                numpy_losses = [loss.numpy()[0] for loss in train_losses]
                 log_dict = {
                     'epoch': epoch_index,
                     'total_epoch': self._num_train_epochs,
@@ -293,7 +294,7 @@ class EagerEngine(BasicEngine):
                     'total_batch': total_train_batch,
                     'train_cost': train_costs
                     if step == 0 else train_costs / self._logging_freq,
-                    'loss': sum(train_losses) / len(train_losses),
+                    'loss': sum(numpy_losses) / len(numpy_losses),
                     'lr': self._optimizer.get_lr()
                 }
                 self._module.training_step_end(log_dict)
