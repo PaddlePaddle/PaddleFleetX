@@ -16,51 +16,155 @@ import os
 import sys
 import time
 import numpy as np
-
+import re
+import copy
 import paddle
+
+from .dataset_utils import (
+    get_samples_mapping,
+    get_a_and_b_segments,
+    truncate_segments,
+    create_tokens_and_tokentypes,
+    create_masked_lm_predictions,
+    make_indexed_dataset,
+    get_indexed_dataset_, )
+from paddlenlp.transformers import ErnieTokenizer
+
+
+def get_local_rank():
+    return int(os.getenv("PADDLE_RANK_IN_NODE", 0))
+
+
+print_rank_0 = print
+
+mode_to_index = {"Train": 0, "Eval": 1, "Test": 2}
 
 
 class ErnieDataset(paddle.io.Dataset):
-    def __init__(
-            self,
-            name,
-            tokenizer,
-            indexed_dataset,
-            data_prefix,
-            num_epochs,
-            max_num_samples,
-            masked_lm_prob,
-            max_seq_length,
-            short_seq_prob,
-            seed,
-            binary_head,
-            share_folder=False,
-            args=None, ):
+    def __init__(self, input_dir, tokenizer_type, split, num_samples, mode,
+                 max_seq_length, masked_lm_prob, short_seq_prob, seed,
+                 binary_head, share_folder, favor_longer_ngram, max_ngrams):
+        tokenizer = ErnieTokenizer.from_pretrained(tokenizer_type)
+        tokenizer.extend_chinese_char()
 
-        # Params to store.
-        self.name = name
+        # print("input_dir", input_dir)
+        files = get_train_data_file(input_dir)[0]
+        # print("files", files)
+        # assert len(files) == 1
+        skip_warmup = True
+        indexed_dataset = get_indexed_dataset_(files, None, skip_warmup)
+        total_num_of_documents = indexed_dataset.doc_idx.shape[0] - 1
+        splits = get_train_valid_test_split_(split, total_num_of_documents)
+        # Print stats about the splits.
+        print_rank_0(' > dataset split:')
+
+        def print_split_stats(name, index):
+            print_rank_0('    {}:'.format(name))
+            print_rank_0('     document indices in [{}, {}) total of {} '
+                         'documents'.format(splits[index], splits[index + 1],
+                                            splits[index + 1] - splits[index]))
+            start_index = indexed_dataset.doc_idx[splits[index]]
+            end_index = indexed_dataset.doc_idx[splits[index + 1]]
+            print_rank_0('     sentence indices in [{}, {}) total of {} '
+                         'sentences'.format(start_index, end_index, end_index -
+                                            start_index))
+
+        index = mode_to_index[mode]
+        print_split_stats(mode, index)
+
+        # dataset = None
+        assert splits[index + 1] > splits[index]
+        # Get the pointer to the original doc-idx so we can set it later.
+        doc_idx_ptr = indexed_dataset.get_doc_idx()
+        # Slice the doc-idx
+        start_index = splits[index]
+        # Add +1 so we can index into the dataset to get the upper bound.
+        end_index = splits[index + 1] + 1
+        # New doc_idx view.
+        indexed_dataset.set_doc_idx(doc_idx_ptr[start_index:end_index])
+        # Build the dataset accordingly.
+        # kwargs = dict(
+        #     name=name,
+        #     data_prefix=data_prefix,
+        #     num_epochs=None,
+        #     max_num_samples=train_valid_test_num_samples[index],
+        #     max_seq_length=max_seq_length,
+        #     seed=seed,
+        #     share_folder=args.share_folder,
+        #     args=args,
+        # )
         self.seed = seed
         self.masked_lm_prob = masked_lm_prob
         self.max_seq_length = max_seq_length
         self.binary_head = binary_head
         self.share_folder = share_folder
-        self.args = args
-
-        # Dataset.
         self.indexed_dataset = indexed_dataset
+
+        self.favor_longer_ngram = favor_longer_ngram
+        self.max_ngrams = max_ngrams
 
         # Build the samples mapping.
         self.samples_mapping = get_samples_mapping(
             self.indexed_dataset,
-            data_prefix,
-            num_epochs,
-            max_num_samples,
+            files,
+            None,
+            num_samples,
             self.max_seq_length - 3,  # account for added tokens
             short_seq_prob,
             self.seed,
-            self.name,
+            mode,
             self.binary_head,
             self.share_folder)
+
+        # print_split_stats('validation', 1)
+        # print_split_stats('test', 2)  
+
+        # train_valid_test_num_samples = [
+        #     args.global_batch_size * args.max_steps,
+        #     args.micro_batch_size * (args.max_steps // args.eval_freq + 1) *
+        #     args.eval_iters * data_world_size,
+        #     args.micro_batch_size * args.test_iters * data_world_size]
+
+        # def __init__(
+        #         self,
+        #         name,
+        #         tokenizer,
+        #         indexed_dataset,
+        #         data_prefix,
+        #         num_epochs,
+        #         max_num_samples,
+        #         masked_lm_prob,
+        #         max_seq_length,
+        #         short_seq_prob,
+        #         seed,
+        #         binary_head,
+        #         share_folder=False,
+        #         args=None, ):
+
+        #     # Params to store.
+        #     self.name = name
+        #     self.seed = seed
+        #     self.masked_lm_prob = masked_lm_prob
+        #     self.max_seq_length = max_seq_length
+        #     self.binary_head = binary_head
+        #     self.share_folder = share_folder
+        #     self.args = args
+
+        #     # Dataset.
+        #     self.indexed_dataset = indexed_dataset
+
+        #     # Build the samples mapping.
+        #     self.samples_mapping = get_samples_mapping(
+        #         self.indexed_dataset,
+        #         data_prefix,
+        #         num_epochs,
+        #         max_num_samples,
+        #         self.max_seq_length - 3,  # account for added tokens
+        #         short_seq_prob,
+        #         self.seed,
+        #         self.name,
+        #         self.binary_head,
+        #         self.share_folder)
 
         # Vocab stuff.
         # tokenizer = get_tokenizer()
@@ -87,6 +191,7 @@ class ErnieDataset(paddle.io.Dataset):
         return self.samples_mapping.shape[0]
 
     def __getitem__(self, idx):
+
         start_idx, end_idx, seq_length = self.samples_mapping[idx]
         sample = [self.indexed_dataset[i] for i in range(start_idx, end_idx)]
 
@@ -108,7 +213,8 @@ class ErnieDataset(paddle.io.Dataset):
             self.masked_lm_prob,
             np_rng,
             self.binary_head,
-            self.args)
+            self.favor_longer_ngram,
+            self.max_ngrams)
 
 
 def build_training_sample(sample,
@@ -124,7 +230,8 @@ def build_training_sample(sample,
                           masked_lm_prob,
                           np_rng,
                           binary_head,
-                          args=None):
+                          favor_longer_ngram=False,
+                          max_ngrams=3):
     """Biuld training sample.
 
     Arguments:
@@ -187,8 +294,8 @@ def build_training_sample(sample,
          vocab_token_to_id_dict=vocab_token_to_id_dict,
          to_chinese_char=True,
          inplace_random_mask=False,
-         favor_longer_ngram=False if args is None else args.favor_longer_ngram,
-         max_ngrams=3 if args is None else args.max_ngrams, )
+         favor_longer_ngram=favor_longer_ngram,
+         max_ngrams=max_ngrams, )
 
     # Padding.
     tokens_np, tokentypes_np, labels_np, padding_mask_np, loss_mask_np \
@@ -232,3 +339,51 @@ def pad_and_convert_to_numpy(tokens, tokentypes, masked_positions,
     loss_mask_np = np.array(loss_mask, dtype=np.int64)
 
     return tokens_np, tokentypes_np, labels_np, padding_mask_np, loss_mask_np
+
+
+def get_train_data_file(input_dir):
+    if len(input_dir.split()) > 1:
+        # weight-1 data-prefix-1 weight-2 data-prefix-2 ...
+        return input_dir.split()
+    else:
+        files = [
+            os.path.join(input_dir, f) for f in os.listdir(input_dir)
+            if (os.path.isfile(os.path.join(input_dir, f)) and "_idx.npz" in
+                str(f))
+        ]
+        # print(">>>> files", files)
+        files = [x.replace("_idx.npz", "") for x in files]
+
+        if len(files) > 1:
+            ret = []
+            logger.info("You are using multi-dataset:")
+            for x in files:
+                ret.append(1.0)
+                ret.append(x)
+                logger.info("    > set weight of %s dataset to 1.0" % x)
+            return ret
+    return files
+
+
+def get_train_valid_test_split_(splits, size):
+    """
+    Get dataset splits from comma or '/' separated string list.
+    """
+
+    splits = [float(s) for s in splits]
+    while len(splits) < 3:
+        splits.append(0.)
+    splits = splits[:3]
+    splits_sum = sum(splits)
+    assert splits_sum > 0.0
+    splits = [split / splits_sum for split in splits]
+    splits_index = [0]
+    for index, split in enumerate(splits):
+        splits_index.append(splits_index[index] + int(
+            round(split * float(size))))
+    diff = splits_index[-1] - size
+    for index in range(1, len(splits_index)):
+        splits_index[index] -= diff
+    assert len(splits_index) == 4
+    assert splits_index[-1] == size
+    return splits_index

@@ -47,6 +47,8 @@ def build_dataset(config, mode):
     config_dataset = config[mode].dataset
     config_dataset = copy.deepcopy(config_dataset)
     dataset_name = config_dataset.pop('name')
+    print("dataset_name", dataset_name)
+    print("config_dataset", config_dataset)
     dataset = eval("dataset.{}".format(dataset_name))(**config_dataset)
 
     logger.debug("build dataset({}) success...".format(dataset))

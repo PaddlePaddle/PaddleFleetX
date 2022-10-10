@@ -24,6 +24,8 @@ from ppfleetx.utils.log import logger
 from .single_model import ErnieModel, ErnieForPretraining, ErniePretrainingCriterion
 from ppfleetx.models.language_model.utils import process_configs
 
+import numpy as np
+
 
 def process_data_configs(config):
     """
@@ -50,26 +52,33 @@ def process_data_configs(config):
             cfg_data[mode]['dataset']['seed'] = cfg_global['seed']
             cfg_data[mode]['sampler']['batch_size'] = cfg_global[
                 'local_batch_size']
-    # return cfg
+            cfg_data[mode]['dataset'].setdefault('binary_head',
+                                                 cfg_global['binary_head'])
+            # print("cfg_data[mode]:", cfg_data[mode])
+
+
+def process_model_configs(config):
+    cfg_model = config['Model']
+    hidden_size = cfg_model['hidden_size']
+    cfg_model.setdefault("intermediate_size", hidden_size * 4)
 
 
 class ErnieModule(BasicModule):
     def __init__(self, configs):
         self.nranks = paddle.distributed.get_world_size()
         super(ErnieModule, self).__init__(configs)
-        self.criterion = ErniePretrainingCriterion(False)
+        self.criterion = ErniePretrainingCriterion(True)
 
     def process_configs(self, configs):
         process_data_configs(configs)
+        process_model_configs(configs)
         return configs
-
-    def get_loss_fn(self):
-        return None
 
     def get_model(self):
         model_setting = copy.deepcopy(self.configs.Model)
         model_setting.pop("module")
         model_setting.pop("name")
+
         model = ErnieForPretraining(ErnieModel(**model_setting))
         return model
 
@@ -77,23 +86,37 @@ class ErnieModule(BasicModule):
         return self.model(tokens)
 
     def training_step(self, batch):
-        tokens, position_ids, labels, loss_mask = batch
+        input_ids, segment_ids, input_mask, masked_lm_positions, \
+            masked_lm_labels, next_sentence_labels = batch
 
-        prediction_scores, seq_relationship_score = self(tokens)
-        prediction_scores.reshape_([-1, 50304])
-        s = prediction_scores.shape
-        loss_mask = paddle.randint(low=0, high=50304, shape=[s[0], 1])
-        loss = self.criterion(
-            prediction_scores,
-            seq_relationship_score,
-            loss_mask,
-            next_sentence_labels=None)
+        # Create the model for the ernie pretrain
+        if self.configs['Global']['binary_head']:
+            prediction_scores, seq_relationship_score = self.model(
+                input_ids=input_ids,
+                token_type_ids=segment_ids,
+                position_ids=None,
+                attention_mask=input_mask,
+                masked_positions=masked_lm_positions)
+            lm_loss, sop_loss = self.criterion(
+                prediction_scores, seq_relationship_score, masked_lm_labels,
+                next_sentence_labels)
+            loss = lm_loss + sop_loss
+        else:
+            prediction_scores = self.model(
+                input_ids=input_ids,
+                token_type_ids=segment_ids,
+                position_ids=None,
+                attention_mask=input_mask,
+                masked_positions=masked_lm_positions)
+
+            loss = self.criterion(prediction_scores, None, masked_lm_labels)
+
         return loss
 
     def training_step_end(self, log_dict):
         speed = 1. / log_dict['train_cost']
         default_global_tokens_num = self.configs.Global.global_batch_size * \
-            self.configs.Data.Train.dataset.max_seq_len
+            self.configs.Data.Train.dataset.max_seq_length
 
         logger.info(
             "[train] epoch: %d, batch: %d, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \

@@ -20,7 +20,7 @@ import six
 import json
 
 import paddle
-from paddle import nn
+import paddle.nn as nn
 from paddle.nn import functional as F
 
 from .model_outputs import (
@@ -84,8 +84,6 @@ class ErnieEmbeddings(nn.Layer):
         else:
             input_shape = paddle.shape(inputs_embeds)[:-1]
             input_embeddings = inputs_embeds
-
-        return input_embeddings
 
         if position_ids is None:
             # maybe need use shape op to unify static graph and dynamic graph
@@ -222,6 +220,7 @@ class ErnieModel(nn.Layer):
             vocab_size, hidden_size, hidden_dropout_prob,
             max_position_embeddings, type_vocab_size, pad_token_id,
             weight_attr, task_type_vocab_size, task_id, use_task_id)
+
         encoder_layer = nn.TransformerEncoderLayer(
             hidden_size,
             num_attention_heads,
@@ -232,8 +231,9 @@ class ErnieModel(nn.Layer):
             act_dropout=0,
             weight_attr=weight_attr,
             normalize_before=False)
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_hidden_layers)
-        #  use_recompute=use_recompute)
+        self.encoder = nn.TransformerEncoder(
+            encoder_layer, num_hidden_layers, enable_recompute=use_recompute)
+
         self.pooler = ErniePooler(hidden_size, weight_attr)
         self.apply(self.init_weights)
 
@@ -479,37 +479,6 @@ class ErniePretrainingHeads(nn.Layer):
         return prediction_scores, seq_relationship_score
 
 
-# # @dataclass
-# class ErnieForPreTrainingOutput(ModelOutput):
-#     """
-#     Output type of [`ErnieForPreTraining`].
-#     Args:
-#         loss (*optional*, returned when `labels` is provided, `paddle.Tensor` of shape `(1,)`):
-#             Total loss as the sum of the masked language modeling loss and the next sequence prediction
-#             (classification) loss.
-#         prediction_logits (`paddle.Tensor` of shape `(batch_size, sequence_length, config.vocab_size)`):
-#             Prediction scores of the language modeling head (scores for each vocabulary token before SoftMax).
-#         seq_relationship_logits (`paddle.Tensor` of shape `(batch_size, 2)`):
-#             Prediction scores of the next sequence prediction (classification) head (scores of True/False continuation
-#             before SoftMax).
-#         hidden_states (`tuple(paddle.Tensor)`, *optional*, returned when `output_hidden_states=True` is passed or when `config.output_hidden_states=True`):
-#             Tuple of `paddle.Tensor` (one for the output of the embeddings + one for the output of each layer) of
-#             shape `(batch_size, sequence_length, hidden_size)`.
-#             Hidden-states of the model at the output of each layer plus the initial embedding outputs.
-#         attentions (`tuple(paddle.Tensor)`, *optional*, returned when `output_attentions=True` is passed or when `config.output_attentions=True`):
-#             Tuple of `paddle.Tensor` (one for each layer) of shape `(batch_size, num_heads, sequence_length,
-#             sequence_length)`.
-#             Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
-#             heads.
-#     """
-
-#     loss: Optional[paddle.Tensor] = None
-#     prediction_logits: paddle.Tensor = None
-#     seq_relationship_logits: paddle.Tensor = None
-#     hidden_states: Optional[Tuple[paddle.Tensor]] = None
-#     attentions: Optional[Tuple[paddle.Tensor]] = None
-
-
 class ErnieForPretraining(nn.Layer):
     r"""
     Ernie Model with a `masked language modeling` head and a `sentence order prediction` head
@@ -678,19 +647,19 @@ class ErniePretrainingCriterion(paddle.nn.Layer):
 
         """
 
-        # with paddle.static.amp.fp16_guard():
-        masked_lm_loss = F.cross_entropy(
-            prediction_scores,
-            masked_lm_labels,
-            ignore_index=-1,
-            reduction='none')
+        with paddle.static.amp.fp16_guard():
+            masked_lm_loss = F.cross_entropy(
+                prediction_scores,
+                masked_lm_labels,
+                ignore_index=-1,
+                reduction='none')
 
-        if not self.with_nsp_loss:
-            return paddle.mean(masked_lm_loss)
+            if not self.with_nsp_loss:
+                return paddle.mean(masked_lm_loss)
 
-        next_sentence_loss = F.cross_entropy(
-            seq_relationship_score, next_sentence_labels, reduction='none')
-        return paddle.mean(masked_lm_loss), paddle.mean(next_sentence_loss)
+            next_sentence_loss = F.cross_entropy(
+                seq_relationship_score, next_sentence_labels, reduction='none')
+            return paddle.mean(masked_lm_loss), paddle.mean(next_sentence_loss)
 
 
 class ErnieOnlyMLMHead(nn.Layer):
