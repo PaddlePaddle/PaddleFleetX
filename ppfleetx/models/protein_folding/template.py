@@ -18,12 +18,18 @@ import paddle.nn as nn
 from ppfleetx.distributed.protein_folding import dap
 
 from .attentions import (
+    Attention,
     TriangleMultiplication,
     TriangleAttention, )
 
 from .common import (
     Transition,
-    Dropout, )
+    Dropout,
+    recompute_wrapper,
+    dgram_from_positions, )
+
+from . import (residue_constants, )
+from . import (quat_affine, )
 
 
 class TemplatePair(nn.Layer):

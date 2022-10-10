@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
 import paddle
 import paddle.nn as nn
 
@@ -21,6 +22,11 @@ except:
     from paddle import _C_ops
 
 from ppfleetx.distributed.protein_folding import dap
+
+from .common import (
+    init_gate_linear,
+    init_final_linear,
+    mask_mean, )
 
 
 class Attention(nn.Layer):

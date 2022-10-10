@@ -14,9 +14,8 @@
 
 import paddle
 import paddle.nn as nn
-from paddle.distributed.fleet.utils import recompute
 
-from ppfleetx.distributed.protein_folding import bp
+from ppfleetx.distributed.protein_folding import bp, dap
 
 from .attentions import (
     MSARowAttentionWithPairBias,
@@ -27,18 +26,16 @@ from .attentions import (
 
 from .common import (
     Transition,
-    OuterProductMean,
-    Dropout, )
+    Dropout,
+    recompute_wrapper,
+    dgram_from_positions, )
 
 from .template import (TemplateEmbedding, )
+from .outer_product_mean import (OuterProductMean, )
 
-
-def recompute_wrapper(func, *args, is_recompute=True):
-    """Function wrapper for recompute"""
-    if is_recompute:
-        return recompute(func, *args)
-    else:
-        return func(*args)
+from . import (
+    residue_constants,
+    all_atom, )
 
 
 class EvoformerIteration(nn.Layer):
@@ -177,63 +174,11 @@ class EvoformerIteration(nn.Layer):
         return dropout_rate, dropout_axis
 
     def outer_product_mean_origin(self, msa_act, pair_act, masks):
+
+        assert bp.get_world_size(
+        ) == 1, "Branch Parallel degree must be 1 for outer_product_mean_origin"
+
         msa_mask, pair_mask = masks['msa'], masks['pair']
-        residual = self.msa_row_attention_with_pair_bias(msa_act, msa_mask,
-                                                         pair_act)
-        residual = self.msa_row_attn_dropout(residual)
-        msa_act = msa_act + residual
-
-        if self.is_extra_msa:
-            residual = self.msa_column_global_attention(msa_act, msa_mask)
-            residual = self.msa_col_attn_dropout(residual)
-            msa_act = msa_act + residual
-
-            residual = self.msa_transition(msa_act, msa_mask)
-            residual = self.msa_transition_dropout(residual)
-            msa_act = msa_act + residual
-
-        else:
-            residual = self.msa_column_attention(msa_act, msa_mask)
-            residual = self.msa_col_attn_dropout(residual)
-            msa_act = msa_act + residual
-
-            residual = self.msa_transition(msa_act, msa_mask)
-            residual = self.msa_transition_dropout(residual)
-            msa_act = msa_act + residual
-
-        residual = self.outer_product_mean(msa_act, msa_mask)
-        residual = self.outer_product_mean_dropout(residual)
-        pair_act = pair_act + residual
-
-        residual = self.triangle_multiplication_outgoing(pair_act, pair_mask)
-        residual = self.triangle_outgoing_dropout(residual)
-        pair_act = pair_act + residual
-
-        residual = self.triangle_multiplication_incoming(pair_act, pair_mask)
-        residual = self.triangle_incoming_dropout(residual)
-        pair_act = pair_act + residual
-
-        residual = self.triangle_attention_starting_node(pair_act, pair_mask)
-        residual = self.triangle_starting_dropout(residual)
-        pair_act = pair_act + residual
-
-        residual = self.triangle_attention_ending_node(pair_act, pair_mask)
-        residual = self.triangle_ending_dropout(residual)
-        pair_act = pair_act + residual
-
-        residual = self.pair_transition(pair_act, pair_mask)
-        residual = self.pair_transition_dropout(residual)
-        pair_act = pair_act + residual
-
-        return msa_act, pair_act
-
-    def outer_product_mean_first(self, msa_act, pair_act, masks):
-        msa_mask, pair_mask = masks['msa'], masks['pair']
-
-        # [B, N_res//dap_size, N_res, c_z]
-        residual = self.outer_product_mean(msa_act, msa_mask)
-        outer_product_mean = self.outer_product_mean_dropout(residual)
-        pair_act = pair_act + outer_product_mean
 
         # [B, N_seq//dap_size, N_res, c_m]
         residual = self.msa_row_attention_with_pair_bias(msa_act, msa_mask,
@@ -265,6 +210,11 @@ class EvoformerIteration(nn.Layer):
             residual = self.msa_transition(msa_act, msa_mask)
             residual = self.msa_transition_dropout(residual)
             msa_act = msa_act + residual
+
+        # [B, N_res//dap_size, N_res, c_z]
+        residual = self.outer_product_mean(msa_act, msa_mask)
+        outer_product_mean = self.outer_product_mean_dropout(residual)
+        pair_act = pair_act + outer_product_mean
 
         # [B, N_seq, N_res//dap_size, c_m] => [B, N_seq//dap_size, N_res, c_m]
         msa_act = dap.col_to_row(msa_act)
@@ -304,13 +254,18 @@ class EvoformerIteration(nn.Layer):
         residual = self.triangle_ending_dropout(residual)
         pair_act = pair_act + residual
 
-        # [B, N_res, N_res//dap_size, c_z] => [B, N_res//dap_size, N_res, c_z]
-        pair_act = dap.col_to_row(pair_act)
-
         residual = self.pair_transition(pair_act, pair_mask)
         residual = self.pair_transition_dropout(residual)
         pair_act = pair_act + residual
+
+        # [B, N_res, N_res//dap_size, c_z] => [B, N_res//dap_size, N_res, c_z]
+        pair_act = dap.col_to_row(pair_act)
+
         return msa_act, pair_act
+
+    def outer_product_mean_first(self, msa_act, pair_act, masks):
+        raise NotImplementedError(
+            "BP or DAP does not support outer_product_mean_first")
 
     def outer_product_mean_end(self, msa_act, pair_act, masks):
         msa_mask, pair_mask = masks['msa'], masks['pair']
@@ -398,12 +353,12 @@ class EvoformerIteration(nn.Layer):
                 residual = self.triangle_ending_dropout(residual)
                 pair_act = pair_act + residual
 
-                # [B, N_res, N_res//dap_size, c_z] => [B, N_res//dap_size, N_res, c_z]
-                pair_act = dap.col_to_row(pair_act)
-
                 residual = self.pair_transition(pair_act, pair_mask)
                 residual = self.pair_transition_dropout(residual)
                 pair_act = pair_act + residual
+
+                # [B, N_res, N_res//dap_size, c_z] => [B, N_res//dap_size, N_res, c_z]
+                pair_act = dap.col_to_row(pair_act)
 
                 outer_product_mean = paddle.zeros_like(pair_act)
                 outer_product_mean.stop_gradient = pair_act.stop_gradient
@@ -491,12 +446,12 @@ class EvoformerIteration(nn.Layer):
             residual = self.triangle_ending_dropout(residual)
             pair_act = pair_act + residual
 
-            # [B, N_res, N_res//dap_size, c_z] => [B, N_res//dap_size, N_res, c_z]
-            pair_act = dap.col_to_row(pair_act)
-
             residual = self.pair_transition(pair_act, pair_mask)
             residual = self.pair_transition_dropout(residual)
             pair_act = pair_act + residual
+
+            # [B, N_res, N_res//dap_size, c_z] => [B, N_res//dap_size, N_res, c_z]
+            pair_act = dap.col_to_row(pair_act)
 
             pair_act = pair_act + outer_product_mean
 
@@ -526,7 +481,7 @@ class EvoformerIteration(nn.Layer):
         return msa_act, pair_act
 
 
-class EmbeddingsAndEvoformer(nn.Layer):
+class DistEmbeddingsAndEvoformer(nn.Layer):
     """Embeds the input data and runs Evoformer.
 
     Produces the MSA, single and pair representations.
@@ -534,7 +489,7 @@ class EmbeddingsAndEvoformer(nn.Layer):
     """
 
     def __init__(self, channel_num, config, global_config):
-        super(EmbeddingsAndEvoformer, self).__init__()
+        super(DistEmbeddingsAndEvoformer, self).__init__()
         self.channel_num = channel_num
         self.config = config
         self.global_config = global_config

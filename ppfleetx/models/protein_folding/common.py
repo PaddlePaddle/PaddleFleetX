@@ -12,8 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
+import numbers
+import collections
 import paddle
 import paddle.nn as nn
+from paddle.distributed.fleet.utils import recompute
 
 try:
     from paddle import _legacy_C_ops as _C_ops
@@ -21,113 +25,111 @@ except:
     from paddle import _C_ops
 
 
-class OuterProductMean(nn.Layer):
-    """Computes mean outer product.
+def set_tensor_constant(tensor, constant):
+    tensor.set_value(paddle.full_like(tensor, constant))
 
-    Jumper et al. (2021) Suppl. Alg. 10 "OuterProductMean"
-    """
 
-    def __init__(self,
-                 channel_num,
-                 config,
-                 global_config,
-                 is_extra_msa,
-                 name='outer_product_mean'):
-        super(OuterProductMean, self).__init__()
-        self.channel_num = channel_num
-        self.config = config
-        self.global_config = global_config
+def init_gate_linear(linear):
+    set_tensor_constant(linear.weight, 0)
+    set_tensor_constant(linear.bias, 1)
 
-        if is_extra_msa:
-            c_m = channel_num['extra_msa_channel']
+
+def init_final_linear(linear):
+    set_tensor_constant(linear.weight, 0)
+
+
+def recompute_wrapper(func, *args, is_recompute=True):
+    """Function wrapper for recompute"""
+    if is_recompute:
+        return recompute(func, *args)
+    else:
+        return func(*args)
+
+
+def batched_gather(params, indices, axis=0, batch_dims=0):
+    # Implement gather with batching, like tensorflow:
+    # https://www.tensorflow.org/api_docs/python/tf/gather#batching
+    # print(params.shape, indices.shape, axis)
+    p, i = params, indices
+    rank = len(p.shape)
+    axis = (rank + axis) % rank
+    # The stride of axis
+    stride = p.shape[batch_dims + axis]
+
+    if batch_dims == 0 and len(i.shape) == 1:
+        return paddle.gather(p, i, axis=axis)
+
+    elif batch_dims == 0:
+        flat_i = i.reshape([-1])
+        gathered = paddle.gather(p, flat_i, axis=axis)
+        shape = p.shape[:axis] + i.shape
+        if axis < rank - 1:
+            shape += params.shape[axis + 1:]
+        return gathered.reshape(shape)
+
+    b = batch_dims
+    a = axis
+    assert p.shape[:b] == i.shape[:b]
+    bn = np.prod(p.shape[:b])
+
+    # Shift batch dimensions right to bundle with axis
+    if a > 0:
+        perm = list(range(rank))
+        perm = perm[b:(b + a)] + perm[:b] + perm[(b + a):]
+        p = p.transpose(perm)
+
+    # Merge params' batch+axis
+    p = p.reshape(p.shape[:a] + [-1] + p.shape[(b + a + 1):])
+
+    # indices = [Batch..., Index...]
+    # Expand the index values across batch elements
+    strides = paddle.arange(bn).unsqueeze(-1) * stride
+    i = i.reshape([bn, -1])
+    flat_i = paddle.flatten(i + strides)
+
+    # Do gather
+    gathered = paddle.gather(p, flat_i, axis=axis)
+
+    # Unbundle batch and index dimensions
+    unbundled_shape = p.shape[:a] + indices.shape + p.shape[a + 1:]
+    gathered = gathered.reshape(unbundled_shape)
+
+    # Shift batch dimensions back to the left
+    if a > 0:
+        perm = list(range(len(unbundled_shape)))
+        perm = perm[a:(a + b)] + perm[:a] + perm[(a + b):]
+        gathered = gathered.transpose(perm)
+
+    return gathered
+
+
+def mask_mean(mask, value, axis=None, drop_mask_channel=False, eps=1e-10):
+    if drop_mask_channel:
+        mask = mask[:, 0]
+
+    mask_shape = mask.shape
+    value_shape = value.shape
+    assert len(mask_shape) == len(value_shape)
+
+    if isinstance(axis, numbers.Integral):
+        axis = [axis]
+    elif axis is None:
+        axis = list(range(len(mask_shape)))
+
+    assert isinstance(axis, collections.abc.Iterable), \
+        'axis needs to be either an iterable, integer or "None"'
+
+    broadcast_factor = 1.
+    for axis_ in axis:
+        value_size = value_shape[axis_]
+        mask_size = mask_shape[axis_]
+        if mask_size == 1:
+            broadcast_factor *= value_size
         else:
-            c_m = channel_num['msa_channel']
+            assert mask_size == value_size
 
-        self.layer_norm_input = nn.LayerNorm(c_m, name='layer_norm_input')
-        self.left_projection = nn.Linear(
-            c_m, self.config.num_outer_channel, name='left_projection')
-        self.right_projection = nn.Linear(
-            c_m, self.config.num_outer_channel, name='right_projection')
-
-        if self.global_config.zero_init:
-            init_w = nn.initializer.Constant(value=0.0)
-        else:
-            init_w = nn.initializer.KaimingNormal()
-
-        self.output_w = paddle.create_parameter(
-            [
-                self.config.num_outer_channel, self.config.num_outer_channel,
-                channel_num['pair_channel']
-            ],
-            'float32',
-            default_initializer=init_w)
-        self.output_b = paddle.create_parameter(
-            [channel_num['pair_channel']],
-            'float32',
-            default_initializer=nn.initializer.Constant(value=0.0))
-
-    def forward(self, act, mask):
-        """Builds OuterProductMean module.
-
-        Arguments:
-        act: MSA representation, shape [batch, N_seq, N_res, c_m].
-        mask: MSA mask, shape [batch, N_seq, N_res].
-
-        Returns:
-        Update to pair representation, shape [batch, N_res, N_res, c_z].
-        """
-        # [B, N_seq, N_res//dap_size, c_m]
-        act = self.layer_norm_input(act)
-        # [B, N_seq, N_res//dap_size, c_m] => [B, N_seq, N_res//dap_size, num_outer_channel]
-        right_act_before = self.right_projection(act)
-        # [B, N_seq, N_res//dap_size, num_outer_channel] => [B, N_seq, N_res, num_outer_channel]
-        right_act = dap.all_gather(right_act_before, axis=2)
-
-        # [B, N_seq, N_res//dap_size, c_m] => [B, N_seq, N_res//dap_size, num_outer_channel]
-        left_act = self.left_projection(act)
-        # [B, N_seq, N_res] => [B, N_seq, N_res, 1]
-        mask = paddle.unsqueeze(mask, axis=-1)
-        # [B, N_seq, N_res, 1] => [B, N_seq, N_res//dap_size, 1]
-        mask_col = dap.scatter(mask, axis=2)
-        left_act = mask_col * left_act
-
-        # [B, N_seq, N_res//dap_size, 1], [B, N_seq, N_res, 1] => [B, N_res//dap_size, N_res, 1]
-        epsilon = 1e-3
-        norm = paddle.einsum('nabc,nadc->nbdc', mask_col, mask) + epsilon
-
-        def compute_chunk(left_act, right_act):
-            # This is equivalent to
-            #
-            # act = jnp.einsum('abc,ade->dceb', left_act, right_act)
-            # act = jnp.einsum('dceb,cef->bdf', act, output_w) + output_b
-            #
-            # but faster. maybe for subbatch inference?
-
-            # [B, N_seq, N_res//dap_size, num_outer_channel] => [B, N_seq, num_outer_channel, N_res//dap_size]
-            left_act = left_act.transpose([0, 1, 3, 2])
-            # wait if using async communication and dap, otherwise do nothing
-            right_act_after = dap.all_gather_opp(right_act, axis=2)
-            # [B, N_seq, num_outer_channel, N_res//dap_size], [B, N_seq, N_res, num_outer_channel]
-            # => [B, N_res, num_outer_channel, num_outer_channel, N_res//dap_size]
-            act = paddle.einsum('nacb,nade->ndceb', left_act, right_act_after)
-            # [B, N_res, num_outer_channel, num_outer_channel, N_res//dap_size], [num_outer_channel, num_outer_channel, c_z]
-            # => [B, N_res, N_res//dap_size, c_z]
-            act = paddle.einsum('ndceb,cef->ndbf', act,
-                                self.output_w) + self.output_b
-            # [B, N_res, N_res//dap_size, c_z] => [B, N_res//dap_size, N_res, c_z]
-            return act.transpose([0, 2, 1, 3])
-
-        if not self.training:
-            # low memory mode using subbatch
-            sb_chunk = subbatch(compute_chunk, [0], [2],
-                                self.config.chunk_size, 1)
-            act = sb_chunk(left_act, right_act)
-        else:
-            act = compute_chunk(left_act, right_act)
-
-        act = act / norm
-
-        return act
+    return (paddle.sum(mask * value, axis=axis) /
+            (paddle.sum(mask, axis=axis) * broadcast_factor + eps))
 
 
 class Transition(nn.Layer):
@@ -245,3 +247,26 @@ class Dropout(nn.Layer):
         name_str = ', name={}'.format(self.name) if self.name else ''
         return 'p={}, axis={}, mode={}{}'.format(self.p, self.axis, self.mode,
                                                  name_str)
+
+
+def dgram_from_positions(positions, num_bins, min_bin, max_bin):
+    lower_breaks = paddle.linspace(min_bin, max_bin, num_bins)
+    lower_breaks = paddle.square(lower_breaks)
+    upper_breaks = paddle.concat(
+        [lower_breaks[1:], paddle.to_tensor(
+            [1e8], dtype='float32')])
+
+    def _squared_difference(x, y):
+        return paddle.square(x - y)
+
+    dist2 = paddle.sum(_squared_difference(
+        paddle.unsqueeze(
+            positions, axis=-2),
+        paddle.unsqueeze(
+            positions, axis=-3)),
+                       axis=-1,
+                       keepdim=True)
+
+    dgram = ((dist2 > lower_breaks.astype(dist2.dtype)).astype('float32') *
+             (dist2 < upper_breaks.astype(dist2.dtype)).astype('float32'))
+    return dgram
