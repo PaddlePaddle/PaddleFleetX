@@ -18,6 +18,6 @@ log_dir=log_hybrid
 rm -rf $log_dir
 
 # 1.3B+dp8 run_pretrain
-python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
+python -m paddle.distributed.launch --log_dir $log_dir --devices "6,7" \
     ./tools/train.py \
     -c ./ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml
