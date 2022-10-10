@@ -153,8 +153,10 @@ class EagerEngine(BasicEngine):
             'sharding_degree']
         self._sharding_offload = self._dist_configs['sharding'][
             'sharding_offload']
-        self._reduce_overlap = getattr(self._dist_configs['sharding'], 'reduce_overlap', False)
-        self._broadcast_overlap = getattr(self._dist_configs['sharding'], 'broadcast_overlap', False)
+        self._reduce_overlap = getattr(self._dist_configs['sharding'],
+                                       'reduce_overlap', False)
+        self._broadcast_overlap = getattr(self._dist_configs['sharding'],
+                                          'broadcast_overlap', False)
         self._use_recompute = configs['Model']['use_recompute']
 
         if self._use_pure_fp16:
@@ -240,7 +242,7 @@ class EagerEngine(BasicEngine):
                 src_rank=self._dp_group.ranks[0])
 
         level = "p_g_os" if self._sharding_stage == 3 else "os_g"
-        origin_modle = self._module.model
+        origin_model = self._module.model
         self._module.model, self._optimizer, self._scaler = group_sharded_parallel(
             model=self._module.model,
             optimizer=self._optimizer,
@@ -251,7 +253,8 @@ class EagerEngine(BasicEngine):
         if self._reduce_overlap:
             self._module.model._set_reduce_overlap(self._reduce_overlap)
         if self._broadcast_overlap:
-            self._optimizer._set_broadcast_overlap(self._broadcast_overlap, origin_modle)
+            self._optimizer._set_broadcast_overlap(self._broadcast_overlap,
+                                                   origin_model)
 
     def _wrap_3D_parallel(self):
         self._module.model = fleet.distributed_model(self._module.model)
