@@ -23,11 +23,12 @@ from .log import logger, advertise
 from . import check
 import paddle.distributed as dist
 import paddle.distributed.auto_parallel as auto
+from paddle.fluid.reader import use_pinned_memory
 
 __all__ = ['get_config', 'print_config']
 
 
-def process_dist_config(config):
+def process_dist_config(configs):
     """
     process distributed strategy for hybrid parallel
     """
@@ -35,6 +36,7 @@ def process_dist_config(config):
 
     nranks = dist.get_world_size()
 
+    config = configs['Distributed']
 
     config['mp_degree'] = 1 \
         if config.get('mp_degree', None) is None \
@@ -63,6 +65,28 @@ def process_dist_config(config):
                 config['pp_degree'], config['sharding']['sharding_degree'], nranks // other_degree))
     assert nranks % config[
         'dp_degree'] == 0, "unreasonable config of dist_strategy."
+
+    reduce_overlap = getattr(config['sharding'], 'reduce_overlap', False)
+    if config['sharding']['sharding_degree'] > 1 and reduce_overlap:
+        if config['sharding']['sharding_stage'] == 3 or config['sharding']['sharding_offload']:
+            config['sharding']['reduce_overlap'] = False
+            logger.warning("reduce overlap only valid for sharding stage 2 without offload")
+
+    broadcast_overlap = getattr(config['sharding'], 'broadcast_overlap', False)
+    if config['sharding']['sharding_degree'] > 1 and broadcast_overlap:
+        if config['sharding']['sharding_stage'] == 3 or config['sharding']['sharding_offload']:
+            config['sharding']['broadcast_overlap'] = False
+            logger.warning("broadcast overlap only valid for sharding stage 2 without offload")
+
+    if broadcast_overlap and configs['Engine']['logging_freq'] == 1:
+        logger.warning("Set logging_freq to 1 will disable broadcast_overlap. "
+                       "If you want to overlap the broadcast, please increase the logging_freq.")
+        config['sharding']['broadcast_overlap'] = False
+
+    if config['sharding']['sharding_degree'] > 1:
+        if getattr(config['sharding'], 'broadcast_overlap', False):
+            logger.warning("Enable broadcast overlap for sharding will not use pin memory for dataloader")
+            use_pinned_memory(False)
 
 
 def process_global_configs(config):
@@ -319,7 +343,7 @@ def get_config(fname, overrides=None, show=False):
     config = parse_config(fname)
     override_config(config, overrides)
 
-    process_dist_config(config['Distributed'])
+    process_dist_config(config)
     process_global_configs(config)
     process_engine_config(config)
 
