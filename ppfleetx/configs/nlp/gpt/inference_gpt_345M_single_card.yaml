@@ -32,4 +32,4 @@ Data:
     loader:
       num_workers: 1
       return_list: False
-      collate_fn: gpt_inference_collate_fn
+      collate_fn: gpt_collate_fn

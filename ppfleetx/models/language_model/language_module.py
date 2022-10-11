@@ -569,7 +569,7 @@ class GPTEvalModule(LanguageModule):
         self.configs.Data.pop("Train", None)
         self.configs.Data.pop("Test", None)
         self.configs.Data.Eval.pop("sampler", None)
-        self.configs.Data.Eval.loader.collate_fn = "gpt_eval_collate_fn"
+        self.configs.Data.Eval.loader.collate_fn = "gpt_collate_fn"
         self.configs.Data.Eval.loader.batch_size = self.eval_cfgs.batch_size
         self.configs.Data.Eval.dataset.input_dir = self.eval_cfgs.eval_path
         self.configs.Data.Eval.dataset.max_seq_len = self.eval_cfgs.max_seq_len
