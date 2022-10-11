@@ -14,6 +14,7 @@
 
 import paddle
 import paddle.nn as nn
+from paddle.metric import Metric
 
 
 class TopkAcc(nn.Layer):
