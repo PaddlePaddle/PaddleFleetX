@@ -88,6 +88,7 @@ Engine训练设置完成模型训练/验证/推理等过程中的参数设置，
     type_vocab_size: 16
     initializer_range: 0.02
     use_recompute: True
+    fuse_attn_qkv: True
 ```
 
 其中参数对应的释义如下：
@@ -105,6 +106,7 @@ Engine训练设置完成模型训练/验证/推理等过程中的参数设置，
 | type_vocab_size              | 词表类型                   |
 | initializer_range            | 参数初始化的范围               |
 | use_recompute                | 是否使用recompute训练，重计算全部transformer  |
+| fuse_attn_qkv                | 是否对attention层中qkv计算使用fuse代替传统Linear加速训练 |
 
 
 ### 数据集

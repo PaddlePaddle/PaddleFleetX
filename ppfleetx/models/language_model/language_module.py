@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import sys
 import copy
 import math
+import numpy as np
 
 import paddle
 from paddle.static import InputSpec
@@ -26,6 +28,16 @@ from ppfleetx.utils.log import logger
 import paddleslim
 from .utils import process_configs
 from ppfleetx.data.tokenizers import GPTTokenizer
+from .metrics import *
+
+# TODO(haohongxiang): to solve the problem of cross-reference
+import paddlenlp
+from paddlenlp.transformers.gpt.tokenizer import GPTChineseTokenizer
+
+MODEL_CLASSES = {
+    "GPT": (GPTTokenizer, "gpt2"),
+    "GPT-cn": (GPTChineseTokenizer, "gpt-cpm-large-cn"),
+}
 
 
 class LanguageModule(BasicModule):
@@ -116,7 +128,6 @@ class GPTModule(LanguageModule):
     def get_model(self):
         model_setting = copy.deepcopy(self.configs.Model)
         model_setting.pop("module")
-        model_setting.pop("name")
 
         l = model_setting['num_layers']
         h = model_setting['hidden_size']
@@ -124,7 +135,9 @@ class GPTModule(LanguageModule):
         s = self.configs.Data.Train.dataset.max_seq_len
         self.get_model_size(l, h, v, s)
 
-        self.tokenizer = GPTTokenizer.from_pretrained("gpt2")
+        model_name = model_setting.pop("name")
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
+        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
 
         if self.nranks == 1:
             model_setting.pop("sequence_parallel")
@@ -176,6 +189,268 @@ class GPTModule(LanguageModule):
                 print(ret_str)
 
 
+class GPTFinetuneModule(BasicModule):
+    def __init__(self, configs):
+        self.nranks = paddle.distributed.get_world_size()
+        self.data_world_size = env.get_data_world_size()
+        super(GPTFinetuneModule, self).__init__(configs)
+
+        # self.loss_config will be init in super class by get_model()
+        assert self.loss_config is not None
+        assert 'train' in self.loss_config
+        assert 'eval' in self.loss_config
+
+        train_loss = copy.deepcopy(self.loss_config.train)
+        train_loss_cls = train_loss.pop('name')
+        self.loss_fn = eval(f'paddle.nn.loss.{train_loss_cls}')(**train_loss)
+
+        eval_loss = copy.deepcopy(self.loss_config.eval)
+        eval_loss_cls = eval_loss.pop('name')
+        self.eval_loss_fn = eval(f'paddle.nn.loss.{eval_loss_cls}')(
+            **eval_loss)
+
+        # self.metric_config will be init in super class by get_model()
+        assert self.metric_config is not None
+        assert 'eval' in self.metric_config
+
+        if 'train' in self.metric_config:
+            train_metric = copy.deepcopy(self.metric_config.train)
+            train_metric_cls = train_metric.pop('name')
+            self.train_metric = eval(f'{train_metric_cls}')(**train_metric)
+
+        eval_metric = copy.deepcopy(self.metric_config.eval)
+        eval_metric_cls = eval_metric.pop('name')
+        self.eval_metric = eval(f'{eval_metric_cls}')(**eval_metric)
+
+        self.best_metric = 0.0
+
+    def process_configs(self, configs):
+        return configs
+
+    def get_model(self):
+        model_setting = copy.deepcopy(self.configs.Model)
+        model_setting.pop("module")
+
+        self.metric_config = model_setting.pop("metric", None)
+        self.loss_config = model_setting.pop("loss", None)
+
+        pretrained = model_setting.pop("pretrained")
+        num_classes = model_setting.pop("num_classes", 2)
+        assert pretrained is not None
+
+        l = model_setting['num_layers']
+        h = model_setting['hidden_size']
+        v = model_setting['vocab_size']
+        num_heads = model_setting['num_attention_heads']
+        s = self.configs.Data.Train.dataset.max_length
+        self.get_model_size(l, h, v, s)
+
+        model_name = model_setting.pop("name")
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
+        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
+
+        if self.nranks == 1:
+            model = gpt.GPTForSequenceClassification(
+                gpt.GPTModel(**model_setting), num_classes)
+        else:
+            raise NotImplementedError
+
+        pretrained_path = pretrained + ".pdparams"
+        assert os.path.exists(
+            pretrained_path), f'{pretrained_path} is not exists!'
+        model_dict = paddle.load(pretrained_path)
+
+        # Note(GuoxiaWang): Guess whether to convert fused vs non-fused parameters.
+        # 'q_proj' vs 'qkv_proj'
+        def is_fused(model_state):
+            for key in model_state:
+                if 'qkv_proj' in key:
+                    return True
+            return False
+
+        def split_params(model_state, num_layers):
+            for idx in range(num_layers):
+                qkv_b = model_state.pop(
+                    f'gpt.decoder.layers.{idx}.self_attn.qkv_proj.bias')
+                qkv_w = model_state.pop(
+                    f'gpt.decoder.layers.{idx}.self_attn.qkv_proj.weight')
+
+                qkv_b = qkv_b.reshape((num_heads, 3, -1))
+                qkv_w = qkv_w.reshape((h, num_heads, 3, -1))
+
+                q_w, k_w, v_w = np.split(qkv_w, 3, axis=2)
+                q_w = q_w.reshape((h, -1))
+                k_w = k_w.reshape((h, -1))
+                v_w = v_w.reshape((h, -1))
+
+                q_b, k_b, v_b = np.split(qkv_b, 3, axis=1)
+                q_b = q_b.reshape((-1))
+                k_b = k_b.reshape((-1))
+                v_b = v_b.reshape((-1))
+
+                model_state[
+                    f'gpt.decoder.layers.{idx}.self_attn.q_proj.bias'] = q_b
+                model_state[
+                    f'gpt.decoder.layers.{idx}.self_attn.q_proj.weight'] = q_w
+
+                model_state[
+                    f'gpt.decoder.layers.{idx}.self_attn.k_proj.bias'] = k_b
+                model_state[
+                    f'gpt.decoder.layers.{idx}.self_attn.k_proj.weight'] = k_w
+
+                model_state[
+                    f'gpt.decoder.layers.{idx}.self_attn.v_proj.bias'] = v_b
+                model_state[
+                    f'gpt.decoder.layers.{idx}.self_attn.v_proj.weight'] = v_w
+
+            return model_state
+
+        def fuse_params(model_state, num_layers):
+            for idx in range(num_layers):
+                q_b = model_state.pop(
+                    f'gpt.decoder.layers.{idx}.self_attn.q_proj.bias')
+                q_w = model_state.pop(
+                    f'gpt.decoder.layers.{idx}.self_attn.q_proj.weight')
+
+                k_b = model_state.pop(
+                    f'gpt.decoder.layers.{idx}.self_attn.k_proj.bias')
+                k_w = model_state.pop(
+                    f'gpt.decoder.layers.{idx}.self_attn.k_proj.weight')
+
+                v_b = model_state.pop(
+                    f'gpt.decoder.layers.{idx}.self_attn.v_proj.bias')
+                v_w = model_state.pop(
+                    f'gpt.decoder.layers.{idx}.self_attn.v_proj.weight')
+
+                q_w = q_w.reshape((h, num_heads, -1))
+                k_w = k_w.reshape((h, num_heads, -1))
+                v_w = v_w.reshape((h, num_heads, -1))
+
+                qkv_w = np.stack([q_w, k_w, v_w], axis=2)
+                qkv_w = qkv_w.reshape((h, -1))
+
+                q_b = q_b.reshape((num_heads, -1))
+                k_b = k_b.reshape((num_heads, -1))
+                v_b = v_b.reshape((num_heads, -1))
+                qkv_b = np.stack([q_b, k_b, v_b], axis=1)
+                qkv_b = qkv_b.reshape((-1))
+
+                model_state[
+                    f'gpt.decoder.layers.{idx}.self_attn.qkv_proj.weight'] = qkv_w
+                model_state[
+                    f'gpt.decoder.layers.{idx}.self_attn.qkv_proj.bias'] = qkv_b
+            return model_state
+
+        fused = is_fused(model.state_dict())
+        load_fused = is_fused(model_dict)
+
+        if fused is True and load_fused is False:
+            model_dict = fuse_params(model_dict, l)
+        elif fused is False and load_fused is True:
+            model_dict = split_params(model_dict, l)
+
+        for name, param in model.state_dict().items():
+            if name in model_dict and param.dtype != model_dict[name].dtype:
+                model_dict[name] = model_dict[name].cast(param.dtype)
+
+        model.set_state_dict(model_dict)
+        logger.info(f'Load pretrained weight from {pretrained_path}')
+
+        return model
+
+    def forward(self, tokens):
+        return self.model(tokens)
+
+    def training_step(self, batch):
+        input_ids, labels = batch
+
+        input_ids.stop_gradient = True
+        labels.stop_gradient = True
+
+        logits = self(input_ids)
+        loss = self.loss_fn(logits, labels)
+
+        return loss
+
+    def training_step_end(self, log_dict):
+        speed = 1. / log_dict['train_cost']
+        default_global_tokens_num = self.configs.Global.global_batch_size * \
+            self.configs.Data.Train.dataset.max_length
+
+        logger.info(
+            "[train] epoch: [%d/%d], step: [%d/%d], learning rate: %.7f, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
+            "ips_total: %.0f tokens/s, ips: %.0f tokens/s"
+            % (log_dict['epoch'], log_dict['total_epoch'], log_dict['batch'], log_dict['total_batch'], log_dict['lr'], log_dict['loss'], log_dict['train_cost'], speed,
+               speed * default_global_tokens_num, speed * default_global_tokens_num / self.data_world_size))
+
+    def validation_step(self, batch):
+        input_ids, labels = batch
+
+        input_ids.stop_gradient = True
+        labels.stop_gradient = True
+
+        logits = self(input_ids)
+        loss = self.eval_loss_fn(logits, labels)
+        correct = self.eval_metric.compute(logits, labels)
+        self.eval_metric.update(correct)
+        return loss
+
+    def validation_step_end(self, log_dict):
+        speed = 1. / log_dict['eval_cost']
+        logger.info(
+            "[eval] epoch: %d, batch: %d, loss: %.9f, avg_eval_cost: %.5f sec, speed: %.2f step/s"
+            % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
+               log_dict['eval_cost'], speed))
+
+    def test_step(self, batch):
+        tokens, position_ids, labels, loss_mask = batch
+        preds = self(tokens, position_ids)
+        preds = paddle.cast(preds, dtype="float32")
+        loss = self.eval_loss_fn(preds, labels, loss_mask)
+        return loss
+
+    def test_step_end(self, log_dict):
+        speed = 1. / log_dict['test_cost']
+        logger.info(
+            "[test] epoch: %d, batch: %d, loss: %.9f, avg_test_cost: %.5f sec, speed: %.2f step/s"
+            % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
+               log_dict['test_cost'], speed))
+
+    def get_model_size(self, l, h, v, s):
+        P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
+        logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 /
+                                                  1000.0))
+
+    def training_epoch_end(self, log_dict):
+        logger.info("[Training] epoch: %d, total time: %.5f sec" %
+                    (log_dict['epoch'], log_dict['train_cost']))
+
+    def validation_epoch_end(self, log_dict):
+        res = self.eval_metric.accumulate()
+        self.eval_metric.reset()
+        if isinstance(self.eval_metric, AccuracyAndF1):
+            msg = "acc: %.5f, precision: %.5f, recall: %.5f, f1: %.5f, acc and f1: %.5f" % (
+                res[0], res[1], res[2], res[3], res[4])
+            metric = res[4]
+        elif isinstance(self.eval_metric, Mcc):
+            msg = "mcc: %.5f" % (res[0])
+            metric = res[0]
+        elif isinstance(self.eval_metric, PearsonAndSpearman):
+            msg = "pearson: %.5f, spearman: %.5f, pearson and spearman: %.5f" % (
+                res[0], res[1], res[2])
+            metric = res[2]
+        else:
+            msg = "acc: %.5f" % (res)
+            metric = res
+
+        if metric > self.best_metric:
+            self.best_metric = metric
+
+        logger.info(
+            "[Eval] epoch: %d, total time: %.5f sec, %s, best_metric: %.5f" %
+            (log_dict['epoch'], log_dict['eval_cost'], msg, self.best_metric))
+
+
 class GPTGenerationModule(BasicModule):
     def __init__(self, configs):
         self.configs = configs
@@ -191,7 +466,10 @@ class GPTGenerationModule(BasicModule):
     def get_model(self):
         model_setting = copy.deepcopy(self.configs.Model)
         model_setting.pop("module")
-        model_setting.pop("name")
+
+        model_name = model_setting.pop("name")
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
+        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
 
         if self.nranks == 1:
             model = gpt.GPTForGeneration(
@@ -201,8 +479,6 @@ class GPTGenerationModule(BasicModule):
                 "only support single card and data parallel in generation task."
             model = gpt.GPTForGenerationHybrid(
                 gpt.GPTModelHybrid(**model_setting), self.generation_cfgs)
-
-        self.tokenizer = GPTTokenizer.from_pretrained("gpt2")
 
         self.generation_cfgs['max_dec_len'] = self.adjust_length_to_model(
             self.generation_cfgs['max_dec_len'], 512)

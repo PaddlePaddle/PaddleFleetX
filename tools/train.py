@@ -51,16 +51,14 @@ if __name__ == "__main__":
 
     cfg.Optimizer.lr.update({
         'epochs': cfg.Engine.num_train_epochs,
-        'step_each_epoch': len(train_data_loader)
+        'step_each_epoch': len(train_data_loader),
+        'total_steps': cfg.Engine.max_steps,
     })
 
     engine = EagerEngine(configs=cfg, module=module)
 
     if cfg.Engine.save_load.ckpt_dir is not None:
         engine.load()
-
-    train_data_loader = build_dataloader(cfg.Data, "Train")
-    eval_data_loader = build_dataloader(cfg.Data, "Eval")
 
     engine.fit(train_data_loader=train_data_loader,
                valid_data_loader=eval_data_loader,
