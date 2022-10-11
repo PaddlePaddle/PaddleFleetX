@@ -99,7 +99,6 @@ class MultiModalModule(BasicModule):
         logger.info("[Training] epoch: %d, total time: %.5f sec" %
                     (log_dict['epoch'], log_dict['train_cost']))
 
-
 class ImagenModule(MultiModalModule):
     def __init__(self, configs):
         super(ImagenModule, self).__init__(configs)
@@ -118,3 +117,30 @@ class ImagenModule(MultiModalModule):
 
     def pretreating_batch(self, batch):
         return batch
+
+class MultiModalModuleAuto(BasicModule):
+    def __init__(self, configs):
+        self.nranks = paddle.distributed.get_world_size()
+        super(MultiModalModuleAuto, self).__init__(configs)
+
+        self.loss_fn = self.get_loss_fn()
+
+    def process_configs(self, configs):
+        # configs = process_configs(configs)
+        return configs
+
+class ImagenModuleAuto(MultiModalModuleAuto):
+    def __init__(self, configs):
+        super(ImagenModuleAuto, self).__init__(configs)
+
+    def get_model(self):
+        model_setting = copy.deepcopy(self.configs.Model)
+        model_setting.pop("module")
+        imagen_model = model_setting.pop("name")
+        model = getattr(imagen, imagen_model)(**model_setting)
+        return model
+
+    def get_loss_fn(self):
+        model_setting = copy.deepcopy(self.configs.Loss)
+        loss_fn = imagen.ImagenCriterion(**model_setting)
+        return loss_fn

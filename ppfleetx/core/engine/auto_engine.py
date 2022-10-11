@@ -84,10 +84,11 @@ class AutoEngine(BasicEngine):
 
         # init engine
         self._auto_engine = auto.Engine(
-            module.model, module.loss_fn, optimizer, strategy=self._strategy)
+            module.model, module.loss_fn, optimizer, strategy=self._strategy, 
+            metrics=module.metric_fn if hasattr(module, "metric_fn") else None
+            )
 
     def fit(self, epoch=1, train_dataset=None, valid_dataset=None):
-
         self._auto_engine.fit(train_data=train_dataset,
                               valid_data=valid_dataset,
                               train_sample_split=train_dataset.sample_split,
