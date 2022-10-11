@@ -14,6 +14,7 @@
 
 import paddle
 import paddle.nn as nn
+# nn.CrossEntropyLoss
 import paddle.nn.functional as F
 
 __all__ = [
