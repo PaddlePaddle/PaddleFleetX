@@ -285,10 +285,11 @@ class EagerEngine(BasicEngine):
             loss = self._fit_impl(batch)
             train_losses.append(loss)
 
-            if step % self._logging_freq == 0:
+            if (step + 1) % (self._logging_freq * self._accumulate_steps) == 0:
                 # Sync for profile time, delete it may be a little faster
                 paddle.device.cuda.synchronize()
                 train_costs = time.time() - train_start
+                train_costs /= self._accumulate_steps
                 numpy_losses = [loss.numpy()[0] for loss in train_losses]
                 log_dict = {
                     'epoch': epoch_index,
@@ -430,16 +431,29 @@ class EagerEngine(BasicEngine):
         return loss
 
     def _model_forward_backward(self, batch):
-        with paddle.amp.auto_cast(
-                self._use_pure_fp16,
-                custom_black_list=self._custom_black_list,
-                custom_white_list=self._custom_white_list,
-                level='O2'):
-            loss = self._module.training_step(batch)
+        if self._accumulate_steps == 1:
+            batches = [batch]
+        else:
+            batches = paddle.split(batch, self._accumulate_steps)
+        final_loss = None
+        for micro_batch in batches:
+            with paddle.amp.auto_cast(
+                    self._use_pure_fp16,
+                    custom_black_list=self._custom_black_list,
+                    custom_white_list=self._custom_white_list,
+                    level='O2'):
+                loss = self._module.training_step(micro_batch)
 
-        loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
-        self._module.backward(loss_bw)
-        return loss
+            loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
+            self._module.backward(loss_bw)
+            detach_loss = loss.detach()
+            if final_loss is None:
+                final_loss = detach_loss
+            else:
+                final_loss = paddle.add(final_loss, detach_loss)
+        if self._accumulate_steps > 1:
+            final_loss = paddle.divide(final_loss, paddle.to_tensor([self._accumulate_steps]))
+        return final_loss
 
     def _optim_update_params(self):
         if self._sharding_stage in [2, 3] and self._dp_degree > 1:
