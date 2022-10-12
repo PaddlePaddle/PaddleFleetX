@@ -431,10 +431,16 @@ class EagerEngine(BasicEngine):
         return loss
 
     def _model_forward_backward(self, batch):
-        if self._accumulate_steps == 1:
-            batches = [batch]
+        if self._accumulate_steps == 1 or self._pp_degree > 1:
+            batches = batch
         else:
-            batches = paddle.split(batch, self._accumulate_steps)
+            split_batches = []
+            for b in batch:
+                split_batches.append(paddle.split(b, self._accumulate_steps))
+            batches = []
+            for i in range(len(split_batches[0])):
+                micro_batch = [split_batch[i] for split_batch in split_batches]
+                batches.append(micro_batch)
         final_loss = None
         for micro_batch in batches:
             with paddle.amp.auto_cast(
