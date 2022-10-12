@@ -432,7 +432,7 @@ class EagerEngine(BasicEngine):
 
     def _model_forward_backward(self, batch):
         if self._accumulate_steps == 1 or self._pp_degree > 1:
-            batches = batch
+            batches = [batch]
         else:
             split_batches = [paddle.split(b, self._accumulate_steps) for b in batch]
             batches = []
