@@ -434,9 +434,7 @@ class EagerEngine(BasicEngine):
         if self._accumulate_steps == 1 or self._pp_degree > 1:
             batches = batch
         else:
-            split_batches = []
-            for b in batch:
-                split_batches.append(paddle.split(b, self._accumulate_steps))
+            split_batches = [paddle.split(b, self._accumulate_steps) for b in batch]
             batches = []
             for i in range(len(split_batches[0])):
                 micro_batch = [split_batch[i] for split_batch in split_batches]
