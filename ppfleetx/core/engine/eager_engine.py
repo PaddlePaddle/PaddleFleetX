@@ -285,7 +285,7 @@ class EagerEngine(BasicEngine):
             loss = self._fit_impl(batch)
             train_losses.append(loss)
 
-            if (step + 1) % (self._logging_freq * self._accumulate_steps) == 0:
+            if (step + 1) % self._logging_freq == 0:
                 # Sync for profile time, delete it may be a little faster
                 paddle.device.cuda.synchronize()
                 train_costs = time.time() - train_start
