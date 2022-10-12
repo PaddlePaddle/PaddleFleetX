@@ -285,7 +285,7 @@ class EagerEngine(BasicEngine):
             loss = self._fit_impl(batch)
             train_losses.append(loss)
 
-            if step % self._logging_freq == 0:
+            if (step + 1) % self._logging_freq == 0:
                 # Sync for profile time, delete it may be a little faster
                 paddle.device.cuda.synchronize()
                 train_costs = time.time() - train_start
@@ -430,16 +430,33 @@ class EagerEngine(BasicEngine):
         return loss
 
     def _model_forward_backward(self, batch):
-        with paddle.amp.auto_cast(
-                self._use_pure_fp16,
-                custom_black_list=self._custom_black_list,
-                custom_white_list=self._custom_white_list,
-                level='O2'):
-            loss = self._module.training_step(batch)
+        if self._accumulate_steps == 1 or self._pp_degree > 1:
+            batches = [batch]
+        else:
+            split_batches = [paddle.split(b, self._accumulate_steps) for b in batch]
+            batches = []
+            for i in range(len(split_batches[0])):
+                micro_batch = [split_batch[i] for split_batch in split_batches]
+                batches.append(micro_batch)
+        final_loss = None
+        for micro_batch in batches:
+            with paddle.amp.auto_cast(
+                    self._use_pure_fp16,
+                    custom_black_list=self._custom_black_list,
+                    custom_white_list=self._custom_white_list,
+                    level='O2'):
+                loss = self._module.training_step(micro_batch)
 
-        loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
-        self._module.backward(loss_bw)
-        return loss
+            loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
+            self._module.backward(loss_bw)
+            detach_loss = loss.detach()
+            if final_loss is None:
+                final_loss = detach_loss
+            else:
+                final_loss = paddle.add(final_loss, detach_loss)
+        if self._accumulate_steps > 1:
+            final_loss = final_loss / self._accumulate_steps
+        return final_loss
 
     def _optim_update_params(self):
         if self._sharding_stage in [2, 3] and self._dp_degree > 1:
