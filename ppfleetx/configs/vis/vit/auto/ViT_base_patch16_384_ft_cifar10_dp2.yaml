@@ -3,11 +3,13 @@ _base_: ./base.yaml
 Global:
   device: gpu
   seed: 2021
-  local_batch_size: 64
+  local_batch_size: 32
+  micro_batch_size: 32
 
 Engine:
   num_train_epochs: 103
   eval_freq: 1
+  eval_iters: -1
   accumulate_steps: 1
   logging_freq: 10
   mix_precision:
@@ -17,7 +19,6 @@ Engine:
     custom_black_list: ["reduce_sum", "elementwise_div", "c_softmax_with_cross_entropy"]
     custom_white_list: []
   save_load:
-    save_epoch: 1
     output_dir: ./output
     ckpt_dir:
 
@@ -37,7 +38,7 @@ Model:
     name: 'CELoss'
   metric:
     name: 'Accuracy'
-    topk: [1, 5]
+    topk: [1,]
 
 Optimizer:
   name: Momentum
@@ -55,6 +56,8 @@ Optimizer:
 
 Data:
   Train:
+    collate_fn: collate_fn
+    sample_split: 1
     dataset:
       name: CIFAR10
       root: ./dataset/cifar-10-batches-py/
@@ -75,6 +78,8 @@ Data:
         - ToCHWImage:
 
   Eval:
+    collate_fn: collate_fn
+    sample_split: 1
     dataset: 
       name: CIFAR10
       root: ./dataset/cifar-10-batches-py/

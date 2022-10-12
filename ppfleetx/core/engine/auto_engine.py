@@ -16,6 +16,7 @@ import os
 import time
 import sys
 import logging
+import copy
 
 import paddle
 import paddle.nn as nn
@@ -62,7 +63,7 @@ class AutoEngine(BasicEngine):
 
         # engine configs
         self._configs = configs['Engine']
-        self._max_steps = self._configs['max_steps']
+        self._max_steps = self._configs['max_steps'] if self._configs['max_steps']>0 else None
         self._eval_freq = self._configs['eval_freq']
         self._eval_iters = self._configs['eval_iters']
         self._test_iters = self._configs['test_iters']
@@ -89,6 +90,8 @@ class AutoEngine(BasicEngine):
             )
 
     def fit(self, epoch=1, train_dataset=None, valid_dataset=None):
+        if valid_dataset is not None and self._eval_iters<=0:
+            self._eval_iters = len(valid_dataset)
         self._auto_engine.fit(train_data=train_dataset,
                               valid_data=valid_dataset,
                               train_sample_split=train_dataset.sample_split,
