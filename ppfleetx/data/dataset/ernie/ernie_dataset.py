@@ -47,10 +47,7 @@ class ErnieDataset(paddle.io.Dataset):
         tokenizer = ErnieTokenizer.from_pretrained(tokenizer_type)
         tokenizer.extend_chinese_char()
 
-        # print("input_dir", input_dir)
         files = get_train_data_file(input_dir)[0]
-        # print("files", files)
-        # assert len(files) == 1
         skip_warmup = True
         indexed_dataset = get_indexed_dataset_(files, None, skip_warmup)
         total_num_of_documents = indexed_dataset.doc_idx.shape[0] - 1
@@ -83,16 +80,6 @@ class ErnieDataset(paddle.io.Dataset):
         # New doc_idx view.
         indexed_dataset.set_doc_idx(doc_idx_ptr[start_index:end_index])
         # Build the dataset accordingly.
-        # kwargs = dict(
-        #     name=name,
-        #     data_prefix=data_prefix,
-        #     num_epochs=None,
-        #     max_num_samples=train_valid_test_num_samples[index],
-        #     max_seq_length=max_seq_length,
-        #     seed=seed,
-        #     share_folder=args.share_folder,
-        #     args=args,
-        # )
         self.seed = seed
         self.masked_lm_prob = masked_lm_prob
         self.max_seq_length = max_seq_length
@@ -116,60 +103,6 @@ class ErnieDataset(paddle.io.Dataset):
             self.binary_head,
             self.share_folder)
 
-        # print_split_stats('validation', 1)
-        # print_split_stats('test', 2)  
-
-        # train_valid_test_num_samples = [
-        #     args.global_batch_size * args.max_steps,
-        #     args.micro_batch_size * (args.max_steps // args.eval_freq + 1) *
-        #     args.eval_iters * data_world_size,
-        #     args.micro_batch_size * args.test_iters * data_world_size]
-
-        # def __init__(
-        #         self,
-        #         name,
-        #         tokenizer,
-        #         indexed_dataset,
-        #         data_prefix,
-        #         num_epochs,
-        #         max_num_samples,
-        #         masked_lm_prob,
-        #         max_seq_length,
-        #         short_seq_prob,
-        #         seed,
-        #         binary_head,
-        #         share_folder=False,
-        #         args=None, ):
-
-        #     # Params to store.
-        #     self.name = name
-        #     self.seed = seed
-        #     self.masked_lm_prob = masked_lm_prob
-        #     self.max_seq_length = max_seq_length
-        #     self.binary_head = binary_head
-        #     self.share_folder = share_folder
-        #     self.args = args
-
-        #     # Dataset.
-        #     self.indexed_dataset = indexed_dataset
-
-        #     # Build the samples mapping.
-        #     self.samples_mapping = get_samples_mapping(
-        #         self.indexed_dataset,
-        #         data_prefix,
-        #         num_epochs,
-        #         max_num_samples,
-        #         self.max_seq_length - 3,  # account for added tokens
-        #         short_seq_prob,
-        #         self.seed,
-        #         self.name,
-        #         self.binary_head,
-        #         self.share_folder)
-
-        # Vocab stuff.
-        # tokenizer = get_tokenizer()
-        # self.vocab_id_list = list(tokenizer.inv_vocab.keys())
-        # self.vocab_id_to_token_dict = tokenizer.inv_vocab
         self.vocab_id_list = list(tokenizer.vocab.idx_to_token.keys())
         self.vocab_id_to_token_dict = copy.deepcopy(
             tokenizer.vocab.idx_to_token)

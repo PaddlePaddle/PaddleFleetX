@@ -54,7 +54,6 @@ def process_data_configs(config):
                 'local_batch_size']
             cfg_data[mode]['dataset'].setdefault('binary_head',
                                                  cfg_global['binary_head'])
-            # print("cfg_data[mode]:", cfg_data[mode])
 
 
 def process_model_configs(config):
