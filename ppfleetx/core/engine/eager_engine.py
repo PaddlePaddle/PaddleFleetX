@@ -456,7 +456,8 @@ class EagerEngine(BasicEngine):
             else:
                 final_loss = paddle.add(final_loss, detach_loss)
         if self._accumulate_steps > 1:
-            final_loss = paddle.divide(final_loss, paddle.to_tensor([self._accumulate_steps]))
+            final_loss = paddle.divide(final_loss,
+                                       paddle.to_tensor([self._accumulate_steps], dtype='float32'))
         return final_loss
 
     def _optim_update_params(self):
