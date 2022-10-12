@@ -289,7 +289,6 @@ class EagerEngine(BasicEngine):
                 # Sync for profile time, delete it may be a little faster
                 paddle.device.cuda.synchronize()
                 train_costs = time.time() - train_start
-                train_costs /= self._accumulate_steps
                 numpy_losses = [loss.numpy()[0] for loss in train_losses]
                 log_dict = {
                     'epoch': epoch_index,
