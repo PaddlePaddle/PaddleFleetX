@@ -40,14 +40,14 @@ def process_dist_config(configs):
     pp_degree = config.setdefault("pp_degree", 1)
 
     # sharding default
+    sharding_config = config['sharding']
     sharding_degree = sharding_config.setdefault("sharding_degree", 1)
     comm_overlap = sharding_config.setdefault("comm_overlap", 1)
     sharding_stage = sharding_config.setdefault('sharding_stage', 2)
     sharding_offload = sharding_config.setdefault('sharding_offload', False)
     reduce_overlap = sharding_config.setdefault('reduce_overlap', False)
-    broadcast_overlap =  sharding_config.setdefault('broadcast_overlap', False)
-    
- 
+    broadcast_overlap = sharding_config.setdefault('broadcast_overlap', False)
+
     other_degree = mp_degree * pp_degree * sharding_degree
 
     assert nranks % other_degree == 0, "unreasonable config of dist_strategy."
@@ -59,23 +59,33 @@ def process_dist_config(configs):
                 dp_degree, mp_degree, pp_degree, _sharding_degree)
 
     if sharding_config['sharding_degree'] > 1 and reduce_overlap:
-        if sharding_config['sharding_stage'] == 3 or sharding_config['sharding_offload']:
+        if sharding_config['sharding_stage'] == 3 or sharding_config[
+                'sharding_offload']:
             sharding_config['reduce_overlap'] = False
-            logger.warning("reduce overlap only valid for sharding stage 2 without offload")
+            logger.warning(
+                "reduce overlap only valid for sharding stage 2 without offload"
+            )
 
     if sharding_config['sharding_degree'] > 1 and broadcast_overlap:
-        if sharding_config['sharding_stage'] == 3 or sharding_config['sharding_offload']:
+        if sharding_config['sharding_stage'] == 3 or sharding_config[
+                'sharding_offload']:
             sharding_config['broadcast_overlap'] = False
-            logger.warning("broadcast overlap only valid for sharding stage 2 without offload")
+            logger.warning(
+                "broadcast overlap only valid for sharding stage 2 without offload"
+            )
 
     if broadcast_overlap and configs['Engine']['logging_freq'] == 1:
-        logger.warning("Set logging_freq to 1 will disable broadcast_overlap. "
-                       "If you want to overlap the broadcast, please increase the logging_freq.")
+        logger.warning(
+            "Set logging_freq to 1 will disable broadcast_overlap. "
+            "If you want to overlap the broadcast, please increase the logging_freq."
+        )
         sharding_config['broadcast_overlap'] = False
 
     if sharding_config['sharding_degree'] > 1:
         if getattr(sharding_config, 'broadcast_overlap', False):
-            logger.warning("Enable broadcast overlap for sharding will not use pin memory for dataloader")
+            logger.warning(
+                "Enable broadcast overlap for sharding will not use pin memory for dataloader"
+            )
             use_pinned_memory(False)
 
 
