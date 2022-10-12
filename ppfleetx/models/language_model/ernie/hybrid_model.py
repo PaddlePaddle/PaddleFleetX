@@ -22,7 +22,10 @@ import json
 import paddle
 import paddle.nn as nn
 from paddle.nn import functional as F
-from dataclasses import dataclass, field
+import paddle.distributed.fleet as fleet
+from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
+from paddle.distributed.fleet.meta_parallel import LayerDesc, PipelineLayer, SharedLayerDesc
+from paddle.distributed.fleet.utils import recompute
 
 from .model_outputs import (
     BaseModelOutputWithPastAndCrossAttentions,
@@ -33,9 +36,6 @@ from .model_outputs import (
     MultipleChoiceModelOutput,
     MaskedLMOutput,
     ModelOutput, )
-
-from .transformer import (TransformerEncoderLayer, TransformerEncoder,
-                          TransformerDecoder)
 
 
 class ErnieEmbeddings(nn.Layer):
@@ -225,7 +225,7 @@ class ErnieModel(nn.Layer):
             max_position_embeddings, type_vocab_size, pad_token_id,
             weight_attr, task_type_vocab_size, task_id, use_task_id)
 
-        encoder_layer = TransformerEncoderLayer(
+        encoder_layer = nn.TransformerEncoderLayer(
             hidden_size,
             num_attention_heads,
             intermediate_size,
@@ -235,7 +235,7 @@ class ErnieModel(nn.Layer):
             act_dropout=0,
             weight_attr=weight_attr,
             normalize_before=False)
-        self.encoder = TransformerEncoder(
+        self.encoder = nn.TransformerEncoder(
             encoder_layer, num_hidden_layers, enable_recompute=use_recompute)
 
         self.pooler = ErniePooler(hidden_size, weight_attr)
@@ -633,11 +633,11 @@ class ErnieForPreTrainingOutput(ModelOutput):
             heads.
     """
 
-    loss = None
-    prediction_logits = None
-    seq_relationship_logits = None
-    hidden_states = None
-    attentions = None
+    loss: Optional[paddle.Tensor] = None
+    prediction_logits: paddle.Tensor = None
+    seq_relationship_logits: paddle.Tensor = None
+    hidden_states: Optional[Tuple[paddle.Tensor]] = None
+    attentions: Optional[Tuple[paddle.Tensor]] = None
 
 
 class ErniePretrainingCriterion(paddle.nn.Layer):
