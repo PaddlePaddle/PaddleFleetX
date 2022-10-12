@@ -18,4 +18,4 @@ from .dygraph.hybrid_model import (
 from .auto.auto_model import (GPTModelAuto, GPTForPretrainingAuto,
                               GPTPretrainingCriterionAuto)
 
-from .dygraph.single_model import GPTForPretraining, GPTPretrainingCriterion, GPTModel, GPTForGeneration
+from .dygraph.single_model import GPTForPretraining, GPTPretrainingCriterion, GPTModel, GPTForGeneration, GPTForSequenceClassification

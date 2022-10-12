@@ -76,9 +76,9 @@ function _train(){
 
     local_batch_size=`expr ${global_batch_size} / ${dp_degree} / ${sharding_degree}`
     num_attention_heads=16 #"gpt2-medium-en"
-    [ ${mp_degree} -lt 8 ] && num_attention_heads=4 #"gpt2-small-en"
+    if [ ${mp_degree} -lt 8 -a ${pp_degree} -lt 8 ]; then num_attention_heads=4; fi #"gpt2-small-en"
     num_layers=24 #"gpt2-medium-en"
-    [ ${mp_degree} -lt 8 ] && num_layers=4 #"gpt2-small-en"
+    if [ ${mp_degree} -lt 8 -a ${pp_degree} -lt 8 ]; then num_layers=4; fi #"gpt2-small-en"
     if [ "fp16" = ${fp_item} ]; then use_pure_fp16=True; fi
     train_cmd="-o Global.seed=1234 \
                -o Global.local_batch_size=${local_batch_size} \
@@ -125,7 +125,8 @@ function _train(){
                 ${train_cmd}"
             workerlog_id=0
             ;;
-        DP8-MP1-PP1|DP1-MP2-PP4|DP1-MP4-PP2|DP2-MP2-PP2|DP2-MP8-PP2|DP4-MP8-PP1|DP1-MP8-PP4) echo "run run_mode: ${run_mode}"
+        DP8-MP1-PP1|DP1-MP8-PP1|DP1-MP1-PP8|DP1-MP2-PP4|DP1-MP4-PP2|DP2-MP2-PP2| \
+        DP2-MP8-PP2|DP4-MP8-PP1|DP1-MP8-PP4) echo "run run_mode: ${run_mode}"
             train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 \
                 tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
                 ${train_cmd}"

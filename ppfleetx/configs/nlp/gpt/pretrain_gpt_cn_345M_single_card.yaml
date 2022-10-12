@@ -7,6 +7,7 @@ Global:
 
 
 Model:
+  name: "GPT-cn"
   vocab_size: 50304
   hidden_size: 1024
   num_layers: 24
@@ -18,8 +19,9 @@ Model:
   type_vocab_size: 16
   initializer_range: 0.02
   use_recompute: False
-  fuse_attn_qkv: True
-
+  recompute_granularity:
+  no_recompute_layers:
+  
 
 Distributed:
   dp_degree: 1
@@ -28,3 +30,5 @@ Distributed:
   sharding:
     sharding_degree: 1
     sharding_stage: 1
+    sharding_offload: False
+    comm_overlap: False

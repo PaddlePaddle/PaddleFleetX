@@ -47,7 +47,7 @@ class MultiHeadAttention(nn.Layer):
                  need_weights=False,
                  weight_attr=None,
                  bias_attr=None,
-                 fuse=False,
+                 fuse_attn_qkv=False,
                  mesh=None,
                  mesh_idx=None):
         super(MultiHeadAttention, self).__init__()
@@ -57,14 +57,14 @@ class MultiHeadAttention(nn.Layer):
         self.num_heads = num_heads
         self.dropout = dropout
         self.need_weights = need_weights
-        self.fuse = fuse
+        self.fuse_attn_qkv = fuse_attn_qkv
         self.mesh = mesh
         self.mesh_idx = mesh_idx
 
         self.head_dim = embed_dim // num_heads
         assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
 
-        if self.fuse:
+        if self.fuse_attn_qkv:
             assert self.kdim == embed_dim
             assert self.vdim == embed_dim
             self.qkv_proj = nn.Linear(
@@ -80,6 +80,9 @@ class MultiHeadAttention(nn.Layer):
             embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
 
     def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
+        auto.shard_tensor(self.qkv_proj.weight, self.mesh[self.mesh_idx],
+                          [None, self.mesh.mp])
+
         mix_layer = self.qkv_proj(query)
         mix_layer = paddle.reshape_(mix_layer,
                                     [0, 0, self.num_heads, 3 * self.head_dim])
@@ -220,13 +223,13 @@ class MultiHeadAttention(nn.Layer):
         value = query if value is None else value
         # compute q ,k ,v
         if use_cache is False:
-            if self.fuse:
+            if self.fuse_attn_qkv:
                 q, k, v = self._fuse_prepare_qkv(query, use_cache, cache)
             else:
                 q, k, v = self._prepare_qkv(query, key, value, use_cache,
                                             cache)
         else:
-            if self.fuse:
+            if self.fuse_attn_qkv:
                 q, k, v, cache = self._fuse_prepare_qkv(query, use_cache,
                                                         cache)
             else:
@@ -342,6 +345,7 @@ class TransformerDecoderLayer(nn.Layer):
                  normalize_before=True,
                  weight_attr=None,
                  bias_attr=None,
+                 fuse_attn_qkv=False,
                  mesh=None,
                  mesh_idx=None):
         self._config = locals()
@@ -364,6 +368,7 @@ class TransformerDecoderLayer(nn.Layer):
             dropout=attn_dropout,
             weight_attr=weight_attrs[0],
             bias_attr=bias_attrs[0],
+            fuse_attn_qkv=fuse_attn_qkv,
             mesh=mesh,
             mesh_idx=mesh_idx)
 
@@ -483,6 +488,7 @@ class GPTModelAuto(nn.Layer):
                  max_position_embeddings=512,
                  type_vocab_size=16,
                  initializer_range=0.02,
+                 fuse_attn_qkv=False,
                  mesh=None):
 
         super(GPTModelAuto, self).__init__()
@@ -518,6 +524,7 @@ class GPTModelAuto(nn.Layer):
                         initializer=nn.initializer.Normal(
                             mean=0.0, std=self.initializer_range)),
                     bias_attr=None,
+                    fuse_attn_qkv=fuse_attn_qkv,
                     mesh=self.mesh,
                     mesh_idx=stages[i]))
 
