@@ -118,21 +118,15 @@ class EagerEngine(BasicEngine):
         self._run_mode = self._configs.get('run_mode', 'step')
         assert self._run_mode in ['epoch', 'step'
                                   ], 'run_mode must be epoch or step'
-        self._max_steps = self._configs.get('max_steps', 500000)
-        self._eval_freq = self._configs.get('eval_freq', -1)
-        self._eval_iters = self._configs.get('eval_iters', 0)
-        self._test_iters = self._configs.get('test_iters', 0)
-        self._logging_freq = self._configs.get('logging_freq', 1)
-        self._num_train_epochs = self._configs.get('num_train_epochs', 1)
-        self._accumulate_steps = self._configs.get('accumulate_steps', 1)
+        self._max_steps = self._configs['max_steps']
+        self._eval_freq = self._configs['eval_freq']
+        self._eval_iters = self._configs['eval_iters']
+        self._test_iters = self._configs['test_iters']
+        self._logging_freq = self._configs['logging_freq']
+        self._num_train_epochs = self._configs['num_train_epochs']
+        self._accumulate_steps = self._configs['accumulate_steps']
 
-        self._amp_configs = self._configs.get('mix_precision', {
-            'use_pure_fp16': False,
-            'scale_loss': 32768,
-            'custom_black_list': None,
-            'custom_white_list': None
-        })
-        self._use_pure_fp16 = self._amp_configs.get('use_pure_fp16', False)
+        self._use_pure_fp16 = self._configs['mix_precision']['use_pure_fp16']
         if mode == 'export' and self._use_pure_fp16:
             logger.info("NOTE: disable use_pure_fp16 in export mode")
             self._use_pure_fp16 = False
@@ -143,43 +137,26 @@ class EagerEngine(BasicEngine):
         self._custom_white_list = self._amp_configs.get('custom_white_list',
                                                         None)
 
-        self._ckpt_configs = self._configs.get('save_load', {
-            'save_steps': 10000,
-            'save_epoch': 1,
-            'output_dir': None,
-            'ckpt_dir': None
-        })
-        self._save_steps = self._ckpt_configs.get('save_steps', 10000)
-        self._save_epoch = self._ckpt_configs.get('save_epoch', 1)
-        self._output_dir = self._ckpt_configs.get('output_dir', None)
-        self._ckpt_dir = self._ckpt_configs.get('ckpt_dir', None)
+        self._save_steps = self._configs['save_load']['save_steps']
+        self._save_epoch = self._configs['save_load']['save_epoch']
+
+        self._output_dir = self._configs['save_load']['output_dir']
+        self._ckpt_dir = self._configs['save_load']['ckpt_dir']
 
         # TODO(haohongxiang): Remove there extra configs after reconstruct of Fleet API
-        self._dist_configs = configs.get('Distributed', {
-            'dp_degree': 1,
-            'mp_degree': 1,
-            'pp_degree': 1,
-            'sharding': {
-                'sharding_degree': 1,
-                "sharding_stage": 2
-            }
-        })
-        self._dp_degree = self._dist_configs.get('dp_degree', 1)
-        self._mp_degree = self._dist_configs.get('mp_degree', 1)
-        self._pp_degree = self._dist_configs.get('pp_degree', 1)
-
-        self._sharding_configs = self._dist_configs.get(
-            "sharding", {'sharding_degree': 1,
-                         "sharding_stage": 2})
-        self._sharding_stage = self._sharding_configs.get('sharding_stage', 2)
-        self._sharding_degree = self._sharding_configs.get('sharding_degree',
-                                                           1)
-        self._sharding_offload = self._sharding_configs.get('sharding_offload',
-                                                            False)
-        self._reduce_overlap = self._sharding_configs.get('reduce_overlap',
-                                                          False)
-        self._broadcast_overlap = self._sharding_configs.get(
-            'broadcast_overlap', False)
+        self._dist_configs = configs['Distributed']
+        self._dp_degree = self._dist_configs['dp_degree']
+        self._mp_degree = self._dist_configs['mp_degree']
+        self._pp_degree = self._dist_configs['pp_degree']
+        self._sharding_stage = self._dist_configs['sharding']['sharding_stage']
+        self._sharding_degree = self._dist_configs['sharding'][
+            'sharding_degree']
+        self._sharding_offload = self._dist_configs['sharding'][
+            'sharding_offload']
+        self._reduce_overlap = getattr(self._dist_configs['sharding'],
+                                       'reduce_overlap', False)
+        self._broadcast_overlap = getattr(self._dist_configs['sharding'],
+                                          'broadcast_overlap', False)
         self._use_recompute = configs['Model']['use_recompute']
 
         if self._use_pure_fp16:
