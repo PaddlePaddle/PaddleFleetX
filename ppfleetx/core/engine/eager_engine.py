@@ -131,11 +131,11 @@ class EagerEngine(BasicEngine):
             logger.info("NOTE: disable use_pure_fp16 in export mode")
             self._use_pure_fp16 = False
 
-        self._scale_loss = self._amp_configs.get('scale_loss', 32768)
-        self._custom_black_list = self._amp_configs.get('custom_black_list',
-                                                        None)
-        self._custom_white_list = self._amp_configs.get('custom_white_list',
-                                                        None)
+        self._scale_loss = self._configs['mix_precision']['scale_loss']
+        self._custom_black_list = self._configs['mix_precision'][
+            'custom_black_list']
+        self._custom_white_list = self._configs['mix_precision'][
+            'custom_white_list']
 
         self._save_steps = self._configs['save_load']['save_steps']
         self._save_epoch = self._configs['save_load']['save_epoch']
