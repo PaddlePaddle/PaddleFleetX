@@ -94,13 +94,19 @@ class MultiHeadAttention(nn.Layer):
                 self.kdim, embed_dim, weight_attr, bias_attr=bias_attr)
             self.v_proj = Linear(
                 self.vdim, embed_dim, weight_attr, bias_attr=bias_attr)
+
+        self.reshape0 = nn.Reshape(shape=[0, 0, self.num_heads, 3 * self.head_dim])
+        self.reshape1 = nn.Reshape(shape=[0, 0, self.num_heads, self.head_dim])
+        self.reshape2 = nn.Reshape(shape=[0, 0, self.num_heads * self.head_dim])
+
         self.out_proj = Linear(
             embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
 
     def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
         mix_layer = self.qkv_proj(query)
-        mix_layer = paddle.reshape_(mix_layer,
-                                    [0, 0, self.num_heads, 3 * self.head_dim])
+        # mix_layer = paddle.reshape_(mix_layer,
+        #                             [0, 0, self.num_heads, 3 * self.head_dim])
+        mix_layer = self.reshape0(mix_layer)
         mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
         q, k, v = paddle.split(mix_layer, num_or_sections=3, axis=-1)
 
@@ -125,7 +131,8 @@ class MultiHeadAttention(nn.Layer):
 
         """
         q = self.q_proj(query)
-        q = tensor.reshape(x=q, shape=[0, 0, self.num_heads, self.head_dim])
+        # q = tensor.reshape(x=q, shape=[0, 0, self.num_heads, self.head_dim])
+        q = self.reshape1(q)
         q = tensor.transpose(x=q, perm=[0, 2, 1, 3])
 
         if isinstance(cache, self.StaticCache):
@@ -157,9 +164,11 @@ class MultiHeadAttention(nn.Layer):
         """
         k = self.k_proj(key)
         v = self.v_proj(value)
-        k = tensor.reshape(x=k, shape=[0, 0, self.num_heads, self.head_dim])
+        # k = tensor.reshape(x=k, shape=[0, 0, self.num_heads, self.head_dim])
+        k = self.reshape1(k)
         k = tensor.transpose(x=k, perm=[0, 2, 1, 3])
-        v = tensor.reshape(x=v, shape=[0, 0, self.num_heads, self.head_dim])
+        # v = tensor.reshape(x=v, shape=[0, 0, self.num_heads, self.head_dim])
+        v = self.reshape1(v)
         v = tensor.transpose(x=v, perm=[0, 2, 1, 3])
         return k, v
 
@@ -210,7 +219,8 @@ class MultiHeadAttention(nn.Layer):
 
         # combine heads
         out = tensor.transpose(out, perm=[0, 2, 1, 3])
-        out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
+        # out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
+        out = self.reshape2(out)
 
         return out, weights
 

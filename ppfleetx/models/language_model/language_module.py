@@ -57,7 +57,6 @@ class LanguageModule(BasicModule):
 
     def training_step(self, batch):
         tokens, position_ids, labels, loss_mask = batch
-
         loss_mask.stop_gradient = True
         labels.stop_gradient = True
         position_ids.stop_gradient = True
@@ -106,6 +105,37 @@ class LanguageModule(BasicModule):
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
                log_dict['test_cost'], speed))
 
+    def _get_pruned_params(self, model):
+        params = []
+        for sublayer in model.sublayers():
+            for param in sublayer.parameters(include_sublayers=False):
+                if isinstance(sublayer, paddle.nn.layer.common.Linear): 
+                    params.append(param.name)
+
+        return params
+
+    def prune_model(self, model):
+        prune_criterion = self.configs.Prune.criterion
+        ratio = self.configs.Prune.ratio
+        
+        # logger.info("Flops before pruning: {}GFLOPS".format(flops(model, [[8, 1024], [8, 1024]]) / 1000))
+        if prune_criterion == 'fpgm':
+            #TODO(minghaoBD): test fc pruning in fpgm pruner
+            pruner = paddleslim.dygraph.FPGMFilterPruner(model, [[8, 1024], [8, 1024]])
+        elif prune_criterion == 'l1_norm':
+            pruner = paddleslim.dygraph.L1NormFilterPruner(model, [[8, 1024], [8, 1024]], skip_leaves=False)
+        params = self._get_pruned_params(model)
+        # print('====pruned params======')
+        # print(params)
+        # sys.exit()
+        ratios = {}
+        for param in params:
+            ratios[param] = ratio
+        #NOTE(minghaoBD): hidden size in Layernorm must be 768/1024/2048/4096 for best inference performace, and when axis=0, the hidden size in layernorm will be changed accordingly. So axis=1 is required.
+        plan = pruner.prune_vars(ratios, [1])
+        # logger.info("Flops after pruning: {}GFLOPS".format(flops(model, [1] + image_shape) / 1000))
+        return model
+
     def qat_model(self, model):
         quanter = paddleslim.dygraph.quant.QAT(
             config=self.configs.Quantization)
@@ -151,6 +181,9 @@ class GPTModule(LanguageModule):
                     gpt.GPTModelHybrid(**model_setting))
             else:
                 model = gpt.GPTForPretrainingPipe(**model_setting)
+
+        if "Prune" in self.configs.keys() and self.configs.Prune.enable:
+            model = self.prune_model(model)
 
         if 'Quantization' in self.configs.keys(
         ) and self.configs.Quantization.enable:
