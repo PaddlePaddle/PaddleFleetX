@@ -6,7 +6,7 @@ Global:
 
 Engine:
   run_mode: 'epoch'
-  num_train_epochs: 8
+  num_train_epochs: 103
   eval_freq: 1
   accumulate_steps: 1
   logging_freq: 10
@@ -27,7 +27,7 @@ Model:
   module: "GeneralClsModule"
   model:
     name: "ViT_base_patch16_384"
-    class_num: 1000
+    class_num: 10
     drop_rate: 0.1
     pretrained:
       prefix_path: ./pretrained/vit/imagenet2012-ViT-B_16-224
@@ -62,14 +62,10 @@ Optimizer:
 Data:
   Train:
     dataset:
-      name: GeneralClsDataset
-      image_root: ./dataset/ILSVRC2012/
-      class_num: 1000
-      cls_label_path: ./dataset/ILSVRC2012/train_list.txt
+      name: CIFAR10
+      root: ./dataset/cifar-10-batches-py/
+      mode: train
       transform_ops:
-        - DecodeImage:
-            to_rgb: True
-            channel_first: False
         - RandCropImage:
             size: 384
             scale: [0.05, 1.0]
@@ -86,7 +82,7 @@ Data:
 
     sampler:
       name: DistributedBatchSampler
-      batch_size: 32 # total batchsize 512
+      batch_size: 64 # total batchsize 512
       drop_last: True
       shuffle: True
     loader:
@@ -95,13 +91,10 @@ Data:
 
   Eval:
     dataset: 
-      name: GeneralClsDataset
-      image_root: ./dataset/ILSVRC2012/
-      cls_label_path: ./dataset/ILSVRC2012/val_list.txt
+      name: CIFAR10
+      root: ./dataset/cifar-10-batches-py/
+      mode: test
       transform_ops:
-        - DecodeImage:
-            to_rgb: True
-            channel_first: False
         - ResizeImage:
             size: 384
             interpolation: bilinear
@@ -115,7 +108,7 @@ Data:
         
     sampler:
       name: DistributedBatchSampler
-      batch_size: 256
+      batch_size: 64
       drop_last: False
       shuffle: False
     loader:

@@ -25,6 +25,8 @@ Distributed:
     sharding_degree: 1
     sharding_stage: 1
     sharding_offload: False
+    reduce_overlap: False
+    broadcast_overlap: False
     
 Model:
   use_recompute: False

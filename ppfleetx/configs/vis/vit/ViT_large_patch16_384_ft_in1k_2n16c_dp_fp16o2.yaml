@@ -11,7 +11,7 @@ Engine:
   accumulate_steps: 1
   logging_freq: 10
   mix_precision:
-    use_pure_fp16: False
+    use_pure_fp16: True
     scale_loss: 32768.0
     custom_black_list: ["reduce_sum", "elementwise_div"]
     custom_white_list: []
@@ -26,11 +26,11 @@ Distributed:
 Model:
   module: "GeneralClsModule"
   model:
-    name: "ViT_base_patch16_384"
+    name: "ViT_large_patch16_384"
     class_num: 1000
     drop_rate: 0.1
     pretrained:
-      prefix_path: ./pretrained/vit/imagenet2012-ViT-B_16-224
+      prefix_path: ./pretrained/vit/imagenet21k-ViT-L_16
       finetune: True
   loss:
     train:
@@ -51,12 +51,12 @@ Optimizer:
   momentum: 0.9
   lr:
     name: ViTLRScheduler
-    learning_rate: 0.004
+    learning_rate: 0.03
     decay_type: cosine
     warmup_steps: 500
   grad_clip:
     name: "ClipGradByGlobalNorm"
-    clip_norm: 0.35
+    clip_norm: 1.0
 
 
 Data:
@@ -115,7 +115,7 @@ Data:
         
     sampler:
       name: DistributedBatchSampler
-      batch_size: 256
+      batch_size: 64
       drop_last: False
       shuffle: False
     loader:
