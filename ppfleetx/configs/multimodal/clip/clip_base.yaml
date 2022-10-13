@@ -12,8 +12,7 @@ Engine:
   num_train_epochs: 1
   accumulate_steps: 1
   logging_freq: 10
-  eval_freq: 10000000
-  eval_iters: 10000000
+
   mix_precision:
     use_pure_fp16: False 
     scale_loss: 32768.0
