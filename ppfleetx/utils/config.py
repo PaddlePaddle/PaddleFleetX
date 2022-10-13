@@ -170,8 +170,8 @@ def process_engine_config(config):
     config.Engine['logging_freq'] = config.Engine.get('logging_freq', 1)
     config.Engine['num_train_epochs'] = config.Engine.get('num_train_epochs',
                                                           1)
-    config.Engine['test_iters'] = config.Engine.get(
-        'test_iters', config.Engine.eval_iters * 10)
+    config.Engine['test_iters'] = config.Engine['eval_iters'] * 10 \
+            if config.Engine.get('test_iters', None) is None else config.Engine['test_iters']
     config.Engine[
         'accumulate_steps'] = config.Global.local_batch_size // config.Global.micro_batch_size
 
