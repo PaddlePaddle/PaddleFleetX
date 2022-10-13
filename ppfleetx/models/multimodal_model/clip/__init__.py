@@ -12,5 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .gpt_tokenizer import GPTTokenizer
-from .clip_tokenizer import clip_tokenize
+from .modeling import clip_vit_base_32, clip_vit_base_16, clip_vit_large_14, CLIPCriterion

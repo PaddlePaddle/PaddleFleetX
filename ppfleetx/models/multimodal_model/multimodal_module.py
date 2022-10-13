@@ -14,10 +14,12 @@
 
 import sys
 import copy
+from collections import OrderedDict
 
 import paddle
 
 from ppfleetx.core.module.basic_module import BasicModule
+import ppfleetx.models.multimodal_model.clip as clip 
 import ppfleetx.models.multimodal_model.imagen as imagen
 from ppfleetx.utils.log import logger
 
@@ -36,9 +38,8 @@ class MultiModalModule(BasicModule):
         configs = process_configs(configs)
         return configs
 
-    def forward(self, samples, text_embeds, text_masks):
-        return self.model(
-            samples, text_embeds=text_embeds, text_masks=text_masks)
+    def forward(self, image, text, is_train=True):
+        return self.model(image=image, text=text, is_train=is_train)
 
     def training_step(self, batch):
         samples, text_embeds, text_masks = batch
@@ -118,3 +119,42 @@ class ImagenModule(MultiModalModule):
 
     def pretreating_batch(self, batch):
         return batch
+
+    def forward(self, samples, text_embeds, text_masks):
+        return self.model(
+            samples, text_embeds=text_embeds, text_masks=text_masks)
+
+    def training_step(self, batch):
+        samples, text_embeds, text_masks = batch
+        preds, targets, log_snr, p2_loss_weight_gamma = self(
+            samples, text_embeds, text_masks)
+        loss = self.loss_fn(preds, targets, log_snr, p2_loss_weight_gamma)
+        return loss
+
+
+class CLIPModule(MultiModalModule):
+    def __init__(self, configs):
+        super(CLIPModule, self).__init__(configs)
+
+    def get_model(self):
+        model_setting = copy.deepcopy(self.configs.Model)
+        model_setting.pop("module")
+        clip_model = model_setting.pop("name")
+        model = getattr(clip, clip_model)(**model_setting)
+        return model
+
+    def get_loss_fn(self):
+        loss_setting = copy.deepcopy(self.configs.Loss)
+        loss_fn = getattr(clip, loss_setting.pop("name"))()
+        return loss_fn
+
+    def pretreating_batch(self, batch):
+        return batch
+
+    def training_step(self, batch):
+        image, text = batch
+        img_labels = paddle.arange(len(image)).cast('int64')
+        text_labels = paddle.arange(len(text)).cast('int64')
+        img_logits, text_logits = self(image, text, is_train=True)
+        loss = self.loss_fn(img_logits, text_logits, img_labels, text_labels)
+        return loss

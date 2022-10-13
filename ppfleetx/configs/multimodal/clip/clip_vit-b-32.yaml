@@ -1,0 +1,62 @@
+_base_: ./clip_base.yaml
+
+epochs: 10
+output_dir: output_dir
+seed: 0
+device: gpu
+
+Model:
+  module: CLIPModule
+  name: clip_vit_base_32
+Loss:
+    name: CLIPCriterion
+  
+save_load:
+  save_steps: 1000 
+  save_epoch: 1
+  output_dir: ./output
+  ckpt_dir: 
+
+Data:
+  Train:
+    dataset:
+      name: CLIPDataset
+      input_path: ./data/FOOD101
+      transforms:
+        - ToRGB:
+        - RandomResizedCrop:
+            size: 224
+            scale: [0.75, 1.0]
+            ratio: [1., 1.]
+            interpolation: 'bicubic'
+        - ToTensor:
+        - Normalize:
+            mean: [0.485, 0.456, 0.406]
+            std: [0.229, 0.224, 0.225]
+      
+    sampler:
+      name: DistributedBatchSampler
+      batch_size: 32
+      drop_last: True
+      shuffle: True
+    loader:
+      num_workers: 8
+      use_shared_memory: True
+  
+lr_scheduler:
+  name: LinearWarmup
+  learning_rate:
+    name: CosineAnnealingDecay
+    learning_rate: 0.0001
+    T_max: 10
+    eta_min: 1e-6
+  warmup_steps: 5
+  start_lr: 0
+  end_lr: 0.0001
+
+Optimizer:
+  name: AdamW
+  beta1: 0.9
+  beta2: 0.98
+  epsilon: 1e-8
+  weight_decay: 0.0005
