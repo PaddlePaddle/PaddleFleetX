@@ -666,6 +666,9 @@ class GPTModelHybrid(nn.Layer):
         mp_size = hcg.get_model_parallel_world_size()
         if mp_size <= 1:
             sequence_parallel = False
+            logging.warning(
+                "If mp_size < 1, sequence_parallel strategy will be turned off in GPTModelHybrid model."
+            )
 
         self.embeddings = GPTEmbeddings(
             vocab_size, hidden_size, hidden_dropout_prob,
@@ -877,6 +880,7 @@ class EmbeddingPipe(GPTEmbeddings):
             input_ids=input_ids, position_ids=position_ids)
         return embeddings
 
+
 class LayerNormPipe(nn.Layer):
     def __init__(self,
                  normalized_shape,
@@ -889,15 +893,16 @@ class LayerNormPipe(nn.Layer):
         super(LayerNormPipe, self).__init__()
         self.sequence_parallel = sequence_parallel
         self.is_last = is_last
-        self.norm = nn.LayerNorm(normalized_shape=normalized_shape,
-                                 epsilon=epsilon,
-                                 weight_attr=weight_attr,
-                                 bias_attr=bias_attr,
-                                 name=name)
+        self.norm = nn.LayerNorm(
+            normalized_shape=normalized_shape,
+            epsilon=epsilon,
+            weight_attr=weight_attr,
+            bias_attr=bias_attr,
+            name=name)
         if self.sequence_parallel:
             self.norm.weight.register_hook(all_reduce_gradient_hook)
             self.norm.bias.register_hook(all_reduce_gradient_hook)
-    
+
     def forward(self, input):
         output = self.norm(input)
         if self.sequence_parallel and self.is_last:
@@ -949,6 +954,9 @@ class GPTForPretrainingPipe(PipelineLayer):
         mp_size = hcg.get_model_parallel_world_size()
         if mp_size <= 1:
             sequence_parallel = False
+            logging.warning(
+                "If mp_size < 1, sequence_parallel strategy will be turned off in GPTForPretrainingPipe model."
+            )
 
         self.descs.append(
             SharedLayerDesc(
@@ -988,8 +996,10 @@ class GPTForPretrainingPipe(PipelineLayer):
 
         self.descs.append(
             LayerDesc(
-                LayerNormPipe, normalized_shape=hidden_size,
-                sequence_parallel=sequence_parallel, is_last=True))
+                LayerNormPipe,
+                normalized_shape=hidden_size,
+                sequence_parallel=sequence_parallel,
+                is_last=True))
 
         def _logits_helper(embedding, output):
             return parallel_matmul(output, embedding.embedding_weight, True)

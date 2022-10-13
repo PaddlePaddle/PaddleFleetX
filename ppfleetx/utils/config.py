@@ -371,6 +371,11 @@ def process_auto_global_configs(config):
     process global configs for auto parallel
     """
     dp_degree = config['Distributed']['dp_degree']
+    pp_degree = config['Distributed']['dp_degree']
+    if 'sequence_parallel' in config['Model'] and pp_degree > 1:
+        if config['Model']['sequence_parallel']:
+            assert config['Global']['allow_partial'] is False, \
+                "if pp_degree > 1 and sequence_parallel is True, allow_partial should be False"
     # sharding_degree = config['Distributed']['sharding_degree']
 
     configs = config['Global']
