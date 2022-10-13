@@ -2,6 +2,7 @@ requests==2.25.1
 regex==2022.7.25
 colorlog==6.6.0
 colorama==0.4.5
+ftfy==6.1.1
 omegaconf==2.2.2
 tqdm==4.54.1
 pybind11==2.10.0

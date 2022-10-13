@@ -497,4 +497,3 @@ class CLIPCriterion(nn.Layer):
         text_loss = self.criterion(text_logits, text_labels)
         loss = img_loss + text_loss
         return loss 
- 
