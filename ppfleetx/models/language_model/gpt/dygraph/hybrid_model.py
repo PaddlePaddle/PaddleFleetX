@@ -667,7 +667,7 @@ class GPTModelHybrid(nn.Layer):
         if mp_size <= 1:
             sequence_parallel = False
             logging.warning(
-                "If mp_size < 1, sequence_parallel strategy will be turned off in GPTModelHybrid model."
+                "If mp_size <= 1, sequence_parallel strategy will be turned off in GPTModelHybrid model."
             )
 
         self.embeddings = GPTEmbeddings(
@@ -955,7 +955,7 @@ class GPTForPretrainingPipe(PipelineLayer):
         if mp_size <= 1:
             sequence_parallel = False
             logging.warning(
-                "If mp_size < 1, sequence_parallel strategy will be turned off in GPTForPretrainingPipe model."
+                "If mp_size <= 1, sequence_parallel strategy will be turned off in GPTForPretrainingPipe model."
             )
 
         self.descs.append(
