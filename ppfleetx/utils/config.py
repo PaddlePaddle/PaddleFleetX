@@ -156,16 +156,12 @@ def process_engine_config(config):
 
     # mix_precision
     config.Engine['mix_precision'] = config.Engine.get('mix_precision', {})
-    mix_precision_cfg = config.Engine.mix_precision
+    amp_cfg = config.Engine.mix_precision
 
-    mix_precision_cfg['use_pure_fp16'] = mix_precision_cfg.get('use_pure_fp16',
-                                                               False)
-    mix_precision_cfg['scale_loss'] = mix_precision_cfg.get('scale_loss',
-                                                            32768)
-    mix_precision_cfg['custom_black_list'] = mix_precision_cfg.get(
-        'custom_black_list', None)
-    mix_precision_cfg['custom_white_list'] = mix_precision_cfg.get(
-        'custom_white_list', None)
+    amp_cfg['use_pure_fp16'] = amp_cfg.get('use_pure_fp16', False)
+    amp_cfg['scale_loss'] = amp_cfg.get('scale_loss', 32768)
+    amp_cfg['custom_black_list'] = amp_cfg.get('custom_black_list', None)
+    amp_cfg['custom_white_list'] = amp_cfg.get('custom_white_list', None)
 
     # engine
     config.Engine['max_steps'] = config.Engine.get('max_steps', 500000)
@@ -385,6 +381,7 @@ def get_config(fname, overrides=None, show=False):
     process_dist_config(config)
     process_global_configs(config)
     process_engine_config(config)
+    create_attr_dict(AttrDict(config))
 
     if show:
         print_config(config)
