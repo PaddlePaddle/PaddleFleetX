@@ -78,7 +78,7 @@ def init_dist_env(config):
     strategy.pipeline_configs = {
         "accumulate_steps": config.Engine.accumulate_steps,
         "micro_batch_size": config.Global.micro_batch_size,
-        "allow_partial": config.Global.allow_partial,
+        "enable_partial_send_recv": config.Global.enable_partial_send_recv,
     }
 
     # set control in tensor parallel

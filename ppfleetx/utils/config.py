@@ -374,8 +374,8 @@ def process_auto_global_configs(config):
     pp_degree = config['Distributed']['pp_degree']
     if 'sequence_parallel' in config['Model'] and pp_degree > 1:
         if config['Model']['sequence_parallel']:
-            assert config['Global']['allow_partial'] is False, \
-                "if pp_degree > 1 and sequence_parallel is True, allow_partial should be False"
+            assert config['Global']['enable_partial_send_recv'] is False, \
+                "if pp_degree > 1 and sequence_parallel is True, enable_partial_send_recv should be False"
     # sharding_degree = config['Distributed']['sharding_degree']
 
     configs = config['Global']
