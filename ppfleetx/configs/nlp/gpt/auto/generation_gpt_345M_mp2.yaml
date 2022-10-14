@@ -29,7 +29,7 @@ Model:
   type_vocab_size: 16
   initializer_range: 0.02
   use_recompute: False
-  fuse_attn_qkv: False
+  fuse_attn_qkv: True
 
 
 Distributed:

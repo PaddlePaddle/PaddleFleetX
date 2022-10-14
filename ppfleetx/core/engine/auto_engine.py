@@ -62,6 +62,7 @@ class AutoEngine(BasicEngine):
                 )
         else:
             module.loss_fn = None
+            module.model.eval()
 
         # engine configs
         self._configs = configs['Engine']
@@ -84,7 +85,7 @@ class AutoEngine(BasicEngine):
             configs.Optimizer.lr) if mode == "train" else None
         optimizer = build_optimizer(configs.Optimizer, module.model,
                                     lr) if mode == "train" else None
-        module.model.eval()
+
         # init engine
         self._auto_engine = auto.Engine(
             module.model, module.loss_fn, optimizer, strategy=self._strategy)
@@ -120,29 +121,9 @@ class AutoEngine(BasicEngine):
             steps=self._max_steps,
             collate_fn=test_dataset.collate_fn)
 
-    def generate(self, input_text):
-        input_ids = self._module.tokenizer.encode(input_text)
-        inputs = {'input_ids': [input_ids]}
-
-        inputs = self._module.left_padding(inputs,
-                                           self._module.tokenizer.eos_token_id)
-        input_ids = inputs['input_ids']
-
-        class dataset(paddle.io.Dataset):
-            def __init__(self, input_ids):
-                self.inputs_ids = input_ids
-
-            def __getitem__(self, idx):
-                input_ids = np.array(self.inputs_ids).astype('int64')
-                label = np.array(self.inputs_ids).astype('int64')
-                return input_ids, label
-
-            def __len__(self):
-                return 1
-
-        data = dataset(input_ids)
-        self._auto_engine.predict(
-            test_data=data, test_sample_split=1, batch_size=None)
+    def export(self):
+        self._auto_engine.prepare(self._module.input_spec(), mode="predict")
+        self.save(training=False)
 
     def save(self, training=True):
         if self._output_dir and isinstance(self._output_dir, str):

@@ -976,8 +976,8 @@ class GPTForGenerationAuto(nn.Layer):
                                  paddle.full_like(probs, 0.0), probs)
             return probs
 
-        batch_size, cur_len = input_ids.shape
-        origin_len = input_ids.shape[1]
+        batch_size, cur_len = paddle.shape(input_ids)
+        origin_len = paddle.shape(input_ids)[1]
         unfinished_flag = paddle.full([batch_size, 1], True, dtype='bool')
         scores = paddle.full(
             [batch_size, 1], 0.0, dtype=paddle.get_default_dtype())
@@ -1140,8 +1140,8 @@ class GPTForGenerationAuto(nn.Layer):
 
         model_kwargs["use_cache"] = use_cache
 
-        max_length += input_ids.shape[-1]
-        min_length += input_ids.shape[-1]
+        max_length += paddle.shape(input_ids)[-1]
+        min_length += paddle.shape(input_ids)[-1]
 
         logits_processors = self.get_logits_processor(
             min_length=min_length,

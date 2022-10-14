@@ -14,14 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-# export CUDA_VISIBLE_DEVICES=0
-# python ./tools/export.py -c ./ppfleetx/configs/nlp/gpt/generation_gpt_345M_single_card.yaml
-
 log_dir=log_mp2
 rm -rf $log_dir
 
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1" \
-    ./tools/auto_gen.py \
+    ./tools/auto_export.py \
     -c ./ppfleetx/configs/nlp/gpt/auto/generation_gpt_345M_mp2.yaml \
-    -o Model.num_layers=4

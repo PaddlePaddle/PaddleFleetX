@@ -27,12 +27,8 @@ __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
 
 from ppfleetx.utils import config
-from ppfleetx.utils.log import logger
 from ppfleetx.models import build_module
-from ppfleetx.data import build_auto_dataset
 from ppfleetx.core import AutoEngine
-
-#init_logger()
 
 if __name__ == "__main__":
     args = config.parse_args()
@@ -42,11 +38,9 @@ if __name__ == "__main__":
     module = build_module(cfg)
     config.print_config(cfg)
 
-    engine = AutoEngine(configs=cfg, module=module, mode="predict")
+    engine = AutoEngine(configs=cfg, module=module, mode="export")
 
     if cfg.Engine.save_load.ckpt_dir is not None:
         engine.load()
 
-    input_text = 'Hi, GPT2. Tell me who Jack Ma is.'
-    engine.generate(input_text)
-    # engine.save(training=False)
+    engine.export()

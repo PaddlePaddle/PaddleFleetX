@@ -25,6 +25,7 @@ import numpy as np
 import paddle
 import paddle.distributed as dist
 from paddle import LazyGuard
+from paddle.static import InputSpec
 from paddle.distributed.fleet import auto
 
 from .auto_utils import process_configs
@@ -139,3 +140,6 @@ class GPTGenerationModuleAuto(BasicModule):
             extend_filed("position_ids", max_length, 0)
 
         return inputs
+
+    def input_spec(self):
+        return [InputSpec(shape=[None, None], name="input_ids", dtype='int64')]
