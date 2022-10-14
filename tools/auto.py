@@ -35,6 +35,7 @@ from ppfleetx.core import AutoEngine
 #init_logger()
 
 if __name__ == "__main__":
+    paddle.enable_static()
     args = config.parse_args()
     cfg = config.get_auto_config(
         args.config, overrides=args.override, show=False)
