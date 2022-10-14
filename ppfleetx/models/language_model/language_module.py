@@ -26,6 +26,8 @@ import ppfleetx.models.language_model.gpt as gpt
 from ppfleetx.utils import env
 from ppfleetx.utils.log import logger
 import paddleslim
+from paddleslim.analysis import dygraph_flops as flops
+
 from .utils import process_configs
 from ppfleetx.data.tokenizers import GPTTokenizer
 from .metrics import *
@@ -181,9 +183,6 @@ class GPTModule(LanguageModule):
                     gpt.GPTModelHybrid(**model_setting))
             else:
                 model = gpt.GPTForPretrainingPipe(**model_setting)
-
-        if "Prune" in self.configs.keys() and self.configs.Prune.enable:
-            model = self.prune_model(model)
 
         if 'Quantization' in self.configs.keys(
         ) and self.configs.Quantization.enable:

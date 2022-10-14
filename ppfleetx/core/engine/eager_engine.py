@@ -26,6 +26,8 @@ from paddle.distributed.sharding import group_sharded_parallel
 from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 from paddle.profiler import SummaryView
+import paddleslim
+from paddleslim.analysis import dygraph_flops as flops
 
 from ppfleetx.optims import build_lr_scheduler, build_optimizer
 from ppfleetx.utils.log import logger
@@ -627,6 +629,38 @@ class EagerEngine(BasicEngine):
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
 
+    def _get_pruned_params(self, model):
+        params = []
+        for sublayer in model.sublayers():
+            for param in sublayer.parameters(include_sublayers=False):
+                if isinstance(sublayer, paddle.nn.layer.common.Linear): 
+                    params.append(param.name)
+
+        return params
+
+    def prune_model(self):
+        model = self._module.model
+
+        prune_criterion = 'l1_norm' #  self._configs.Prune.criterion
+        ratio = 0.25 # self._configs.Prune.ratio
+
+        logger.info("Flops before pruning: {}GFLOPS".format(flops(model, [[8, 1024], [8, 1024]], dtypes=['int64'] * 2) / 1000))
+        if prune_criterion == 'fpgm':
+            #TODO(minghaoBD): test fc pruning in fpgm pruner
+            pruner = paddleslim.dygraph.FPGMFilterPruner(model, [[8, 1024], [8, 1024]])
+        elif prune_criterion == 'l1_norm':
+            pruner = paddleslim.dygraph.L1NormFilterPruner(model, [[8, 1024], [8, 1024]], skip_leaves=False)
+        params = self._get_pruned_params(model)
+        # print('====pruned params======')
+        # print(params)
+        # sys.exit()
+        ratios = {}
+        for param in params:
+            ratios[param] = ratio
+        #NOTE(minghaoBD): hidden size in Layernorm must be 768/1024/2048/4096 for best inference performace, and when axis=0, the hidden size in layernorm will be changed accordingly. So axis=1 is required.
+        plan = pruner.prune_vars(ratios, [1])
+        logger.info("Flops after pruning: {}GFLOPS".format(flops(model, [[8, 1024], [8, 1024]], dtypes=['int64'] * 2) / 1000))
+
     def load(self):
         """
         load the saved checkpoint file and update the state dicts of model and optimizer.
@@ -644,9 +678,12 @@ class EagerEngine(BasicEngine):
             if os.path.exists(model_path):
                 model_dict = paddle.load(model_path)
                 for name, param in self._module.model.state_dict().items():
-                    assert name in model_dict.keys(
-                    ), "No param named `{}` was found in checkpoint file.".format(
+                    print(name, param.shape)
+                    if name not in model_dict.keys(
+                            ):
+                        "No param named `{}` was found in checkpoint file.".format(
                         name)
+                        continue
 
                     if param.dtype != model_dict[name].dtype:
                         model_dict[name] = model_dict[name].cast(param.dtype)
@@ -661,8 +698,9 @@ class EagerEngine(BasicEngine):
                     opt_dict = paddle.load(opt_path)
                     self._optimizer.set_state_dict(opt_dict)
                 else:
-                    raise ValueError(
-                        "No optimizer checkpoint file found in %s." % opt_path)
+                    pass
+                    # raise ValueError(
+                    #     "No optimizer checkpoint file found in %s." % opt_path)
 
                 if os.path.exists(meta_path):
                     meta_dict = paddle.load(meta_path)
@@ -672,8 +710,9 @@ class EagerEngine(BasicEngine):
                         'rng_state': meta_dict['cuda_rng_state']
                     }
                 else:
-                    raise ValueError("No meta checkpoint file found in %s." %
-                                     meta_path)
+                    pass
+                    # raise ValueError("No meta checkpoint file found in %s." %
+                    #                  meta_path)
 
             logger.info("successfully load checkpoints")
         else:
