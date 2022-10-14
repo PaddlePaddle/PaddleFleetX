@@ -306,7 +306,7 @@ class EagerEngine(BasicEngine):
                 train_losses = []
 
             if self._run_mode == 'step' and not skip_first:
-                if step % self._eval_freq == 0:
+                if self._eval_freq > 0 and step % self._eval_freq == 0:
                     paddle.device.cuda.synchronize()
                     self._module.model.eval()
 
@@ -383,7 +383,8 @@ class EagerEngine(BasicEngine):
             self._module.training_epoch_end(log_dict)
 
             eval_start = time.time()
-            if self._run_mode == 'epoch' and epoch_index % self._eval_freq == 0:
+            if self._run_mode == 'epoch' and self._eval_freq > 0 and \
+                epoch_index % self._eval_freq == 0:
                 self._evaluate_one_epoch(epoch_index, valid_data_loader)
                 self._module.model.train()
                 eval_cost = time.time() - eval_start
@@ -433,7 +434,9 @@ class EagerEngine(BasicEngine):
         if self._accumulate_steps == 1 or self._pp_degree > 1:
             batches = [batch]
         else:
-            split_batches = [paddle.split(b, self._accumulate_steps) for b in batch]
+            split_batches = [
+                paddle.split(b, self._accumulate_steps) for b in batch
+            ]
             batches = []
             for i in range(len(split_batches[0])):
                 micro_batch = [split_batch[i] for split_batch in split_batches]
