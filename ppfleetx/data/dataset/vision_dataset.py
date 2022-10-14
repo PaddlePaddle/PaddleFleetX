@@ -292,7 +292,7 @@ class ImageFolder(paddle.io.Dataset):
         return len(set(self.classes))
 
 
-class CIFAR(paddle.io.Dataset):
+class CIFAR10(paddle.io.Dataset):
     def __init__(
             self,
             root,
@@ -302,8 +302,22 @@ class CIFAR(paddle.io.Dataset):
         self.mode = mode
         assert self.mode in ['train', 'test']
         self._transform_ops = None
+
+        self.URL = 'https://dataset.bj.bcebos.com/cifar/cifar-10-python.tar.gz'
+
         if transform_ops:
             self._transform_ops = create_preprocess_operators(transform_ops)
+
+        if not os.path.exists(os.path.join(self.root, f'data_batch_1')):
+            from ppfleetx.utils.download import cached_path
+            from ppfleetx.utils.file import untar
+            zip_path = cached_path(
+                self.URL, cache_dir=os.path.abspath(self.root))
+            untar(
+                zip_path,
+                mode="r:gz",
+                out_dir=os.path.join(self.root, '..'),
+                delete=True)
 
         self.images = []
         self.labels = []

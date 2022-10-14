@@ -92,15 +92,7 @@ def default_collate_fn(batch_transform=None):
 
 
 def gpt_collate_fn(batch):
-    return Tuple(Stack(), Stack(), Stack(), Stack())(batch)
-
-
-def gpt_inference_collate_fn(batch):
-    return Tuple(Stack(), Stack())(batch)
-
-
-def gpt_eval_collate_fn(batch):
-    return Tuple(Stack(), Stack(), Stack(), Stack(), Stack(), Stack())(batch)
+    return Tuple([Stack() for raw in zip(*batch)])(batch)
 
 
 def imagen_collate_fn(batch):

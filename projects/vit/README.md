@@ -39,11 +39,28 @@ The following commands need to be run on each node.
 python -m paddle.distributed.launch --gpus="0,1,2,3,4,5,6,7" tools/train.py -c ppfleetx/configs/vis/vit/ViT_base_patch16_224_pt_in1k_2n16c_dp_fp16o2.yaml
 ```
 
-## How to finetune on imagenet2012
+## Finetune ViT-B/16
+
+### [Optional] Download checkpoint
+```shell
+mkdir -p pretrained/vit/
+wget -O ./pretrained/vit/imagenet2012-ViT-B_16-224.pdparams https://paddlefleetx.bj.bcebos.com/model/vision/vit/imagenet2012-ViT-B_16-224.pdparams
+```
+
+
+### Finetune on imagenet2012
 Finetune is similar to pre-training on ImageNet2012 dataset, we have provided the configured yaml file.
 
 ```shell
 python -m paddle.distributed.launch --gpus="0,1,2,3,4,5,6,7" tools/train.py -c ppfleetx/configs/vis/vit/ViT_base_patch16_384_ft_in1k_2n16c_dp_fp16o2.yaml
+```
+
+### Finetune on cifar10
+
+Note: CIFAR10 dataset is automatically downloaded and cached.
+
+```shell
+python -m paddle.distributed.launch --gpus="0,1,2,3,4,5,6,7" tools/train.py -c ppfleetx/configs/vis/vit/ViT_base_patch16_384_ft_cifar10_1n8c_dp_fp16o2.yaml
 ```
 
 
