@@ -216,7 +216,7 @@ class ImagenModel(nn.Layer):
         self.text_embed_dim = default(text_embed_dim, lambda: 1024)
 
         if use_t5:
-            self.t5_encoder = get_t5_model(name=text_encoder_name, pretrained=True)
+            self.t5_encoder = get_t5_model(name=text_encoder_name, pretrained=False)
             self.t5_encode_text = t5_encode_text
 
         # construct unets
@@ -327,10 +327,10 @@ class ImagenModel(nn.Layer):
                         t_next=None,
                         pred_objective='noise',
                         dynamic_threshold=True):
+        # import pdb; pdb.set_trace()
         assert not (
             cond_scale != 1. and not self.can_classifier_guidance
         ), 'imagen was not trained with conditional dropout, and thus one cannot use classifier free guidance (cond_scale anything other than 1)'
-
         pred = default(model_output, lambda: unet.forward_with_cond_scale(x, noise_scheduler.get_condition(t), text_embeds = text_embeds, text_mask = text_mask, cond_images = cond_images, cond_scale = cond_scale, lowres_cond_img = lowres_cond_img, lowres_noise_times = self.lowres_noise_schedule.get_condition(lowres_noise_times)))
 
         if pred_objective == 'noise':
@@ -348,10 +348,14 @@ class ImagenModel(nn.Layer):
                 rearrange(x_start, 'b ... -> b (...)').abs(),
                 self.dynamic_thresholding_percentile,
                 axis=-1)
+            
+            # TODO change clip
+            # s.clip_(min=1., max=65500.)
 
-            s.clip_(min=1.)
-            s = right_pad_dims_to(x_start, s)
-            x_start = x_start.clip(-s, s) / s
+            # s = right_pad_dims_to(x_start, s)
+            
+            # x_start = x_start.clip(-s, s) / s
+            x_start.clip_(-1., 1.)
         else:
             x_start.clip_(-1., 1.)
 
@@ -376,6 +380,7 @@ class ImagenModel(nn.Layer):
                  pred_objective='noise',
                  dynamic_threshold=True):
         b = x.shape[0]
+        # import pdb; pdb.set_trace()
         (model_mean, _, model_log_variance), x_start = self.p_mean_variance(
             unet,
             x=x,
@@ -421,6 +426,10 @@ class ImagenModel(nn.Layer):
                       dynamic_threshold=True):
 
         batch = shape[0]
+
+        # TODO remove random
+        # img = 0.01*paddle.ones(shape)
+        paddle.seed(100)
         img = paddle.randn(shape)
 
         # prepare inpainting
@@ -443,9 +452,19 @@ class ImagenModel(nn.Layer):
         skip_steps = default(skip_steps, 0)
         timesteps = timesteps[skip_steps:]
 
-        for times, times_next in tqdm(
-                timesteps, desc='sampling loop time step',
-                total=len(timesteps)):
+        # NOTE(dev): Attempt to modify into while_loop
+        num = paddle.to_tensor(len(timesteps))
+        timesteps = paddle.stack(timesteps, axis=0)
+        i = 0
+        while i < num:
+            times = timesteps[i][0]
+            times_next = timesteps[i][1]
+            # import pdb; pdb.set_trace()
+
+        # for times, times_next in tqdm(
+        #         timesteps, desc='sampling loop time step',
+        #         total=len(timesteps)):
+
             is_last_timestep = times_next == 0
 
             for r in reversed(range(resample_times)):
@@ -457,7 +476,6 @@ class ImagenModel(nn.Layer):
                     img = img * ~inpaint_masks + noised_inpaint_images * inpaint_masks
 
                 self_cond = x_start if unet.self_cond else None
-
                 img, x_start = self.p_sample(
                     unet,
                     img,
@@ -483,6 +501,7 @@ class ImagenModel(nn.Layer):
                         self.right_pad_dims_to_datatype(is_last_timestep), img,
                         renoised_img)
 
+            i += 1
         img.clip_(-1., 1.)
 
         # final inpainting
@@ -494,7 +513,7 @@ class ImagenModel(nn.Layer):
         return unnormalize_img
 
     @paddle.no_grad()
-    @eval_decorator
+    # @eval_decorator
     def sample(
             self,
             input_ids=None,
@@ -553,13 +572,12 @@ class ImagenModel(nn.Layer):
         ]
 
         skip_steps = cast_tuple(skip_steps, num_unets)
-
         for unet_number, unet, channel, image_size, noise_scheduler, pred_objective, dynamic_threshold, unet_cond_scale, unet_init_images, unet_skip_steps in tqdm(
                 zip(
                     range(1, num_unets + 1), self.unets, self.sample_channels,
                     self.image_sizes, self.noise_schedulers,
                     self.pred_objectives, self.dynamic_thresholding,
-                    cond_scale, init_images, skip_steps)):
+                    cond_scale, init_images, skip_steps),disable=True):
 
             lowres_cond_img = lowres_noise_times = None
             shape = (batch_size, channel, image_size, image_size)

@@ -21,6 +21,7 @@ from paddle import nn
 from paddle import nn, einsum
 import paddle.nn.functional as F
 from paddle.distributed.fleet.utils import recompute
+from paddle.fluid.framework import _in_legacy_dygraph, in_dygraph_mode
 
 from .utils import (zeros_, zero_init_, default, cast_tuple,
                     resize_image_to, prob_mask_like, masked_mean, Identity,
@@ -572,8 +573,10 @@ class LearnedSinusoidalPosEmb(nn.Layer):
             [half_dim], default_initializer=nn.initializer.Normal())
 
     def forward(self, x):
-        x = x[:, None]
-        freqs = x * self.weights[None, :] * 2 * math.pi
+        x = x.unsqueeze(axis=-1)
+        freqs = x * self.weights.unsqueeze(axis=0) * 2 * math.pi
+        # x = x[:, None]
+        # freqs = x * self.weights[None, :] * 2 * math.pi
         fouriered = paddle.concat((freqs.sin(), freqs.cos()), axis=-1)
         fouriered = paddle.concat((x, fouriered), axis=-1)
         return fouriered
@@ -1327,6 +1330,7 @@ class Unet(nn.Layer):
 
         # time conditioning
 
+        # import pdb; pdb.set_trace()
         time_hiddens = self.to_time_hiddens(time)
 
         # derive time tokens
@@ -1365,7 +1369,7 @@ class Unet(nn.Layer):
 
             text_tokens = self.text_to_cond(text_embeds)
 
-            text_tokens = text_tokens[:, :self.max_text_len]
+            # text_tokens = text_tokens[:, :self.max_text_len]
 
             if text_mask is not None:
                 text_mask = text_mask[:, :self.max_text_len]
@@ -1374,14 +1378,18 @@ class Unet(nn.Layer):
             remainder = self.max_text_len - text_tokens_len
 
             if remainder > 0:
-                text_tokens = F.pad(text_tokens, (0, remainder),
-                                    data_format='NLC')
+                # text_tokens = F.pad(text_tokens, (0, remainder),
+                #                     data_format='NLC')
+                remainder_tensor = paddle.to_tensor([0, remainder], dtype="int32")
+                text_tokens = F.pad(text_tokens, remainder_tensor, data_format='NLC')
 
             if text_mask is not None:
                 text_mask = text_mask[:, :, None]
                 if remainder > 0:
-                    text_mask = F.pad(text_mask, (0, remainder),
-                                      data_format='NLC')
+                    # text_mask = F.pad(text_mask, (0, remainder),
+                    #                   data_format='NLC')
+                    text_mask = F.pad(text_mask, remainder_tensor, data_format='NLC')
+                text_mask = text_mask.cast("bool")
 
                 text_keep_mask_embed = text_mask & text_keep_mask_embed.cast(
                     text_mask.dtype)
@@ -1393,6 +1401,12 @@ class Unet(nn.Layer):
                 text_keep_mask_embed,
                 text_tokens,
                 null_text_embed)
+            
+            # if not in_dygraph_mode():
+            #     paddle.static.Print(text_tokens, message="static text_tokens")
+            # else:
+            #     print(f"dynamic text_tokens", text_tokens.numpy().flatten()[:10])
+
 
             if self.attn_pool is not None:
                 text_tokens = self.attn_pool(text_tokens)
@@ -1451,7 +1465,6 @@ class Unet(nn.Layer):
         add_skip_connection = lambda x: paddle.concat((x, hiddens.pop() * self.skip_connect_scale), axis=1)
 
         up_hiddens = []
-
         for init_block, resnet_blocks, attn_block, upsample in self.ups:
             x = add_skip_connection(x)
             x = init_block(x, t, c)

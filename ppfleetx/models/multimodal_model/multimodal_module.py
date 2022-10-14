@@ -142,22 +142,25 @@ class ImagenSampleModule(BasicModule):
         model_setting.pop("module")
         imagen_model = model_setting.pop("name")
         model = getattr(imagen, imagen_model)(**model_setting)
-        checkpoint = paddle.load('run_imagen_text2im_397m_420m-ep1-step171000.pd', return_numpy=True) 
-        model.set_state_dict(checkpoint['model'])
+        # checkpoint = paddle.load('run_imagen_text2im_397m_420m-ep1-step171000.pd', return_numpy=True) 
+        # model.set_state_dict(checkpoint['model'])
         #model.unets[0].set_state_dict(checkpoint['model'])
-        checkpoint = paddle.load('run_imagen_sr512_checkpoint-ep0-step20000.pd', return_numpy=True) 
-        new = OrderedDict()
-        for k, v in checkpoint['model'].items():
-            new[k.replace('unets.0', 'unets.1')] = v
-        model.set_state_dict(new)
+        # checkpoint = paddle.load('run_imagen_sr512_checkpoint-ep0-step20000.pd', return_numpy=True) 
+        # new = OrderedDict()
+        # for k, v in checkpoint['model'].items():
+        #     new[k.replace('unets.0', 'unets.1')] = v
+        # model.set_state_dict(new)
         model.eval()
         return model
 
 
     def forward(self, input_ids, text_masks):
         samples = self.model.sample(
-            input_ids=input_ids, text_masks=text_masks)
-        return samples 
+            input_ids=input_ids, 
+            text_masks=text_masks,
+            # skip_steps=950
+            )
+        return samples
 
 
 class CLIPModule(MultiModalModule):

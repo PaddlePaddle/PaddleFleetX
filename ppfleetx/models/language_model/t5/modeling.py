@@ -17,6 +17,7 @@ import math
 import numpy as np
 
 import paddle
+import paddle.fluid.layers as layers
 from paddle import nn
 
 from .utils import (
@@ -53,8 +54,19 @@ class T5LayerNorm(nn.Layer):
         # w/o mean and there is no bias. Additionally we want to make sure that the accumulation for
         # half-precision inputs is done in fp32
 
-        variance = hidden_states.cast(paddle.float32).pow(2).mean(-1, keepdim=True)
+        # variance = hidden_states.cast(paddle.float32).pow(2).mean(-1, keepdim=True)
+        # hidden_states = hidden_states * paddle.rsqrt(variance + self.variance_epsilon)
+
+        variance = hidden_states.pow(2).mean(-1, keepdim=True)
         hidden_states = hidden_states * paddle.rsqrt(variance + self.variance_epsilon)
+
+        # hidden_32 = hidden_states.cast(paddle.float32)
+        # power = paddle.to_tensor([2], dtype='float32')
+        # pow_data = layers.elementwise_pow(hidden_32, power)
+        # variance = pow_data.mean(-1, keepdim=True)
+        # var_add_epi = variance + self.variance_epsilon
+        # var_add_epi_sqrt = paddle.sqrt(var_add_epi)
+        # hidden_states = layers.elementwise_div(hidden_states, var_add_epi_sqrt)
 
         # convert into half-precision if necessary
         if self.weight.dtype in [paddle.float16, paddle.bfloat16]:
@@ -517,7 +529,10 @@ class T5Block(nn.Layer):
 
         # clamp inf values to enable fp16 training
         if hidden_states.dtype == paddle.float16 and paddle.isinf(hidden_states).any():
-            clamp_value = finfo(hidden_states.dtype).max - 1000
+            # TODO change clamp_value
+            # clamp_value = finfo(hidden_states.dtype).max - 1000
+            # clamp_value = 1e10
+            clamp_value = finfo(paddle.float16).max - 1000
             hidden_states = paddle.clip(hidden_states, min=-clamp_value, max=clamp_value)
 
         do_cross_attention = self.is_decoder and encoder_hidden_states is not None
@@ -544,7 +559,10 @@ class T5Block(nn.Layer):
 
             # clamp inf values to enable fp16 training
             if hidden_states.dtype == paddle.float16 and paddle.isinf(hidden_states).any():
-                clamp_value = finfo(hidden_states.dtype).max - 1000
+                # clamp_value = finfo(hidden_states.dtype).max - 1000
+                # TODO change clamp_value
+                # clamp_value = finfo(hidden_states.dtype).max - 1000
+                clamp_value = finfo(paddle.float16).max - 1000
                 hidden_states = paddle.clip(hidden_states, min=-clamp_value, max=clamp_value)
 
             # Combine self attn and cross attn key value states
@@ -559,7 +577,9 @@ class T5Block(nn.Layer):
 
         # clamp inf values to enable fp16 training
         if hidden_states.dtype == paddle.float16 and paddle.isinf(hidden_states).any():
-            clamp_value = finfo(hidden_states.dtype).max - 1000
+            # TODO change clamp_value
+            # clamp_value = finfo(hidden_states.dtype).max - 1000
+            clamp_value = finfo(paddle.float16).max - 1000
             hidden_states = paddle.clip(hidden_states, min=-clamp_value, max=clamp_value)
 
         outputs = (hidden_states,)
@@ -955,6 +975,7 @@ def get_t5_model(name, pretrained=True):
                  d_model=1024,
                  d_kv=128,
                  d_ff=65536,
+                #  num_layers=3,
                  num_layers=24,
                  num_decoder_layers=None,
                  num_heads=128,
