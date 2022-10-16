@@ -77,8 +77,10 @@ def init_dist_env(config):
 
     if config.Distributed.pp_degree > 1:
         if 'sequence_parallel' in config.Model:
-            assert config.Model.sequence_parallel and config.Global.enable_partial_send_recv is False, \
-                "if config.Distributed.pp_degree > 1 and config.Model.sequence_parallel is True, config.Global.enable_partial_send_recv will be set False."
+            if config.Model.sequence_parallel:
+                assert config.Global.enable_partial_send_recv is False, \
+                    "if config.Distributed.pp_degree > 1 and config.Model.sequence_parallel is True, " \
+                    "config.Global.enable_partial_send_recv should be set False."
 
     strategy.pipeline_configs = {
         "accumulate_steps": config.Engine.accumulate_steps,

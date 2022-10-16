@@ -77,7 +77,8 @@ def process_global_configs(config):
         if config['Model']['sequence_parallel']:
             config['Global']['enable_partial_send_recv'] = False
             logger.warning(
-                "if config.Distributed.pp_degree > 1 and config.Model.sequence_parallel is True, config.Global.enable_partial_send_recv will be set False."
+                "if config.Distributed.pp_degree > 1 and config.Model.sequence_parallel is True, " \
+                "config.Global.enable_partial_send_recv will be set False."
             )
 
     configs = config['Global']
@@ -384,7 +385,8 @@ def process_auto_global_configs(config):
         if config['Model']['sequence_parallel']:
             config['Global']['enable_partial_send_recv'] = False
             logger.warning(
-                "if config.Distributed.pp_degree > 1 and config.Model.sequence_parallel is True, config.Global.enable_partial_send_recv will be set False."
+                "if config.Distributed.pp_degree > 1 and config.Model.sequence_parallel is True, " \
+                "config.Global.enable_partial_send_recv will be set False."
             )
     # sharding_degree = config['Distributed']['sharding_degree']
 
