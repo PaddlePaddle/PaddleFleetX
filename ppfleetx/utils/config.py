@@ -70,7 +70,15 @@ def process_global_configs(config):
     process global configs for hybrid parallel
     """
     dp_degree = config['Distributed']['dp_degree']
+    pp_degree = config['Distributed']['pp_degree']
     sharding_degree = config['Distributed']['sharding']['sharding_degree']
+
+    if 'sequence_parallel' in config['Model'] and pp_degree > 1:
+        if config['Model']['sequence_parallel']:
+            config['Global']['enable_partial_send_recv'] = False
+            logger.warning(
+                "if config.Distributed.pp_degree > 1 and config.Model.sequence_parallel is True, config.Global.enable_partial_send_recv will be set False."
+            )
 
     configs = config['Global']
     if configs['global_batch_size'] is None and configs[
@@ -374,8 +382,10 @@ def process_auto_global_configs(config):
     pp_degree = config['Distributed']['pp_degree']
     if 'sequence_parallel' in config['Model'] and pp_degree > 1:
         if config['Model']['sequence_parallel']:
-            assert config['Global']['enable_partial_send_recv'] is False, \
-                "if pp_degree > 1 and sequence_parallel is True, enable_partial_send_recv should be False"
+            config['Global']['enable_partial_send_recv'] = False
+            logger.warning(
+                "if config.Distributed.pp_degree > 1 and config.Model.sequence_parallel is True, config.Global.enable_partial_send_recv will be set False."
+            )
     # sharding_degree = config['Distributed']['sharding_degree']
 
     configs = config['Global']

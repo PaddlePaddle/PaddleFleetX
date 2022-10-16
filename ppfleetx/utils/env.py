@@ -75,6 +75,11 @@ def init_dist_env(config):
         "sharding_degree": config.Distributed.sharding.sharding_degree,
     }
 
+    if config.Distributed.pp_degree > 1:
+        if 'sequence_parallel' in config.Model:
+            assert config.Model.sequence_parallel and config.Global.enable_partial_send_recv is False, \
+                "if config.Distributed.pp_degree > 1 and config.Model.sequence_parallel is True, config.Global.enable_partial_send_recv will be set False."
+
     strategy.pipeline_configs = {
         "accumulate_steps": config.Engine.accumulate_steps,
         "micro_batch_size": config.Global.micro_batch_size,
