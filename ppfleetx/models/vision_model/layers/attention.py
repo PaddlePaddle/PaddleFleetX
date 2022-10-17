@@ -45,13 +45,9 @@ class ViTAttention(nn.Layer):
 
     def forward(self, x):
         N, C = x.shape[1:]
-        # qkv = self.qkv(x).reshape((-1, N, 3, self.num_heads, C //
-        #                            self.num_heads)).transpose((2, 0, 3, 1, 4))
-        # q, k, v = qkv[0], qkv[1], qkv[2]
-
         qkv = self.qkv(x).reshape((-1, N, 3, self.num_heads, C //
-                                   self.num_heads)).transpose((0, 3, 2, 1, 4))
-        q, k, v = qkv[:,:,0,:,:], qkv[:,:,1,:,:], qkv[:,:,2,:,:]
+                                   self.num_heads)).transpose((2, 0, 3, 1, 4))
+        q, k, v = qkv[0], qkv[1], qkv[2]
 
         attn = (q.matmul(k.transpose((0, 1, 3, 2)))) * self.scale
         attn = nn.functional.softmax(attn, axis=-1)
