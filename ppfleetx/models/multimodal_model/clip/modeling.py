@@ -366,6 +366,102 @@ def convert_weights(model):
     model.apply(_convert_weights_to_fp16)
 
 
+def clip_RN50(**kwargs):
+    model = CLIP(embed_dim=1024,
+                 image_resolution=224,
+                 vision_layers=(3, 4, 6, 3),
+                 vision_width=64,
+                 vision_patch_size=None,
+                 context_length=77,
+                 vocab_size=49408,
+                 transformer_width=512,
+                 transformer_heads=8,
+                 transformer_layers=12,
+                 qkv_bias=True,
+                 pre_norm=True,
+                 proj=True,
+                 patch_bias=False,
+                 **kwargs)
+    return model
+
+
+def clip_RN50x4(**kwargs):
+    model = CLIP(embed_dim=1024,
+                 image_resolution=224,
+                 vision_layers=(3, 4, 6, 3),
+                 vision_width=64,
+                 vision_patch_size=None,
+                 context_length=77,
+                 vocab_size=49408,
+                 transformer_width=512,
+                 transformer_heads=8,
+                 transformer_layers=12,
+                 qkv_bias=True,
+                 pre_norm=True,
+                 proj=True,
+                 patch_bias=False,
+                 **kwargs)
+    return model
+
+
+def clip_RN50x16(**kwargs):
+    model = CLIP(embed_dim=768,
+                 image_resolution=384,
+                 vision_layers=(6, 8, 18, 8),
+                 vision_width=96,
+                 vision_patch_size=None,
+                 context_length=77,
+                 vocab_size=49408,
+                 transformer_width=768,
+                 transformer_heads=12,
+                 transformer_layers=12,
+                 qkv_bias=True,
+                 pre_norm=True,
+                 proj=True,
+                 patch_bias=False,
+                 **kwargs)
+    return model
+
+
+
+def clip_RN50x64(**kwargs):
+    model = CLIP(embed_dim=1024,
+                 image_resolution=448,
+                 vision_layers=(3, 15, 36, 10),
+                 vision_width=128,
+                 vision_patch_size=None,
+                 context_length=77,
+                 vocab_size=49408,
+                 transformer_width=1024,
+                 transformer_heads=16,
+                 transformer_layers=12,
+                 qkv_bias=True,
+                 pre_norm=True,
+                 proj=True,
+                 patch_bias=False,
+                 **kwargs)
+    return model
+
+
+def clip_RN101(**kwargs):
+    model = CLIP(embed_dim=512,
+                 image_resolution=224,
+                 vision_layers=(3, 4, 23, 3),
+                 vision_width=64,
+                 vision_patch_size=None,
+                 context_length=77,
+                 vocab_size=49408,
+                 transformer_width=512,
+                 transformer_heads=8,
+                 transformer_layers=12,
+                 qkv_bias=True,
+                 pre_norm=True,
+                 proj=True,
+                 patch_bias=False,
+                 **kwargs)
+    return model
+
+
 def clip_vit_base_32(**kwargs):
     model = CLIP(embed_dim=512,
                  image_resolution=224,
@@ -422,6 +518,24 @@ def clip_vit_large_14(**kwargs):
                  **kwargs)
     return model
 
+
+def clip_vit_large_14_336(**kwargs):
+    model = CLIP(embed_dim=768,
+                 image_resolution=336,
+                 vision_layers=24,
+                 vision_width=1024,
+                 vision_patch_size=14,
+                 context_length=77,
+                 vocab_size=49408,
+                 transformer_width=768,
+                 transformer_heads=12,
+                 transformer_layers=12,
+                 qkv_bias=True,
+                 pre_norm=True,
+                 proj=True,
+                 patch_bias=False,
+                 **kwargs)
+    return model
 
 
 def build_model(state_dict: dict):
