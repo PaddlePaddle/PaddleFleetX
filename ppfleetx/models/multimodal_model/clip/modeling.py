@@ -428,14 +428,14 @@ def build_model(state_dict: dict):
     vit = "visual.proj" in state_dict
 
     if vit:
-        vision_width = state_dict["visual.conv1.weight"].shape[0]
+        vision_width = state_dict["visual.patch_embed.proj.weight"].shape[0]
         vision_layers = len([
             k for k in state_dict.keys()
-            if k.startswith("visual.") and k.endswith(".attn.in_proj_weight")
+            if k.startswith("visual.") and k.endswith(".attn.qkv.weight")
         ])
-        vision_patch_size = state_dict["visual.conv1.weight"].shape[-1]
+        vision_patch_size = state_dict["visual.patch_embed.proj.weight"].shape[-1]
         grid_size = round(
-            (state_dict["visual.positional_embedding"].shape[0] - 1)**0.5)
+            (state_dict["visual.positional_embedding"].shape[1] - 1)**0.5)
         image_resolution = vision_patch_size * grid_size
     else:
         counts: list = [
@@ -462,7 +462,7 @@ def build_model(state_dict: dict):
     transformer_layers = len(
         set(
             k.split(".")[2] for k in state_dict
-            if k.startswith(f"transformer.resblocks")))
+            if k.startswith(f"transformer.blocks")))
 
     model = CLIP(embed_dim=embed_dim,
                  image_resolution=image_resolution,
@@ -472,7 +472,7 @@ def build_model(state_dict: dict):
                  context_length=context_length,
                  vocab_size=vocab_size,
                  transformer_width=transformer_width,
-                 transformer_heads=transformer_heads, 
+                 transformer_heads=transformer_heads,
                  transformer_layers=transformer_layers)
 
     for key in ["input_resolution", "context_length", "vocab_size"]:
