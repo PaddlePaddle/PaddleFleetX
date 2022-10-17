@@ -249,7 +249,8 @@ class EagerEngine(BasicEngine):
             level=level,
             scaler=self._scaler,
             group=self._sharding_group,
-            offload=self._sharding_offload)
+            offload=self._sharding_offload,
+            dp_group=self._dp_group)
         if self._reduce_overlap:
             self._module.model._set_reduce_overlap(self._reduce_overlap)
         if self._broadcast_overlap:
