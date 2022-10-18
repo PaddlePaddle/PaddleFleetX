@@ -254,7 +254,8 @@ class EagerEngine(BasicEngine):
             self._module.model._set_reduce_overlap(self._reduce_overlap)
         if self._broadcast_overlap:
             self._optimizer._set_broadcast_overlap(self._broadcast_overlap,
-                                                   origin_model)
+                                                   layers=origin_model,
+                                                   num_groups=2)
 
     def _wrap_3D_parallel(self):
         self._module.model = fleet.distributed_model(self._module.model)
