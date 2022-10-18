@@ -28,7 +28,7 @@ Model:
   model:
     name: "ViT_base_patch16_384"
     class_num: 1000
-    drop_rate: 0.1
+    drop_rate: 0.
     pretrained:
       prefix_path: ./pretrained/vit/imagenet2012-ViT-B_16-224
       finetune: True
