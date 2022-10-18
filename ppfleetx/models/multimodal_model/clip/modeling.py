@@ -316,7 +316,8 @@ class CLIP(nn.Layer):
         return x
 
     def clip_logit_scale(self):
-        self.logit_scale.clip(-4.6, 4.6)
+        logit_scale_buffer = self.logit_scale.clip(-4.6, 4.6)
+        logit_scale_buffer._share_buffer_to(self.logit_scale)
 
     def forward(self, image, text, is_train=True):
         image_features = self.encode_image(image)
