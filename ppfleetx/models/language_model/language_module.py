@@ -107,9 +107,27 @@ class LanguageModule(BasicModule):
                log_dict['test_cost'], speed))
 
     def qat_model(self, model):
-        quanter = paddleslim.dygraph.quant.QAT(
+        if self.configs.Quantization.pretrained is not None:
+            pretrained_path = self.configs.Quantization.pretrained + ".pdparams"
+            assert os.path.exists(
+                pretrained_path), f'{pretrained_path} is not exists!'
+            model_dict = paddle.load(pretrained_path)
+            for name, param in model.state_dict().items():
+                assert name in model_dict.keys(
+                ), "No param named `{}` was found in checkpoint file.".format(
+                    name)
+                if param.dtype != model_dict[name].dtype:
+                    model_dict[name] = model_dict[name].cast(param.dtype)
+            model.set_state_dict(model_dict)
+            logger.info(
+                f'Load pretrained weight from {pretrained_path} for quantization.'
+            )
+
+        self.quanter = paddleslim.dygraph.quant.QAT(
             config=self.configs.Quantization)
-        return quanter.quantize(model)
+        model = self.quanter.quantize(model)
+
+        return model
 
     def get_model_size(self, l, h, v, s):
         P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
@@ -356,6 +374,10 @@ class GPTFinetuneModule(BasicModule):
         model.set_state_dict(model_dict)
         logger.info(f'Load pretrained weight from {pretrained_path}')
 
+        if 'Quantization' in self.configs.keys(
+        ) and self.configs.Quantization.enable:
+            model = self.qat_model(model)
+
         return model
 
     def forward(self, tokens):
@@ -487,6 +509,10 @@ class GPTGenerationModule(BasicModule):
         self.generation_cfgs['eos_token_id'] = self.tokenizer.eos_token_id
         self.generation_cfgs['pad_token_id'] = self.tokenizer.eos_token_id
 
+        if 'Quantization' in self.configs.keys(
+        ) and self.configs.Quantization.enable:
+            model = self.qat_model(model)
+
         return model
 
     def adjust_length_to_model(self, length, max_sequence_length):
@@ -592,6 +618,10 @@ class GPTEvalModule(LanguageModule):
         else:
             raise RuntimeError(
                 "Only single-card offline eval is supported in GPTModel now.")
+
+        if 'Quantization' in self.configs.keys(
+        ) and self.configs.Quantization.enable:
+            model = self.qat_model(model)
 
         return model
 

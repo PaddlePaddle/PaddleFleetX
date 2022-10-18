@@ -158,6 +158,7 @@ class EagerEngine(BasicEngine):
         self._broadcast_overlap = getattr(self._dist_configs['sharding'],
                                           'broadcast_overlap', False)
         self._use_recompute = configs['Model']['use_recompute']
+        self._quant_mode = True if 'Quantization' in configs else False
 
         if self._use_pure_fp16:
             if mode == 'train':
@@ -253,9 +254,8 @@ class EagerEngine(BasicEngine):
         if self._reduce_overlap:
             self._module.model._set_reduce_overlap(self._reduce_overlap)
         if self._broadcast_overlap:
-            self._optimizer._set_broadcast_overlap(self._broadcast_overlap,
-                                                   layers=origin_model,
-                                                   num_groups=2)
+            self._optimizer._set_broadcast_overlap(
+                self._broadcast_overlap, layers=origin_model, num_groups=2)
 
     def _wrap_3D_parallel(self):
         self._module.model = fleet.distributed_model(self._module.model)
@@ -713,8 +713,18 @@ class EagerEngine(BasicEngine):
 
         save_dir = os.path.join(self._output_dir,
                                 "rank_{}".format(self._dp_rank))
-        export_inference_model(self._module.model, input_spec, save_dir,
-                               'model')
+        if not self._quant_mode:
+            export_inference_model(self._module.model, input_spec, save_dir,
+                                   'model')
+        else:
+            logger.info("export quantized model.")
+            export_inference_model(
+                self._module.model,
+                input_spec,
+                save_dir,
+                'model',
+                export_quant_model=True,
+                quanter=self._module.quanter)
 
     def inference(self, data):
         if self._inference_engine is None:

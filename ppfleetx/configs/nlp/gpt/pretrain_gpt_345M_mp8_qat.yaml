@@ -5,15 +5,33 @@ Global:
   local_batch_size: 8
   micro_batch_size: 1
 
-
+Engine:
+  max_steps: 10000
+  num_train_epochs: 1
+  accumulate_steps:
+  logging_freq: 1
+  eval_freq: 500
+  eval_iters: 10
+  test_iters:
+  mix_precision:
+    use_pure_fp16: True
+    scale_loss: 32768.0
+    custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
+    custom_white_list: ["lookup_table", "lookup_table_v2"]
+  save_load:
+    save_steps: 1000
+    save_epoch: 1
+    output_dir: ./output
+    ckpt_dir:
+    
 Model:
   vocab_size: 50304
   hidden_size: 1024
   num_layers: 24
   num_attention_heads: 16
   ffn_hidden_size:
-  hidden_dropout_prob: 0.1
-  attention_probs_dropout_prob: 0.1
+  hidden_dropout_prob: 0.
+  attention_probs_dropout_prob: 0.
   max_position_embeddings: 1024
   type_vocab_size: 16
   initializer_range: 0.02
@@ -32,15 +50,33 @@ Distributed:
     sharding_offload: False
     reduce_overlap: False
     broadcast_overlap: False
+    
+Optimizer:
+  name: FusedAdamW
+  weight_decay: 0.01
+  beta1: 0.9
+  beta2: 0.999
+  epsilon: 1.0e-8
+  lr:
+    name: CosineAnnealingWithWarmupDecay
+    decay_steps: 7200
+    warmup_rate: 0.01
+    max_lr: 5.0e-6
+    min_lr: 1.0e-6
+  grad_clip:
+    name: "ClipGradByGlobalNorm"
+    clip_norm: 1.0
+  tensor_fusion: False
 
 
 Quantization:
   enable: True
+  pretrained: './ckpt/PaddleFleetX_GPT_345M_220826/model'
   weight_quantize_type: 'abs_max'
   activation_quantize_type: 'moving_average_abs_max'
+  activation_preprocess_type: 'PACT'
   weight_bits: 8
   activation_bits: 8
   quantizable_layer_type: ['Conv2D', 'Linear', 'Conv2DTranspose', 'ColumnParallelLinear', 'RowParallelLinear']
-  for_tensorrt: False
   is_full_quantize: False
-  onnx_format: False
+  onnx_format: True
