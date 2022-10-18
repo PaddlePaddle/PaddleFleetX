@@ -16,6 +16,7 @@ import os
 import time
 import sys
 import logging
+import numpy as np
 
 import paddle
 import paddle.nn as nn
@@ -59,6 +60,9 @@ class AutoEngine(BasicEngine):
                 raise TypeError(
                     "'loss_fn' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.loss_fn.__class__.__name__}."
                 )
+        else:
+            module.loss_fn = None
+            module.model.eval()
 
         # engine configs
         self._configs = configs['Engine']
@@ -116,6 +120,10 @@ class AutoEngine(BasicEngine):
             batch_size=self.batch_size,
             steps=self._max_steps,
             collate_fn=test_dataset.collate_fn)
+
+    def export(self):
+        self._auto_engine.prepare(self._module.input_spec(), mode="predict")
+        self.save(training=False)
 
     def save(self, training=True):
         if self._output_dir and isinstance(self._output_dir, str):

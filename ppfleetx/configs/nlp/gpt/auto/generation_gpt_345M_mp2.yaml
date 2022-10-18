@@ -1,12 +1,23 @@
 _base_: ./pretrain_gpt_base.yaml
 
-Global:
-  global_batch_size: 
-  local_batch_size: 8
-  micro_batch_size: 8
+
+Engine:
+  mix_precision:
+    level:
+
+
+Generation:
+  top_k: 50
+  top_p: 0.75
+  temperature: 1.0
+  min_dec_len: 1
+  max_dec_len: 200
+  num_return_sequences: 1
+  decode_strategy: "sampling"
 
 
 Model:
+  module: GPTGenerationModuleAuto
   vocab_size: 50304
   hidden_size: 1024
   num_layers: 24
@@ -18,17 +29,13 @@ Model:
   type_vocab_size: 16
   initializer_range: 0.02
   use_recompute: False
-  recompute_granularity:
-  no_recompute_layers:
-  
+  fuse_attn_qkv: True
+
 
 Distributed:
   dp_degree: 1
-  mp_degree: 1
+  mp_degree: 2
   pp_degree: 1
   sharding:
     sharding_degree: 1
     sharding_stage: 1
-    sharding_offload: False
-    reduce_overlap: False
-    broadcast_overlap: False
