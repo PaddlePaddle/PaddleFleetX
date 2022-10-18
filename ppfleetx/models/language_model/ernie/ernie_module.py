@@ -21,7 +21,9 @@ from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.language_model.gpt as gpt
 from ppfleetx.utils.log import logger
 
-from .single_model import ErnieModel, ErnieForPretraining, ErniePretrainingCriterion
+from .dygraph.single_model import ErnieModel, ErnieForPretraining, ErniePretrainingCriterion
+from .dygraph.hybrid_model import ErnieModelHybrid, ErnieForPretrainingHybrid, ErniePretrainingCriterionHybrid, ErnieForPretrainingPipe
+
 from ppfleetx.models.language_model.utils import process_configs
 
 import numpy as np
@@ -66,7 +68,13 @@ class ErnieModule(BasicModule):
     def __init__(self, configs):
         self.nranks = paddle.distributed.get_world_size()
         super(ErnieModule, self).__init__(configs)
-        self.criterion = ErniePretrainingCriterion(True)
+        self.nranks = paddle.distributed.get_world_size()
+        self.binary_head = self.configs['Global']['binary_head']
+
+        if self.nranks > 1:
+            self.criterion = ErniePretrainingCriterionHybrid(self.binary_head)
+        else:
+            self.criterion = ErniePretrainingCriterion(self.binary_head)
 
     def process_configs(self, configs):
         process_data_configs(configs)
@@ -78,22 +86,47 @@ class ErnieModule(BasicModule):
         model_setting.pop("module")
         model_setting.pop("name")
 
-        model = ErnieForPretraining(ErnieModel(**model_setting))
+        if self.nranks > 1:
+            model_setting[
+                'num_partitions'] = self.configs.Distributed.mp_degree
+            # model = ErnieForPretrainingHybrid(ErnieModelHybrid(**model_setting))
+
+            if self.configs.Distributed.pp_degree == 1:
+                model = ErnieForPretrainingHybrid(
+                    ErnieModelHybrid(**model_setting))
+            else:
+                model = ErnieForPretrainingPipe(**model_setting)
+        else:
+            model = ErnieForPretraining(ErnieModel(**model_setting))
+
         return model
 
     def forward(self, tokens):
         return self.model(tokens)
+
+    def pretreating_batch(self, batch):
+
+        if self.configs.Distributed.pp_degree > 1:
+            input_ids, segment_ids, input_mask, masked_lm_positions, \
+                        masked_lm_labels, next_sentence_labels = batch
+            masked_lm_positions = masked_lm_positions.reshape_([1, -1])
+            masked_lm_labels = masked_lm_labels.reshape_([1, -1])
+            data = [(input_ids, segment_ids, input_mask, masked_lm_positions),
+                    (masked_lm_labels, next_sentence_labels)]
+            return data
+        else:
+            return batch
 
     def training_step(self, batch):
         input_ids, segment_ids, input_mask, masked_lm_positions, \
             masked_lm_labels, next_sentence_labels = batch
 
         # Create the model for the ernie pretrain
-        if self.configs['Global']['binary_head']:
+        if self.binary_head:
             prediction_scores, seq_relationship_score = self.model(
                 input_ids=input_ids,
                 token_type_ids=segment_ids,
-                position_ids=None,
+                # position_ids=None,
                 attention_mask=input_mask,
                 masked_positions=masked_lm_positions)
             lm_loss, sop_loss = self.criterion(
@@ -104,7 +137,7 @@ class ErnieModule(BasicModule):
             prediction_scores = self.model(
                 input_ids=input_ids,
                 token_type_ids=segment_ids,
-                position_ids=None,
+                # position_ids=None,
                 attention_mask=input_mask,
                 masked_positions=masked_lm_positions)
 
