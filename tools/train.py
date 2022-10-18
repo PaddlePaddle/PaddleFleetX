@@ -32,8 +32,6 @@ from ppfleetx.data import build_dataloader
 from ppfleetx.models import build_module
 from ppfleetx.core import EagerEngine
 
-#init_logger()
-
 if __name__ == "__main__":
     args = config.parse_args()
     cfg = config.get_config(args.config, overrides=args.override, show=False)

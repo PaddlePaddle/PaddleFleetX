@@ -1,4 +1,4 @@
-# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,8 +13,16 @@
 # limitations under the License.
 
 import os
-import sys
-import time
-import numpy as np
+import subprocess
+path = os.path.abspath(os.path.dirname(__file__))
 
-import paddle
+
+def compile_helper():
+    """Compile helper function ar runtime. Make sure this
+    is invoked on a single process."""
+    import sys
+    excutable = sys.executable
+    ret = subprocess.run(['make', '-C', path, f'PYTHON_BIN={excutable}'])
+    if ret.returncode != 0:
+        print("Making C++ dataset helpers module failed, exiting.")
+        sys.exit(1)
