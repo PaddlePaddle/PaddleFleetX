@@ -19,45 +19,28 @@ from __future__ import print_function
 import os
 import sys
 import copy
-
-from paddle.distributed import fleet
-import paddle.distributed as dist
+import random
+import paddle
+import numpy as np
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
 
-from ppfleetx.utils import config, env
-from ppfleetx.utils.log import logger
-from ppfleetx.data import build_dataloader
+from ppfleetx.utils import config
 from ppfleetx.models import build_module
-from ppfleetx.core import EagerEngine
+from ppfleetx.core import AutoEngine
 
 if __name__ == "__main__":
     args = config.parse_args()
-    cfg = config.get_config(args.config, overrides=args.override, show=False)
-
-    if dist.get_world_size() > 1:
-        fleet.init(is_collective=True, strategy=env.init_dist_env(cfg))
-
-    env.set_seed(cfg.Global.seed)
+    cfg = config.get_auto_config(
+        args.config, overrides=args.override, show=False)
 
     module = build_module(cfg)
     config.print_config(cfg)
 
-    train_data_loader = build_dataloader(cfg.Data, "Train")
-    eval_data_loader = build_dataloader(cfg.Data, "Eval")
-
-    cfg.Optimizer.lr.update({
-        'epochs': cfg.Engine.num_train_epochs,
-        'step_each_epoch': len(train_data_loader),
-        'total_steps': cfg.Engine.max_steps,
-    })
-
-    engine = EagerEngine(configs=cfg, module=module)
+    engine = AutoEngine(configs=cfg, module=module, mode="export")
 
     if cfg.Engine.save_load.ckpt_dir is not None:
         engine.load()
 
-    engine.fit(train_data_loader=train_data_loader,
-               valid_data_loader=eval_data_loader,
-               epoch=cfg.Engine.num_train_epochs)
+    engine.export()

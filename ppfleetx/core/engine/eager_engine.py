@@ -105,12 +105,12 @@ class EagerEngine(BasicEngine):
                 "'model' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.model.__class__.__name__}."
             )
 
-        if mode == 'train':
-            if module.loss_fn and not isinstance(
-                    module.loss_fn, nn.Layer) and not callable(module.loss_fn):
-                raise TypeError(
-                    "'loss_fn' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.loss_fn.__class__.__name__}."
-                )
+        # if mode == 'train':
+        #     if module.loss_fn and not isinstance(
+        #             module.loss_fn, nn.Layer) and not callable(module.loss_fn):
+        #         raise TypeError(
+        #             "'loss_fn' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.loss_fn.__class__.__name__}."
+        #         )
 
         # engine configs
         self._configs = configs['Engine']
@@ -148,15 +148,14 @@ class EagerEngine(BasicEngine):
         self._dp_degree = self._dist_configs['dp_degree']
         self._mp_degree = self._dist_configs['mp_degree']
         self._pp_degree = self._dist_configs['pp_degree']
-        self._sharding_stage = self._dist_configs['sharding']['sharding_stage']
-        self._sharding_degree = self._dist_configs['sharding'][
-            'sharding_degree']
-        self._sharding_offload = self._dist_configs['sharding'][
-            'sharding_offload']
-        self._reduce_overlap = getattr(self._dist_configs['sharding'],
-                                       'reduce_overlap', False)
-        self._broadcast_overlap = getattr(self._dist_configs['sharding'],
-                                          'broadcast_overlap', False)
+        sharding_config = self._dist_configs['sharding']
+        
+        self._sharding_stage = sharding_config['sharding_stage']
+        self._sharding_degree = sharding_config['sharding_degree']
+        self._sharding_offload = sharding_config['sharding_offload']
+        self._reduce_overlap = sharding_config['reduce_overlap']
+        self._broadcast_overlap = sharding_config['broadcast_overlap']
+
         self._use_recompute = configs['Model']['use_recompute']
 
         if self._use_pure_fp16:
@@ -258,7 +257,8 @@ class EagerEngine(BasicEngine):
             self._module.model._set_reduce_overlap(self._reduce_overlap)
         if self._broadcast_overlap:
             self._optimizer._set_broadcast_overlap(self._broadcast_overlap,
-                                                   origin_model)
+                                                   layers=origin_model,
+                                                   num_groups=2)
 
     def _wrap_3D_parallel(self):
         self._module.model = fleet.distributed_model(self._module.model)
@@ -289,7 +289,7 @@ class EagerEngine(BasicEngine):
             loss = self._fit_impl(batch)
             train_losses.append(loss)
 
-            if step % self._logging_freq == 0:
+            if (step + 1) % self._logging_freq == 0:
                 # Sync for profile time, delete it may be a little faster
                 paddle.device.cuda.synchronize()
                 train_costs = time.time() - train_start
@@ -310,7 +310,7 @@ class EagerEngine(BasicEngine):
                 train_losses = []
 
             if self._run_mode == 'step' and not skip_first:
-                if step % self._eval_freq == 0:
+                if self._eval_freq > 0 and step % self._eval_freq == 0:
                     paddle.device.cuda.synchronize()
                     self._module.model.eval()
 
@@ -390,7 +390,8 @@ class EagerEngine(BasicEngine):
                 self._lr_scheduler.step()
 
             eval_start = time.time()
-            if self._run_mode == 'epoch' and epoch_index % self._eval_freq == 0:
+            if self._run_mode == 'epoch' and self._eval_freq > 0 and \
+                epoch_index % self._eval_freq == 0:
                 self._evaluate_one_epoch(epoch_index, valid_data_loader)
                 self._module.model.train()
                 eval_cost = time.time() - eval_start
@@ -437,16 +438,35 @@ class EagerEngine(BasicEngine):
         return loss
 
     def _model_forward_backward(self, batch):
-        with paddle.amp.auto_cast(
-                self._use_pure_fp16,
-                custom_black_list=self._custom_black_list,
-                custom_white_list=self._custom_white_list,
-                level='O2'):
-            loss = self._module.training_step(batch)
+        if self._accumulate_steps == 1 or self._pp_degree > 1:
+            batches = [batch]
+        else:
+            split_batches = [
+                paddle.split(b, self._accumulate_steps) for b in batch
+            ]
+            batches = []
+            for i in range(len(split_batches[0])):
+                micro_batch = [split_batch[i] for split_batch in split_batches]
+                batches.append(micro_batch)
+        final_loss = None
+        for micro_batch in batches:
+            with paddle.amp.auto_cast(
+                    self._use_pure_fp16,
+                    custom_black_list=self._custom_black_list,
+                    custom_white_list=self._custom_white_list,
+                    level='O2'):
+                loss = self._module.training_step(micro_batch)
 
-        loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
-        self._module.backward(loss_bw)
-        return loss
+            loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
+            self._module.backward(loss_bw)
+            detach_loss = loss.detach()
+            if final_loss is None:
+                final_loss = detach_loss
+            else:
+                final_loss = paddle.add(final_loss, detach_loss)
+        if self._accumulate_steps > 1:
+            final_loss = final_loss / self._accumulate_steps
+        return final_loss
 
     def _optim_update_params(self):
         if self._sharding_stage in [2, 3] and self._dp_degree > 1:

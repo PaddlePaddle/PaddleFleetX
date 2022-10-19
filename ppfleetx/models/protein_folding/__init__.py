@@ -11,14 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from .vision_dataset import (
-    GeneralClsDataset,
-    ImageFolder,
-    CIFAR10,
-    ContrativeLearningDataset, )
-
-from .multimodal_dataset import ImagenDataset
-from .gpt_dataset import GPTDataset, LM_Eval_Dataset, Lambada_Eval_Dataset
-from .glue_dataset import *
-from .ernie.ernie_dataset import ErnieDataset

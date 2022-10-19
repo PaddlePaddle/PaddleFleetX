@@ -1,24 +1,22 @@
+#! /bin/bash
+
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
-#
+# 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-#
+# 
 #     http://www.apache.org/licenses/LICENSE-2.0
-#
+# 
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .vision_dataset import (
-    GeneralClsDataset,
-    ImageFolder,
-    CIFAR10,
-    ContrativeLearningDataset, )
+log_dir=log_mp2
+rm -rf $log_dir
 
-from .multimodal_dataset import ImagenDataset
-from .gpt_dataset import GPTDataset, LM_Eval_Dataset, Lambada_Eval_Dataset
-from .glue_dataset import *
-from .ernie.ernie_dataset import ErnieDataset
+python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1" \
+    ./tools/auto_export.py \
+    -c ./ppfleetx/configs/nlp/gpt/auto/generation_gpt_345M_mp2.yaml \
