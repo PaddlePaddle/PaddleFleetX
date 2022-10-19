@@ -23,7 +23,10 @@ import random
 import cv2
 import numpy as np
 from PIL import Image
+
+from paddle.vision.transforms import functional as F
 from paddle.vision.transforms import ColorJitter as PPColorJitter
+from paddle.vision.transforms import Grayscale
 
 from ppfleetx.utils.log import logger
 
@@ -375,4 +378,43 @@ class RandomErasing(object):
                 else:
                     img[x1:x1 + h, y1:y1 + w, 0] = pixels[0]
                 return img
+        return img
+
+
+class RandomGrayscale(object):
+    """Randomly convert image to grayscale with a probability of p (default 0.1).
+    Args:
+        p (float): probability that image should be converted to grayscale.
+    Returns:
+        PIL Image: Grayscale version of the input image with probability p and unchanged
+        with probability (1-p).
+        - If input image is 1 channel: grayscale version is 1 channel
+        - If input image is 3 channel: grayscale version is 3 channel with r == g == b
+    """
+
+    def __init__(self, p=0.1):
+        self.p = p
+
+    def __call__(self, img):
+        """
+        Args:
+            img (PIL Image): Image to be converted to grayscale.
+        Returns:
+            PIL Image: Randomly grayscaled image.
+        """
+
+        flag = False
+        if not isinstance(img, Image.Image):
+            img = np.ascontiguousarray(img)
+            img = Image.fromarray(img)
+            flag = True
+
+        num_output_channels = 1 if img.mode == 'L' else 3
+
+        if random.random() < self.p:
+            img = F.to_grayscale(img, num_output_channels=num_output_channels)
+
+        if flag:
+            img = np.asarray(img)
+
         return img

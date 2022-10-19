@@ -16,12 +16,14 @@ import math
 import numpy
 import warnings
 from paddle import Tensor
+from paddle.optimizer import lr
 from paddle.optimizer.lr import LRScheduler
 
 __all__ = [
     'CosineAnnealingWithWarmupDecay',
     'LinearDecayWithWarmup',
     'ViTLRScheduler',
+    'MultiStepDecay',
 ]
 
 
@@ -121,3 +123,21 @@ class ViTLRScheduler(LRScheduler):
             lr = lr * min(1.0, self.last_epoch / self.warmup_steps)
 
         return lr
+
+
+class MultiStepDecay(lr.MultiStepDecay):
+    def __init__(self,
+                 learning_rate,
+                 step_each_epoch,
+                 epochs,
+                 milestones,
+                 gamma=0.1,
+                 last_epoch=-1,
+                 verbose=False,
+                 **kwargs):
+        super(MultiStepDecay, self).__init__(
+            learning_rate=learning_rate,
+            milestones=milestones,
+            gamma=gamma,
+            last_epoch=last_epoch,
+            verbose=verbose)
