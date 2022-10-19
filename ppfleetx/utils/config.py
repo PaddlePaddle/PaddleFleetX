@@ -27,7 +27,7 @@ import paddle.distributed.auto_parallel as auto
 __all__ = ['get_config', 'print_config']
 
 
-def process_dist_config(config):
+def process_dist_config(configs):
     """
     process distributed strategy for hybrid parallel
     """
@@ -35,18 +35,25 @@ def process_dist_config(config):
 
     nranks = dist.get_world_size()
 
+    config = configs['Distributed']
 
-    config['mp_degree'] = 1 \
-        if config.get('mp_degree', None) is None \
-        else config['mp_degree']
+    config['mp_degree'] = config.get('mp_degree', 1)
+    config['pp_degree'] = config.get('pp_degree', 1)
 
-    config['pp_degree'] = 1 \
-        if config.get('pp_degree', None) is None \
-        else config['pp_degree']
-
-    config['sharding']['sharding_degree'] = 1 \
-        if config['sharding'].get('sharding_degree', None) is None \
-        else config['sharding']['sharding_degree']
+    config['sharding'] = config.get('sharding', {
+        'sharding_degree': 1,
+        "sharding_stage": 2,
+    })
+    config['sharding']['sharding_degree'] = config['sharding'].get(
+        'sharding_degree', 1)
+    config['sharding']['sharding_stage'] = config['sharding'].get(
+        'sharding_stage', 2)
+    config['sharding']['sharding_offload'] = config['sharding'].get(
+        'sharding_offload', False)
+    config['sharding']['reduce_overlap'] = config['sharding'].get(
+        'reduce_overlap', False)
+    config['sharding']['broadcast_overlap'] = config['sharding'].get(
+        'broadcast_overlap', False)
 
     other_degree = config['mp_degree'] * config['pp_degree'] * config[
         'sharding']['sharding_degree']
@@ -63,6 +70,38 @@ def process_dist_config(config):
                 config['pp_degree'], config['sharding']['sharding_degree'], nranks // other_degree))
     assert nranks % config[
         'dp_degree'] == 0, "unreasonable config of dist_strategy."
+
+    reduce_overlap = config['sharding']['reduce_overlap']
+    broadcast_overlap = config['sharding']['broadcast_overlap']
+
+    if config['sharding']['sharding_degree'] > 1 and reduce_overlap:
+        if config['sharding']['sharding_stage'] == 3 or config['sharding'][
+                'sharding_offload']:
+            config['sharding']['reduce_overlap'] = False
+            logger.warning(
+                "reduce overlap only valid for sharding stage 2 without offload"
+            )
+
+    if config['sharding']['sharding_degree'] > 1 and broadcast_overlap:
+        if config['sharding']['sharding_stage'] == 3 or config['sharding'][
+                'sharding_offload']:
+            config['sharding']['broadcast_overlap'] = False
+            logger.warning(
+                "broadcast overlap only valid for sharding stage 2 without offload"
+            )
+
+    if configs['Engine'].get('logging_freq', 1) == 1 and broadcast_overlap:
+        logger.warning(
+            "Set logging_freq to 1 will disable broadcast_overlap. "
+            "If you want to overlap the broadcast, please increase the logging_freq."
+        )
+        config['sharding']['broadcast_overlap'] = False
+
+    if config['sharding']['sharding_degree'] > 1 and broadcast_overlap:
+        logger.warning(
+            "Enable broadcast overlap for sharding will not use pin memory for dataloader"
+        )
+        use_pinned_memory(False)
 
 
 def process_global_configs(config):
@@ -99,22 +138,41 @@ def process_engine_config(config):
     """
     process engine
     """
-    if config.Engine.get('save_load', None):
-        save_load_cfg = config.Engine.save_load
-        save_steps = save_load_cfg.get('save_steps', None)
-        save_epoch = save_load_cfg.get('save_epoch', None)
-        if save_steps is None or save_steps == -1:
-            save_load_cfg[
-                'save_steps'] = sys.maxsize if sys.version > '3' else sys.maxint
+    # save_load
+    config.Engine['save_load'] = config.Engine.get('save_load', {})
+    save_load_cfg = config.Engine.save_load
+    save_steps = save_load_cfg.get('save_steps', None)
+    save_epoch = save_load_cfg.get('save_epoch', None)
+    if save_steps is None or save_steps == -1:
+        save_load_cfg[
+            'save_steps'] = sys.maxsize if sys.version > '3' else sys.maxint
 
-        if save_epoch is None or save_epoch == -1:
-            save_load_cfg['save_epoch'] = 1
+    if save_epoch is None or save_epoch == -1:
+        save_load_cfg['save_epoch'] = 1
 
-        config.Engine.test_iters = config.Engine.eval_iters * 10 \
-            if config.Engine.get('test_iters', None) is None \
-            else config.Engine.test_iters
+    save_load_cfg['output_dir'] = save_load_cfg.get('output_dir', './output')
+    save_load_cfg['ckpt_dir'] = save_load_cfg.get('ckpt_dir', None)
 
-        config.Engine.accumulate_steps = config.Global.local_batch_size // config.Global.micro_batch_size
+    # mix_precision
+    config.Engine['mix_precision'] = config.Engine.get('mix_precision', {})
+    amp_cfg = config.Engine.mix_precision
+
+    amp_cfg['use_pure_fp16'] = amp_cfg.get('use_pure_fp16', False)
+    amp_cfg['scale_loss'] = amp_cfg.get('scale_loss', 32768)
+    amp_cfg['custom_black_list'] = amp_cfg.get('custom_black_list', None)
+    amp_cfg['custom_white_list'] = amp_cfg.get('custom_white_list', None)
+
+    # engine
+    config.Engine['max_steps'] = config.Engine.get('max_steps', 500000)
+    config.Engine['eval_freq'] = config.Engine.get('eval_freq', -1)
+    config.Engine['eval_iters'] = config.Engine.get('eval_iters', 0)
+    config.Engine['logging_freq'] = config.Engine.get('logging_freq', 1)
+    config.Engine['num_train_epochs'] = config.Engine.get('num_train_epochs',
+                                                          1)
+    config.Engine['test_iters'] = config.Engine['eval_iters'] * 10 \
+            if config.Engine.get('test_iters', None) is None else config.Engine['test_iters']
+    config.Engine[
+        'accumulate_steps'] = config.Global.local_batch_size // config.Global.micro_batch_size
 
 
 class AttrDict(dict):
@@ -319,9 +377,10 @@ def get_config(fname, overrides=None, show=False):
     config = parse_config(fname)
     override_config(config, overrides)
 
-    process_dist_config(config['Distributed'])
+    process_dist_config(config)
     process_global_configs(config)
     process_engine_config(config)
+    create_attr_dict(AttrDict(config))
 
     if show:
         print_config(config)

@@ -40,12 +40,7 @@ def build_auto_dataset(config, mode):
 
 
 def build_dataset(config, mode):
-    assert mode in ['Train', 'Eval', 'Test'
-                    ], "Dataset mode should be Train, Eval, Test"
-
     # build dataset
-    if mode == 'Eval' and mode not in config:
-        return None
     config_dataset = config[mode].dataset
     config_dataset = copy.deepcopy(config_dataset)
     dataset_name = config_dataset.pop('name')
@@ -57,6 +52,12 @@ def build_dataset(config, mode):
 
 
 def build_dataloader(config, mode):
+    assert mode in ['Train', 'Eval', 'Test'
+                    ], "Dataset mode should be Train, Eval, Test"
+
+    if mode not in config:
+        return None
+
     dataset = build_dataset(config, mode)
     if dataset is None:
         return None
