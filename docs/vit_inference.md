@@ -11,8 +11,7 @@
 
 ```bash
 mkdir -p ckpt
-wget -O ckpt/vit_224.tar.gz https://paddlefleetx.bj.bcebos.com/model/vis/vit/vit_224.tar.gz
-tar -xzf ckpt/vit_224.tar.gz -C ckpt/
+wget -O ckpt/model.pdparams https://paddlefleetx.bj.bcebos.com/model/vision/vit/imagenet2012-ViT-B_16-224.pdparams
 ```
 
 通过如下方式进行推理模型导出
@@ -20,7 +19,7 @@ tar -xzf ckpt/vit_224.tar.gz -C ckpt/
 ```bash
 python tools/export.py \
     -c ppfleetx/configs/vis/vit/ViT_base_patch16_224_pt_in1k_2n16c_dp_fp16o2.yaml \
-    -o Engine.save_load.ckpt_dir=./ckpt/vit_224/
+    -o Engine.save_load.ckpt_dir=./ckpt/
 ```
 
 导出的模型默认保存在`./output`目录，可通过配置文件中`Engine.save_load.output_dir`或通过`-o Engine.save_load.output_dir=`指定
