@@ -28,6 +28,7 @@ import argparse
 import paddle
 from paddle.distributed import fleet
 import paddle.distributed as dist
+import paddle.profiler as profiler
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../../')))
@@ -41,6 +42,11 @@ from ppfleetx.models import build_module
 from ppfleetx.core import EagerEngine
 
 PATH = "/work/t5_project/imagen/models/imagen_text2im_397m_full"
+
+def my_on_trace_ready(prof):
+    # callback = profiler.export_chrome_tracing('./profiler_demo')
+    # callback(prof)  # 执行该导出函数
+    prof.summary(sorted_by=profiler.SortedKeys.GPUTotal) 
 
 def get_args():
     parser = argparse.ArgumentParser('T5 inference script', add_help=False)
@@ -82,7 +88,7 @@ def save_images(images, output='', num_unets=1):
 
 def export_model(model):
     from paddle.inference import convert_to_mixed_precision
-    from paddle.inference import PrecisionType, BackendType
+    from paddle.inference import PrecisionType, PlaceType
     x_spec = InputSpec(shape=[None, None], dtype='int64', name='x')
     y_spec = InputSpec(shape=[None, None], dtype='int64', name='y')
     static_model = to_static(model.sample, [x_spec, y_spec])
@@ -95,17 +101,22 @@ def export_model(model):
         f.write(str(static_model.main_program))
 
     black_list = {
-        # "layer_norm",
-        # "softmax",
+        "layer_norm",
+        "softmax",
         # "cast",
         # "elementwise_mul"
         }
+    # black_list = set()
+    import pdb; pdb.set_trace()
     convert_to_mixed_precision(
                 f'{PATH}.pdmodel',
                 f'{PATH}.pdiparams',
                 f'{PATH}_half.pdmodel',
                 f'{PATH}_half.pdiparams',
-                PrecisionType.Half, BackendType.GPU, True, black_list=black_list)
+                PrecisionType.Half, 
+                PlaceType.GPU,
+                True, 
+                black_list=black_list)
     print("Done")
 
 def eval_model_performance(imagen_model):
@@ -157,6 +168,7 @@ def infer_predictor():
 
     prefix = ""
     if Half:
+        PATH = "/work/t5_project/imagen/models/half/imagen_text2im_397m"
         prefix = "_half"
         paddle.set_default_dtype("float16")
     config = Config(f"{PATH}{prefix}.pdmodel", f"{PATH}{prefix}.pdiparams")
@@ -222,11 +234,20 @@ def infer_predictor():
     input_ids_tensor.copy_from_cpu(input_ids)
     text_masks_tensor.copy_from_cpu(text_masks)
 
+    prof = profiler.Profiler(
+        timer_only=False, 
+        targets=[profiler.ProfilerTarget.CPU, profiler.ProfilerTarget.GPU], 
+        on_trace_ready=my_on_trace_ready,
+    )
+    # prof.start()
+
     start_time = time.perf_counter()
     for _ in tqdm.tqdm(range(10)):
         model.run()
         output = output_tensor.copy_to_cpu()
+        # prof.step()
     end_time = time.perf_counter()
+    # prof.stop()
 
     print("predictor: ", output[0].reshape(-1).tolist()[:20])
     print("predictor duration: ", (end_time - start_time) / 10 * 1000, " ms")
@@ -259,7 +280,7 @@ if __name__ == "__main__":
         export_model(engine._module.model)
 
     if global_args.eval:
-        eval_model(engine._module.model)
+        # eval_model(engine._module.model)
         eval_model_performance(engine._module.model)
     if global_args.infer:
         infer_predictor()
