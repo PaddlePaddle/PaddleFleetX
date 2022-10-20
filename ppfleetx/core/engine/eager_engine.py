@@ -105,12 +105,12 @@ class EagerEngine(BasicEngine):
                 "'model' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.model.__class__.__name__}."
             )
 
-        if mode == 'train':
-            if module.loss_fn and not isinstance(
-                    module.loss_fn, nn.Layer) and not callable(module.loss_fn):
-                raise TypeError(
-                    "'loss_fn' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.loss_fn.__class__.__name__}."
-                )
+        # if mode == 'train':
+        #     if module.loss_fn and not isinstance(
+        #             module.loss_fn, nn.Layer) and not callable(module.loss_fn):
+        #         raise TypeError(
+        #             "'loss_fn' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.loss_fn.__class__.__name__}."
+        #         )
 
         # engine configs
         self._configs = configs['Engine']
@@ -148,15 +148,14 @@ class EagerEngine(BasicEngine):
         self._dp_degree = self._dist_configs['dp_degree']
         self._mp_degree = self._dist_configs['mp_degree']
         self._pp_degree = self._dist_configs['pp_degree']
-        self._sharding_stage = self._dist_configs['sharding']['sharding_stage']
-        self._sharding_degree = self._dist_configs['sharding'][
-            'sharding_degree']
-        self._sharding_offload = self._dist_configs['sharding'][
-            'sharding_offload']
-        self._reduce_overlap = getattr(self._dist_configs['sharding'],
-                                       'reduce_overlap', False)
-        self._broadcast_overlap = getattr(self._dist_configs['sharding'],
-                                          'broadcast_overlap', False)
+        sharding_config = self._dist_configs['sharding']
+        
+        self._sharding_stage = sharding_config['sharding_stage']
+        self._sharding_degree = sharding_config['sharding_degree']
+        self._sharding_offload = sharding_config['sharding_offload']
+        self._reduce_overlap = sharding_config['reduce_overlap']
+        self._broadcast_overlap = sharding_config['broadcast_overlap']
+
         self._use_recompute = configs['Model']['use_recompute']
 
         if self._use_pure_fp16:
@@ -254,7 +253,8 @@ class EagerEngine(BasicEngine):
             self._module.model._set_reduce_overlap(self._reduce_overlap)
         if self._broadcast_overlap:
             self._optimizer._set_broadcast_overlap(self._broadcast_overlap,
-                                                   origin_model)
+                                                   layers=origin_model,
+                                                   num_groups=2)
 
     def _wrap_3D_parallel(self):
         self._module.model = fleet.distributed_model(self._module.model)
