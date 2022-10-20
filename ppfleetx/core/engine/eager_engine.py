@@ -235,7 +235,7 @@ class EagerEngine(BasicEngine):
             self._wrap_3D_parallel()
 
     def _wrap_sharding_2_3(self):
-        if self._dp_degree > 1 and level = "p_g_os":
+        if self._dp_degree > 1 and level == "p_g_os":
             sync_params_buffers(
                 self._module.model,
                 comm_group=self._dp_group,
