@@ -58,7 +58,7 @@ def build_optimizer(config, model, lr_scheduler=None):
     grad_clip_config = config.pop('grad_clip', None)
     grad_clip = build_grad_clip(grad_clip_config)
 
-    optim_name = config.pop('name', )
+    optim_name = config.pop('name')
     optim = eval(optim_name)(learning_rate=lr_scheduler,
                              parameters=model.parameters(),
                              grad_clip=grad_clip,
