@@ -18,6 +18,9 @@ from __future__ import print_function
 
 import os
 import sys
+import time
+import pycuda.driver as drv
+# import torch # why import torch will throw error?
 
 from paddle.distributed import fleet
 import paddle.distributed as dist
@@ -47,9 +50,25 @@ if __name__ == "__main__":
     engine = EagerEngine(configs=cfg, module=module, mode='inference')
 
     input_text = 'Hi, GPT2. Tell me who Jack Ma is.'
-    input_ids = [tokenizer.encode(input_text)]
+    # input_ids = [tokenizer.encode(input_text)]
+    input_ids = [[1000]*64]
+    # import pdb;pdb.set_trace()
 
-    outs = engine.inference([input_ids])
+    for i in range(5):
+        outs = engine.inference([input_ids])
+    
+    # start = drv.Event()
+    # end = drv.Event()
+    # start = torch.cuda.Event(enable_timing=True)
+    # end = torch.cuda.Event(enable_timing=True)
+    for i in range(100):
+        pre = time.perf_counter()
+        # start.record()
+        outs = engine.inference([input_ids])
+        # end.record()
+        ellapse = time.perf_counter() - pre
+        # ellapse = start.time_till(end)
+        print(ellapse, "s")
 
     ids = list(outs.values())[0]
     out_ids = [int(x) for x in ids[0]]

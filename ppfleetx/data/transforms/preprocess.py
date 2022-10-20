@@ -24,6 +24,7 @@ import cv2
 import numpy as np
 from PIL import Image
 from paddle.vision.transforms import ColorJitter as PPColorJitter
+from paddle.vision.transforms import Normalize, ToTensor, RandomResizedCrop 
 
 from ppfleetx.utils.log import logger
 
@@ -33,6 +34,24 @@ class OperatorParamError(ValueError):
     """
     pass
 
+
+class ToRGB(object):
+    """ convert image mode to RGB """
+    def __init__(self, mode='RGB', return_type='pil'):
+        self.mode = mode
+        self.return_type = return_type
+        assert return_type in ['pil', 'numpy']
+
+    def __call__(self, img):
+        if isinstance(img, Image.Image) and img.mode != self.mode:
+            img = img.convert(self.mode)
+        if isinstance(img, np.ndarray):
+            img = img[..., ::-1]
+        if self.return_type == 'numpy' and not isinstance(img, np.ndarray):
+            img = np.asarray(img)
+        if self.return_type == 'pil' and not isinstance(img, Image.Image):
+            img = Image.fromarray(img)
+        return img 
 
 class DecodeImage(object):
     """ decode image """

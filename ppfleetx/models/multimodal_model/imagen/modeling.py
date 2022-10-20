@@ -21,8 +21,9 @@ from paddle import nn
 import paddle.vision.transforms as T
 
 from .unet import Unet
-from .utils import (GaussianDiffusionContinuousTimes, default, exists,
-                    cast_tuple, first, maybe, eval_decorator, identity,
+from ppfleetx.models.language_model.t5 import get_t5_model, t5_encode_text, get_encoded_dim
+from .utils import (GaussianDiffusionContinuousTimes, default, cast_tuple,
+                    first, maybe, eval_decorator, identity,
                     pad_tuple_to_length, right_pad_dims_to, resize_image_to,
                     normalize_neg_one_to_one, rearrange, repeat, reduce,
                     unnormalize_zero_to_one, cast_uint8_images_to_float)
@@ -152,6 +153,8 @@ class ImagenModel(nn.Layer):
                  dynamic_thresholding=True,
                  dynamic_thresholding_percentile=0.95,
                  only_train_unet_number=None,
+                 return_all_unet_outputs=False,
+                 use_t5=False,
                  use_recompute=False,
                  fused_linear=False):
         super().__init__()
@@ -160,6 +163,7 @@ class ImagenModel(nn.Layer):
 
         self.condition_on_text = condition_on_text
         self.unconditional = not condition_on_text
+        self.return_all_unet_outputs = return_all_unet_outputs 
 
         # channels
 
@@ -195,9 +199,8 @@ class ImagenModel(nn.Layer):
         # randomly cropping for upsampler training
 
         self.random_crop_sizes = cast_tuple(random_crop_sizes, num_unets)
-        assert not exists(
-            first(self.random_crop_sizes)
-        ), 'you should not need to randomly crop image during training for base unet, only for upsamplers - so pass in `random_crop_sizes = (None, 128, 256)` as example'
+        assert first(
+            self.random_crop_sizes) is None, 'you should not need to randomly crop image during training for base unet, only for upsamplers - so pass in `random_crop_sizes = (None, 128, 256)` as example'
         # lowres augmentation noise schedule
 
         self.lowres_noise_schedule = GaussianDiffusionContinuousTimes(
@@ -212,6 +215,10 @@ class ImagenModel(nn.Layer):
         self.text_encoder_name = text_encoder_name
         self.text_embed_dim = default(text_embed_dim, lambda: 1024)
 
+        if use_t5:
+            self.t5_encoder = get_t5_model(name=text_encoder_name, pretrained=False)
+            self.t5_encode_text = t5_encode_text
+
         # construct unets
 
         self.unets = nn.LayerList([])
@@ -224,7 +231,6 @@ class ImagenModel(nn.Layer):
             is_first = ind == 0
 
             one_unet = one_unet.cast_model_parameters(
-                lowres_cond=not is_first,
                 cond_on_text=self.condition_on_text,
                 text_embed_dim=self.text_embed_dim
                 if self.condition_on_text else None,
@@ -236,16 +242,12 @@ class ImagenModel(nn.Layer):
         # unet image sizes
 
         self.image_sizes = cast_tuple(image_sizes)
-        assert num_unets == len(image_sizes)
 
         self.sample_channels = cast_tuple(self.channels, num_unets)
 
         # cascading ddpm related stuff
 
         lowres_conditions = tuple(map(lambda t: t.lowres_cond, self.unets))
-        assert lowres_conditions == (
-            False, *((True, ) * (num_unets - 1))
-        ), 'the first unet must be unconditioned (by low resolution image), and the rest of the unets must have `lowres_cond` set to True'
 
         self.lowres_sample_noise_level = lowres_sample_noise_level
         self.per_sample_random_aug_noise_level = per_sample_random_aug_noise_level
@@ -268,7 +270,6 @@ class ImagenModel(nn.Layer):
 
         # p2 loss weight
 
-        #self.p2_loss_weight_k = p2_loss_weight_k
         self.p2_loss_weight_gamma = cast_tuple(p2_loss_weight_gamma, num_unets)
 
         assert all([
@@ -284,22 +285,16 @@ class ImagenModel(nn.Layer):
         assert 0 < unet_number <= len(self.unets)
         index = unet_number - 1
 
-        if isinstance(self.unets, nn.LayerList):
-            unets_list = [unet for unet in self.unets]
-            delattr(self, 'unets')
-            self.unets = unets_list
         self.unet_being_trained_index = index
         return self.unets[index]
 
     def reset_unets(self, ):
-        self.unets = nn.LayerList([*self.unets])
         self.unet_being_trained_index = -1
 
     @contextmanager
     def one_unet_in_gpu(self, unet_number=None, unet=None):
-        assert exists(unet_number) ^ exists(unet)
 
-        if exists(unet_number):
+        if unet_number is not None:
             unet = self.unets[unet_number - 1]
 
         yield
@@ -320,7 +315,6 @@ class ImagenModel(nn.Layer):
                         unet,
                         x,
                         t,
-                        *,
                         noise_scheduler,
                         text_embeds=None,
                         text_mask=None,
@@ -333,10 +327,10 @@ class ImagenModel(nn.Layer):
                         t_next=None,
                         pred_objective='noise',
                         dynamic_threshold=True):
+        # import pdb; pdb.set_trace()
         assert not (
             cond_scale != 1. and not self.can_classifier_guidance
         ), 'imagen was not trained with conditional dropout, and thus one cannot use classifier free guidance (cond_scale anything other than 1)'
-
         pred = default(model_output, lambda: unet.forward_with_cond_scale(x, noise_scheduler.get_condition(t), text_embeds = text_embeds, text_mask = text_mask, cond_images = cond_images, cond_scale = cond_scale, lowres_cond_img = lowres_cond_img, lowres_noise_times = self.lowres_noise_schedule.get_condition(lowres_noise_times)))
 
         if pred_objective == 'noise':
@@ -354,10 +348,14 @@ class ImagenModel(nn.Layer):
                 rearrange(x_start, 'b ... -> b (...)').abs(),
                 self.dynamic_thresholding_percentile,
                 axis=-1)
+            
+            # TODO change clip
+            # s.clip_(min=1., max=65500.)
 
-            s.clip_(min=1.)
-            s = right_pad_dims_to(x_start, s)
-            x_start = x_start.clip(-s, s) / s
+            # s = right_pad_dims_to(x_start, s)
+            
+            # x_start = x_start.clip(-s, s) / s
+            x_start.clip_(-1., 1.)
         else:
             x_start.clip_(-1., 1.)
 
@@ -370,7 +368,6 @@ class ImagenModel(nn.Layer):
                  unet,
                  x,
                  t,
-                 *,
                  noise_scheduler,
                  t_next=None,
                  text_embeds=None,
@@ -383,6 +380,7 @@ class ImagenModel(nn.Layer):
                  pred_objective='noise',
                  dynamic_threshold=True):
         b = x.shape[0]
+        # import pdb; pdb.set_trace()
         (model_mean, _, model_log_variance), x_start = self.p_mean_variance(
             unet,
             x=x,
@@ -412,7 +410,6 @@ class ImagenModel(nn.Layer):
     def p_sample_loop(self,
                       unet,
                       shape,
-                      *,
                       noise_scheduler,
                       lowres_cond_img=None,
                       lowres_noise_times=None,
@@ -429,11 +426,15 @@ class ImagenModel(nn.Layer):
                       dynamic_threshold=True):
 
         batch = shape[0]
+
+        # TODO remove random
+        # img = 0.01*paddle.ones(shape)
+        paddle.seed(100)
         img = paddle.randn(shape)
 
         # prepare inpainting
 
-        has_inpainting = exists(inpaint_images) and exists(inpaint_masks)
+        has_inpainting = inpaint_images is not None and inpaint_masks is not None
         resample_times = inpaint_resample_times if has_inpainting else 1
 
         if has_inpainting:
@@ -451,9 +452,19 @@ class ImagenModel(nn.Layer):
         skip_steps = default(skip_steps, 0)
         timesteps = timesteps[skip_steps:]
 
-        for times, times_next in tqdm(
-                timesteps, desc='sampling loop time step',
-                total=len(timesteps)):
+        # NOTE(dev): Attempt to modify into while_loop
+        num = paddle.to_tensor(len(timesteps))
+        timesteps = paddle.stack(timesteps, axis=0)
+        i = 0
+        while i < num:
+            times = timesteps[i][0]
+            times_next = timesteps[i][1]
+            # import pdb; pdb.set_trace()
+
+        # for times, times_next in tqdm(
+        #         timesteps, desc='sampling loop time step',
+        #         total=len(timesteps)):
+
             is_last_timestep = times_next == 0
 
             for r in reversed(range(resample_times)):
@@ -465,7 +476,6 @@ class ImagenModel(nn.Layer):
                     img = img * ~inpaint_masks + noised_inpaint_images * inpaint_masks
 
                 self_cond = x_start if unet.self_cond else None
-
                 img, x_start = self.p_sample(
                     unet,
                     img,
@@ -491,6 +501,7 @@ class ImagenModel(nn.Layer):
                         self.right_pad_dims_to_datatype(is_last_timestep), img,
                         renoised_img)
 
+            i += 1
         img.clip_(-1., 1.)
 
         # final inpainting
@@ -502,10 +513,10 @@ class ImagenModel(nn.Layer):
         return unnormalize_img
 
     @paddle.no_grad()
-    @eval_decorator
+    # @eval_decorator
     def sample(
             self,
-            texts=None,
+            input_ids=None,
             text_masks=None,
             text_embeds=None,
             cond_images=None,
@@ -518,12 +529,14 @@ class ImagenModel(nn.Layer):
             cond_scale=1.,
             lowres_sample_noise_level=None,
             stop_at_unet_number=None,
-            return_all_unet_outputs=False,
             return_pil_images=False, ):
         self.reset_unets()
 
         cond_images = maybe(cast_uint8_images_to_float)(cond_images)
 
+        if input_ids is not None and text_embeds is None and not self.unconditional:
+            text_embeds, _= self.t5_encode_text(
+                self.t5_encoder, input_ids, text_masks, return_mask=True)
         if not self.unconditional:
             text_masks = default(
                 text_masks, lambda: paddle.any(text_embeds != 0., axis=-1))
@@ -532,18 +545,18 @@ class ImagenModel(nn.Layer):
             batch_size = text_embeds.shape[0]
 
         assert not (
-            self.condition_on_text and not exists(text_embeds)
+            self.condition_on_text and text_embeds is None
         ), 'text or text encodings must be passed into imagen if specified'
         assert not (
-            not self.condition_on_text and exists(text_embeds)
+            not self.condition_on_text and text_embeds is not None
         ), 'imagen specified not to be conditioned on text, yet it is presented'
         assert not (
-            exists(text_embeds) and
+            text_embeds is not None and
             text_embeds.shape[-1] != self.text_embed_dim
         ), f'invalid text embedding dimension being passed in (should be {self.text_embed_dim})'
 
         assert not (
-            exists(inpaint_images) ^ exists(inpaint_masks)
+            (inpaint_images is not None) ^ (inpaint_masks is not None)
         ), 'inpaint images and masks must be both passed in to do inpainting'
 
         outputs = []
@@ -559,67 +572,62 @@ class ImagenModel(nn.Layer):
         ]
 
         skip_steps = cast_tuple(skip_steps, num_unets)
-
         for unet_number, unet, channel, image_size, noise_scheduler, pred_objective, dynamic_threshold, unet_cond_scale, unet_init_images, unet_skip_steps in tqdm(
                 zip(
                     range(1, num_unets + 1), self.unets, self.sample_channels,
                     self.image_sizes, self.noise_schedulers,
                     self.pred_objectives, self.dynamic_thresholding,
-                    cond_scale, init_images, skip_steps)):
+                    cond_scale, init_images, skip_steps),disable=True):
 
-            context = self.one_unet_in_gpu(unet=unet)
+            lowres_cond_img = lowres_noise_times = None
+            shape = (batch_size, channel, image_size, image_size)
 
-            with context:
-                lowres_cond_img = lowres_noise_times = None
-                shape = (batch_size, channel, image_size, image_size)
+            if unet.lowres_cond:
+                lowres_noise_times = self.lowres_noise_schedule.get_times(
+                    batch_size, lowres_sample_noise_level)
 
-                if unet.lowres_cond:
-                    lowres_noise_times = self.lowres_noise_schedule.get_times(
-                        batch_size, lowres_sample_noise_level)
+                lowres_cond_img = resize_image_to(img, image_size)
+                lowres_cond_img = self.normalize_img(
+                    lowres_cond_img)  # new
+                lowres_cond_img, _ = self.lowres_noise_schedule.q_sample(
+                    x_start=lowres_cond_img,
+                    t=lowres_noise_times,
+                    noise=paddle.randn(
+                        shape=lowres_cond_img.shape,
+                        dtype=lowres_cond_img.dtype))
 
-                    lowres_cond_img = resize_image_to(img, image_size)
-                    lowres_cond_img = self.normalize_img(
-                        lowres_cond_img)  # new
-                    lowres_cond_img, _ = self.lowres_noise_schedule.q_sample(
-                        x_start=lowres_cond_img,
-                        t=lowres_noise_times,
-                        noise=paddle.randn(
-                            shape=lowres_cond_img.shape,
-                            dtype=lowres_cond_img.dtype))
+            shape = (batch_size, self.channels, image_size, image_size)
 
-                shape = (batch_size, self.channels, image_size, image_size)
+            img = self.p_sample_loop(
+                unet,
+                shape,
+                text_embeds=text_embeds,
+                text_mask=text_masks,
+                cond_images=cond_images,
+                inpaint_images=inpaint_images,
+                inpaint_masks=inpaint_masks,
+                inpaint_resample_times=inpaint_resample_times,
+                init_images=unet_init_images,
+                skip_steps=unet_skip_steps,
+                cond_scale=unet_cond_scale,
+                lowres_cond_img=lowres_cond_img,
+                lowres_noise_times=lowres_noise_times,
+                noise_scheduler=noise_scheduler,
+                pred_objective=pred_objective,
+                dynamic_threshold=dynamic_threshold)
 
-                img = self.p_sample_loop(
-                    unet,
-                    shape,
-                    text_embeds=text_embeds,
-                    text_mask=text_masks,
-                    cond_images=cond_images,
-                    inpaint_images=inpaint_images,
-                    inpaint_masks=inpaint_masks,
-                    inpaint_resample_times=inpaint_resample_times,
-                    init_images=unet_init_images,
-                    skip_steps=unet_skip_steps,
-                    cond_scale=unet_cond_scale,
-                    lowres_cond_img=lowres_cond_img,
-                    lowres_noise_times=lowres_noise_times,
-                    noise_scheduler=noise_scheduler,
-                    pred_objective=pred_objective,
-                    dynamic_threshold=dynamic_threshold)
+            outputs.append(img)
 
-                outputs.append(img)
-
-            if exists(stop_at_unet_number
-                      ) and stop_at_unet_number == unet_number:
+            if stop_at_unet_number is not None and stop_at_unet_number == unet_number:
                 break
 
-        output_index = -1 if not return_all_unet_outputs else slice(
+        output_index = -1 if not self.return_all_unet_outputs else slice(
             None)  # either return last unet output or all unet outputs
 
         if not return_pil_images:
             return outputs[output_index]
 
-        if not return_all_unet_outputs:
+        if not self.return_all_unet_outputs:
             outputs = outputs[-1:]
 
         pil_images = list(
@@ -633,7 +641,6 @@ class ImagenModel(nn.Layer):
                  unet,
                  x_start,
                  times,
-                 *,
                  noise_scheduler,
                  lowres_cond_img=None,
                  lowres_aug_times=None,
@@ -655,7 +662,7 @@ class ImagenModel(nn.Layer):
         # random cropping during training
         # for upsamplers
 
-        if exists(random_crop_size):
+        if random_crop_size is not None:
             aug = K.RandomCrop((random_crop_size, random_crop_size), p=1.)
             # make sure low res conditioner and image both get augmented the same way
             # detailed https://kornia.readthedocs.io/en/latest/augmentation.module.html?highlight=randomcrop#kornia.augmentation.RandomCrop
@@ -672,7 +679,7 @@ class ImagenModel(nn.Layer):
         # at sample time, they then fix the noise level of 0.1 - 0.3
 
         lowres_cond_img_noisy = None
-        if exists(lowres_cond_img):
+        if lowres_cond_img is not None:
             lowres_aug_times = default(lowres_aug_times, times)
             lowres_cond_img_noisy, _ = self.lowres_noise_schedule.q_sample(
                 x_start=lowres_cond_img,
@@ -680,18 +687,39 @@ class ImagenModel(nn.Layer):
                 noise=paddle.randn(
                     shape=lowres_cond_img.shape, dtype=lowres_cond_img.dtype))
 
-        # get prediction
+        # time condition
 
-        pred = unet.forward(
-            x_noisy,
-            noise_scheduler.get_condition(times),
+        noise_cond = noise_scheduler.get_condition(times)
+
+
+        # unet kwargs
+
+        unet_kwargs = dict(
             text_embeds=text_embeds,
             text_mask=text_mask,
             cond_images=cond_images,
             lowres_noise_times=self.lowres_noise_schedule.get_condition(
                 lowres_aug_times),
             lowres_cond_img=lowres_cond_img_noisy,
-            cond_drop_prob=self.cond_drop_prob, )
+            cond_drop_prob=self.cond_drop_prob,
+            use_recompute=self.use_recompute)
+
+        # self condition
+
+        if unet.self_cond and random() < 0.5:
+            with paddle.no_grad():
+                pred = unet.forward(x_noisy, noise_cond,
+                                    **unet_kwargs).detach()
+
+                x_start = noise_scheduler.predict_start_from_noise(
+                    x_noisy, t=times,
+                    noise=pred) if pred_objective == 'noise' else pred
+
+                unet_kwargs = { ** unet_kwargs, 'self_cond': x_start}
+
+        # get prediction
+
+        pred = unet.forward(x_noisy, noise_cond, **unet_kwargs)
 
         # prediction objective
 
@@ -715,11 +743,10 @@ class ImagenModel(nn.Layer):
         assert images.shape[-1] == images.shape[
             -2], f'the images you pass in must be a square, but received dimensions of {images.shape[2]}, {images.shape[-1]}'
         assert not (
-            len(self.unets) > 1 and not exists(unet_number)
+            len(self.unets) > 1 and unet_number is None
         ), f'you must specify which unet you want trained, from a range of 1 to {len(self.unets)}, if you are training cascading DDPM (multiple unets)'
         unet_number = default(unet_number, 1)
-        assert not exists(
-            self.only_train_unet_number
+        assert (self.only_train_unet_number is None
         ) or self.only_train_unet_number == unet_number, 'you can only train on unet #{self.only_train_unet_number}'
 
         images = cast_uint8_images_to_float(images)
@@ -734,8 +761,7 @@ class ImagenModel(nn.Layer):
         pred_objective = self.pred_objectives[unet_index]
         target_image_size = self.image_sizes[unet_index]
         random_crop_size = self.random_crop_sizes[unet_index]
-        prev_image_size = self.image_sizes[unet_index -
-                                           1] if unet_index > 0 else None
+        prev_image_size = self.image_sizes[unet_index - 1]
         b, c, h, w = images.shape
 
         assert images.shape[1] == self.channels
@@ -743,24 +769,32 @@ class ImagenModel(nn.Layer):
 
         times = noise_scheduler.sample_random_times(b)
 
+        if texts is not None and not text_embeds is not None and not self.unconditional:
+            assert len(texts) == len(
+                images
+            ), 'number of text captions does not match up with the number of images given'
+
+            text_embeds, text_masks = self.encode_text(
+                texts, return_attn_mask=True)
+
         if not self.unconditional:
             text_masks = default(
                 text_masks, lambda: paddle.any(text_embeds != 0., axis=-1))
 
         assert not (
-            self.condition_on_text and not exists(text_embeds)
+            self.condition_on_text and text_embeds is None
         ), 'text or text encodings must be passed into decoder if specified'
         assert not (
-            not self.condition_on_text and exists(text_embeds)
+            not self.condition_on_text and text_embeds is not None
         ), 'decoder specified not to be conditioned on text, yet it is presented'
 
         assert not (
-            exists(text_embeds) and
+            (text_embeds is not None) and
             text_embeds.shape[-1] != self.text_embed_dim
         ), f'invalid text embedding dimension being passed in (should be {self.text_embed_dim})'
 
         lowres_cond_img = lowres_aug_times = None
-        if exists(prev_image_size):
+        if prev_image_size is not None:
             lowres_cond_img = resize_image_to(
                 images, prev_image_size, clamp_range=self.input_image_range)
             lowres_cond_img = resize_image_to(
@@ -816,6 +850,17 @@ def imagen_SR256(**kwargs):
 
 def imagen_SR512(**kwargs):
     model = ImagenModel(unets=SRUnet1024(), image_sizes=(512, ), **kwargs)
+    return model
+
+def imagen_64to512(**kwargs):
+    if 'lowres_cond' in kwargs:
+        lowres_cond = kwargs.pop('lowres_cond')
+    else:
+        lowres_cond = False
+    model = ImagenModel(
+        unets=(Unet64_397M(), SRUnet1024(lowres_cond=True)),
+        image_sizes=(64,512),
+        **kwargs)
     return model
 
 def imagen_SR1024(**kwargs):

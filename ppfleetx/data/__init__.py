@@ -62,6 +62,8 @@ def build_dataloader(config, mode):
         return None
 
     dataset = build_dataset(config, mode)
+    if dataset is None:
+        return None
 
     batch_sampler = None
     # build sampler

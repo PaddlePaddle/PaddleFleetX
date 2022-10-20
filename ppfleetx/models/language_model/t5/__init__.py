@@ -1,4 +1,4 @@
-# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,10 +11,4 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from .vision_dataset import GeneralClsDataset, ImageFolder, CIFAR10
-from .multimodal_dataset import ImagenDataset, TextIdxDataset
-from .clip_dataset import CLIPDataset
-from .gpt_dataset import GPTDataset, LM_Eval_Dataset, Lambada_Eval_Dataset
-from .glue_dataset import *
-# from .ernie_dataset import ErnieDataset
+from .modeling import get_t5_model, t5_encode_text, get_encoded_dim

@@ -16,5 +16,5 @@
 
 # for single card generation
 
-export CUDA_VISIBLE_DEVICES=0
-python tasks/gpt/generation.py -c ./ppfleetx/configs/nlp/gpt/generation_gpt_345M_single_card.yaml
+export CUDA_VISIBLE_DEVICES=2
+python3.7 tasks/gpt/generation.py -c ./ppfleetx/configs/nlp/gpt/generation_gpt_345M_single_card.yaml

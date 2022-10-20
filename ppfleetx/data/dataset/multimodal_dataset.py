@@ -32,6 +32,8 @@ from paddle.io import Dataset, DataLoader
 from paddle.distributed import get_world_size
 from paddle.vision import transforms as T
 
+from ppfleetx.data.tokenizers import get_t5_tokenizer
+
 
 def get_files(data_path, gpu_num, shuffle=False):
     files = [
@@ -78,11 +80,11 @@ def data_augmentation_for_imagen(img, resolution):
     arr = deepcopy(img)
     while min(*arr.size) >= 2 * resolution:
         arr = arr.resize(
-            tuple(x // 2 for x in arr.size), resample=Image.Resampling.BOX)
+            tuple(x // 2 for x in arr.size), resample=Image.BOX)
     scale = resolution / min(*arr.size)
     arr = arr.resize(
         tuple(round(x * scale) for x in arr.size),
-        resample=Image.Resampling.BICUBIC)
+        resample=Image.BICUBIC)
 
     arr = np.array(arr.convert("RGB"))
     crop_y = (arr.shape[0] - resolution) // 2
@@ -178,3 +180,44 @@ class ImagenDataset(Dataset):
 
     def __len__(self):
         return len(self.indexes)
+
+
+def collate_idx(batch):
+    indexes = []
+    captions = [] 
+    for cap, idx in batch:
+        indexes.append(idx)
+        captions.append(cap)
+
+    tokenizer = get_t5_tokenizer()
+    encoded = tokenizer.batch_encode_plus(
+        captions,
+        return_tensors="paddle",
+        padding='longest',
+        max_length=MAX_LENGTH,
+        truncation=True)
+    input_ids = encoded.input_ids
+    text_masks = encoded.attention_mask
+
+    return input_ids, text_masks, indexes, captions
+
+
+class TextIdxDataset(Dataset):
+    def __init__(self, folder, tokenizer):
+        super().__init__()
+        self.text_files = []
+        with open(folder, 'r') as f:
+            text_files = f.readlines()
+        for file in text_files:
+            info, idx = file.strip().split('\t')
+            self.text_files.append([info, idx])
+
+        self.tokenizer = tokenizer
+
+    def __len__(self):
+        return len(self.text_files)
+
+    def __getitem__(self, ind):
+        caption, idx = self.text_files[ind]
+
+        return caption, idx

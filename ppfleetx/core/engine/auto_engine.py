@@ -21,7 +21,7 @@ import numpy as np
 import paddle
 import paddle.nn as nn
 import paddle.distributed as dist
-from paddle.distributed.fleet import auto
+#from paddle.distributed.fleet import auto
 from paddle.optimizer.lr import LRScheduler
 
 from ppfleetx.utils.log import logger

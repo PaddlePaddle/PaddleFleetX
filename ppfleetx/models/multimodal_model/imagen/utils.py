@@ -23,10 +23,6 @@ from paddle import expm1
 # helper functions
 
 
-def exists(val):
-    return val is not None
-
-
 def identity(t, *args, **kwargs):
     return t
 
@@ -40,7 +36,7 @@ def first(arr, d=None):
 def maybe(fn):
     @wraps(fn)
     def inner(x):
-        if not exists(x):
+        if x is None:
             return x
         return fn(x)
 
@@ -48,7 +44,7 @@ def maybe(fn):
 
 
 def default(val, d):
-    if exists(val):
+    if val is not None:
         return val
     return d() if callable(d) else d
 
@@ -59,7 +55,7 @@ def cast_tuple(val, length=None):
 
     output = val if isinstance(val, tuple) else ((val, ) * default(length, 1))
 
-    if exists(length):
+    if length is not None:
         assert len(output) == length
 
     return output
@@ -95,7 +91,7 @@ zeros_ = nn.initializer.Constant(value=0.)
 
 def zero_init_(m):
     zeros_(m.weight)
-    if exists(m.bias):
+    if m.bias is not None:
         zeros_(m.bias)
 
 
@@ -133,9 +129,9 @@ def resize_image_to(image, target_image_size, clamp_range=None):
     if orig_image_size == target_image_size:
         return image
 
-    out = F.interpolate(image, target_image_size, mode='nearest')
+    out = F.interpolate(image, (target_image_size, target_image_size), mode='nearest')
 
-    if exists(clamp_range):
+    if clamp_range is not None:
         out = out.clip(*clamp_range)
 
     return out
@@ -287,12 +283,15 @@ def l2norm(t):
     return F.normalize(t, dim=-1)
 
 
-def log(t, eps: float=1e-12):
+# TODO
+# def log(t, eps: float=1e-12):
+def log(t, eps: float=1e-8):
     return paddle.log(t.clip(min=eps))
 
 
 def masked_mean(t, *, axis, mask=None):
-    if not exists(mask):
+    return t.mean(axis=axis)
+    if mask is None:
         return t.mean(axis=axis)
 
     denom = mask.sum(axis=axis, keepdim=True)
@@ -353,6 +352,8 @@ class GaussianDiffusionContinuousTimes(nn.Layer):
             (batch_size, )).cast('float32').uniform_(0, max_thres)
 
     def get_condition(self, times):
+        # import pdb; pdb.set_trace()
+        # return self.log_snr(times)
         return maybe(self.log_snr)(times)
 
     def get_sampling_timesteps(self, batch):
@@ -388,6 +389,7 @@ class GaussianDiffusionContinuousTimes(nn.Layer):
             batch = x_start.shape[0]
             t = paddle.full((batch, ), t, dtype=x_start.dtype)
         noise = default(noise, lambda: paddle.randn(shape=x_start.shape, dtype=x_start.dtype))
+        
         log_snr = self.log_snr(t)
         log_snr_padded_dim = right_pad_dims_to(x_start, log_snr)
         alpha, sigma = log_snr_to_alpha_sigma(log_snr_padded_dim)

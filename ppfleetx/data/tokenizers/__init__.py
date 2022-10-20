@@ -13,3 +13,5 @@
 # limitations under the License.
 
 from .gpt_tokenizer import GPTTokenizer
+from .clip_tokenizer import clip_tokenize
+from .t5_tokenizer import get_t5_tokenizer 
