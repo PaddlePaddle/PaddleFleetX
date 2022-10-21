@@ -92,15 +92,38 @@ def default_collate_fn(batch_transform=None):
 
 
 def gpt_collate_fn(batch):
-    return Tuple(Stack(), Stack(), Stack(), Stack())(batch)
+    return Tuple([Stack() for raw in zip(*batch)])(batch)
 
 
-def gpt_inference_collate_fn(batch):
-    return Tuple(Stack(), Stack())(batch)
+def ernie_collate_data(data, stack_fn=Stack()):
+    num_fields = len(data[0])
+    out = [None] * num_fields
+    # 0. input_ids,
+    # 1. segment_ids,
+    # 2. input_mask,
+    # 3. masked_lm_positions,
+    # 4. masked_lm_labels,
+    # 5. next_sentence_labels
+    for i in (0, 1, 2, 5):
+        out[i] = stack_fn([x[i] for x in data])
+    out[5] = out[5].reshape([-1, 1])
+    batch_size, seq_length = out[0].shape
+    size = num_mask = sum(len(x[3]) for x in data)
+    # masked_lm_positions
+    # Organize as a 1D tensor for gather or use gather_nd
+    if size % 8 != 0:
+        size += 8 - (size % 8)
+    out[3] = np.full(size, 0, dtype=np.int32)
+    # masked_lm_labels
+    out[4] = np.full([size, 1], -1, dtype=np.int64)
+    mask_token_num = 0
+    for i, x in enumerate(data):
+        for j, pos in enumerate(x[3]):
+            out[3][mask_token_num] = i * seq_length + pos
+            out[4][mask_token_num] = x[4][j]
+            mask_token_num += 1
 
-
-def gpt_eval_collate_fn(batch):
-    return Tuple(Stack(), Stack(), Stack(), Stack(), Stack(), Stack())(batch)
+    return out
 
 
 def imagen_collate_fn(batch):
