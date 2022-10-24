@@ -30,13 +30,12 @@ class SwitchGate(NaiveGate):
     def __init__(self,
                  d_model,
                  num_expert,
-                 world_size,
                  topk=1,
                  switch_eps=.1,
                  capacity=(1.2, 2.4),
                  group=None):
         assert topk == 1, "topk should be 1 in switch"
-        super().__init__(d_model, num_expert, world_size, topk=1)
+        super().__init__(d_model, num_expert, group, topk=1)
         self.switch_eps = switch_eps
         self.capacity = capacity
         self.group = group

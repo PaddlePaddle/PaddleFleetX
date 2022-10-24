@@ -31,8 +31,11 @@ from paddle.distributed.fleet.meta_parallel import LayerDesc, PipelineLayer, Sha
 from paddle.distributed.fleet.utils import recompute
 import sys
 
+from .single_model import ExpertLayer
 from .sequence_parallel_utils import ScatterOp, GatherOp, \
         all_reduce_gradient_hook, ColumnSequenceParallelLinear, RowSequenceParallelLinear
+
+from ppfleetx.distributed.moe import MoELayer
 
 
 def get_attr(layer, name):
@@ -464,6 +467,7 @@ class TransformerDecoderLayer(nn.Layer):
                  num_partitions=1,
                  fused_linear=False,
                  fuse_attn_qkv=False,
+                 moe_configs=None,
                  recompute_attn=False,
                  use_recompute=False,
                  recompute_granularity="full",
@@ -481,6 +485,13 @@ class TransformerDecoderLayer(nn.Layer):
         self.recompute_granularity = recompute_granularity
         self.sequence_parallel = sequence_parallel
         self.do_recompute = do_recompute
+
+        # moe config
+        if moe_configs is not None:
+            self.gate = moe_configs.get('gate', 'gshard')
+            self.top_k = moe_configs.get('top_k', 2)
+            self.num_experts = moe_configs.get('num_experts', 1)
+            self.expert_mode = moe_configs.get('expert_mode', False)
 
         if sequence_parallel:
             ColumnParallelLinear = ColumnSequenceParallelLinear
@@ -506,21 +517,40 @@ class TransformerDecoderLayer(nn.Layer):
             sequence_parallel=sequence_parallel,
             do_recompute=do_recompute)
 
-        self.linear1 = ColumnParallelLinear(
-            d_model,
-            dim_feedforward,
-            weight_attr=weight_attrs[2],
-            gather_output=False,
-            has_bias=True,
-            fuse_matmul_bias=fused_linear)
+        if self.expert_mode:
+            experts_list = nn.LayerList()
+            for expi in range(self.num_experts):
+                exp_layer = ExpertLayer(d_model, dim_feedforward)
+                experts_list.append(exp_layer)
 
-        self.linear2 = RowParallelLinear(
-            dim_feedforward,
-            d_model,
-            weight_attr=weight_attrs[2],
-            input_is_parallel=True,
-            has_bias=True,
-            fuse_matmul_bias=fused_linear)
+            hcg = fleet.get_hybrid_communicate_group()
+            moe_group = hcg.get_expert_parallel_group()
+            mp_group = hcg.get_model_parallel_group()
+
+            self.moe_mlp = MoELayer(
+                d_model=d_model,
+                experts=experts_list,
+                gate=self.gate,
+                top_k=self.top_k,
+                moe_group=moe_group,
+                mp_group=mp_group,
+                recompute_interval=int(self.use_recompute))
+        else:
+            self.linear1 = ColumnParallelLinear(
+                d_model,
+                dim_feedforward,
+                weight_attr=weight_attrs[2],
+                gather_output=False,
+                has_bias=True,
+                fuse_matmul_bias=fused_linear)
+
+            self.linear2 = RowParallelLinear(
+                dim_feedforward,
+                d_model,
+                weight_attr=weight_attrs[2],
+                input_is_parallel=True,
+                has_bias=True,
+                fuse_matmul_bias=fused_linear)
 
         self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
@@ -565,10 +595,13 @@ class TransformerDecoderLayer(nn.Layer):
         if self.normalize_before:
             tgt = self.norm2(tgt)
 
-        with get_rng_state_tracker().rng_state('global_seed'):
-            tgt = self.dropout2(
-                self.linear2(F.gelu(
-                    self.linear1(tgt), approximate=True)))
+        if self.expert_mode:
+            tgt = self.moe_mlp(tgt)
+        else:
+            with get_rng_state_tracker().rng_state('global_seed'):
+                tgt = self.dropout2(
+                    self.linear2(F.gelu(
+                        self.linear1(tgt), approximate=True)))
 
         tgt = residual + tgt
 
@@ -647,6 +680,7 @@ class GPTModelHybrid(nn.Layer):
                  type_vocab_size=16,
                  initializer_range=0.02,
                  num_partitions=1,
+                 moe_configs=None,
                  use_recompute=False,
                  fused_linear=False,
                  fuse_attn_qkv=False,
@@ -694,6 +728,7 @@ class GPTModelHybrid(nn.Layer):
                     num_partitions=num_partitions,
                     fused_linear=fused_linear,
                     fuse_attn_qkv=fuse_attn_qkv,
+                    moe_configs=moe_configs,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
                     sequence_parallel=sequence_parallel,

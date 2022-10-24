@@ -23,11 +23,11 @@ import paddle.nn as nn
 
 
 class BaseGate(nn.Layer):
-    def __init__(self, num_expert, world_size):
+    def __init__(self, num_expert, group=None):
         super().__init__()
-        self.world_size = world_size
+        self.world_size = group.nranks if group is not None else 1
         self.num_expert = num_expert
-        self.tot_expert = world_size * num_expert
+        self.tot_expert = self.world_size * num_expert
         self.loss = None
 
     def forward(self, x):

@@ -26,6 +26,7 @@ import paddle.nn as nn
 from .gate import NaiveGate, GShardGate, SwitchGate, BaseGate
 from .comm_ops import MoEScatter, MoEGather, AllGather, Slice
 from .utils import prepare_forward
+from paddle.distributed.fleet.utils import recompute
 from paddle.incubate.distributed.fleet import recompute_hybrid
 
 
@@ -33,14 +34,12 @@ class MoELayer(nn.Layer):
     """MoE Layer
     Args:
         d_model: (int) model dimention
-        experts: (nn.LayerList) expert networks list
-        gate: (dict|NaiveGate|SwitchGate|NaiveGate):
-                if gate is a dict:
-                    gate is a gate network config, containing 2 keys:
-                    `type`(str) value can be: "naive", "gshard", "switch" or None, default is "gshard"
-                    `top_k`(int) default value is 2
-                else gate is an instance of NaiveGate|SwitchGate|NaiveGate:
-
+        experts: (list|nn.LayerList) expert networks list
+        gate: (str|BaseGate|None):
+                if gate is a str, it can only be "naive", "gshard", "switch" or None, default is "naive"
+                else gate is an instance of BaseGate
+        
+        top_k: (int) default value is 2
         moe_group: moe group for experts communication
         mp_group: mp group for mp commutication
         recompute_interval(int, optional): whether to use recompute, default 0, means to disable recompute.
@@ -63,7 +62,7 @@ class MoELayer(nn.Layer):
         top_k=2
 
         class ExpertLayer(Layer):
-            def __init__(self, d_model, d_hidden, name=None,rank=0, windex = 0, num_expert=1):
+            def __init__(self, d_model, d_hidden, name=None):
                 super(ExpertLayer, self).__init__()
                 self.htoh4 = nn.Linear(d_model, d_hidden)
                 self.h4toh = nn.Linear(d_hidden, d_model)
@@ -73,19 +72,15 @@ class MoELayer(nn.Layer):
                 x = self.h4toh(x)
                 return x
 
-        gate_config = {
-                "type": "gshard",
-                "top_k": top_k,
-        }
-
         experts_list = LayerList()
         for expi in range(num_experts):
-            exp_layer = ExpertLayer(d_model, dim_feedforward // top_k, windex=expi, num_expert=num_experts)
+            exp_layer = ExpertLayer(d_model, dim_feedforward)
             experts_list.append(exp_layer)
 
         moeLayer = MoELayer(d_model = d_model,
                             experts=experts_list,
-                            gate=gate_config,
+                            gate="gshard",
+                            top_k=2,
                             moe_group=moe_group,
                             mp_group=mp_group,
                             recompute_interval=0)
@@ -95,67 +90,70 @@ class MoELayer(nn.Layer):
     def __init__(self,
                  d_model,
                  experts,
-                 gate=None,
                  moe_group=None,
                  mp_group=None,
+                 top_k=2,
+                 gate=None,
                  recompute_interval=0,
-                 recompute_ctx=None):
+                 recompute_partition=False,
+                 recompute_offload=False):
         super(MoELayer, self).__init__()
 
-        self.recompute_ctx = recompute_ctx
+        self.d_model = d_model
 
-        if gate is None:
-            gate = dict()
+        assert experts is not None
+        assert isinstance(experts, (list, nn.LayerList)), \
+             "The type of experts must be list or nn.LayerList"
 
-        assert isinstance(gate, (dict, BaseGate)), \
-             "gate config' type must be dict or an instance of BaseGate"
+        for i, exp in enumerate(experts):
+            assert isinstance(
+                exp,
+                nn.Layer), "The type of experts[{}] must be nn.Layer".format(i)
+
+        self.experts = nn.LayerList(experts) if isinstance(experts,
+                                                           list) else experts
+        self.num_expert = len(experts)
+
+        gate = "naive" if gate is None else gate
+        assert isinstance(gate, (str, BaseGate)), \
+             "The type of gate must be str or an instance of BaseGate"
+        self.top_k = top_k
+
         # only support mp/dp
         self.group = moe_group
-
-        self.world_size = 1
-        if self.group is not None:
-            self.world_size = self.group.nranks
-        self.num_expert = len(experts)
-        self.recompute_interval = recompute_interval
-        assert experts is not None
-        self.experts = experts
-
         self.mp_group = mp_group
-        self.d_model = d_model
-        if isinstance(gate, dict):
-            self.top_k = gate.get("top_k", 2)
-            gate = gate.get("type", "gshard")
-            if gate == "naive" or gate is None:
-                gate = NaiveGate(
-                    self.d_model,
-                    num_expert=len(experts),
-                    world_size=self.world_size,
-                    topk=self.top_k)
-            elif gate == "gshard":
-                gate = GShardGate(
-                    self.d_model,
-                    num_expert=len(experts),
-                    world_size=self.world_size,
-                    topk=self.top_k,
-                    group=self.group)
-            elif gate == "switch":
-                gate = SwitchGate(
-                    self.d_model,
-                    num_expert=len(experts),
-                    world_size=self.world_size,
-                    topk=self.top_k,
-                    group=self.group)
+
+        self.world_size = self.group.nranks \
+            if self.group is not None else 1
+
+        if isinstance(gate, str):
+            gate_map = {
+                "naive": NaiveGate,
+                "gshard": GShardGate,
+                "switch": SwitchGate,
+            }
+
+            if gate in gate_map.keys():
+                self.gate = gate_map[gate](self.d_model,
+                                           num_expert=self.num_expert,
+                                           topk=self.top_k,
+                                           group=self.group)
             else:
                 assert False, "We only support naive gate, \
                                 gshard gate and switch gate, \
-                                but you choose {} gate.".format(str(gate))
-        elif isinstance(gate, NaiveGate):
-            self.top_k = gate.top_k
+                                but you choose {} gate.".format(gate)
         elif isinstance(gate, BaseGate):
-            raise TypeError("Unimplemented gate type: ", type(gate))
+            self.gate = gate
         else:
-            raise TypeError("gate's type must be either dict or moe.BaseGate")
-        self.gate = gate
+            raise TypeError("The type of gate must be either str in ('naive', \
+                'gshard', 'switch') or an instance of moe.BaseGate")
+
+        self.recompute_interval = recompute_interval
+        self.recompute_ctx = {
+            "mp_group": self.mp_group,
+            "offload": recompute_offload,
+            "partition": recompute_partition,
+        }
 
     def forward(self, inp):
         origin_shape = inp.shape
@@ -211,9 +209,12 @@ class MoELayer(nn.Layer):
 
         if self.recompute_interval <= 0 or x.shape[0] == 0:
             x = experts_fwd(x, fwd_expert_count.numpy(), self.experts)
-        else:
+        elif self.world_size > 1:
             x = recompute_hybrid(self.recompute_ctx, experts_fwd, x,
                                  fwd_expert_count.numpy(), self.experts)
+        else:
+            x = recompute(experts_fwd, x,
+                          fwd_expert_count.numpy(), self.experts)
 
         out_batch_size = inp.shape[0]
         if len(gate.shape) == 2:

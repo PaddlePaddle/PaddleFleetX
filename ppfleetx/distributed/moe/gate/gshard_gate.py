@@ -30,13 +30,12 @@ class GShardGate(NaiveGate):
     def __init__(self,
                  d_model,
                  num_expert,
-                 world_size,
                  topk=2,
                  capacity=(1.2, 2.4),
                  random_routing=True,
                  group=None):
         assert topk == 2, "topk should be 2 in gshard"
-        super().__init__(d_model, num_expert, world_size)
+        super().__init__(d_model, num_expert, group)
         self.capacity = capacity
         self.random_routing = random_routing
         self.group = group

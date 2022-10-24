@@ -26,8 +26,8 @@ import paddle.nn as nn
 
 
 class NaiveGate(BaseGate):
-    def __init__(self, d_model, num_expert, world_size, topk=2):
-        super().__init__(num_expert, world_size)
+    def __init__(self, d_model, num_expert, group=None, topk=2):
+        super().__init__(num_expert, group)
         self.gate = nn.Linear(d_model, self.tot_expert)
         self.gate.weight.name = "gate_" + self.gate.weight.name
         self.gate.bias.name = "gate_" + self.gate.bias.name
