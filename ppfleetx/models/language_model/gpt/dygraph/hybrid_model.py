@@ -486,6 +486,7 @@ class TransformerDecoderLayer(nn.Layer):
         self.sequence_parallel = sequence_parallel
         self.do_recompute = do_recompute
 
+        self.expert_mode = False
         # moe config
         if moe_configs is not None:
             self.gate = moe_configs.get('gate', 'gshard')

@@ -405,12 +405,13 @@ class TransformerDecoderLayer(nn.Layer):
         self.recompute_granularity = recompute_granularity
         self.do_recompute = do_recompute
 
+        self.expert_mode = False
         # moe config
         if moe_configs is not None:
             self.gate = moe_configs.get('gate', 'gshard')
             self.top_k = moe_configs.get('top_k', 2)
             self.num_experts = moe_configs.get('num_experts', 1)
-            self.expert_mode = moe_configs.get('expert_mode', False)
+            self.expert_mode = moe_configs.get('expert_mode', False)          
 
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
