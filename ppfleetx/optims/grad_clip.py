@@ -19,22 +19,19 @@ from paddle.fluid.clip import ClipGradBase, _squared_l2_norm
 from paddle.fluid.dygraph import base as imperative_base
 from paddle.fluid import core, layers
 from paddle.distributed import collective
+import paddle.distributed.fleet as fleet
 
 
 class ClipGradForMOEByGlobalNorm(ClipGradBase):
-    def __init__(self,
-                 clip_norm,
-                 is_expert_param_func=None,
-                 moe_group=None,
-                 group_name="default_moe_group"):
+    def __init__(self, clip_norm):
         super(ClipGradForMOEByGlobalNorm, self).__init__()
         self.clip_norm = float(clip_norm)
-        self.group_name = group_name
-        self.moe_group = moe_group
-        if moe_group is not None and moe_group.nranks > 1:
-            assert is_expert_param_func is not None, \
-                "When moe group size > 1, a function for selecting expert params must be specified."
-        self.is_expert_param_func = is_expert_param_func
+
+        self.moe_group = None
+        self.world_size = paddle.distributed.get_world_size()
+        if self.world_size > 1:
+            hcg = fleet.get_hybrid_communicate_group()
+            self.moe_group = hcg.get_expert_parallel_group()
 
     def __str__(self):
         return "Gradient Clip By GlobalNorm, global_norm=%f" % (self.clip_norm)
@@ -98,7 +95,7 @@ class ClipGradForMOEByGlobalNorm(ClipGradBase):
         # separate moe params from normal params
         if self.moe_group is not None and self.moe_group.nranks > 1:
             for p, g in params_grads:
-                if self.is_expert_param_func(p):
+                if "expert" in p.name or "gate" in p.name:
                     moe_params_grads.append((p, g))
                 else:
                     normal_params_grads.append((p, g))
@@ -134,7 +131,6 @@ class ClipGradForMOEByGlobalNorm(ClipGradBase):
                     global_norm_var_normal.astype(global_norm_var_moe.dtype)
             global_norm_var = global_norm_var_normal + global_norm_var_moe
 
-        params_and_grads = []
         global_norm_var = layers.sqrt(global_norm_var)
         max_global_norm = layers.fill_constant(
             shape=[1], dtype=global_norm_var.dtype, value=self.clip_norm)

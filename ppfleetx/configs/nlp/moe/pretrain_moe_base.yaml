@@ -86,7 +86,7 @@ Optimizer:
     max_lr: 5.0e-5
     min_lr: 1.0e-5
   grad_clip:
-    name: "ClipGradByGlobalNorm"
+    name: "ClipGradForMOEByGlobalNorm"
     clip_norm: 1.0
   tensor_fusion: False
 
