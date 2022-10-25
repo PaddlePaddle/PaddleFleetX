@@ -23,7 +23,7 @@ import math
 import paddle
 from paddle.io import DistributedBatchSampler
 
-from ppfleetx.distributed import env
+from ppfleetx.distributed.apis import env
 
 __all__ = ["GPTBatchSampler", "DistributedBatchSampler"]
 

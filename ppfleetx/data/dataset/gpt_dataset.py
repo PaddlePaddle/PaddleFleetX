@@ -22,7 +22,7 @@ import json
 
 import paddle
 
-from ppfleetx.distributed import env
+from ppfleetx.distributed.apis import env
 from ppfleetx.utils.log import logger
 from ppfleetx.data.tokenizers import GPTTokenizer
 

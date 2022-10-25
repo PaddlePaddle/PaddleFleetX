@@ -21,7 +21,7 @@ import numpy as np
 import paddle
 
 from ppfleetx.data import dataset, sampler, utils
-from ppfleetx.distributed import env
+from ppfleetx.distributed.apis import env
 from ppfleetx.utils.log import logger
 
 

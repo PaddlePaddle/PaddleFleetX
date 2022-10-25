@@ -19,10 +19,10 @@ import tarfile
 from typing import Iterable, Callable
 
 import paddle
-from ppfleetx.distributed.env import work_at_local_rank0
+from ppfleetx.distributed.apis import env
 
 
-@work_at_local_rank0
+@env.work_at_local_rank0
 def unzip(zip_path, mode="r", out_dir=None, delete=False):
     with zipfile.ZipFile(zip_path, mode) as zip_ref:
         zip_ref.extractall(out_dir)
@@ -31,7 +31,7 @@ def unzip(zip_path, mode="r", out_dir=None, delete=False):
         os.remove(zip_path)
 
 
-@work_at_local_rank0
+@env.work_at_local_rank0
 def untar(tar_path, mode="r:gz", out_dir=None, delete=False):
     try:
         with tarfile.open(tar_path, 'r:gz') as f:

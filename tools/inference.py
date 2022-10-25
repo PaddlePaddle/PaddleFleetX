@@ -30,7 +30,7 @@ from ppfleetx.utils.log import logger
 from ppfleetx.data import build_dataloader
 from ppfleetx.models import build_module
 from ppfleetx.core import EagerEngine
-from ppfleetx.distributed import env
+from ppfleetx.distributed.apis import env
 
 # init_logger()
 

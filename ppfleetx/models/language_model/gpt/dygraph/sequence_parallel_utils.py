@@ -24,7 +24,7 @@ from paddle.distributed import fleet
 from paddle.distributed.fleet.base import topology as tp
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 
-from ppfleetx.distributed import env
+from ppfleetx.distributed.apis import env
 
 import numpy as np
 

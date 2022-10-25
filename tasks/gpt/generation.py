@@ -30,7 +30,7 @@ sys.path.append(os.path.abspath(os.path.join(__dir__, '../../')))
 
 from ppfleetx.utils import config
 from ppfleetx.models import build_module
-from ppfleetx.distributed import env
+from ppfleetx.distributed.apis import env
 
 if __name__ == "__main__":
     args = config.parse_args()
