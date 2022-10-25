@@ -168,7 +168,7 @@ class EagerEngine(BasicEngine):
             # Save dtype is the same as model dtype. Also can set save_dtype='float32' when 
             # training with pure fp16 strategy, but will cause the rise of memory.
             self._module.model = paddle.amp.decorate(
-                models=self._module.model, level='O2', dtype='bfloat16')
+                models=self._module.model, level='O2', dtype=self._fp16_dtype)
         else:
             self._scaler = None
 
@@ -283,7 +283,7 @@ class EagerEngine(BasicEngine):
                 if step < self._load_recovery['step']:
                     continue
 
-            loss = self._fit_impl(batch, step)
+            loss = self._fit_impl(batch)
             train_losses.append(loss)
 
             if (step + 1) % self._logging_freq == 0:
@@ -401,7 +401,7 @@ class EagerEngine(BasicEngine):
         if self.profiler:
             self._profiler_done()
 
-    def _fit_impl(self, batch, step):
+    def _fit_impl(self, batch):
         batch = self._module.pretreating_batch(batch)
         if self._fp16_dtype is 'bfloat16':
             with paddle.no_grad():
