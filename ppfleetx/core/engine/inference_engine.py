@@ -198,8 +198,6 @@ class InferenceEngine(object):
                         self.tensorrt_config.shape_range_info_filename,
                         True)
 
-        config.delete_pass('simplify_with_basic_ops_pass')
-
         self.predictor = paddle.inference.create_predictor(config)
 
     def input_names(self):
