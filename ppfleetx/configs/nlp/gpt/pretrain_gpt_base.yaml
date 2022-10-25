@@ -32,7 +32,7 @@ Model:
   name: "GPT"
   fused_linear: False
   fuse_attn_qkv: True
-  sequence_parallel: False
+  sequence_parallel: True
 
 
 Data:
