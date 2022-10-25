@@ -55,7 +55,7 @@ def process_dist_config(configs):
     assert nranks == dp_degree * other_degree, \
         "Mismatched config using {} cards with dp_degree[{}]," \
             "mp_degree[{}], pp_degree[{}] and sharding_degree[{}]".format(nranks, \
-                dp_degree, mp_degree, pp_degree, _sharding_degree)
+                dp_degree, mp_degree, pp_degree, sharding_degree)
 
     if sharding_config['sharding_degree'] > 1 and reduce_overlap:
         if sharding_config['sharding_stage'] == 3 or sharding_config[

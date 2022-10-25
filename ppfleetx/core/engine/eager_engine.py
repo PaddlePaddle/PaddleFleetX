@@ -136,7 +136,7 @@ class EagerEngine(BasicEngine):
             'custom_black_list']
         self._custom_white_list = self._configs['mix_precision'][
             'custom_white_list']
-        self._fp16_dtype = "float16" if 'fp16_dtype' in self._configs['mix_precision'] \
+        self._fp16_dtype = "float16" if 'fp16_dtype' not in self._configs['mix_precision'] \
                                      else self._configs['mix_precision']['fp16_dtype']
 
         self._save_steps = self._configs['save_load']['save_steps']
