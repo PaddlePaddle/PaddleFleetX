@@ -675,7 +675,6 @@ class GPTEvalModule(LanguageModule):
 
 class MoEModule(LanguageModule):
     def __init__(self, configs):
-        self.initialize_model_and_expert_group()
         super(MoEModule, self).__init__(configs)
 
         assert self.nranks == configs.Distributed.dp_degree, \
@@ -751,28 +750,6 @@ class MoEModule(LanguageModule):
                 loss += bal_loss * self.configs.Engine.balance_loss_weight
 
         return loss
-
-    def initialize_model_and_expert_group(self):
-        if paddle.distributed.get_world_size() == 1:
-            return
-
-        hcg = env.get_hcg()
-
-        def get_expert_parallel_world_size(self):
-            return self.get_data_parallel_world_size(
-            ) * self.get_model_parallel_world_size()
-
-        hcg.get_expert_parallel_world_size = types.MethodType(
-            get_expert_parallel_world_size, hcg)
-
-        # need create mp_dp group for expert parallel group in advance
-        _, mp_dp_comm_group = hcg._set_check_group(parallel_method="pipe")
-
-        def get_expert_parallel_group(self):
-            return mp_dp_comm_group
-
-        hcg.get_expert_parallel_group = types.MethodType(
-            get_expert_parallel_group, hcg)
 
     def initialize_mp_dp_parameters(self):
         hcg = env.get_hcg()

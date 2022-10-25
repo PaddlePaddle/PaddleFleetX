@@ -131,6 +131,7 @@ class MultiHeadAttention(nn.Layer):
             self.qkv_proj = ColumnParallelLinear(
                 embed_dim,
                 3 * embed_dim,
+                mp_group=env.get_hcg().get_model_parallel_group(),
                 weight_attr=weight_attr,
                 has_bias=True,
                 gather_output=False,
@@ -139,6 +140,7 @@ class MultiHeadAttention(nn.Layer):
             self.q_proj = ColumnParallelLinear(
                 embed_dim,
                 embed_dim,
+                mp_group=env.get_hcg().get_model_parallel_group(),
                 weight_attr=weight_attr,
                 has_bias=True,
                 gather_output=False,
@@ -147,6 +149,7 @@ class MultiHeadAttention(nn.Layer):
             self.k_proj = ColumnParallelLinear(
                 self.kdim,
                 embed_dim,
+                mp_group=env.get_hcg().get_model_parallel_group(),
                 weight_attr=weight_attr,
                 has_bias=True,
                 gather_output=False,
@@ -155,6 +158,7 @@ class MultiHeadAttention(nn.Layer):
             self.v_proj = ColumnParallelLinear(
                 self.vdim,
                 embed_dim,
+                mp_group=env.get_hcg().get_model_parallel_group(),
                 weight_attr=weight_attr,
                 has_bias=True,
                 gather_output=False,
@@ -163,6 +167,7 @@ class MultiHeadAttention(nn.Layer):
         self.out_proj = RowParallelLinear(
             embed_dim,
             embed_dim,
+            mp_group=env.get_hcg().get_model_parallel_group(),
             weight_attr=weight_attr,
             has_bias=True,
             input_is_parallel=True,
@@ -541,6 +546,7 @@ class TransformerDecoderLayer(nn.Layer):
             self.linear1 = ColumnParallelLinear(
                 d_model,
                 dim_feedforward,
+                mp_group=env.get_hcg().get_model_parallel_group(),
                 weight_attr=weight_attrs[2],
                 gather_output=False,
                 has_bias=True,
@@ -549,6 +555,7 @@ class TransformerDecoderLayer(nn.Layer):
             self.linear2 = RowParallelLinear(
                 dim_feedforward,
                 d_model,
+                mp_group=env.get_hcg().get_model_parallel_group(),
                 weight_attr=weight_attrs[2],
                 input_is_parallel=True,
                 has_bias=True,
@@ -637,6 +644,7 @@ class GPTEmbeddings(nn.Layer):
         self.word_embeddings = fleet.meta_parallel.VocabParallelEmbedding(
             vocab_size,
             hidden_size,
+            mp_group=env.get_hcg().get_model_parallel_group(),
             weight_attr=paddle.ParamAttr(initializer=nn.initializer.Normal(
                 mean=0.0, std=initializer_range)))
 
@@ -855,7 +863,8 @@ class GPTPretrainingCriterionHybird(nn.Layer):
     def __init__(self, topo=None):
         super(GPTPretrainingCriterionHybird, self).__init__()
         self.loss_func = paddle.nn.CrossEntropyLoss(reduction="none")
-        self.parallel_loss_func = fleet.meta_parallel.ParallelCrossEntropy()
+        self.parallel_loss_func = \
+            fleet.meta_parallel.ParallelCrossEntropy(mp_group=env.get_hcg().get_model_parallel_group())
 
     def forward(self, prediction_scores, masked_lm_labels, loss_mask):
         """

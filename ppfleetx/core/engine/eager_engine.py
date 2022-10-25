@@ -191,8 +191,7 @@ class EagerEngine(BasicEngine):
             self._pp_rank = self._hcg.get_stage_id()
             self._sharding_rank = self._hcg.get_sharding_parallel_rank()
 
-            if self._hcg.nranks > 1:
-                self._wrap_with_fleet()
+            self._wrap_with_fleet()
         else:
             self._dp_rank = 0
 

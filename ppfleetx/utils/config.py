@@ -36,6 +36,7 @@ def process_dist_config(configs):
 
     config = configs['Distributed']
 
+    config.setdefault("hcg", "HybridCommunicateGroup")
     mp_degree = config.setdefault("mp_degree", 1)
     pp_degree = config.setdefault("pp_degree", 1)
 

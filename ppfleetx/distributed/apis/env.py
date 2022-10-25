@@ -22,6 +22,7 @@ from paddle.distributed import fleet
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 
 from ppfleetx.utils.log import logger
+from ppfleetx.distributed.apis import comm_groups
 
 __all__ = ['init_dist_env']
 
@@ -109,8 +110,7 @@ def init_dist_env(config):
     seed = config.Global.seed
     strategy.tensor_parallel_configs = {"tensor_init_seed": seed}
 
-    fleet.init(is_collective=True, strategy=strategy)
-    hcg = fleet.get_hybrid_communicate_group()
+    hcg = comm_groups.create_hcg(strategy, hcg_name=config.Distributed.hcg)
     set_hcg(hcg)
 
 
