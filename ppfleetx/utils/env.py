@@ -21,6 +21,8 @@ import paddle.distributed as dist
 from paddle.distributed import fleet
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 
+from ppfleetx.utils.log import logger
+
 __all__ = ['init_dist_env']
 
 _seed = None
@@ -34,19 +36,23 @@ def set_seed(seed):
         mp_rank = hcg.get_model_parallel_rank()
         pp_rank = hcg.get_stage_id()
         data_world_rank = get_data_world_rank()
+        data_world_size = get_data_world_size()
     else:
-        mp_rank, pp_rank, data_world_rank = 0, 0, 0
+        mp_rank, pp_rank, data_world_rank, data_world_size = 0, 0, 0, 1
 
     random.seed(seed + data_world_rank)
     np.random.seed(seed + data_world_rank)
     paddle.seed(seed + data_world_rank)
 
     # local_seed/ global_seed is used to control dropout in ModelParallel
-    local_seed = seed + 123 + mp_rank * 10 + pp_rank * 1000
+    local_seed = seed + 123 + mp_rank * 10 + pp_rank * 1000 + data_world_size
     global_seed = seed + data_world_rank
     tracker = get_rng_state_tracker()
     tracker.add('global_seed', global_seed)
     tracker.add('local_seed', local_seed)
+
+    logger.info("The global seed is set to {} and local seed is set to {}.".
+                format(global_seed, local_seed))
 
     global _seed
     global _dp_seed
@@ -75,9 +81,17 @@ def init_dist_env(config):
         "sharding_degree": config.Distributed.sharding.sharding_degree,
     }
 
+    if config.Distributed.pp_degree > 1:
+        if 'sequence_parallel' in config.Model:
+            if config.Model.sequence_parallel:
+                assert config.Global.enable_partial_send_recv is False, \
+                    "if config.Distributed.pp_degree > 1 and config.Model.sequence_parallel is True, " \
+                    "config.Global.enable_partial_send_recv should be set False."
+
     strategy.pipeline_configs = {
         "accumulate_steps": config.Engine.accumulate_steps,
         "micro_batch_size": config.Global.micro_batch_size,
+        "enable_partial_send_recv": config.Global.enable_partial_send_recv,
     }
 
     # set control in tensor parallel
