@@ -18,10 +18,10 @@ import copy
 
 import paddle
 from paddle.optimizer.lr import LRScheduler
-from paddle.fluid.clip import ClipGradByGlobalNorm
 
 from .lr_scheduler import *
 from .optimizer import *
+from .grad_clip import *
 
 from ppfleetx.utils.log import logger
 
@@ -41,16 +41,22 @@ def build_lr_scheduler(lr_config):
     return lr
 
 
+def build_grad_clip(grad_clip_config):
+    if grad_clip_config is not None:
+        grad_clip_name = grad_clip_config.pop('name', 'ClipGradByGlobalNorm')
+        grad_clip = eval(grad_clip_name)(**grad_clip_config)
+        return grad_clip
+    else:
+        return None
+
+
 def build_optimizer(config, model, lr_scheduler=None):
     config = copy.deepcopy(config)
     if lr_scheduler is not None:
         config.pop('lr')
 
-    grad_clip = None
     grad_clip_config = config.pop('grad_clip', None)
-    if grad_clip_config is not None:
-        grad_clip_name = grad_clip_config.pop('name', 'ClipGradByGlobalNorm')
-        grad_clip = eval(grad_clip_name)(**grad_clip_config)
+    grad_clip = build_grad_clip(grad_clip_config)
 
     optim_name = config.pop('name')
     optim = eval(optim_name)(learning_rate=lr_scheduler,

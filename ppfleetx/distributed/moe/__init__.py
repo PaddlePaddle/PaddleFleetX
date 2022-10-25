@@ -12,8 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .vision_dataset import GeneralClsDataset, ImageFolder, CIFAR10
-from .multimodal_dataset import ImagenDataset
-from .gpt_dataset import GPTDataset, LM_Eval_Dataset, Lambada_Eval_Dataset
-from .glue_dataset import *
-from .ernie.ernie_dataset import ErnieDataset
+from .gate import GShardGate, BaseGate, SwitchGate, NaiveGate
+from .moe_layer import MoELayer

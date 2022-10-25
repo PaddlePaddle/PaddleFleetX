@@ -1,4 +1,4 @@
-# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .vision_dataset import GeneralClsDataset, ImageFolder, CIFAR10
-from .multimodal_dataset import ImagenDataset
-from .gpt_dataset import GPTDataset, LM_Eval_Dataset, Lambada_Eval_Dataset
-from .glue_dataset import *
-from .ernie.ernie_dataset import ErnieDataset
+import os
+import subprocess
+path = os.path.abspath(os.path.dirname(__file__))
+
+
+def compile_helper():
+    """Compile helper function ar runtime. Make sure this
+    is invoked on a single process."""
+    import sys
+    excutable = sys.executable
+    ret = subprocess.run(['make', '-C', path, f'PYTHON_BIN={excutable}'])
+    if ret.returncode != 0:
+        print("Making C++ dataset helpers module failed, exiting.")
+        sys.exit(1)

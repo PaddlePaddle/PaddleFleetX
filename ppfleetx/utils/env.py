@@ -21,6 +21,8 @@ import paddle.distributed as dist
 from paddle.distributed import fleet
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 
+from ppfleetx.utils.log import logger
+
 __all__ = ['init_dist_env']
 
 _seed = None
@@ -34,19 +36,23 @@ def set_seed(seed):
         mp_rank = hcg.get_model_parallel_rank()
         pp_rank = hcg.get_stage_id()
         data_world_rank = get_data_world_rank()
+        data_world_size = get_data_world_size()
     else:
-        mp_rank, pp_rank, data_world_rank = 0, 0, 0
+        mp_rank, pp_rank, data_world_rank, data_world_size = 0, 0, 0, 1
 
     random.seed(seed + data_world_rank)
     np.random.seed(seed + data_world_rank)
     paddle.seed(seed + data_world_rank)
 
     # local_seed/ global_seed is used to control dropout in ModelParallel
-    local_seed = seed + 123 + mp_rank * 10 + pp_rank * 1000
+    local_seed = seed + 123 + mp_rank * 10 + pp_rank * 1000 + data_world_size
     global_seed = seed + data_world_rank
     tracker = get_rng_state_tracker()
     tracker.add('global_seed', global_seed)
     tracker.add('local_seed', local_seed)
+
+    logger.info("The global seed is set to {} and local seed is set to {}.".
+                format(global_seed, local_seed))
 
     global _seed
     global _dp_seed

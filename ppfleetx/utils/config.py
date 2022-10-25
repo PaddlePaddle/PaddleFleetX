@@ -32,77 +32,60 @@ def process_dist_config(configs):
     """
     process distributed strategy for hybrid parallel
     """
-    # config = config['Distributed']
-
     nranks = dist.get_world_size()
 
     config = configs['Distributed']
 
-    config['mp_degree'] = config.get('mp_degree', 1)
-    config['pp_degree'] = config.get('pp_degree', 1)
+    mp_degree = config.setdefault("mp_degree", 1)
+    pp_degree = config.setdefault("pp_degree", 1)
 
-    config['sharding'] = config.get('sharding', {
-        'sharding_degree': 1,
-        "sharding_stage": 2,
-    })
-    config['sharding']['sharding_degree'] = config['sharding'].get(
-        'sharding_degree', 1)
-    config['sharding']['sharding_stage'] = config['sharding'].get(
-        'sharding_stage', 2)
-    config['sharding']['sharding_offload'] = config['sharding'].get(
-        'sharding_offload', False)
-    config['sharding']['reduce_overlap'] = config['sharding'].get(
-        'reduce_overlap', False)
-    config['sharding']['broadcast_overlap'] = config['sharding'].get(
-        'broadcast_overlap', False)
+    # sharding default
+    sharding_config = config['sharding']
+    sharding_degree = sharding_config.setdefault("sharding_degree", 1)
+    sharding_stage = sharding_config.setdefault('sharding_stage', 2)
+    sharding_offload = sharding_config.setdefault('sharding_offload', False)
+    reduce_overlap = sharding_config.setdefault('reduce_overlap', False)
+    broadcast_overlap = sharding_config.setdefault('broadcast_overlap', False)
 
-    other_degree = config['mp_degree'] * config['pp_degree'] * config[
-        'sharding']['sharding_degree']
+    other_degree = mp_degree * pp_degree * sharding_degree
 
     assert nranks % other_degree == 0, "unreasonable config of dist_strategy."
+    dp_degree = config.setdefault("dp_degree", nranks // other_degree)
+    assert nranks % dp_degree == 0, "unreasonable config of dist_strategy."
+    assert nranks == dp_degree * other_degree, \
+        "Mismatched config using {} cards with dp_degree[{}]," \
+            "mp_degree[{}], pp_degree[{}] and sharding_degree[{}]".format(nranks, \
+                dp_degree, mp_degree, pp_degree, _sharding_degree)
 
-    if not config.get('dp_degree', None):
-        config['dp_degree'] = nranks // other_degree
-    else:
-        if config['dp_degree'] * other_degree != nranks:
-            logger.warning('Mismatched config using {} cards with dp_degree[{}], ' \
-                'mp_degree[{}], pp_degree[{}] and sharding_degree[{}]. So adaptively ' \
-                'adjust dp_degree to {}'.format(nranks, config['dp_degree'], config['mp_degree'],
-                config['pp_degree'], config['sharding']['sharding_degree'], nranks // other_degree))
-    assert nranks % config[
-        'dp_degree'] == 0, "unreasonable config of dist_strategy."
-
-    reduce_overlap = config['sharding']['reduce_overlap']
-    broadcast_overlap = config['sharding']['broadcast_overlap']
-
-    if config['sharding']['sharding_degree'] > 1 and reduce_overlap:
-        if config['sharding']['sharding_stage'] == 3 or config['sharding'][
+    if sharding_config['sharding_degree'] > 1 and reduce_overlap:
+        if sharding_config['sharding_stage'] == 3 or sharding_config[
                 'sharding_offload']:
-            config['sharding']['reduce_overlap'] = False
+            sharding_config['reduce_overlap'] = False
             logger.warning(
                 "reduce overlap only valid for sharding stage 2 without offload"
             )
 
-    if config['sharding']['sharding_degree'] > 1 and broadcast_overlap:
-        if config['sharding']['sharding_stage'] == 3 or config['sharding'][
+    if sharding_config['sharding_degree'] > 1 and broadcast_overlap:
+        if sharding_config['sharding_stage'] == 3 or sharding_config[
                 'sharding_offload']:
-            config['sharding']['broadcast_overlap'] = False
+            sharding_config['broadcast_overlap'] = False
             logger.warning(
                 "broadcast overlap only valid for sharding stage 2 without offload"
             )
 
-    if configs['Engine'].get('logging_freq', 1) == 1 and broadcast_overlap:
+    if broadcast_overlap and configs['Engine']['logging_freq'] == 1:
         logger.warning(
             "Set logging_freq to 1 will disable broadcast_overlap. "
             "If you want to overlap the broadcast, please increase the logging_freq."
         )
-        config['sharding']['broadcast_overlap'] = False
+        sharding_config['broadcast_overlap'] = False
 
-    if config['sharding']['sharding_degree'] > 1 and broadcast_overlap:
-        logger.warning(
-            "Enable broadcast overlap for sharding will not use pin memory for dataloader"
-        )
-        use_pinned_memory(False)
+    if sharding_config['sharding_degree'] > 1:
+        if getattr(sharding_config, 'broadcast_overlap', False):
+            logger.warning(
+                "Enable broadcast overlap for sharding will not use pin memory for dataloader"
+            )
+            use_pinned_memory(False)
 
 
 def process_global_configs(config):
@@ -122,27 +105,27 @@ def process_global_configs(config):
                 "config.Global.enable_partial_send_recv will be set False."
             )
 
-    configs = config['Global']
-    if configs['global_batch_size'] is None and configs[
+    global_cfg = config['Global']
+    if global_cfg['global_batch_size'] is None and global_cfg[
             'local_batch_size'] is None:
         raise ValueError(
             "global_batch_size or local_batch_size should be set.")
-    elif configs['global_batch_size'] is not None and configs[
+    elif global_cfg['global_batch_size'] is not None and global_cfg[
             'local_batch_size'] is not None:
-        assert configs['global_batch_size'] // configs['local_batch_size'] == (dp_degree * sharding_degree), "global_batch_size[{}] should be divided by local_batch_size[{}] "\
-            "when dp_degree is [{}] and sharding_degree is [{}]".format(configs['global_batch_size'],
-            configs['local_batch_size'], dp_degree, sharding_degree)
-    elif configs['global_batch_size'] is not None and configs[
+        assert global_cfg['global_batch_size'] // global_cfg['local_batch_size'] == (dp_degree * sharding_degree), "global_batch_size[{}] should be divided by local_batch_size[{}] "\
+            "when dp_degree is [{}] and sharding_degree is [{}]".format(global_cfg['global_batch_size'],
+            global_cfg['local_batch_size'], dp_degree, sharding_degree)
+    elif global_cfg['global_batch_size'] is not None and global_cfg[
             'local_batch_size'] is None:
-        assert configs['global_batch_size'] % (dp_degree * sharding_degree) == 0, \
+        assert global_cfg['global_batch_size'] % (dp_degree * sharding_degree) == 0, \
             "global_batch_size[{}] should be divided by dp_degree[{}] times sharding_degree[{}]"\
-            .format(configs['global_batch_size'], dp_degree, sharding_degree)
-        configs['local_batch_size'] = configs['global_batch_size'] // (
+            .format(global_cfg['global_batch_size'], dp_degree, sharding_degree)
+        global_cfg['local_batch_size'] = global_cfg['global_batch_size'] // (
             dp_degree * sharding_degree)
     else:
-        configs['global_batch_size'] = configs[
+        global_cfg['global_batch_size'] = global_cfg[
             'local_batch_size'] * dp_degree * sharding_degree
-    assert configs['local_batch_size'] % configs['micro_batch_size'] == 0
+    assert global_cfg['local_batch_size'] % global_cfg['micro_batch_size'] == 0
 
 
 def process_engine_config(config):
@@ -211,6 +194,13 @@ class AttrDict(dict):
         for k, v in self.items():
             setattr(result, k, copy.deepcopy(v, memo))
         return result
+
+    def setdefault(self, k, default=None):
+        if k not in self or self[k] is None:
+            self[k] = default
+            return default
+        else:
+            return self[k]
 
 
 def create_attr_dict(yaml_config):

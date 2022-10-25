@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import sys
-import time
-import numpy as np
-
-import paddle
+from .gshard_gate import GShardGate
+from .switch_gate import SwitchGate
+from .naive_gate import NaiveGate
+from .base_gate import BaseGate
