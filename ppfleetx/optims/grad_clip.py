@@ -21,7 +21,7 @@ from paddle.fluid import core, layers
 from paddle.distributed import collective
 import paddle.distributed.fleet as fleet
 
-from ppfleetx.utils import env
+from ppfleetx.distributed import env
 
 
 class ClipGradForMOEByGlobalNorm(ClipGradBase):

@@ -36,7 +36,7 @@ from .sequence_parallel_utils import ScatterOp, GatherOp, \
         all_reduce_gradient_hook, ColumnSequenceParallelLinear, RowSequenceParallelLinear
 
 from ppfleetx.distributed.moe import MoELayer
-from ppfleetx.utils import env
+from ppfleetx.distributed import env
 
 
 def get_attr(layer, name):

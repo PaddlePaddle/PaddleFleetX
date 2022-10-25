@@ -28,8 +28,9 @@ import paddle.distributed as dist
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../../')))
 
-from ppfleetx.utils import config, env
+from ppfleetx.utils import config
 from ppfleetx.models import build_module
+from ppfleetx.distributed import env
 
 if __name__ == "__main__":
     args = config.parse_args()

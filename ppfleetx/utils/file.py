@@ -19,7 +19,7 @@ import tarfile
 from typing import Iterable, Callable
 
 import paddle
-from ppfleetx.utils.env import work_at_local_rank0
+from ppfleetx.distributed.env import work_at_local_rank0
 
 
 @work_at_local_rank0

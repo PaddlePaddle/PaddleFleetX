@@ -30,7 +30,7 @@ from paddle.distributed import fleet
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 from paddle.distributed.fleet.meta_parallel import LayerDesc, PipelineLayer, SharedLayerDesc
 
-from ppfleetx.utils import env
+from ppfleetx.distributed import env
 
 
 def parallel_matmul(lm_output, logit_weights, parallel_output):

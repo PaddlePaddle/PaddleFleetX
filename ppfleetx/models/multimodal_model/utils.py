@@ -25,7 +25,7 @@ from paddle.fluid import core
 import argparse
 from functools import reduce
 
-from ppfleetx.utils import env
+from ppfleetx.distributed import env
 
 
 def process_global_configs(config):
