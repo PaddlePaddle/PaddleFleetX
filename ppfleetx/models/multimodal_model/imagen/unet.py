@@ -874,7 +874,6 @@ class Unet(nn.Layer):
 
         # save locals to take care of some hyperparameters for cascading DDPM
 
-
         self._locals = locals()
         self._locals.pop('self', None)
         self._locals.pop('__class__', None)
@@ -1022,8 +1021,9 @@ class Unet(nn.Layer):
         layer_cross_attns = cast_tuple(layer_cross_attns, num_layers)
 
         assert all([
-            layers == num_layers for layers in
-            list(map(len, (resnet_groups, layer_attns, layer_cross_attns)))
+            layers == num_layers
+            for layers in list(
+                map(len, (resnet_groups, layer_attns, layer_cross_attns)))
         ])
 
         # downsample klass
@@ -1444,7 +1444,7 @@ class Unet(nn.Layer):
                 x = pre_downsample(x)
 
             if use_recompute:
-                x = recompute(init_block, x, t, c)     
+                x = recompute(init_block, x, t, c)
             else:
                 x = init_block(x, t, c)
 
@@ -1506,5 +1506,5 @@ class Unet(nn.Layer):
 
         if exists(lowres_cond_img):
             x = paddle.concat((x, lowres_cond_img), axis=1)
-        
+
         return self.final_conv(x)

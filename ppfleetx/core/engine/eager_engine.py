@@ -136,6 +136,8 @@ class EagerEngine(BasicEngine):
             'custom_black_list']
         self._custom_white_list = self._configs['mix_precision'][
             'custom_white_list']
+        self._fp16_dtype = "float16" if 'fp16_dtype' in self._configs['mix_precision'] \
+                                     else self._configs['mix_precision']['fp16_dtype']
 
         self._save_steps = self._configs['save_load']['save_steps']
         self._save_epoch = self._configs['save_load']['save_epoch']
@@ -149,7 +151,7 @@ class EagerEngine(BasicEngine):
         self._mp_degree = self._dist_configs['mp_degree']
         self._pp_degree = self._dist_configs['pp_degree']
         sharding_config = self._dist_configs['sharding']
-        
+
         self._sharding_stage = sharding_config['sharding_stage']
         self._sharding_degree = sharding_config['sharding_degree']
         self._sharding_offload = sharding_config['sharding_offload']
@@ -252,9 +254,8 @@ class EagerEngine(BasicEngine):
         if self._reduce_overlap:
             self._module.model._set_reduce_overlap(self._reduce_overlap)
         if self._broadcast_overlap:
-            self._optimizer._set_broadcast_overlap(self._broadcast_overlap,
-                                                   layers=origin_model,
-                                                   num_groups=2)
+            self._optimizer._set_broadcast_overlap(
+                self._broadcast_overlap, layers=origin_model, num_groups=2)
 
     def _wrap_3D_parallel(self):
         self._module.model = fleet.distributed_model(self._module.model)
@@ -283,10 +284,7 @@ class EagerEngine(BasicEngine):
                     continue
 
             loss = self._fit_impl(batch, step)
-            # Sync for profile time, delete it may be a little faster
-            paddle.device.cuda.synchronize()
-            train_costs = time.time() - train_start
-            train_losses.append(loss.numpy()[0])
+            train_losses.append(loss)
 
             if (step + 1) % self._logging_freq == 0:
                 # Sync for profile time, delete it may be a little faster
@@ -405,38 +403,35 @@ class EagerEngine(BasicEngine):
 
     def _fit_impl(self, batch, step):
         batch = self._module.pretreating_batch(batch)
-        with paddle.no_grad():
-            batch = [paddle.cast(t, dtype=paddle.bfloat16) if t.dtype == paddle.float32 else t for t in batch]
+        if self._fp16_dtype is 'bfloat16':
+            with paddle.no_grad():
+                batch = [
+                    paddle.cast(
+                        t, dtype=paddle.bfloat16)
+                    if t.dtype == paddle.float32 else t for t in batch
+                ]
         if self._pp_degree == 1:
-            update_parameters = (step != 0 and step % self._accumulate_steps == 0)
             if self._use_recompute and isinstance(self._module.model,
                                                   paddle.DataParallel):
                 with self._module.model.no_sync():
                     loss = self._model_forward_backward(batch)
-                if update_parameters:
-                    if not hasattr(self._optimizer, "all_fused_tensors"
-                                ) or self._optimizer.all_fused_tensors is None:
-                        fused_allreduce_gradients(
-                            list(self._module.model.parameters()), None)
-                    else:
-                        all_reduce_parameters(self._optimizer.all_fused_tensors,
-                                            self._dp_group)
-            else:
-                if update_parameters or not isinstance(self._module.model,
-                                                  paddle.DataParallel):
-                    loss = self._model_forward_backward(batch)
+                if not hasattr(self._optimizer, "all_fused_tensors"
+                               ) or self._optimizer.all_fused_tensors is None:
+                    fused_allreduce_gradients(
+                        list(self._module.model.parameters()), None)
                 else:
-                    with self._module.model.no_sync():
-                        loss = self._model_forward_backward(batch)
-            if update_parameters:
-                self._optim_update_params()
+                    all_reduce_parameters(self._optimizer.all_fused_tensors,
+                                          self._dp_group)
+            else:
+                loss = self._model_forward_backward(batch)
+            self._optim_update_params()
         else:
             with paddle.amp.auto_cast(
                     self._use_pure_fp16,
                     custom_black_list=self._custom_black_list,
                     custom_white_list=self._custom_white_list,
                     level='O2',
-                    dtype='bfloat16'):
+                    dtype=self._fp16_dtype):
                 loss = self._module.model.train_batch(
                     batch,
                     optimizer=self._optimizer,
@@ -445,13 +440,25 @@ class EagerEngine(BasicEngine):
         return loss
 
     def _model_forward_backward(self, batch):
-        with paddle.amp.auto_cast(
-                self._use_pure_fp16,
-                custom_black_list=self._custom_black_list,
-                custom_white_list=self._custom_white_list,
-                level='O2',
-                dtype='bfloat16'):
-            loss = self._module.training_step(batch)
+        if self._accumulate_steps == 1 or self._pp_degree > 1:
+            batches = [batch]
+        else:
+            split_batches = [
+                paddle.split(b, self._accumulate_steps) for b in batch
+            ]
+            batches = []
+            for i in range(len(split_batches[0])):
+                micro_batch = [split_batch[i] for split_batch in split_batches]
+                batches.append(micro_batch)
+        final_loss = None
+        for micro_batch in batches:
+            with paddle.amp.auto_cast(
+                    self._use_pure_fp16,
+                    custom_black_list=self._custom_black_list,
+                    custom_white_list=self._custom_white_list,
+                    level='O2',
+                    dtype=self._fp16_dtype):
+                loss = self._module.training_step(micro_batch)
             loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
             self._module.backward(loss_bw)
             detach_loss = loss.detach()
