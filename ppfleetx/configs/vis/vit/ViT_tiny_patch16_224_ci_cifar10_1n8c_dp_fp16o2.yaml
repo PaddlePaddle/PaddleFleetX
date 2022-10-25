@@ -65,9 +65,6 @@ Data:
       root: ./dataset/cifar-10-batches-py/
       mode: train
       transform_ops:
-        - DecodeImage:
-            to_rgb: True
-            channel_first: False
         - RandCropImage:
             size: 224
             scale: [0.05, 1.0]
@@ -97,9 +94,6 @@ Data:
       root: ./dataset/cifar-10-batches-py/
       mode: test
       transform_ops:
-        - DecodeImage:
-            to_rgb: True
-            channel_first: False
         - ResizeImage:
             resize_short: 256
             interpolation: bicubic
