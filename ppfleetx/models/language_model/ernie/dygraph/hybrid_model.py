@@ -30,11 +30,13 @@ from paddle.distributed import fleet
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 from paddle.distributed.fleet.meta_parallel import LayerDesc, PipelineLayer, SharedLayerDesc
 
+from ppfleetx.utils import env
+
 
 def parallel_matmul(lm_output, logit_weights, parallel_output):
     """
     """
-    hcg = fleet.get_hybrid_communicate_group()
+    hcg = env.get_hcg()
     model_parallel_group = hcg.get_model_parallel_group()
     world_size = hcg.get_model_parallel_world_size()
     rank = hcg.get_model_parallel_rank()
@@ -719,7 +721,7 @@ class ErniePretrainingCriterionHybrid(paddle.nn.Layer):
         """
 
         # with paddle.static.amp.fp16_guard():
-        # hcg = fleet.get_hybrid_communicate_group()
+        # hcg = env.get_hcg()
         # mp_size = hcg.get_model_parallel_world_size()
 
         # if mp_size > 1:
@@ -916,7 +918,7 @@ class ErnieForPretrainingPipe(PipelineLayer):
         super().__init__(
             layers=self.descs,
             loss_fn=ErniePretrainingCriterionHybridPipe,
-            topology=fleet.get_hybrid_communicate_group().topology(),
+            topology=env.get_hcg().topology(),
             seg_method="layer:TransformerEncoderLayer",
             recompute_interval=1 if use_recompute else 0,
             recompute_ctx={

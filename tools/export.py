@@ -34,7 +34,7 @@ if __name__ == "__main__":
     cfg = config.get_config(args.config, overrides=args.override, show=False)
 
     if dist.get_world_size() > 1:
-        fleet.init(is_collective=True, strategy=env.init_dist_env(cfg))
+        env.init_dist_env(cfg)
 
     env.set_seed(cfg.Global.seed)
 

@@ -36,6 +36,7 @@ from .sequence_parallel_utils import ScatterOp, GatherOp, \
         all_reduce_gradient_hook, ColumnSequenceParallelLinear, RowSequenceParallelLinear
 
 from ppfleetx.distributed.moe import MoELayer
+from ppfleetx.utils import env
 
 
 def get_attr(layer, name):
@@ -48,7 +49,7 @@ def get_attr(layer, name):
 def parallel_matmul(lm_output, logit_weights, parallel_output):
     """
     """
-    hcg = fleet.get_hybrid_communicate_group()
+    hcg = env.get_hcg()
     model_parallel_group = hcg.get_model_parallel_group()
     world_size = hcg.get_model_parallel_world_size()
     rank = hcg.get_model_parallel_rank()
@@ -519,12 +520,12 @@ class TransformerDecoderLayer(nn.Layer):
             do_recompute=do_recompute)
 
         if self.expert_mode:
-            experts_list = nn.LayerList()
-            for expi in range(self.num_experts):
-                exp_layer = ExpertLayer(d_model, dim_feedforward)
-                experts_list.append(exp_layer)
+            experts_list = nn.LayerList([
+                ExpertLayer(d_model, dim_feedforward)
+                for e in range(self.num_experts)
+            ])
 
-            hcg = fleet.get_hybrid_communicate_group()
+            hcg = env.get_hcg()
             moe_group = hcg.get_expert_parallel_group()
             mp_group = hcg.get_model_parallel_group()
 
@@ -697,7 +698,7 @@ class GPTModelHybrid(nn.Layer):
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
 
-        hcg = fleet.get_hybrid_communicate_group()
+        hcg = env.get_hcg()
         mp_size = hcg.get_model_parallel_world_size()
         if mp_size <= 1:
             sequence_parallel = False
@@ -875,7 +876,7 @@ class GPTPretrainingCriterionHybird(nn.Layer):
             Tensor: The pretraining loss. Its data type should be float32 and its shape is [1].
 
         """
-        hcg = fleet.get_hybrid_communicate_group()
+        hcg = env.get_hcg()
         mp_size = hcg.get_model_parallel_world_size()
         if mp_size > 1:
             masked_lm_loss = self.parallel_loss_func(
@@ -987,7 +988,7 @@ class GPTForPretrainingPipe(PipelineLayer):
                 assert len(no_recompute_layers) == 0, \
                     "for pp with full recompute, no_recompute_layers is not support"
 
-        hcg = fleet.get_hybrid_communicate_group()
+        hcg = env.get_hcg()
         mp_size = hcg.get_model_parallel_world_size()
         if mp_size <= 1:
             sequence_parallel = False
@@ -1062,7 +1063,7 @@ class GPTForPretrainingPipe(PipelineLayer):
         super().__init__(
             layers=self.descs,
             loss_fn=GPTPretrainingCriterionPipe(),
-            topology=fleet.get_hybrid_communicate_group().topology(),
+            topology=env.get_hcg().topology(),
             seg_method="layer:TransformerDecoderLayer",
             recompute_interval=recompute_interval,
             recompute_ctx={

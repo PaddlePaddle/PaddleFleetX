@@ -756,7 +756,7 @@ class MoEModule(LanguageModule):
         if paddle.distributed.get_world_size() == 1:
             return
 
-        hcg = fleet.get_hybrid_communicate_group()
+        hcg = env.get_hcg()
 
         def get_expert_parallel_world_size(self):
             return self.get_data_parallel_world_size(
@@ -775,7 +775,7 @@ class MoEModule(LanguageModule):
             get_expert_parallel_group, hcg)
 
     def initialize_mp_dp_parameters(self):
-        hcg = fleet.get_hybrid_communicate_group()
+        hcg = env.get_hcg()
         mp_group = hcg.get_model_parallel_group()
         mp_src_rank = hcg.get_model_parallel_group_src_rank()
 

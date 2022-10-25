@@ -27,12 +27,13 @@ __all__ = ['init_dist_env']
 
 _seed = None
 _dp_seed = None
+_hcg = None
 
 
 def set_seed(seed):
     if dist.get_world_size() > 1:
         # obtain rank message of hybrid parallel
-        hcg = fleet.get_hybrid_communicate_group()
+        hcg = get_hcg()
         mp_rank = hcg.get_model_parallel_rank()
         pp_rank = hcg.get_stage_id()
         data_world_rank = get_data_world_rank()
@@ -58,6 +59,16 @@ def set_seed(seed):
     global _dp_seed
     _seed = seed
     _dp_seed = global_seed
+
+
+def set_hcg(hcg):
+    global _hcg
+    _hcg = hcg
+
+
+def get_hcg():
+    global _hcg
+    return _hcg
 
 
 def get_seed():
@@ -98,7 +109,9 @@ def init_dist_env(config):
     seed = config.Global.seed
     strategy.tensor_parallel_configs = {"tensor_init_seed": seed}
 
-    return strategy
+    fleet.init(is_collective=True, strategy=strategy)
+    hcg = fleet.get_hybrid_communicate_group()
+    set_hcg(hcg)
 
 
 def get_local_rank():
@@ -109,7 +122,7 @@ def get_data_world_size():
     if paddle.distributed.get_world_size() == 1:
         return 1
 
-    hcg = fleet.get_hybrid_communicate_group()
+    hcg = get_hcg()
     dp_size = hcg.get_data_parallel_world_size()
     sharding_size = hcg.get_sharding_parallel_world_size()
 
@@ -120,7 +133,7 @@ def get_data_world_rank():
     if paddle.distributed.get_world_size() == 1:
         return 0
 
-    hcg = fleet.get_hybrid_communicate_group()
+    hcg = get_hcg()
     dp_rank = hcg.get_data_parallel_rank()
     sharding_rank = hcg.get_sharding_parallel_rank()
     sharding_size = hcg.get_sharding_parallel_world_size()

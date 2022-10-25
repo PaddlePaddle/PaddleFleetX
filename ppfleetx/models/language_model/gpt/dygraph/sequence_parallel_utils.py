@@ -24,6 +24,8 @@ from paddle.distributed import fleet
 from paddle.distributed.fleet.base import topology as tp
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 
+from ppfleetx.utils import env
+
 import numpy as np
 
 ####################################################
@@ -34,19 +36,19 @@ import numpy as np
 
 
 def scatter(input):
-    hcg = fleet.get_hybrid_communicate_group()
+    hcg = env.get_hcg()
     group = hcg.get_model_parallel_group()
     parallelism = group.nranks
     rank = group.rank
-    assert input.shape[0] % parallelism == 0, \
-            "Input sequence length {0} can't be divided exactly \
-             by sequence parallelism {1}".format(input.shape[0], parallelism)
+    assert input.shape[
+        0] % parallelism == 0, "Input sequence length {0} can't be divided exactly by sequence parallelism {1}".format(
+            input.shape[0], parallelism)
     input = paddle.split(input, num_or_sections=parallelism, axis=0)[rank]
     return input
 
 
 def all_gather(input):
-    hcg = fleet.get_hybrid_communicate_group()
+    hcg = env.get_hcg()
     group = hcg.get_model_parallel_group()
     parallelism = group.nranks
     output_shape = input.shape
@@ -57,13 +59,13 @@ def all_gather(input):
 
 
 def reduce_scatter(input):
-    hcg = fleet.get_hybrid_communicate_group()
+    hcg = env.get_hcg()
     group = hcg.get_model_parallel_group()
     parallelism = group.nranks
     output_shape = input.shape
-    assert input.shape[0] % parallelism == 0, \
-        "Input sequence length {0} can't be divided exactly by \
-         sequence parallelism {1}".format(input.shape[0], parallelism)
+    assert input.shape[
+        0] % parallelism == 0, "Input sequence length {0} can't be divided exactly by sequence parallelism {1}".format(
+            input.shape[0], parallelism)
     output_shape[0] = output_shape[0] // parallelism
     output = paddle.empty(shape=output_shape, dtype=input.dtype)
     group.process_group._reduce_scatter_base(output, input).wait()
@@ -134,7 +136,7 @@ class ReduceScatterOp(PyLayer):
 
 
 def all_reduce_gradient_hook(grad):
-    hcg = fleet.get_hybrid_communicate_group()
+    hcg = env.get_hcg()
     group = hcg.get_model_parallel_group()
     group.process_group.allreduce(grad).wait()
     return grad
@@ -159,7 +161,7 @@ class ColumnSequenceParallelLinear(Layer):
                  name=None):
         super(ColumnSequenceParallelLinear, self).__init__()
 
-        hcg = fleet.get_hybrid_communicate_group()
+        hcg = env.get_hcg()
         self.model_parallel_group = hcg.get_model_parallel_group(
         ) if mp_group is None else mp_group
         self.world_size = hcg.get_model_parallel_group(
@@ -254,7 +256,7 @@ class RowSequenceParallelLinear(Layer):
         self._dtype = self._helper.get_default_dtype()
         self._name = name
 
-        hcg = fleet.get_hybrid_communicate_group()
+        hcg = env.get_hcg()
         self.model_parallel_group = hcg.get_model_parallel_group(
         ) if mp_group is None else mp_group
         self.world_size = hcg.get_model_parallel_group(
