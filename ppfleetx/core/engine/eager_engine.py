@@ -182,21 +182,7 @@ class EagerEngine(BasicEngine):
 
         # distributed configs
         self._distributed = (dist.get_world_size() > 1)
-
-        if self._distributed:
-            self._hcg = fleet.get_hybrid_communicate_group()
-            self._dp_group = self._hcg.get_data_parallel_group()
-            self._sharding_group = self._hcg.get_sharding_parallel_group()
-
-            self._dp_rank = self._hcg.get_data_parallel_rank()
-            self._mp_rank = self._hcg.get_model_parallel_rank()
-            self._pp_rank = self._hcg.get_stage_id()
-            self._sharding_rank = self._hcg.get_sharding_parallel_rank()
-
-            if self._hcg.nranks > 1:
-                self._wrap_with_fleet()
-        else:
-            self._dp_rank = 0
+        self._dp_rank = 0
 
         # using for save/load
         self._load_recovery = {'step': 0, 'epoch': 0, 'rng_state': -1}
@@ -228,6 +214,22 @@ class EagerEngine(BasicEngine):
             self.profiler.start()
             logger.warning(
                 "Profiler is enabled, do not enable it in production.")
+
+    def distributed_model(self):
+        if self._distributed:
+            self._hcg = fleet.get_hybrid_communicate_group()
+            self._dp_group = self._hcg.get_data_parallel_group()
+            self._sharding_group = self._hcg.get_sharding_parallel_group()
+
+            self._dp_rank = self._hcg.get_data_parallel_rank()
+            self._mp_rank = self._hcg.get_model_parallel_rank()
+            self._pp_rank = self._hcg.get_stage_id()
+            self._sharding_rank = self._hcg.get_sharding_parallel_rank()
+
+            if self._hcg.nranks > 1:
+                self._wrap_with_fleet()
+        else:
+            self._dp_rank = 0
 
     def _wrap_with_fleet(self):
         if self._sharding_stage in [2, 3]:
@@ -664,18 +666,21 @@ class EagerEngine(BasicEngine):
 
         return params
 
-    def prune_model(self):
+    def prune_model(self, infer=False):
         model = self._module.model
 
         prune_criterion = 'l1_norm' #  self._configs.Prune.criterion
-        ratio = 0.25 # self._configs.Prune.ratio
+        ratio = 0.125 # self._configs.Prune.ratio
 
-        logger.info("Flops before pruning: {}GFLOPS".format(flops(model, [[8, 1024], [8, 1024]], dtypes=['int64'] * 2) / 1000))
+        # logger.info("Flops before pruning: {}GFLOPS".format(flops(model, [[8, 1024], [8, 1024]], dtypes=['int64'] * 2) / 1000))
         if prune_criterion == 'fpgm':
             #TODO(minghaoBD): test fc pruning in fpgm pruner
             pruner = paddleslim.dygraph.FPGMFilterPruner(model, [[8, 1024], [8, 1024]])
         elif prune_criterion == 'l1_norm':
-            pruner = paddleslim.dygraph.L1NormFilterPruner(model, [[8, 1024], [8, 1024]], skip_leaves=False)
+            if infer:
+                pruner = paddleslim.dygraph.L1NormFilterPruner(model, [[8, 1024]], skip_leaves=False)
+            else:
+                pruner = paddleslim.dygraph.L1NormFilterPruner(model, [[8, 1024], [8, 1024]], skip_leaves=False)
         params = self._get_pruned_params(model)
         # print('====pruned params======')
         # print(params)
@@ -685,7 +690,19 @@ class EagerEngine(BasicEngine):
             ratios[param] = ratio
         #NOTE(minghaoBD): hidden size in Layernorm must be 768/1024/2048/4096 for best inference performace, and when axis=0, the hidden size in layernorm will be changed accordingly. So axis=1 is required.
         plan = pruner.prune_vars(ratios, [1])
-        logger.info("Flops after pruning: {}GFLOPS".format(flops(model, [[8, 1024], [8, 1024]], dtypes=['int64'] * 2) / 1000))
+        # logger.info("Flops after pruning: {}GFLOPS".format(flops(model, [[8, 1024], [8, 1024]], dtypes=['int64'] * 2) / 1000))
+
+
+    def sensitive(self, eval_func):
+        model = self._module.model
+        prune_criterion = 'l1_norm'
+        if prune_criterion == 'fpgm':
+            pruner = paddleslim.dygraph.FPGMFilterPruner(model, [[8, 1024], [8, 1024]])
+        elif prune_criterion == 'l1_norm':
+            pruner = paddleslim.dygraph.L1NormFilterPruner(model, [[8, 1024], [8, 1024]], skip_leaves=False)
+
+        pruner.sensitive(eval_func=eval_func, sen_file="./sen.pickle")
+
 
     def load(self):
         """
@@ -694,9 +711,10 @@ class EagerEngine(BasicEngine):
         if self._ckpt_dir and isinstance(self._ckpt_dir, str):
             logger.info("Try to load checkpoint from %s " % self._ckpt_dir)
 
-            load_dir = "{}/mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}".format(
-                self._ckpt_dir, self._mp_rank, self._sharding_rank,
-                self._pp_rank) if self._distributed else self._ckpt_dir
+            # load_dir = "{}/mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}".format(
+            #     self._ckpt_dir, self._mp_rank, self._sharding_rank,
+            #     self._pp_rank) if self._distributed else self._ckpt_dir
+            load_dir = self._ckpt_dir
             model_path = os.path.join(load_dir, "model.pdparams")
             opt_path = os.path.join(load_dir, "model_state.pdopt")
             meta_path = os.path.join(load_dir, "meta_state.pdopt")
@@ -704,7 +722,7 @@ class EagerEngine(BasicEngine):
             if os.path.exists(model_path):
                 model_dict = paddle.load(model_path)
                 for name, param in self._module.model.state_dict().items():
-                    print(name, param.shape)
+                    # print(name, param.shape, model_dict[name].shape)
                     if name not in model_dict.keys(
                             ):
                         "No param named `{}` was found in checkpoint file.".format(
@@ -713,7 +731,7 @@ class EagerEngine(BasicEngine):
 
                     if param.dtype != model_dict[name].dtype:
                         model_dict[name] = model_dict[name].cast(param.dtype)
-
+                    
                 self._module.model.set_state_dict(model_dict)
             else:
                 raise ValueError("No optimizer checkpoint file found in %s." %

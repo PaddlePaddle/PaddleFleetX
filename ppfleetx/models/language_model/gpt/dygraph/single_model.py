@@ -66,6 +66,8 @@ class MultiHeadAttention(nn.Layer):
                  recompute_granularity="full",
                  do_recompute=True):
         super(MultiHeadAttention, self).__init__()
+        print('dropout rate is {}'.format(dropout))
+        print('====================================================')
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
         self.vdim = vdim if vdim is not None else embed_dim

@@ -5,6 +5,10 @@ Inference:
   model_dir: ./output
   mp_degree: 1
 
+Prune:
+  enable: True
+  criterion: l1_norm
+  ratio: 0.25
 
 Distributed:
   dp_degree: 
@@ -16,7 +20,6 @@ Distributed:
     sharding_offload: False
     reduce_overlap: False
     broadcast_overlap: False
-
 
 Data:
   Test:

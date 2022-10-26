@@ -1,0 +1,51 @@
+_base_: ./pretrain_gpt_base.yaml
+
+Global:
+  global_batch_size: 
+  local_batch_size: 8
+  micro_batch_size: 8
+
+
+Model:
+  vocab_size: 50304
+  hidden_size: 1024
+  num_layers: 24
+  num_attention_heads: 16
+  ffn_hidden_size: 4096
+  hidden_dropout_prob: 0.0
+  attention_probs_dropout_prob: 0.0
+  max_position_embeddings: 1024
+  type_vocab_size: 16
+  initializer_range: 0.02
+  use_recompute: False
+  recompute_granularity:
+  no_recompute_layers:
+  
+
+Distributed:
+  dp_degree: 1
+  mp_degree: 1
+  pp_degree: 1
+  sharding:
+    sharding_degree: 1
+    sharding_stage: 1
+    sharding_offload: False
+    comm_overlap: False
+
+Engine:
+  max_steps: 100000
+  save_load:
+    save_steps: 5000
+
+Optimizer:
+  lr:
+    decay_steps: 72000
+    warmup_rate: 0.00
+    max_lr: 2.0e-5
+    min_lr: 4.0e-6
+
+Prune:
+  enable: False
+  cal_sens: True
+  criterion: l1_norm
+  ratio: 0.25

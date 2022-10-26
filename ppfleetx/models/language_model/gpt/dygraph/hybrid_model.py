@@ -123,7 +123,6 @@ class MultiHeadAttention(nn.Layer):
         if self.fuse_attn_qkv:
             assert self.kdim == embed_dim
             assert self.vdim == embed_dim
-
             self.qkv_proj = ColumnParallelLinear(
                 embed_dim,
                 3 * embed_dim,

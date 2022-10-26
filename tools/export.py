@@ -43,6 +43,9 @@ if __name__ == "__main__":
 
     engine = EagerEngine(configs=cfg, module=module, mode='export')
 
+    if "Prune" in cfg.keys() and cfg.Prune.enable:
+        engine.prune_model(True)
+
     if cfg.Engine.save_load.ckpt_dir is not None:
         engine.load()
 

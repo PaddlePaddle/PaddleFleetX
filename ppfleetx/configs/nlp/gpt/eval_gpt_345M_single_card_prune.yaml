@@ -1,9 +1,18 @@
 _base_: ./pretrain_gpt_345M_single_card.yaml
 
+Engine:
+  save_load:
+          ckpt_dir: output/epoch_0_step_30000/
 
 Model:
   module: GPTEvalModule
+  hidden_dropout_prob: 0.1
+  attention_probs_dropout_prob: 0.1
 
+Prune:
+  enable: True
+  criterion: l1_norm
+  ratio: 0.125
 
 Offline_Eval:
   eval_path: ./lambada_test.jsonl
