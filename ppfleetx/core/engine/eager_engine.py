@@ -660,8 +660,9 @@ class EagerEngine(BasicEngine):
     def _get_pruned_params(self, model):
         params = []
         for sublayer in model.sublayers():
+            print(type(sublayer))
             for param in sublayer.parameters(include_sublayers=False):
-                if isinstance(sublayer, paddle.nn.layer.common.Linear): 
+                if isinstance(sublayer, paddle.nn.layer.common.Linear) or isinstance(sublayer, paddle.distributed.fleet.layers.mpu.mp_layers.ColumnParallelLinear) or isinstance(sublayer, paddle.distributed.fleet.layers.mpu.mp_layers.RowParallelLinear): 
                     params.append(param.name)
 
         return params
