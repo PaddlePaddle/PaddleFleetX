@@ -39,6 +39,20 @@ class _StaticGuard(object):
 
 
 class TensorRTConfig(object):
+    """
+    TensorRT Inference Configuration
+
+    Args:
+        max_batch_size (int): The maxmum batch size of input data. Default 1
+        workspace_size (int): The size of TensorRT workspace in bytes. Default 1<<30
+        min_subgraph_size (int): The minimum subgraph node size to convert subgraph to TensorRT engine. Default 3
+        precision (str): The inference precision, can be 'fp32', 'fp16' and 'int8'. Default 'fp16'
+        use_static (bool): Whether to serialize and save TensorRT engine. Default False
+        use_calib_mode (bool): Whether to use TensorRT calibration. Default False
+        collect_shape (bool): Whether to collect dynamic shape. Default False
+        shape_range_info_filename (str): Path to dynamic shape range file. Default None
+    """
+
     def __init__(self,
                  max_batch_size=1,
                  workspace_size=1<<30,
@@ -94,6 +108,7 @@ class InferenceEngine(object):
     Args:
         model_dir (string): root directory of inference model
         mp_degree (int): model parallel size
+        tensorrt_config (TensorRTConfig): configurations for TensorRT inference
     """
 
     def __init__(self, model_dir, mp_degree=1, tensorrt_config=None):
