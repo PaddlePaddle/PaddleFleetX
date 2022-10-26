@@ -21,7 +21,7 @@ import numpy as np
 import paddle
 import paddle.nn as nn
 import paddle.distributed as dist
-#from paddle.distributed.fleet import auto
+from paddle.distributed.fleet import auto
 from paddle.optimizer.lr import LRScheduler
 
 from ppfleetx.utils.log import logger
@@ -98,13 +98,14 @@ class AutoEngine(BasicEngine):
         self._auto_engine.fit(train_data=train_dataset,
                               valid_data=valid_dataset,
                               train_sample_split=train_dataset.sample_split,
-                              valid_sample_split=valid_dataset.sample_split,
+                              valid_sample_split=valid_dataset.sample_split if valid_dataset is not None else None,
                               epochs=self._num_train_epochs,
                               batch_size=self.batch_size,
                               steps_per_epoch=self._max_steps,
                               valid_steps=self._eval_iters,
                               valid_freq=self._eval_freq,
-                              collate_fn=train_dataset.collate_fn)
+                              collate_fn=train_dataset.collate_fn,
+                              log_freq=1)
 
     def evaluate(self, valid_dataset=None):
 

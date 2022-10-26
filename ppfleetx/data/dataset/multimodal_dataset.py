@@ -32,7 +32,7 @@ from paddle.io import Dataset, DataLoader
 from paddle.distributed import get_world_size
 from paddle.vision import transforms as T
 
-from ppfleetx.data.tokenizers import get_t5_tokenizer
+# from ppfleetx.data.tokenizers import get_t5_tokenizer
 
 
 def get_files(data_path, gpu_num, shuffle=False):
@@ -182,24 +182,24 @@ class ImagenDataset(Dataset):
         return len(self.indexes)
 
 
-def collate_idx(batch):
-    indexes = []
-    captions = [] 
-    for cap, idx in batch:
-        indexes.append(idx)
-        captions.append(cap)
+# def collate_idx(batch):
+#     indexes = []
+#     captions = [] 
+#     for cap, idx in batch:
+#         indexes.append(idx)
+#         captions.append(cap)
 
-    tokenizer = get_t5_tokenizer()
-    encoded = tokenizer.batch_encode_plus(
-        captions,
-        return_tensors="paddle",
-        padding='longest',
-        max_length=MAX_LENGTH,
-        truncation=True)
-    input_ids = encoded.input_ids
-    text_masks = encoded.attention_mask
+#     tokenizer = get_t5_tokenizer()
+#     encoded = tokenizer.batch_encode_plus(
+#         captions,
+#         return_tensors="paddle",
+#         padding='longest',
+#         max_length=MAX_LENGTH,
+#         truncation=True)
+#     input_ids = encoded.input_ids
+#     text_masks = encoded.attention_mask
 
-    return input_ids, text_masks, indexes, captions
+#     return input_ids, text_masks, indexes, captions
 
 
 class TextIdxDataset(Dataset):

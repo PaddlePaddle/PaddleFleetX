@@ -14,7 +14,7 @@
 
 from tqdm import tqdm
 from contextlib import contextmanager, nullcontext
-
+import sys
 import paddle
 import paddle.nn.functional as F
 from paddle import nn
@@ -160,7 +160,7 @@ class ImagenModel(nn.Layer):
         super().__init__()
 
         # conditioning hparams
-
+        self.use_recompute = use_recompute
         self.condition_on_text = condition_on_text
         self.unconditional = not condition_on_text
         self.return_all_unet_outputs = return_all_unet_outputs 
@@ -734,10 +734,10 @@ class ImagenModel(nn.Layer):
 
     def forward(self,
                 images,
-                unet=None,
-                texts=None,
                 text_embeds=None,
                 text_masks=None,
+                unet=None,
+                texts=None,
                 unet_number=None,
                 cond_images=None):
         assert images.shape[-1] == images.shape[
@@ -794,6 +794,7 @@ class ImagenModel(nn.Layer):
         ), f'invalid text embedding dimension being passed in (should be {self.text_embed_dim})'
 
         lowres_cond_img = lowres_aug_times = None
+
         if prev_image_size is not None:
             lowres_cond_img = resize_image_to(
                 images, prev_image_size, clamp_range=self.input_image_range)
@@ -803,13 +804,11 @@ class ImagenModel(nn.Layer):
                 clamp_range=self.input_image_range)
 
             if self.per_sample_random_aug_noise_level:
-                lowres_aug_times = self.lowres_noise_schedule.sample_random_times(
-                    b)
+                lowres_aug_times = self.lowres_noise_schedule.sample_random_times(b)
             else:
-                lowres_aug_time = self.lowres_noise_schedule.sample_random_times(
-                    1)
+                lowres_aug_time = self.lowres_noise_schedule.sample_random_times(1)
                 lowres_aug_times = repeat(lowres_aug_time, '1 -> b', b=b)
-
+        
         images = resize_image_to(images, target_image_size)
 
         return self.p_losses(

@@ -215,7 +215,8 @@ def rearrange_many(tensors, pattern: str, h: int=-1, x: int=-1, y: int=-1):
 
 def repeat(tensor, pattern: str, h: int=-1, b: int=-1):
     if pattern == '1 -> b':
-        return paddle.tile(tensor, repeat_times=b)
+        # return paddle.tile(tensor, repeat_times=b)
+        return paddle.tile(tensor, repeat_times=paddle.to_tensor(b))
     elif pattern == 't -> b t':
         tensor = tensor[None, :]
         return paddle.tile(tensor, repeat_times=(b, 1))
@@ -348,8 +349,9 @@ class GaussianDiffusionContinuousTimes(nn.Layer):
         return paddle.full((batch_size, ), noise_level, dtype=paddle.float32)
 
     def sample_random_times(self, batch_size, max_thres=0.999):
-        return paddle.zeros(
-            (batch_size, )).cast('float32').uniform_(0, max_thres)
+        return paddle.uniform((batch_size, ), 'float32', min = 0, max=max_thres)
+        # return paddle.zeros(
+        #     (batch_size, )).cast('float32').uniform_(0, max_thres)
 
     def get_condition(self, times):
         # import pdb; pdb.set_trace()

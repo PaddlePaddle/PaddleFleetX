@@ -22,6 +22,7 @@ import copy
 import random
 import paddle
 import numpy as np
+import tornado
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
@@ -43,7 +44,10 @@ if __name__ == "__main__":
     config.print_config(cfg)
 
     train_data = build_auto_dataset(cfg.Data, "Train")
-    eval_data = build_auto_dataset(cfg.Data, "Eval")
+    if cfg.Data.get("Eval", None) is not None:
+        eval_data = build_auto_dataset(cfg.Data, "Eval")
+    else:
+        eval_data = None
 
     cfg.Optimizer.lr.update({
         'epochs': cfg.Engine.num_train_epochs,

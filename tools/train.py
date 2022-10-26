@@ -20,6 +20,7 @@ import os
 import sys
 import copy
 
+import paddle
 from paddle.distributed import fleet
 import paddle.distributed as dist
 
@@ -35,12 +36,14 @@ from ppfleetx.core import EagerEngine
 #init_logger()
 
 if __name__ == "__main__":
+    # import paddle
+    # paddle.enable_static()
     args = config.parse_args()
     cfg = config.get_config(args.config, overrides=args.override, show=False)
 
     if dist.get_world_size() > 1:
         fleet.init(is_collective=True, strategy=env.init_dist_env(cfg))
-
+    print("cfg.Global.seed-->{}".format(cfg.Global.seed))
     env.set_seed(cfg.Global.seed)
 
     module = build_module(cfg)

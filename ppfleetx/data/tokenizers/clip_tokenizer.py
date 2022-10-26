@@ -134,7 +134,7 @@ class SimpleTokenizer(object):
         return text
 
 
-_tokenizer = SimpleTokenizer()
+# _tokenizer = SimpleTokenizer()
 
 def clip_tokenize(texts, context_length=77):
     """

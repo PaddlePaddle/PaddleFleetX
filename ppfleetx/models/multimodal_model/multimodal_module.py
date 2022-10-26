@@ -43,6 +43,7 @@ class MultiModalModule(BasicModule):
             samples, text_embeds=text_embeds, text_masks=text_masks)
 
     def training_step(self, batch):
+        samples, text_embeds, text_masks = batch
         preds, targets, log_snr, p2_loss_weight_gamma = self(
             samples, text_embeds, text_masks)
         loss = self.loss_fn(preds, targets, log_snr, p2_loss_weight_gamma)
