@@ -450,10 +450,10 @@ class EagerEngine(BasicEngine):
                     custom_white_list=self._custom_white_list,
                     level='O2'):
                 loss = self._module.training_step(micro_batch)
-                if self._accumulate_steps > 1:
-                    loss = loss / self._accumulate_steps
 
             loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
+            if self._accumulate_steps > 1:
+                loss = loss / self._accumulate_steps
             self._module.backward(loss_bw)
             detach_loss = loss.detach()
             if final_loss is None:
