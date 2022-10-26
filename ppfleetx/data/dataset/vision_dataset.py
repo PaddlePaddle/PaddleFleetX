@@ -319,6 +319,10 @@ class CIFAR10(paddle.io.Dataset):
                 out_dir=os.path.join(self.root, '..'),
                 delete=True)
 
+        # wait to download dataset
+        if paddle.distributed.get_world_size() > 1:
+            paddle.distributed.barrier()
+
         self.images = []
         self.labels = []
         self._load_anno()

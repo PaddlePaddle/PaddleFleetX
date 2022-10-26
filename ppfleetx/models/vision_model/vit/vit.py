@@ -29,6 +29,7 @@ from ..layers.mlp import ViTMLP
 from ..layers.initializer import xavier_uniform_, zeros_, minus_tens_, pos_normal_, ones_
 
 __all__ = [
+    'ViT_tiny_patch16_224',
     'ViT_base_patch16_224',
     'ViT_base_patch16_384',
     'ViT_base_patch32_224',
@@ -257,6 +258,17 @@ class ViT(nn.Layer):
         self.set_dict(param_state_dict)
         return
 
+def ViT_tiny_patch16_224(**kwargs):
+    model = ViT(patch_size=16,
+                embed_dim=192,
+                depth=12,
+                num_heads=3,
+                mlp_ratio=4,
+                qkv_bias=True,
+                epsilon=1e-6,
+                representation_size=192,
+                **kwargs)
+    return model
 
 def ViT_base_patch16_224(**kwargs):
     model = ViT(patch_size=16,
