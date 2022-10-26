@@ -453,9 +453,9 @@ class EagerEngine(BasicEngine):
 
             loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
             if self._accumulate_steps > 1:
-                loss = loss / self._accumulate_steps
+                loss_bw = loss_bw / self._accumulate_steps
             self._module.backward(loss_bw)
-            detach_loss = loss.detach()
+            detach_loss = loss_bw.detach()
             if final_loss is None:
                 final_loss = detach_loss
             else:
