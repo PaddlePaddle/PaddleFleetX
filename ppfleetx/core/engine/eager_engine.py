@@ -453,6 +453,7 @@ class EagerEngine(BasicEngine):
 
             loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
             if self._accumulate_steps > 1:
+                # div the loss for backward
                 loss_bw = loss_bw / self._accumulate_steps
             self._module.backward(loss_bw)
             detach_loss = loss.detach()
@@ -460,6 +461,9 @@ class EagerEngine(BasicEngine):
                 final_loss = detach_loss
             else:
                 final_loss = paddle.add(final_loss, detach_loss)
+        if self._accumulate_steps > 1:
+            # div the loss for print
+            final_loss = final_loss / self._accumulate_steps
         return final_loss
 
     def _optim_update_params(self):
