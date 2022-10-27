@@ -31,7 +31,7 @@ class FusedAdamW(paddle.optimizer.AdamW):
     def __init__(self, learning_rate, parameters, grad_clip, **config):
         tensor_fusion = config.pop("tensor_fusion", False)
 
-        if paddle.distributed.get_world_size() > 1:
+        if False: #paddle.distributed.get_world_size() > 1:
             hcg = fleet.get_hybrid_communicate_group()
             sharding_size = hcg.get_sharding_parallel_world_size()
 

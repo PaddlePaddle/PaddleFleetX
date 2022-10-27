@@ -46,8 +46,8 @@ if __name__ == "__main__":
 
     valid_data_loader = build_dataloader(cfg.Data, "Eval")
 
-    if cfg.Engine.save_load.ckpt_dir is not None:
-        engine.load()
+    # if cfg.Engine.save_load.ckpt_dir is not None:
+    engine.load()
 
     engine.evaluate(
         valid_data_loader=valid_data_loader, epoch=cfg.Engine.num_train_epochs)

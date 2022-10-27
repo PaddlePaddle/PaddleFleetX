@@ -28,7 +28,7 @@ _dp_seed = None
 
 
 def set_seed(seed):
-    if dist.get_world_size() > 1:
+    if False:# dist.get_world_size() > 1:
         # obtain rank message of hybrid parallel
         hcg = fleet.get_hybrid_communicate_group()
         mp_rank = hcg.get_model_parallel_rank()
@@ -102,7 +102,7 @@ def get_local_rank():
 def get_data_world_size():
     if paddle.distributed.get_world_size() == 1:
         return 1
-
+    return 1
     hcg = fleet.get_hybrid_communicate_group()
     dp_size = hcg.get_data_parallel_world_size()
     sharding_size = hcg.get_sharding_parallel_world_size()
@@ -113,7 +113,7 @@ def get_data_world_size():
 def get_data_world_rank():
     if paddle.distributed.get_world_size() == 1:
         return 0
-
+    return 0
     hcg = fleet.get_hybrid_communicate_group()
     dp_rank = hcg.get_data_parallel_rank()
     sharding_rank = hcg.get_sharding_parallel_rank()

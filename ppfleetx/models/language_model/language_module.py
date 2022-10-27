@@ -120,7 +120,6 @@ class LanguageModule(BasicModule):
         logger.info("[Training] epoch: %d, total time: %.5f sec" %
                     (log_dict['epoch'], log_dict['train_cost']))
 
-
 class GPTModule(LanguageModule):
     def __init__(self, configs):
         super(GPTModule, self).__init__(configs)
@@ -128,6 +127,11 @@ class GPTModule(LanguageModule):
     def get_model(self):
         model_setting = copy.deepcopy(self.configs.Model)
         model_setting.pop("module")
+        model_setting.pop("name")
+
+        model_name = model_setting.pop("name")
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
+        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
 
         l = model_setting['num_layers']
         h = model_setting['hidden_size']
@@ -135,9 +139,7 @@ class GPTModule(LanguageModule):
         s = self.configs.Data.Train.dataset.max_seq_len
         self.get_model_size(l, h, v, s)
 
-        model_name = model_setting.pop("name")
-        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
-        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
+        self.tokenizer = GPTTokenizer.from_pretrained("gpt2")
 
         if self.nranks == 1:
             model_setting.pop("sequence_parallel")
@@ -163,6 +165,106 @@ class GPTModule(LanguageModule):
             loss_fn = gpt.GPTPretrainingCriterion()
         else:
             loss_fn = gpt.GPTPretrainingCriterionHybird()
+        return loss_fn
+
+    def pretreating_batch(self, batch):
+        if self.configs.Distributed.pp_degree > 1:
+            tokens, position_ids, labels, loss_mask = batch
+            data = [(tokens, position_ids), (labels, loss_mask)]
+            return data
+        else:
+            return batch
+
+    def input_spec(self):
+        return [
+            InputSpec(
+                shape=[None, None], name="tokens", dtype='int64'), InputSpec(
+                    shape=[None, None], name="ids", dtype='int64')
+        ]
+
+    def inference_end(self, outputs):
+        for k, v in outputs.items():
+            for i in range(v.shape[0]):
+                out_ids = [int(x) for x in v[i]]
+                ret_str = self.tokenizer.decode(out_ids)
+                # ret_str = text[i] + ret_str
+                print(ret_str)
+
+class GPTDistillModule(LanguageModule):
+    def __init__(self, configs):
+        super(GPTDistillModule, self).__init__(configs)
+        paddle.distributed.init_parallel_env()
+        self.student_group = paddle.distributed.new_group([0, 1])
+
+    def get_model(self):
+        model_setting = copy.deepcopy(self.configs.Model)
+        
+        if paddle.distributed.get_rank() == 0:
+            model_setting['hidden_size'] = 4096
+            model_setting['num_layers'] = 32
+            model_setting['num_attention_heads'] = 32
+            model_setting['ffn_hidden_size'] = 16384
+
+        
+        model_setting.pop("module")
+        model_setting.pop("sequence_parallel")
+
+        l = model_setting['num_layers']
+        h = model_setting['hidden_size']
+        v = model_setting['vocab_size']
+        s = self.configs.Data.Train.dataset.max_seq_len
+        self.get_model_size(l, h, v, s)
+
+        model_name = model_setting.pop("name")
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
+        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
+
+        if paddle.distributed.get_rank() == 0:
+            with paddle.no_grad():
+                model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
+        else:
+            model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
+
+
+        if 'Quantization' in self.configs.keys(
+        ) and self.configs.Quantization.enable and paddle.distributed.get_rank() == 0:
+            model = self.qat_model(model)
+
+        return model
+
+    def training_step(self, batch):
+        tokens, position_ids, labels, loss_mask = batch
+
+        loss_mask.stop_gradient = True
+        labels.stop_gradient = True
+        position_ids.stop_gradient = True
+
+        preds = self(tokens, position_ids)
+        preds = paddle.cast(preds, "float32")
+
+        loss = 0.0
+        if paddle.distributed.get_rank() == 0:
+            loss = self.loss_fn(preds, labels, loss_mask)
+            paddle.distributed.broadcast(
+                    paddle.to_tensor(preds),
+                    src=0,
+                    group=self.student_group)
+        elif paddle.distributed.get_rank() == 1:
+            with paddle.amp.auto_cast(enable=False):
+                loss = self.loss_fn(preds, labels, loss_mask)
+            teacher_encoder_output = paddle.zeros(preds.shape)
+            teacher_encoder_output.stop_gradient = True
+            paddle.distributed.broadcast(
+                    teacher_encoder_output,
+                    src=0,
+                    group=self.student_group)
+            with paddle.amp.auto_cast(enable=False):
+                dist_loss = paddle.nn.functional.mse_loss(preds, teacher_encoder_output, reduction='mean')
+                loss = loss + dist_loss
+        return loss
+
+    def get_loss_fn(self):
+        loss_fn = gpt.GPTPretrainingCriterion()
         return loss_fn
 
     def pretreating_batch(self, batch):
