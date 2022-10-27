@@ -455,7 +455,7 @@ class EagerEngine(BasicEngine):
             if self._accumulate_steps > 1:
                 loss_bw = loss_bw / self._accumulate_steps
             self._module.backward(loss_bw)
-            detach_loss = loss_bw.detach()
+            detach_loss = loss.detach()
             if final_loss is None:
                 final_loss = detach_loss
             else:
