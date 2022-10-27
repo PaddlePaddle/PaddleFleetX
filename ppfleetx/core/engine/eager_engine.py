@@ -136,7 +136,7 @@ class EagerEngine(BasicEngine):
             'custom_black_list']
         self._custom_white_list = self._configs['mix_precision'][
             'custom_white_list']
-        self._fp16_dtype = "float16" if 'fp16_dtype' in self._configs['mix_precision'] \
+        self._fp16_dtype = "float16" if 'fp16_dtype' not in self._configs['mix_precision'] \
                                      else self._configs['mix_precision']['fp16_dtype']
 
         self._save_steps = self._configs['save_load']['save_steps']
@@ -160,6 +160,13 @@ class EagerEngine(BasicEngine):
 
         self._use_recompute = configs['Model']['use_recompute']
 
+        self._lr_scheduler = build_lr_scheduler(
+            configs.Optimizer.lr) if mode == 'train' else None
+
+        self._optimizer = build_optimizer(
+            configs.Optimizer, self._module.model,
+            self._lr_scheduler) if mode == 'train' else None
+
         if self._use_pure_fp16:
             if mode == 'train':
                 self._scaler = paddle.amp.GradScaler(
@@ -171,13 +178,6 @@ class EagerEngine(BasicEngine):
                 models=self._module.model, level='O2', dtype=self._fp16_dtype)
         else:
             self._scaler = None
-
-        self._lr_scheduler = build_lr_scheduler(
-            configs.Optimizer.lr) if mode == 'train' else None
-
-        self._optimizer = build_optimizer(
-            configs.Optimizer, self._module.model,
-            self._lr_scheduler) if mode == 'train' else None
 
         # distributed configs
         self._distributed = (dist.get_world_size() > 1)
