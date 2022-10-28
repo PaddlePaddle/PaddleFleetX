@@ -149,7 +149,7 @@ class EagerEngine(BasicEngine):
         self._mp_degree = self._dist_configs['mp_degree']
         self._pp_degree = self._dist_configs['pp_degree']
         sharding_config = self._dist_configs['sharding']
-        
+
         self._sharding_stage = sharding_config['sharding_stage']
         self._sharding_degree = sharding_config['sharding_degree']
         self._sharding_offload = sharding_config['sharding_offload']
@@ -253,9 +253,8 @@ class EagerEngine(BasicEngine):
         if self._reduce_overlap:
             self._module.model._set_reduce_overlap(self._reduce_overlap)
         if self._broadcast_overlap:
-            self._optimizer._set_broadcast_overlap(self._broadcast_overlap,
-                                                   layers=origin_model,
-                                                   num_groups=2)
+            self._optimizer._set_broadcast_overlap(
+                self._broadcast_overlap, layers=origin_model, num_groups=2)
 
     def _wrap_3D_parallel(self):
         self._module.model = fleet.distributed_model(self._module.model)
@@ -788,3 +787,6 @@ class EagerEngine(BasicEngine):
         logger.info(
             "-------------------------------------------------------------------------------"
         )
+
+    def ___unimportant_method(self):
+        pass
