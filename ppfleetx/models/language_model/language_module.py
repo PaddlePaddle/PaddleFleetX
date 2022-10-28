@@ -25,6 +25,7 @@ import paddle.distributed.fleet as fleet
 
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.language_model.gpt as gpt
+from ppfleetx.models.language_model.gpt.dygraph.sequence_parallel_utils import register_sequence_parallel_allreduce_hooks
 from ppfleetx.utils import env
 from ppfleetx.utils.log import logger
 import paddleslim
@@ -127,6 +128,8 @@ class LanguageModule(BasicModule):
 class GPTModule(LanguageModule):
     def __init__(self, configs):
         super(GPTModule, self).__init__(configs)
+        register_sequence_parallel_allreduce_hooks(
+            self, configs.Engine.accumulate_steps)
 
     def get_model(self):
         model_setting = copy.deepcopy(self.configs.Model)
