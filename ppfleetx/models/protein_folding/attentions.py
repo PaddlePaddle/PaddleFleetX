@@ -26,7 +26,8 @@ from ppfleetx.distributed.protein_folding import dap
 from .common import (
     init_gate_linear,
     init_final_linear,
-    mask_mean, )
+    mask_mean,
+    subbatch, )
 
 
 class Attention(nn.Layer):
