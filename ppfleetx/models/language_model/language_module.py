@@ -130,7 +130,8 @@ class GPTModule(LanguageModule):
         super(GPTModule, self).__init__(configs)
         if configs.Model.sequence_parallel:
             register_sequence_parallel_allreduce_hooks(
-                self, configs.Engine.accumulate_steps)
+                self, configs.Engine.accumulate_steps,
+                configs.Distributed.fuse_sequence_parallel_allreduce)
 
     def get_model(self):
         model_setting = copy.deepcopy(self.configs.Model)

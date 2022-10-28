@@ -90,3 +90,6 @@ Profiler:
   scheduler: [1, 5]
   profiler_log: profiler_log
   detailed: False
+
+Distributed:
+  fuse_sequence_parallel_allreduce: False

@@ -23,6 +23,7 @@ from paddle.fluid.dygraph.layers import Layer
 from paddle.distributed import fleet
 from paddle.distributed.fleet.base import topology as tp
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
+from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients_with_group
 
 import numpy as np
 
@@ -141,7 +142,25 @@ def is_sequence_parallel_parameter(parameter):
     return getattr(parameter, 'sequence_parallel', False)
 
 
-def create_allreduce_gradient_hook(accumulation_steps):
+def create_fused_allreduce_gradient_hook(parameter_list, accumulation_steps):
+    hcg = fleet.get_hybrid_communicate_group()
+    group = hcg.get_model_parallel_group()
+
+    step = [0]
+    accumulation_steps *= len(parameter_list)
+
+    def __impl__(grad):
+        step[0] += 1
+        if step[0] == accumulation_steps:
+            step[0] = 0
+            fused_allreduce_gradients_with_group(
+                parameter_list, group=group, scale=1.0)
+        return grad
+
+    return __impl__
+
+
+def create_non_fused_allreduce_gradient_hook(accumulation_steps):
     hcg = fleet.get_hybrid_communicate_group()
     pg = hcg.get_model_parallel_group().process_group
 
@@ -157,7 +176,8 @@ def create_allreduce_gradient_hook(accumulation_steps):
     return __impl__
 
 
-def register_sequence_parallel_allreduce_hooks(model, accumulation_steps):
+def register_sequence_parallel_allreduce_hooks(
+        model, accumulation_steps, fuse_sequence_parallel_allreduce):
     if accumulation_steps <= 0 or not paddle.distributed.is_initialized():
         return
 
@@ -165,9 +185,19 @@ def register_sequence_parallel_allreduce_hooks(model, accumulation_steps):
     if mp_group.nranks <= 1:
         return
 
+    params = []
     for p in model.parameters():
         if is_sequence_parallel_parameter(p):
-            p.register_hook(create_allreduce_gradient_hook(accumulation_steps))
+            params.append(p)
+
+    if fuse_sequence_parallel_allreduce:
+        hook = create_fused_allreduce_gradient_hook(params, accumulation_steps)
+        for p in params:
+            p.register_hook(hook)
+    else:
+        for p in params:
+            p.register_hook(
+                create_non_fused_allreduce_gradient_hook(accumulation_steps))
 
 
 def is_fused_matmul_bias_supported():

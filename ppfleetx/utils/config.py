@@ -87,6 +87,9 @@ def process_dist_config(configs):
             )
             use_pinned_memory(False)
 
+    if 'fuse_sequence_parallel_allreduce' not in config:
+        config['fuse_sequence_parallel_allreduce'] = False
+
 
 def process_global_configs(config):
     """
