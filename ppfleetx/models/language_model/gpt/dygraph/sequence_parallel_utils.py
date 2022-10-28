@@ -152,9 +152,6 @@ def create_allreduce_gradient_hook(accumulation_steps):
         if step[0] == accumulation_steps:
             step[0] = 0
             pg.allreduce(grad).wait()
-            print('Hook is here!!!!')
-        else:
-            print('Hook is idle!!!!')
         return grad
 
     return __impl__
