@@ -158,7 +158,7 @@ def create_allreduce_gradient_hook(accumulation_steps):
 
 
 def register_sequence_parallel_allreduce_hooks(model, accumulation_steps):
-    if accumulation_steps <= 0:
+    if accumulation_steps <= 0 or not paddle.distributed.is_initialized():
         return
 
     mp_group = fleet.get_hybrid_communicate_group().get_model_parallel_group()
