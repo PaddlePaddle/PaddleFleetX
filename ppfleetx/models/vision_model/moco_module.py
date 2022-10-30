@@ -15,6 +15,7 @@
 import os
 import sys
 import copy
+import datetime
 from collections import defaultdict
 import numpy as np
 
@@ -89,10 +90,19 @@ class MOCOModule(BasicModule):
 
     def training_step_end(self, log_dict):
         ips = self.train_batch_size / log_dict['train_cost']
+
+        eta_sec = ((log_dict['total_epoch'] - log_dict['epoch'] + 1
+                    ) * log_dict['total_batch'] -
+                   (log_dict['epoch'] * log_dict['total_batch'] +
+                    log_dict['batch'])) * log_dict['train_cost']
+        eta_msg = "eta: {:s}".format(
+            str(datetime.timedelta(seconds=int(eta_sec))))
+
         logger.info(
-            "[train] epoch: %d, step: [%d/%d], learning rate: %.7f, loss: %.9f, batch_cost: %.5f sec, ips: %.2f images/sec"
+            "[train] epoch: %d, step: [%d/%d], learning rate: %.7f, loss: %.9f, batch_cost: %.5f sec, ips: %.2f images/sec, %s"
             % (log_dict['epoch'], log_dict['batch'], log_dict['total_batch'],
-               log_dict['lr'], log_dict['loss'], log_dict['train_cost'], ips))
+               log_dict['lr'], log_dict['loss'], log_dict['train_cost'], ips,
+               eta_msg))
 
     def input_spec(self):
         return [
@@ -195,10 +205,17 @@ class MOCOClsModule(BasicModule):
 
     def training_step_end(self, log_dict):
         ips = self.train_batch_size / log_dict['train_cost']
+        eta_sec = ((log_dict['total_epoch'] - log_dict['epoch'] + 1
+                    ) * log_dict['total_batch'] -
+                   (log_dict['epoch'] * log_dict['total_batch'] +
+                    log_dict['batch'])) * log_dict['train_cost']
+        eta_msg = "eta: {:s}".format(
+            str(datetime.timedelta(seconds=int(eta_sec))))
         logger.info(
-            "[train] epoch: %d, step: [%d/%d], learning rate: %.7f, loss: %.9f, batch_cost: %.5f sec, ips: %.2f images/sec"
+            "[train] epoch: %d, step: [%d/%d], learning rate: %.7f, loss: %.9f, batch_cost: %.5f sec, ips: %.2f images/sec, %s"
             % (log_dict['epoch'], log_dict['batch'], log_dict['total_batch'],
-               log_dict['lr'], log_dict['loss'], log_dict['train_cost'], ips))
+               log_dict['lr'], log_dict['loss'], log_dict['train_cost'], ips,
+               eta_msg))
 
     def validation_step(self, batch):
         inputs, labels = batch
