@@ -26,7 +26,8 @@ from .common import (
     Transition,
     Dropout,
     recompute_wrapper,
-    dgram_from_positions, )
+    dgram_from_positions,
+    subbatch, )
 
 from . import (residue_constants, )
 from . import (quat_affine, )

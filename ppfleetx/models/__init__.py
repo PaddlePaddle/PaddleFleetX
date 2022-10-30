@@ -22,6 +22,7 @@ from ppfleetx.models.vision_model.general_classification_module import GeneralCl
 from ppfleetx.models.vision_model.moco_module import MOCOModule, MOCOClsModule
 from ppfleetx.models.multimodal_model.multimodal_module import ImagenModule
 from ppfleetx.models.language_model.ernie import ErnieModule
+from ppfleetx.models.language_model.language_module import MoEModule
 
 from ppfleetx.models.multimodal_model.multimodal_module import ImagenModule
 

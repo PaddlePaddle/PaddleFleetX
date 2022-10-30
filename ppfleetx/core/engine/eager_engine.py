@@ -238,7 +238,7 @@ class EagerEngine(BasicEngine):
             self._wrap_3D_parallel()
 
     def _wrap_sharding_2_3(self):
-        if self._dp_degree > 1:
+        if self._dp_degree > 1 and self._sharding_stage == 3:
             sync_params_buffers(
                 self._module.model,
                 comm_group=self._dp_group,
@@ -252,7 +252,8 @@ class EagerEngine(BasicEngine):
             level=level,
             scaler=self._scaler,
             group=self._sharding_group,
-            offload=self._sharding_offload)
+            offload=self._sharding_offload,
+            dp_group=self._dp_group if self._dp_group.nranks > 1 else None)
         if self._reduce_overlap:
             self._module.model._set_reduce_overlap(self._reduce_overlap)
         if self._broadcast_overlap:
@@ -458,6 +459,9 @@ class EagerEngine(BasicEngine):
                 loss = self._module.training_step(micro_batch)
 
             loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
+            if self._accumulate_steps > 1:
+                # div the loss for backward
+                loss_bw = loss_bw / self._accumulate_steps
             self._module.backward(loss_bw)
             detach_loss = loss.detach()
             if final_loss is None:
@@ -465,19 +469,20 @@ class EagerEngine(BasicEngine):
             else:
                 final_loss = paddle.add(final_loss, detach_loss)
         if self._accumulate_steps > 1:
+            # div the loss for print
             final_loss = final_loss / self._accumulate_steps
         return final_loss
 
     def _optim_update_params(self):
-        if self._sharding_stage in [2, 3] and self._dp_degree > 1:
+        if self._sharding_stage in [3] and self._dp_degree > 1:
             fused_allreduce_gradients(self._module.model.parameters(),
                                       self._hcg)
-            if self._sharding_stage == 3:
-                for p in self._module.model.parameters():
-                    if hasattr(p, "bw_storage"):
-                        assert p.grad is None, "This case shouldn't happen."
-                        p.bw_storage.scale_(1.0 / self._dp_group.nranks)
-                        dist.all_reduce(p.bw_storage, group=self._dp_group)
+
+            for p in self._module.model.parameters():
+                if hasattr(p, "bw_storage"):
+                    assert p.grad is None, "This case shouldn't happen."
+                    p.bw_storage.scale_(1.0 / self._dp_group.nranks)
+                    dist.all_reduce(p.bw_storage, group=self._dp_group)
 
         if self._use_pure_fp16:
             self._scaler.step(self._optimizer)

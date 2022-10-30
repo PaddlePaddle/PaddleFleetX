@@ -32,12 +32,37 @@ from .processor import (
     HammingDiversityLogitsProcessor, RepetitionPenaltyLogitsProcessor,
     ForcedBOSTokenLogitsProcessor, ForcedEOSTokenLogitsProcessor)
 
+from ppfleetx.distributed.moe import MoELayer
+
 
 def get_attr(layer, name):
     if getattr(layer, name, None) is not None:
         return getattr(layer, name, None)
     else:
         return get_attr(layer._layer, name)
+
+
+class ExpertLayer(nn.Layer):
+    def __init__(self, d_model, d_hidden, name=None):
+        super(ExpertLayer, self).__init__()
+
+        self.htoh4 = nn.Linear(d_model, d_hidden, \
+            weight_attr=nn.initializer.KaimingUniform(), \
+             bias_attr=nn.initializer.Constant(value=0.0))
+        self.h4toh = nn.Linear(d_hidden, d_model, \
+            weight_attr=nn.initializer.KaimingUniform(), \
+             bias_attr=nn.initializer.Constant(value=0.0))
+
+        self.htoh4.weight.name = "expert_" + self.htoh4.weight.name
+        self.h4toh.weight.name = "expert_" + self.h4toh.weight.name
+        self.htoh4.bias.name = "expert_" + self.htoh4.bias.name
+        self.h4toh.bias.name = "expert_" + self.h4toh.bias.name
+
+    def forward(self, x):
+        x = self.htoh4(x)
+        x = F.gelu(x, approximate=True)
+        x = self.h4toh(x)
+        return x
 
 
 class MultiHeadAttention(nn.Layer):
@@ -364,6 +389,7 @@ class TransformerDecoderLayer(nn.Layer):
                  bias_attr=None,
                  fused_linear=False,
                  fuse_attn_qkv=False,
+                 moe_configs=None,
                  use_recompute=False,
                  recompute_granularity="full",
                  do_recompute=True):
@@ -378,6 +404,14 @@ class TransformerDecoderLayer(nn.Layer):
         self.use_recompute = use_recompute
         self.recompute_granularity = recompute_granularity
         self.do_recompute = do_recompute
+
+        self.expert_mode = False
+        # moe config
+        if moe_configs is not None:
+            self.gate = moe_configs.get('gate', 'gshard')
+            self.top_k = moe_configs.get('top_k', 2)
+            self.num_experts = moe_configs.get('num_experts', 1)
+            self.expert_mode = moe_configs.get('expert_mode', False)
 
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
@@ -395,10 +429,30 @@ class TransformerDecoderLayer(nn.Layer):
             use_recompute=use_recompute,
             recompute_granularity=recompute_granularity,
             do_recompute=do_recompute)
-        self.linear1 = Linear(
-            d_model, dim_feedforward, weight_attrs[2], bias_attr=bias_attrs[2])
-        self.linear2 = Linear(
-            dim_feedforward, d_model, weight_attrs[2], bias_attr=bias_attrs[2])
+
+        if self.expert_mode:
+            experts_list = nn.LayerList([
+                ExpertLayer(d_model, dim_feedforward)
+                for e in range(self.num_experts)
+            ])
+
+            self.moe_mlp = MoELayer(
+                d_model=d_model,
+                experts=experts_list,
+                gate=self.gate,
+                top_k=self.top_k,
+                recompute_interval=int(self.use_recompute))
+        else:
+            self.linear1 = Linear(
+                d_model,
+                dim_feedforward,
+                weight_attrs[2],
+                bias_attr=bias_attrs[2])
+            self.linear2 = Linear(
+                dim_feedforward,
+                d_model,
+                weight_attrs[2],
+                bias_attr=bias_attrs[2])
 
         self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
@@ -431,7 +485,13 @@ class TransformerDecoderLayer(nn.Layer):
         residual = tgt
         if self.normalize_before:
             tgt = self.norm2(tgt)
-        tgt = self.dropout2(self.linear2(self.activation(self.linear1(tgt))))
+
+        if self.expert_mode:
+            tgt = self.moe_mlp(tgt)
+        else:
+            tgt = self.dropout2(
+                self.linear2(self.activation(self.linear1(tgt))))
+
         tgt = residual + tgt
 
         if not self.normalize_before:
@@ -498,6 +558,7 @@ class GPTModel(nn.Layer):
                  type_vocab_size=16,
                  use_recompute=False,
                  initializer_range=0.02,
+                 moe_configs=None,
                  fused_linear=False,
                  fuse_attn_qkv=False,
                  recompute_granularity="full",
@@ -533,6 +594,7 @@ class GPTModel(nn.Layer):
                     bias_attr=None,
                     fused_linear=fused_linear,
                     fuse_attn_qkv=fuse_attn_qkv,
+                    moe_configs=moe_configs,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
                     do_recompute=i not in no_recompute_layers))
