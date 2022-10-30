@@ -171,7 +171,7 @@ Engine训练设置完成模型训练/验证/推理等过程中的参数设置，
     no_recompute_layers:
     fused_linear: True
     fuse_attn_qkv: True
-    sequence_parallel: True
+    sequence_parallel: False
 ```
 
 其中参数对应的释义如下：
