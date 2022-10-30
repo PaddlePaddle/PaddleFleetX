@@ -23,6 +23,7 @@ import random
 import cv2
 import numpy as np
 from PIL import Image
+from PIL import ImageFilter
 
 from paddle.vision.transforms import functional as F
 from paddle.vision.transforms import ColorJitter as PPColorJitter
@@ -300,15 +301,36 @@ class ColorJitter(PPColorJitter):
     """
 
     def __init__(self, *args, **kwargs):
+        self.p = kwargs.pop('p', 1.0)
         super().__init__(*args, **kwargs)
 
     def __call__(self, img):
-        if not isinstance(img, Image.Image):
-            img = np.ascontiguousarray(img)
-            img = Image.fromarray(img)
-        img = super()._apply_image(img)
-        if isinstance(img, Image.Image):
-            img = np.asarray(img)
+        if random.random() < self.p:
+            if not isinstance(img, Image.Image):
+                img = np.ascontiguousarray(img)
+                img = Image.fromarray(img)
+            img = super()._apply_image(img)
+            if isinstance(img, Image.Image):
+                img = np.asarray(img)
+        return img
+
+
+class GaussianBlur(object):
+    """Gaussian blur augmentation in SimCLR https://arxiv.org/abs/2002.05709"""
+
+    def __init__(self, sigma=[.1, 2.], p=1.0):
+        self.p = p
+        self.sigma = sigma
+
+    def __call__(self, img):
+        if random.random() < self.p:
+            if not isinstance(img, Image.Image):
+                img = np.ascontiguousarray(img)
+                img = Image.fromarray(img)
+            sigma = random.uniform(self.sigma[0], self.sigma[1])
+            img = img.filter(ImageFilter.GaussianBlur(radius=sigma))
+            if isinstance(img, Image.Image):
+                img = np.asarray(img)
         return img
 
 
