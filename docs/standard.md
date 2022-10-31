@@ -319,3 +319,9 @@ Optimizer:
 ```
 
 5、运行模型相关的配置文件以及相应的运行脚本，放置在[projects](https://github.com/PaddlePaddle/PaddleFleetX/tree/develop/projects)目录。
+
+
+### 5.模型推理示例
+
+模型训练完成后，可使用飞桨高性能推理引擎Paddle Inference通过如下方式进行推理部署。
+总共分为两个步骤：模型导出和推理部署。可以参考[GPT的模型推理](https://github.com/PaddlePaddle/PaddleFleetX/blob/develop/docs/inference.md)。
