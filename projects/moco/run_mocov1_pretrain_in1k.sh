@@ -1,4 +1,4 @@
-# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,13 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .vision_dataset import (
-    GeneralClsDataset,
-    ImageFolder,
-    CIFAR10,
-    ContrativeLearningDataset, )
-
-from .multimodal_dataset import ImagenDataset
-from .gpt_dataset import GPTDataset, LM_Eval_Dataset, Lambada_Eval_Dataset
-from .glue_dataset import *
-from .ernie.ernie_dataset import ErnieDataset
+export PADDLE_NNODES=1
+export PADDLE_MASTER="127.0.0.1:12538"
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+python -m paddle.distributed.launch \
+    --nnodes=$PADDLE_NNODES \
+    --master=$PADDLE_MASTER \
+    --devices=$CUDA_VISIBLE_DEVICES \
+    tools/train.py -c ppfleetx/configs/vis/moco/mocov1_pt_in1k_1n8c.yaml
