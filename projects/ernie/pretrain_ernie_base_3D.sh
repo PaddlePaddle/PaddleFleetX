@@ -14,7 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-export PYTHONPATH=$PYTHONPATH:/workspace/workspace/PaddleNLP/
+# export PYTHONPATH=$PYTHONPATH:/workspace/workspace/PaddleNLP/
 
 # export CUDA_VISIBLE_DEVICES=1
 # python tools/train.py -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_single_card.yaml 
