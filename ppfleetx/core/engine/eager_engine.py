@@ -35,6 +35,13 @@ from ppfleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from ppfleetx.utils.version import version_check
 from ppfleetx.utils.export import export_inference_model
 
+import nvidia_smi
+  
+nvidia_smi.nvmlInit()
+
+handle = nvidia_smi.nvmlDeviceGetHandleByIndex(6)
+# card id 0 hardcoded here, there is also a call to get all available card ids, so we could iterate
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -183,7 +190,7 @@ class EagerEngine(BasicEngine):
 
         # distributed configs
         self._distributed = (dist.get_world_size() > 1)
-
+        '''
         if self._distributed:
             self._hcg = fleet.get_hybrid_communicate_group()
             self._dp_group = self._hcg.get_data_parallel_group()
@@ -198,6 +205,8 @@ class EagerEngine(BasicEngine):
                 self._wrap_with_fleet()
         else:
             self._dp_rank = 0
+        '''
+        self._dp_rank = 0
 
         # using for save/load
         self._load_recovery = {'step': 0, 'epoch': 0, 'rng_state': -1}
@@ -289,7 +298,6 @@ class EagerEngine(BasicEngine):
 
             loss = self._fit_impl(batch)
             train_losses.append(loss)
-
             if (step + 1) % self._logging_freq == 0:
                 # Sync for profile time, delete it may be a little faster
                 paddle.device.cuda.synchronize()
@@ -305,6 +313,7 @@ class EagerEngine(BasicEngine):
                     'loss': sum(numpy_losses) / len(numpy_losses),
                     'lr': self._optimizer.get_lr()
                 }
+                # if paddle.distributed.get_rank() == 1:
                 self._module.training_step_end(log_dict)
 
                 train_start = time.time()
@@ -338,9 +347,10 @@ class EagerEngine(BasicEngine):
                     }
                     self._module.validation_step_end(log_dict)
 
-                    self._module.model.train()
+                    if paddle.distributed.get_rank() == 1:
+                        self._module.model.train()
 
-                if self._save_steps > 0 and step % self._save_steps == 0:
+                if self._save_steps > 0 and step % self._save_steps == 0 and paddle.distributed.get_rank() == 1:
                     paddle.device.cuda.synchronize()
                     self.save(epoch=epoch_index, step=step)
             else:
@@ -366,7 +376,10 @@ class EagerEngine(BasicEngine):
             valid_data_loader(DataLoader, None): a collection of :class:`paddle.io.DataLoader`, specifying validation samples.
 
         """
-        self._module.model.train()
+        if paddle.distributed.get_rank() == 0:
+            self._module.model.eval()
+        else:
+            self._module.model.train()
 
         train_cost = 0.0
         train_start = time.time()
@@ -394,7 +407,8 @@ class EagerEngine(BasicEngine):
             if self._run_mode == 'epoch' and self._eval_freq > 0 and \
                 epoch_index % self._eval_freq == 0:
                 self._evaluate_one_epoch(epoch_index, valid_data_loader)
-                self._module.model.train()
+                if paddle.distributed.get_rank() == 1:
+                    self._module.model.train()
                 eval_cost = time.time() - eval_start
                 log_dict = {
                     'epoch': epoch_index,
@@ -424,7 +438,8 @@ class EagerEngine(BasicEngine):
                                           self._dp_group)
             else:
                 loss = self._model_forward_backward(batch)
-            self._optim_update_params()
+            if paddle.distributed.get_rank() == 1:
+                self._optim_update_params()
         else:
             with paddle.amp.auto_cast(
                     self._use_pure_fp16,
@@ -458,16 +473,17 @@ class EagerEngine(BasicEngine):
                     level='O2'):
                 loss = self._module.training_step(micro_batch)
 
+        if paddle.distributed.get_rank() == 1:
             loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
             if self._accumulate_steps > 1:
                 # div the loss for backward
                 loss_bw = loss_bw / self._accumulate_steps
             self._module.backward(loss_bw)
-            detach_loss = loss.detach()
-            if final_loss is None:
-                final_loss = detach_loss
-            else:
-                final_loss = paddle.add(final_loss, detach_loss)
+        detach_loss = loss.detach()
+        if final_loss is None:
+            final_loss = detach_loss
+        else:
+            final_loss = paddle.add(final_loss, detach_loss)
         if self._accumulate_steps > 1:
             # div the loss for print
             final_loss = final_loss / self._accumulate_steps
@@ -637,6 +653,9 @@ class EagerEngine(BasicEngine):
             logger.info("DP_Rank %d doesn't save model" % self._dp_rank)
             return
 
+        if paddle.distributed.get_rank() == 0: 
+            return
+
         if self._output_dir and isinstance(self._output_dir, str):
             output_dir = os.path.join(self._output_dir,
                                       "epoch_%d_step_%d" % (epoch, step))
@@ -644,9 +663,10 @@ class EagerEngine(BasicEngine):
                 os.makedirs(output_dir, exist_ok=True)
             logger.info("Save model to %s" % output_dir)
 
-            save_dir = "{}/mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}".format(
-                output_dir, self._mp_rank, self._sharding_rank,
-                self._pp_rank) if self._distributed else output_dir
+            # save_dir = "{}/mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}".format(
+            #     output_dir, self._mp_rank, self._sharding_rank,
+            #     self._pp_rank) if self._distributed else output_dir
+            save_dir = output_dir
 
             if self._sharding_stage == 3:
                 self._module.model.get_all_parameters(convert2cpu=False)
@@ -669,54 +689,41 @@ class EagerEngine(BasicEngine):
         """
         load the saved checkpoint file and update the state dicts of model and optimizer.
         """
+        if paddle.distributed.get_rank() == 0:
+            self._ckpt_dir = 'pretrain_model/'
+        elif paddle.distributed.get_rank() == 1:
+            self._ckpt_dir = 'PaddleFleetX_GPT_345M_220826/'
+        self._ckpt_dir = 'output/epoch_0_step_10000/'
         if self._ckpt_dir and isinstance(self._ckpt_dir, str):
             logger.info("Try to load checkpoint from %s " % self._ckpt_dir)
-
-            load_dir = "{}/mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}".format(
-                self._ckpt_dir, self._mp_rank, self._sharding_rank,
-                self._pp_rank) if self._distributed else self._ckpt_dir
+            load_dir = self._ckpt_dir
             model_path = os.path.join(load_dir, "model.pdparams")
-            opt_path = os.path.join(load_dir, "model_state.pdopt")
-            meta_path = os.path.join(load_dir, "meta_state.pdopt")
 
             if os.path.exists(model_path):
                 model_dict = paddle.load(model_path)
                 for name, param in self._module.model.state_dict().items():
+                    print('trying to load {}'.format(name))
                     assert name in model_dict.keys(
                     ), "No param named `{}` was found in checkpoint file.".format(
                         name)
 
                     if param.dtype != model_dict[name].dtype:
                         model_dict[name] = model_dict[name].cast(param.dtype)
-
+                    print("load: {}".format(name))
                 self._module.model.set_state_dict(model_dict)
             else:
                 raise ValueError("No optimizer checkpoint file found in %s." %
                                  model_path)
-
-            if self.mode == 'train':
-                if os.path.exists(opt_path):
-                    opt_dict = paddle.load(opt_path)
-                    self._optimizer.set_state_dict(opt_dict)
-                else:
-                    raise ValueError(
-                        "No optimizer checkpoint file found in %s." % opt_path)
-
-                if os.path.exists(meta_path):
-                    meta_dict = paddle.load(meta_path)
-                    self._load_recovery = {
-                        'step': meta_dict['step'],
-                        'epoch': meta_dict['epoch'],
-                        'rng_state': meta_dict['cuda_rng_state']
-                    }
-                else:
-                    raise ValueError("No meta checkpoint file found in %s." %
-                                     meta_path)
-
             logger.info("successfully load checkpoints")
         else:
             logger.warning("`load` requires a valid value of `ckpt_dir`.")
             raise TypeError("`load` requires a valid value of `ckpt_dir`.")
+
+        info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
+
+        print("Total memory:", info.total/1024**3, "GB")
+        print("Free memory:", info.free/1024**3, "GB")
+        print("Used memory:", info.used/1024**3, "GB")
 
     def export(self):
         self._module.model.eval()
