@@ -19,6 +19,7 @@ import logging
 import os
 import sys
 import time
+import datetime
 import threading
 from typing import List
 
@@ -183,5 +184,4 @@ def get_timestamp():
 
 
 def convert_timestamp_to_data(timeStamp):
-    timeArray = time.localtime(timeStamp)
-    return time.strftime("%Y-%m-%d %H:%M:%S", timeArray)
+    return str(datetime.timedelta(seconds=int(timeStamp)))

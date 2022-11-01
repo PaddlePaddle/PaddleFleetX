@@ -36,9 +36,6 @@ from ppfleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from ppfleetx.utils.version import version_check
 from ppfleetx.utils.export import export_inference_model
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 
 class EagerEngine(BasicEngine):
     """
@@ -340,7 +337,6 @@ class EagerEngine(BasicEngine):
                 skip_first = False
 
             if self._run_mode == 'step' and step >= self._max_steps:
-                logger.info("The training process is complete.")
                 return
 
             if self.profiler:
@@ -396,8 +392,9 @@ class EagerEngine(BasicEngine):
             if self._save_epoch > 0 and self._run_mode == 'epoch' and epoch_index % self._save_epoch == 0:
                 self.save(epoch=epoch_index, step=len(train_data_loader))
 
-        logger.info("The total cost of time for training is : {}".format(
-            convert_timestamp_to_data(get_timestamp() - train_start)))
+        logger.info(
+            "The training process is complete and total cost of time for training is : {}".
+            format(convert_timestamp_to_data(get_timestamp() - train_start)))
 
         if self.profiler:
             self._profiler_done()
@@ -532,7 +529,7 @@ class EagerEngine(BasicEngine):
             eval_losses.append(loss.numpy()[0])
 
             if eval_step % self._logging_freq == 0:
-                eval_step_cost = get_timestamp() - eval_start
+                eval_step_cost = get_timestamp() - eval_step_start
                 log_dict = {
                     'loss': sum(eval_losses) / len(eval_losses),
                     'epoch': epoch,
@@ -542,7 +539,7 @@ class EagerEngine(BasicEngine):
                     if eval_step == 0 else eval_step_cost / self._logging_freq,
                 }
                 self._module.validation_step_end(log_dict)
-                eval_start = get_timestamp()
+                eval_step_start = get_timestamp()
                 eval_losses = []
 
             if self._run_mode == 'step' and eval_step >= self._max_steps:
