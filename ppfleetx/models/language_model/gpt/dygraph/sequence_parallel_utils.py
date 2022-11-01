@@ -39,10 +39,15 @@ def scatter(input):
     group = hcg.get_model_parallel_group()
     parallelism = group.nranks
     rank = group.rank
-    assert input.shape[
-        0] % parallelism == 0, "Input sequence length {} can't be divided exactly by sequence parallelism {}".format(
-            input.shape[0], parallelism)
-    input = paddle.split(input, num_or_sections=parallelism, axis=0)[rank]
+    seq_len = input.shape[0]
+    assert seq_len % parallelism == 0, "Input sequence length {} can't be divided exactly by sequence parallelism {}".format(
+        seq_len, parallelism)
+    interval = seq_len // parallelism
+    input = paddle.slice(
+        input,
+        axes=[0],
+        starts=[interval * rank],
+        ends=[interval * (rank + 1)])
     return input
 
 
