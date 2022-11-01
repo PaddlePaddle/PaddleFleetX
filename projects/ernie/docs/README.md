@@ -21,6 +21,17 @@ Learnt by ERNIE：[mask] [mask] [mask] 是黑龙江的省会，国际 [mask] [ma
 
 ### 1.1 目录结构
 
+```text
+.
+├── docs
+│   └── README.md
+├── pretrain_ernie_base_175B_mp8_pp16.sh    # 175B ernie-base模型，3D混合并行
+├── pretrain_ernie_base_3D.sh               # ci测试
+├── pretrain_ernie_base_6.7B_sharding16.sh  # 6.7B ernie-base模型，sharding16
+├── pretrain_ernie_base.sh                  # 345M ernie-base模型，单卡
+└── pretrain_ernie_large.sh                 # ernie-large模型，单卡     
+```
+
 
 
 ### 1.2 依赖环境
