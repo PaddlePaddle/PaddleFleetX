@@ -985,7 +985,8 @@ class GPTForPretrainingPipe(PipelineLayer):
                  recompute_granularity="full",
                  virtual_pp_degree=1,
                  sequence_parallel=False,
-                 no_recompute_layers=None):
+                 no_recompute_layers=None,
+                 pp_recompute_interval=1):
 
         # forward desc
         self.descs = []
@@ -1067,7 +1068,11 @@ class GPTForPretrainingPipe(PipelineLayer):
 
         recompute_interval = 0
         if recompute and recompute_granularity == "full":
-            recompute_interval = 1
+            assert pp_recompute_interval <= \
+                   num_layers // (virtual_pp_degree *
+                                  fleet.get_hybrid_communicate_group().topology().get_dim_size("pipe")), \
+                "pp recompute interval should smaller than num layers of each pp chunk"
+            recompute_interval = pp_recompute_interval
 
         super().__init__(
             layers=self.descs,
