@@ -1,0 +1,14 @@
+_base_: ./ViT_base_patch16_224_pt_in1k_2n16c_dp_fp16o2.yaml
+
+Inference:
+  model_dir: ./output
+  mp_degree: 1
+
+  TensorRT:
+    max_batch_size: 1
+    workspace_size: 1<<30
+    min_subgraph_size: 3
+    use_static: False
+    use_calib_mode: False
+    collect_shape: False
+    shape_range_info_filename: ./shape.pbtxt
