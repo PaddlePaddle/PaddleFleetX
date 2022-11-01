@@ -33,7 +33,7 @@ import sys
 
 from .single_model import ExpertLayer
 from .sequence_parallel_utils import ScatterOp, GatherOp, \
-        all_reduce_gradient_hook, ColumnSequenceParallelLinear, RowSequenceParallelLinear
+        mark_as_sequence_parallel_parameter, ColumnSequenceParallelLinear, RowSequenceParallelLinear
 
 from ppfleetx.distributed.moe import MoELayer
 
@@ -383,8 +383,8 @@ class TransformerDecoder(nn.Layer):
             # if sequence parallel is true,
             # register hook to all_reduce gradient of weight, bias 
             if self.sequence_parallel:
-                self.norm.weight.register_hook(all_reduce_gradient_hook)
-                self.norm.bias.register_hook(all_reduce_gradient_hook)
+                mark_as_sequence_parallel_parameter(self.norm.weight)
+                mark_as_sequence_parallel_parameter(self.norm.bias)
         elif norm is not None:
             raise ValueError("Only support LayerNorm")
 
@@ -557,10 +557,10 @@ class TransformerDecoderLayer(nn.Layer):
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
         if self.sequence_parallel:
             # if sequence parallel is true, register hook to all_reduce gradient of bias 
-            self.norm1.weight.register_hook(all_reduce_gradient_hook)
-            self.norm2.weight.register_hook(all_reduce_gradient_hook)
-            self.norm1.bias.register_hook(all_reduce_gradient_hook)
-            self.norm2.bias.register_hook(all_reduce_gradient_hook)
+            mark_as_sequence_parallel_parameter(self.norm1.weight)
+            mark_as_sequence_parallel_parameter(self.norm1.bias)
+            mark_as_sequence_parallel_parameter(self.norm2.weight)
+            mark_as_sequence_parallel_parameter(self.norm2.bias)
         self.dropout1 = nn.Dropout(dropout, mode="upscale_in_train")
         self.dropout2 = nn.Dropout(act_dropout, mode="upscale_in_train")
         self.activation = getattr(F, activation)
@@ -936,8 +936,8 @@ class LayerNormPipe(nn.Layer):
             bias_attr=bias_attr,
             name=name)
         if self.sequence_parallel:
-            self.norm.weight.register_hook(all_reduce_gradient_hook)
-            self.norm.bias.register_hook(all_reduce_gradient_hook)
+            mark_as_sequence_parallel_parameter(self.norm.weight)
+            mark_as_sequence_parallel_parameter(self.norm.bias)
 
     def forward(self, input):
         output = self.norm(input)
@@ -975,7 +975,8 @@ class GPTForPretrainingPipe(PipelineLayer):
                  recompute_granularity="full",
                  virtual_pp_degree=1,
                  sequence_parallel=False,
-                 no_recompute_layers=None):
+                 no_recompute_layers=None,
+                 pp_recompute_interval=1):
 
         # forward desc
         self.descs = []
@@ -1057,7 +1058,11 @@ class GPTForPretrainingPipe(PipelineLayer):
 
         recompute_interval = 0
         if recompute and recompute_granularity == "full":
-            recompute_interval = 1
+            assert pp_recompute_interval <= \
+                   num_layers // (virtual_pp_degree *
+                                  fleet.get_hybrid_communicate_group().topology().get_dim_size("pipe")), \
+                "pp recompute interval should smaller than num layers of each pp chunk"
+            recompute_interval = pp_recompute_interval
 
         super().__init__(
             layers=self.descs,
