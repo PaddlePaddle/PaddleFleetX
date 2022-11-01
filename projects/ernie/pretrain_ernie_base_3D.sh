@@ -25,4 +25,7 @@ rm -rf $log_dir
 # 1.3B+dp8 run_pretrain
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
     ./tools/train.py \
-    -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_3D.yaml
+    -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_3D.yaml \
+    -o Data.Train.dataset.input_dir=./dataset/ernie \
+    -o Data.Eval.dataset.input_dir=./dataset/ernie \
+    -o Engine.max_steps=10
