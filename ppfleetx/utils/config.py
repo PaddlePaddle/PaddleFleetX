@@ -38,6 +38,7 @@ def process_dist_config(configs):
 
     mp_degree = config.setdefault("mp_degree", 1)
     pp_degree = config.setdefault("pp_degree", 1)
+    pp_recompute_interval = config.setdefault("pp_recompute_interval", 1)
 
     # sharding default
     sharding_config = config['sharding']
