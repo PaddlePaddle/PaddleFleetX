@@ -86,7 +86,6 @@ def build_dataloader(config, mode):
             collate_fn = getattr(
                 utils, collate_fn_cfg) if collate_fn_cfg is not None else None
         elif isinstance(collate_fn_cfg, dict):
-            print(collate_fn_cfg, flush=True)
             collate_fn_class_name = collate_fn_cfg.pop("name")
             collate_fn = eval("utils.{}".format(collate_fn_class_name))(
                 **collate_fn_cfg)
