@@ -1076,7 +1076,7 @@ class GPTForPretrainingPipe(PipelineLayer):
             seg_method="layer:TransformerDecoderLayer",
             recompute_interval=recompute_interval,
             recompute_ctx={
-                "mp_group": fleet.fleet._hcg.get_model_parallel_group(),
+                "mp_group": env.get_hcg().get_model_parallel_group(),
                 "offload": False,
                 "partition": False,
             },

@@ -607,8 +607,7 @@ class ErnieForPretrainingHybrid(nn.Layer):
 
         total_loss = None
         if labels is not None and next_sentence_label is not None:
-            if fleet.get_hybrid_communicate_group(
-            ).get_model_parallel_world_size > 1:
+            if env.get_hcg().get_model_parallel_world_size > 1:
                 loss_fct = fleet.meta_parallel.ParallelCrossEntropy()
             else:
                 loss_fct = paddle.nn.CrossEntropyLoss()
@@ -815,18 +814,18 @@ class ErniePoolerPipe(ErniePooler):
         return sequence_output, pooled_output
 
 
-class ErniePretrainingHeadsPipe(ErniePretrainingHeads):
-    def forward(self, args):
-        sequence_output, pooled_output = args
-        prediction_scores, seq_relationship_score = super().forward(
-            sequence_output, pooled_output)
-        return prediction_scores, seq_relationship_score
+class ErniePretrainingCriterionPipe(ErniePretrainingCriterionHybrid):
+    def __init__(self, *heads_args, **heads_kargs):
+        super(ErniePretrainingCriterionPipe, self).__init__()
+        self.heads = ErniePretrainingHeads(*heads_args, **heads_kargs)
 
-
-class ErniePretrainingCriterionHybridPipe(ErniePretrainingCriterionHybrid):
     def forward(self, outputs, data):
-        masked_lm_labels, next_sentence_labels = data
-        prediction_scores, seq_relationship_score = outputs
+        sequence_output, pooled_output = outputs
+        masked_lm_positions, masked_lm_labels, next_sentence_labels = data
+
+        prediction_scores, seq_relationship_score = self.heads(
+            sequence_output, pooled_output, masked_lm_positions)
+
         lm_loss, sop_loss = super().forward(
             prediction_scores=prediction_scores,
             seq_relationship_score=seq_relationship_score,
@@ -903,12 +902,12 @@ class ErnieForPretrainingPipe(PipelineLayer):
 
         super().__init__(
             layers=self.descs,
-            loss_fn=ErniePretrainingCriterionHybridPipe,
+            loss_fn=loss_fun,
             topology=env.get_hcg().topology(),
             seg_method="layer:TransformerEncoderLayer",
             recompute_interval=1 if use_recompute else 0,
             recompute_ctx={
-                "mp_group": fleet.fleet._hcg.get_model_parallel_group(),
+                "mp_group": env.get_hcg().get_model_parallel_group(),
                 "offload": False,
                 "partition": False
             })

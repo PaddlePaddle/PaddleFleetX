@@ -165,7 +165,7 @@ def register_sequence_parallel_allreduce_hooks(
     if accumulation_steps <= 0 or not paddle.distributed.is_initialized():
         return
 
-    mp_group = fleet.get_hybrid_communicate_group().get_model_parallel_group()
+    mp_group = env.get_hcg().get_model_parallel_group()
     if mp_group.nranks <= 1:
         return
 
