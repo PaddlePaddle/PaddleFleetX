@@ -27,7 +27,7 @@ from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 from paddle.profiler import SummaryView
 
-from ppfleetx.distributed.apis import sharding
+from ppfleetx.distributed.apis import env, sharding
 from ppfleetx.optims import build_lr_scheduler, build_optimizer
 from ppfleetx.utils.log import logger, get_timestamp, convert_timestamp_to_data
 from ppfleetx.core.engine import BasicEngine, InferenceEngine, TensorRTConfig
@@ -183,7 +183,7 @@ class EagerEngine(BasicEngine):
         self._distributed = (dist.get_world_size() > 1)
 
         if self._distributed:
-            self._hcg = fleet.get_hybrid_communicate_group()
+            self._hcg = env.get_hcg()
             self._dp_group = self._hcg.get_data_parallel_group()
             self._sharding_group = self._hcg.get_sharding_parallel_group()
 
@@ -192,8 +192,7 @@ class EagerEngine(BasicEngine):
             self._pp_rank = self._hcg.get_stage_id()
             self._sharding_rank = self._hcg.get_sharding_parallel_rank()
 
-            if self._hcg.nranks > 1:
-                self._wrap_with_fleet()
+            self._wrap_with_fleet()
         else:
             self._dp_rank = 0
 
