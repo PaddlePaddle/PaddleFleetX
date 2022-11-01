@@ -804,7 +804,6 @@ class GPTModelHybrid(nn.Layer):
 
         if self.sequence_parallel:
             encoder_outputs = GatherOp.apply(encoder_outputs)
-            encoder_outputs = paddle.transpose(encoder_outputs, [1, 0, 2])
 
         return encoder_outputs
 
@@ -860,11 +859,12 @@ class GPTPretrainingCriterionHybird(nn.Layer):
     Criterion for GPT. It calculates the final loss.
     """
 
-    def __init__(self, topo=None):
+    def __init__(self, topo=None, sequence_parallel=False):
         super(GPTPretrainingCriterionHybird, self).__init__()
         self.loss_func = paddle.nn.CrossEntropyLoss(reduction="none")
         self.parallel_loss_func = \
             fleet.meta_parallel.ParallelCrossEntropy(mp_group=env.get_hcg().get_model_parallel_group())
+        self.sequence_parallel = sequence_parallel
 
     def forward(self, prediction_scores, masked_lm_labels, loss_mask):
         """
@@ -887,6 +887,9 @@ class GPTPretrainingCriterionHybird(nn.Layer):
         """
         hcg = env.get_hcg()
         mp_size = hcg.get_model_parallel_world_size()
+        if self.sequence_parallel:
+            masked_lm_labels = masked_lm_labels.transpose([1, 0])
+            loss_mask = loss_mask.transpose([1, 0])
         if mp_size > 1:
             masked_lm_loss = self.parallel_loss_func(
                 prediction_scores, masked_lm_labels.unsqueeze(2))
@@ -953,7 +956,6 @@ class LayerNormPipe(nn.Layer):
         output = self.norm(input)
         if self.sequence_parallel and self.is_last:
             output = GatherOp.apply(output)
-            output = paddle.transpose(output, [1, 0, 2])
         return output
 
 
@@ -1076,7 +1078,8 @@ class GPTForPretrainingPipe(PipelineLayer):
 
         super().__init__(
             layers=self.descs,
-            loss_fn=GPTPretrainingCriterionPipe(),
+            loss_fn=GPTPretrainingCriterionPipe(
+                sequence_parallel=sequence_parallel),
             topology=env.get_hcg().topology(),
             seg_method="layer:TransformerDecoderLayer",
             recompute_interval=recompute_interval,

@@ -175,7 +175,8 @@ class GPTModule(LanguageModule):
         if self.nranks == 1:
             loss_fn = gpt.GPTPretrainingCriterion()
         else:
-            loss_fn = gpt.GPTPretrainingCriterionHybird()
+            loss_fn = gpt.GPTPretrainingCriterionHybird(
+                sequence_parallel=self.configs.Model.sequence_parallel)
         return loss_fn
 
     def pretreating_batch(self, batch):
