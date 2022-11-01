@@ -26,7 +26,7 @@ import paddle.distributed.fleet as fleet
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.language_model.gpt as gpt
 from ppfleetx.models.language_model.gpt.dygraph.sequence_parallel_utils import register_sequence_parallel_allreduce_hooks
-from ppfleetx.utils import env
+from ppfleetx.distributed.apis import env
 from ppfleetx.utils.log import logger
 import paddleslim
 from .utils import process_configs
