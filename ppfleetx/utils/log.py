@@ -25,6 +25,8 @@ from typing import List
 import colorlog
 from colorama import Fore
 
+import paddle
+
 loggers = {}
 
 log_config = {
@@ -173,3 +175,13 @@ def advertise():
         "=={}==".format(' ' * AD_LEN),
         "=={}==".format(website.center(AD_LEN)),
         "=" * (AD_LEN + 4), ))
+
+
+def get_timestamp():
+    paddle.device.cuda.synchronize()
+    return time.time()
+
+
+def convert_timestamp_to_data(timeStamp):
+    timeArray = time.localtime(timeStamp)
+    return time.strftime("%Y-%m-%d %H:%M:%S", timeArray)
