@@ -1,6 +1,3 @@
-
-#! /bin/bash
-
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,5 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-export CUDA_VISIBLE_DEVICES=1
-python tools/train.py -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_single_card.yaml 
+import copy
+import importlib
+
+from .vit import *
+from .loss import *
+from .metrics import *
+from .resnet import *
+from .moco import *
+from .layers import *
+
+__all__ = ['build', ]
+
+
+def build(config):
+    if config is None:
+        return None
+    config = copy.deepcopy(config)
+    model_type = config.pop("name")
+    mod = importlib.import_module(__name__)
+    model = getattr(mod, model_type)(**config)
+    return model

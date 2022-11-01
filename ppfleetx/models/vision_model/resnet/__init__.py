@@ -1,6 +1,3 @@
-
-#! /bin/bash
-
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,5 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-export CUDA_VISIBLE_DEVICES=1
-python tools/train.py -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_single_card.yaml 
+from paddle.vision.models.resnet import resnet18, resnet34, resnet50, resnet101, resnet152
+
+__all__ = [
+    'resnet18',
+    'resnet34',
+    'resnet50',
+    'resnet101',
+    'resnet152',
+]

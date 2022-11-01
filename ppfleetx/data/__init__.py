@@ -80,9 +80,16 @@ def build_dataloader(config, mode):
     if 'loader' in config[mode].keys():
         config_loader = config[mode].loader
         config_loader = copy.deepcopy(config_loader)
-        collate_fn_name = config_loader.pop('collate_fn', None)
-        collate_fn = getattr(
-            utils, collate_fn_name) if collate_fn_name is not None else None
+
+        collate_fn_cfg = config_loader.pop('collate_fn', None)
+        if isinstance(collate_fn_cfg, str):
+            collate_fn = getattr(
+                utils, collate_fn_cfg) if collate_fn_cfg is not None else None
+        elif isinstance(collate_fn_cfg, dict):
+            collate_fn_class_name = collate_fn_cfg.pop("name")
+            collate_fn = eval("utils.{}".format(collate_fn_class_name))(
+                **collate_fn_cfg)
+            logger.debug("build collate_fn({}) success...".format(collate_fn))
 
     def worker_init_fn(worker_id):
         """ set seed in subproces for dataloader when num_workers > 0"""

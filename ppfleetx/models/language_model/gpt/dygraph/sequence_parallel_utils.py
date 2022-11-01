@@ -23,6 +23,7 @@ from paddle.fluid.dygraph.layers import Layer
 from paddle.distributed import fleet
 from paddle.distributed.fleet.base import topology as tp
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
+from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients_with_group
 
 from ppfleetx.distributed.apis import env
 
@@ -135,11 +136,52 @@ class ReduceScatterOp(PyLayer):
 ###################################################
 
 
-def all_reduce_gradient_hook(grad):
+def mark_as_sequence_parallel_parameter(parameter):
+    setattr(parameter, 'sequence_parallel', True)
+
+
+def is_sequence_parallel_parameter(parameter):
+    return getattr(parameter, 'sequence_parallel', False)
+
+
+def create_fused_allreduce_gradient_hook(parameter_list, accumulation_steps):
     hcg = env.get_hcg()
-    group = hcg.get_model_parallel_group()
-    group.process_group.allreduce(grad).wait()
-    return grad
+    pg = hcg.get_model_parallel_group().process_group
+
+    step = [0]
+
+    def __impl__(grad):
+        step[0] += 1
+        if step[0] == accumulation_steps:
+            step[0] = 0
+            pg.allreduce(grad).wait()
+        return grad
+
+    return __impl__
+
+
+def register_sequence_parallel_allreduce_hooks(
+        model, accumulation_steps, fuse_sequence_parallel_allreduce):
+    if accumulation_steps <= 0 or not paddle.distributed.is_initialized():
+        return
+
+    mp_group = fleet.get_hybrid_communicate_group().get_model_parallel_group()
+    if mp_group.nranks <= 1:
+        return
+
+    params = []
+    for p in model.parameters():
+        if is_sequence_parallel_parameter(p):
+            params.append(p)
+
+    if fuse_sequence_parallel_allreduce:
+        hook = create_fused_allreduce_gradient_hook(params, accumulation_steps)
+        for p in params:
+            p.register_hook(hook)
+    else:
+        for p in params:
+            p.register_hook(
+                create_non_fused_allreduce_gradient_hook(accumulation_steps))
 
 
 def is_fused_matmul_bias_supported():
@@ -297,7 +339,7 @@ class RowSequenceParallelLinear(Layer):
                 dtype=self._dtype,
                 is_bias=True)
             if self.is_mp:
-                self.bias.register_hook(all_reduce_gradient_hook)
+                mark_as_sequence_parallel_parameter(self.bias)
         else:
             self.bias = None
 

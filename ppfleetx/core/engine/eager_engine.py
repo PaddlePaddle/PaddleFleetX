@@ -171,6 +171,10 @@ class EagerEngine(BasicEngine):
         else:
             self._scaler = None
 
+        self._lr_scheduler_mode = configs.Optimizer.lr.pop('run_mode', 'step')
+        assert self._lr_scheduler_mode in [
+            'epoch', 'step'
+        ], 'lr.run_mode must be epoch or step'
         self._lr_scheduler = build_lr_scheduler(
             configs.Optimizer.lr) if mode == 'train' else None
 
@@ -382,6 +386,9 @@ class EagerEngine(BasicEngine):
             }
             self._module.training_epoch_end(log_dict)
 
+            if self._lr_scheduler is not None and self._lr_scheduler_mode == 'epoch':
+                self._lr_scheduler.step()
+
             eval_start = time.time()
             if self._run_mode == 'epoch' and self._eval_freq > 0 and \
                 epoch_index % self._eval_freq == 0:
@@ -451,6 +458,9 @@ class EagerEngine(BasicEngine):
                 loss = self._module.training_step(micro_batch)
 
             loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
+            if self._accumulate_steps > 1:
+                # div the loss for backward
+                loss_bw = loss_bw / self._accumulate_steps
             self._module.backward(loss_bw)
             detach_loss = loss.detach()
             if final_loss is None:
@@ -458,6 +468,7 @@ class EagerEngine(BasicEngine):
             else:
                 final_loss = paddle.add(final_loss, detach_loss)
         if self._accumulate_steps > 1:
+            # div the loss for print
             final_loss = final_loss / self._accumulate_steps
         return final_loss
 
@@ -478,7 +489,7 @@ class EagerEngine(BasicEngine):
         else:
             self._optimizer.step()
 
-        if self._lr_scheduler is not None:
+        if self._lr_scheduler is not None and self._lr_scheduler_mode == 'step':
             self._lr_scheduler.step()
 
         self._optimizer.clear_grad()

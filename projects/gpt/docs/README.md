@@ -171,6 +171,7 @@ Engine训练设置完成模型训练/验证/推理等过程中的参数设置，
     no_recompute_layers:
     fused_linear: True
     fuse_attn_qkv: True
+    sequence_parallel: False
 ```
 
 其中参数对应的释义如下：
@@ -192,6 +193,7 @@ Engine训练设置完成模型训练/验证/推理等过程中的参数设置，
 |no_recompute_layers| list of integer，标识哪些层的transformer不需要进行recompute。所有在该list中的值应该 >= 0 同时应该 < num_layers。向该参数中增加不进行recompute 的层数可以提升模型训练的整体吞吐，但是会适当的增加显存。若训练中发现有显存富裕，可以适当增加不进行recompute的层数。如果使用该参数后出现OOM错误，可以适当减小不进行recompute的层数。 ｜
 | fused_linear      | 是否使用fused_linear代替传统Linear加速训练。注：该功能需要cuda 11.6及以上编译的paddle支持。       |
 | fuse_attn_qkv     | 是否对attention层中的qkv计算使用fuse策略以加速训练 |
+| sequence_parallel | 是否使用序列并行策略以加速训练。注：只有混合并行的GPT才支持该功能，它与张量模型并行共用通信组，当mp_degree=1时，序列并行策略会被强制关闭。 |
 | virtual_pp_degree | 虚拟流水线并行维度，该参数会减小流水线bubble的占比以提升流水线的吞吐。但是该参数会增加流水线间的通讯，所以该参数的推荐值为2。并且，只有 num_layers可以被 pp_degree * virtual_pp_degree 整除时，才可以使用虚拟流水线并行。 |
 ### 数据集
 

@@ -108,6 +108,7 @@ class ErnieEmbeddings(nn.Layer):
         if input_ids is not None:
             input_shape = paddle.shape(input_ids)
             input_embeddings = self.word_embeddings(input_ids)
+
         else:
             input_shape = paddle.shape(inputs_embeds)[:-1]
             input_embeddings = inputs_embeds
@@ -129,6 +130,7 @@ class ErnieEmbeddings(nn.Layer):
             if token_type_ids is None:
                 token_type_ids = paddle.zeros(input_shape, dtype="int64")
             token_type_embeddings = self.token_type_embeddings(token_type_ids)
+
             embeddings = embeddings + token_type_embeddings
 
         if self.use_task_id:
@@ -734,8 +736,6 @@ class ErniePretrainingCriterionHybrid(paddle.nn.Layer):
         # masked_lm_loss = self.loss_func(prediction_scores,
         #                                 masked_lm_labels,
         #                                 ignore_index=-1)
-        # print("prediction_scores", prediction_scores.shape, masked_lm_labels.shape)
-
         masked_lm_loss = F.cross_entropy(
             prediction_scores,
             masked_lm_labels,
@@ -759,23 +759,9 @@ class EmbeddingsPipe(ErnieEmbeddings):
         return self.word_embeddings.weight
 
     def forward(self, tensors):
-        print(">> tensors", tensors)
-        input_ids, token_type_ids, attention_mask, masked_positions = tensors
-
-        # if input_ids is not None and inputs_embeds is not None:
-        #     raise ValueError(
-        #         "You cannot specify both input_ids and inputs_embeds at the same time.")
-        # elif input_ids is not None:
-        #     input_shape = paddle.shape(input_ids)
-        # elif inputs_embeds is not None:
-        #     input_shape = paddle.shape(inputs_embeds)[:-1]
-        # else:
-        #     raise ValueError(
-        #         "You have to specify either input_ids or inputs_embeds")
+        input_ids, token_type_ids, attention_mask = tensors
 
         past_key_values_length = None
-        # if past_key_values is not None:
-        #     past_key_values_length = past_key_values[0][0].shape[2]
 
         if attention_mask is None:
             attention_mask = paddle.unsqueeze(
@@ -823,7 +809,8 @@ class LayerNormPipe(nn.LayerNorm):
 
 
 class ErniePoolerPipe(ErniePooler):
-    def forward(self, sequence_output):
+    def forward(self, args):
+        sequence_output = args
         pooled_output = super().forward(sequence_output)
         return sequence_output, pooled_output
 
@@ -845,6 +832,7 @@ class ErniePretrainingCriterionHybridPipe(ErniePretrainingCriterionHybrid):
             seq_relationship_score=seq_relationship_score,
             masked_lm_labels=masked_lm_labels,
             next_sentence_labels=next_sentence_labels)
+
         return lm_loss + sop_loss
 
 
@@ -880,7 +868,7 @@ class ErnieForPretrainingPipe(PipelineLayer):
                 pad_token_id=pad_token_id,
                 weight_attr=None,
                 task_type_vocab_size=task_type_vocab_size,
-                task_id=task_type_vocab_size,
+                task_id=task_id,
                 use_task_id=use_task_id))
 
         for _ in range(num_hidden_layers):
@@ -904,16 +892,14 @@ class ErnieForPretrainingPipe(PipelineLayer):
                 LayerNormPipe, normalized_shape=hidden_size))
         self.descs.append(LayerDesc(ErniePoolerPipe, hidden_size=hidden_size))
 
-        self.descs.append(
-            LayerDesc(
-                ErniePretrainingHeadsPipe,
-                hidden_size=hidden_size,
-                vocab_size=vocab_size,
-                activation=hidden_act,
-                embedding_weights=None,
-                weight_attr=paddle.ParamAttr(
-                    initializer=nn.initializer.TruncatedNormal(
-                        mean=0.0, std=initializer_range))))
+        loss_fun = ErniePretrainingCriterionPipe(
+            hidden_size=hidden_size,
+            vocab_size=vocab_size,
+            activation=hidden_act,
+            embedding_weights=None,
+            weight_attr=paddle.ParamAttr(
+                initializer=nn.initializer.TruncatedNormal(
+                    mean=0.0, std=initializer_range)))
 
         super().__init__(
             layers=self.descs,
