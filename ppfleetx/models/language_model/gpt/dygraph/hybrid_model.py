@@ -1070,7 +1070,7 @@ class GPTForPretrainingPipe(PipelineLayer):
         if recompute and recompute_granularity == "full":
             assert pp_recompute_interval <= \
                    num_layers // (virtual_pp_degree *
-                                  fleet.get_hybrid_communicate_group().topology().get_dim_size("pipe")), \
+                                  env.get_hcg().topology().get_dim_size("pipe")), \
                 "pp recompute interval should smaller than num layers of each pp chunk"
             recompute_interval = pp_recompute_interval
 
