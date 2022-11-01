@@ -23,7 +23,7 @@ Model:
   
 
 Distributed:
-  dp_degree: 1
+  dp_degree: 8
   mp_degree: 1
   pp_degree: 1
   sharding:
