@@ -56,6 +56,8 @@ def process_data_configs(config):
                 'local_batch_size']
             cfg_data[mode]['dataset'].setdefault('binary_head',
                                                  cfg_global['binary_head'])
+            cfg_data[mode]['loader']['collate_fn'].setdefault(
+                'micro_batch_size', cfg_global['micro_batch_size'])
 
 
 def process_model_configs(config):
@@ -105,14 +107,13 @@ class ErnieModule(BasicModule):
         return self.model(tokens)
 
     def pretreating_batch(self, batch):
-
         if self.configs.Distributed.pp_degree > 1:
             input_ids, segment_ids, input_mask, masked_lm_positions, \
                         masked_lm_labels, next_sentence_labels = batch
-            masked_lm_positions = masked_lm_positions.reshape_([1, -1])
-            masked_lm_labels = masked_lm_labels.reshape_([1, -1])
-            data = [(input_ids, segment_ids, input_mask, masked_lm_positions),
-                    (masked_lm_labels, next_sentence_labels)]
+            data = [
+                (input_ids, segment_ids, input_mask),
+                (masked_lm_positions, masked_lm_labels, next_sentence_labels)
+            ]
             return data
         else:
             return batch

@@ -284,7 +284,6 @@ def get_train_data_file(input_dir):
             if (os.path.isfile(os.path.join(input_dir, f)) and "_idx.npz" in
                 str(f))
         ]
-        # print(">>>> files", files)
         files = [x.replace("_idx.npz", "") for x in files]
 
         if len(files) > 1:
