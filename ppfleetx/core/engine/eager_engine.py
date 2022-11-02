@@ -30,7 +30,7 @@ from paddle.profiler import SummaryView
 from ppfleetx.distributed.apis import env
 from ppfleetx.optims import build_lr_scheduler, build_optimizer
 from ppfleetx.utils.log import logger, get_timestamp, convert_timestamp_to_data
-from ppfleetx.core.engine import BasicEngine, InferenceEngine
+from ppfleetx.core.engine import BasicEngine, InferenceEngine, TensorRTConfig
 from ppfleetx.core.module import BasicModule
 from ppfleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from ppfleetx.utils.version import version_check
@@ -720,9 +720,16 @@ class EagerEngine(BasicEngine):
 
     def inference(self, data):
         if self._inference_engine is None:
+            # parse TensorRT config
+            tensorrt_config = None
+            if 'TensorRT' in self._inference_configs:
+                tensorrt_config = TensorRTConfig(
+                                    **self._inference_configs['TensorRT'])
+
             self._inference_engine = InferenceEngine(
                 self._inference_configs['model_dir'],
-                self._inference_configs['mp_degree'])
+                self._inference_configs['mp_degree'],
+                tensorrt_config)
 
         return self._inference_engine.predict(data)
 
