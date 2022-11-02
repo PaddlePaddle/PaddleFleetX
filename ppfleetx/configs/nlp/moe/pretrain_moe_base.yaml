@@ -96,12 +96,3 @@ Profiler:
   scheduler: [1, 5]
   profiler_log: profiler_log
   detailed: False
-
-Distributed:
-  dp_degree: 1
-  mp_degree: 1
-  pp_degree: 1
-  sharding:
-    sharding_degree: 1
-    sharding_stage: 1
-  hcg: HybridCommGroupForMoE
