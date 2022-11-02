@@ -103,7 +103,7 @@ python tools/export.py \
 
 ## 2. 推理部署
 
-模型导出后，可通过`tasks/gpt/inference.py`脚本进行推理部署。
+模型导出后，可通过`projects/vit/inference_vit.py`脚本进行推理部署。
 
 ```bash
 python projects/vit/inference_vit.py -c ppfleetx/configs/vis/vit/ViT_base_patch16_224_inference.yaml
