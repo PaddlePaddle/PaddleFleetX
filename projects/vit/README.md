@@ -94,7 +94,7 @@ wget -O ckpt/model.pdparams https://paddlefleetx.bj.bcebos.com/model/vision/vit/
 
 ```bash
 python tools/export.py \
-    -c ppfleetx/configs/vis/vit/ViT_base_patch16_224_pt_in1k_2n16c_dp_fp16o2.yaml \
+    -c ppfleetx/configs/vis/vit/ViT_base_patch16_224_inference.yaml \
     -o Engine.save_load.ckpt_dir=./ckpt/
 ```
 
