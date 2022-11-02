@@ -52,7 +52,7 @@ Data:
   Train:
     dataset:
       name: ErnieDataset
-      input_dir: /workspace/workspace/PaddleNLP/model_zoo/ernie-1.0/data
+      input_dir: input_dir
       tokenizer_type: ernie-1.0-base-zh-cw
       split: [949, 50, 1]
       mode: Train
