@@ -42,7 +42,7 @@ def init_distributed_env(args):
 
 ## 混合并行网络模型使用
 
-目前，在 HelixFold 网络模型中涉及到混合并行的有 Embeding 和 Evoformer 类，因此可以将原来 HelixFold 中的 `EmbeddingsAndEvoformer`
+目前，在 HelixFold 网络模型中涉及到混合并行的有 Embedding 和 Evoformer 类，因此可以将原来 HelixFold 中的 `EmbeddingsAndEvoformer`
 修改为 `DistEmbeddingsAndEvoformer`。在网络模型中涉及 `DAP` 和 `BP` 的网络模型修改都在 [DistEmbeddingsAndEvoformer](../../ppfleetx/models/protein_folding/evoformer.py) 中封装，
 
 ```python
@@ -124,6 +124,13 @@ optimizer.clear_grad()
   title={HelixFold: An Efficient Implementation of AlphaFold2 using PaddlePaddle},
   author={Wang, Guoxia and Fang, Xiaomin and Wu, Zhihua and Liu, Yiqun and Xue, Yang and Xiang, Yingfei and Yu, Dianhai and Wang, Fan and Ma, Yanjun},
   journal={arXiv preprint arXiv:2207.05477},
+  year={2022}
+}
+
+@article{wang2022efficient_alphafold2,
+  title={Efficient AlphaFold2 Training using Parallel Evoformer and Branch Parallelism},
+  author={Wang, Guoxia and Wu, Zhihua and Fang, Xiaomin and Xiang, Yingfei and Liu, Yiqun and Yu, Dianhai and Ma, Yanjun},
+  journal={arXiv preprint arXiv:2211.00235},
   year={2022}
 }
 ```
