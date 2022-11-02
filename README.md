@@ -56,7 +56,7 @@ git clone https://github.com/PaddlePaddle/PaddleFleetX.git
 
 ## 性能
 
-相对于业界主流套件Megatron-LM<sup>1</sup>与Megatron-DeepSpeed<sup>2</sup>，PaddleFleetX可以达到更高的训练吞吐。下表列出了在同等模型规模下，在多台拥有八张**A100-SXM4-40GB GPU**的服务器上（CUDA Version为11.6），PaddleFleetX与两者的性能对比。其中，0.35B、1.3B以及175B模型使用Megatron-LM框架。6.7B模型使用Megatron-DeepSpeed框架。
+相对于业界主流套件Megatron-LM<sup>1</sup>与Megatron-DeepSpeed<sup>2</sup>，PaddleFleetX可以达到更高的训练吞吐。下表列出了在同等模型规模下，在多台拥有八张**A100-SXM4-40GB GPU**的服务器上（CUDA Version为11.6），PaddleFleetX与两者的性能对比。其中，0.35B、1.3B以及175B模型使用Megatron-LM套件。6.7B模型使用Megatron-DeepSpeed套件。
 
 <img src="./docs/images/throughput_compare.png">
 
