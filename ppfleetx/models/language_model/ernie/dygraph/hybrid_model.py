@@ -16,7 +16,6 @@ import os
 import io
 import copy
 import logging
-import six
 import json
 
 import paddle

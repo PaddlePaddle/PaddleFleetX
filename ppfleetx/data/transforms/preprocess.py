@@ -17,7 +17,6 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 from functools import partial
-import six
 import math
 import random
 import cv2
@@ -46,12 +45,8 @@ class DecodeImage(object):
         self.channel_first = channel_first
 
     def __call__(self, img):
-        if six.PY2:
-            assert type(img) is str and len(
-                img) > 0, "invalid input 'img' in DecodeImage"
-        else:
-            assert type(img) is bytes and len(
-                img) > 0, "invalid input 'img' in DecodeImage"
+        assert type(img) is bytes and len(
+            img) > 0, "invalid input 'img' in DecodeImage"
         data = np.frombuffer(img, dtype='uint8')
         img = cv2.imdecode(data, 1)
         if self.to_rgb:
