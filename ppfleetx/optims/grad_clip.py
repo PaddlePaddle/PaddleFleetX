@@ -21,8 +21,6 @@ from paddle.fluid import core, layers
 from paddle.distributed import collective
 import paddle.distributed.fleet as fleet
 
-from ppfleetx.distributed.apis import env
-
 
 class ClipGradForMOEByGlobalNorm(ClipGradBase):
     def __init__(self, clip_norm):
@@ -32,7 +30,7 @@ class ClipGradForMOEByGlobalNorm(ClipGradBase):
         self.moe_group = None
         self.world_size = paddle.distributed.get_world_size()
         if self.world_size > 1:
-            hcg = env.get_hcg()
+            hcg = fleet.get_hybrid_communicate_group()
             self.moe_group = hcg.get_expert_parallel_group()
 
     def __str__(self):

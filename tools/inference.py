@@ -25,12 +25,12 @@ import paddle.distributed as dist
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
 
-from ppfleetx.utils import config
+from ppfleetx.utils import config, env
 from ppfleetx.utils.log import logger
+
 from ppfleetx.data import build_dataloader
 from ppfleetx.models import build_module
 from ppfleetx.core import EagerEngine
-from ppfleetx.distributed.apis import env
 
 # init_logger()
 
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     cfg = config.get_config(args.config, overrides=args.override, show=False)
 
     if dist.get_world_size() > 1:
-        env.init_dist_env(cfg)
+        fleet.init(is_collective=True, strategy=env.init_dist_env(cfg))
 
     env.set_seed(cfg.Global.seed)
 

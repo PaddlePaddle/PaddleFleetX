@@ -27,7 +27,6 @@ from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 from paddle.profiler import SummaryView
 
-from ppfleetx.distributed.apis import env
 from ppfleetx.optims import build_lr_scheduler, build_optimizer
 from ppfleetx.utils.log import logger, get_timestamp, convert_timestamp_to_data
 from ppfleetx.core.engine import BasicEngine, InferenceEngine
@@ -147,7 +146,7 @@ class EagerEngine(BasicEngine):
         self._mp_degree = self._dist_configs['mp_degree']
         self._pp_degree = self._dist_configs['pp_degree']
         sharding_config = self._dist_configs['sharding']
-
+        
         self._sharding_stage = sharding_config['sharding_stage']
         self._sharding_degree = sharding_config['sharding_degree']
         self._sharding_offload = sharding_config['sharding_offload']
@@ -183,7 +182,7 @@ class EagerEngine(BasicEngine):
         self._distributed = (dist.get_world_size() > 1)
 
         if self._distributed:
-            self._hcg = env.get_hcg()
+            self._hcg = fleet.get_hybrid_communicate_group()
             self._dp_group = self._hcg.get_data_parallel_group()
             self._sharding_group = self._hcg.get_sharding_parallel_group()
 
@@ -192,7 +191,8 @@ class EagerEngine(BasicEngine):
             self._pp_rank = self._hcg.get_stage_id()
             self._sharding_rank = self._hcg.get_sharding_parallel_rank()
 
-            self._wrap_with_fleet()
+            if self._hcg.nranks > 1:
+                self._wrap_with_fleet()
         else:
             self._dp_rank = 0
 
@@ -254,8 +254,9 @@ class EagerEngine(BasicEngine):
         if self._reduce_overlap:
             self._module.model._set_reduce_overlap(self._reduce_overlap)
         if self._broadcast_overlap:
-            self._optimizer._set_broadcast_overlap(
-                self._broadcast_overlap, layers=origin_model, num_groups=2)
+            self._optimizer._set_broadcast_overlap(self._broadcast_overlap,
+                                                   layers=origin_model,
+                                                   num_groups=2)
 
     def _wrap_3D_parallel(self):
         self._module.model = fleet.distributed_model(self._module.model)
