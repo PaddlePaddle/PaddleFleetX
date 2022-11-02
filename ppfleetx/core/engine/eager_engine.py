@@ -305,6 +305,9 @@ class EagerEngine(BasicEngine):
                 train_step_start = get_timestamp()
                 train_losses = []
 
+            if self._lr_scheduler is not None and self._lr_scheduler_mode == 'step':
+                self._lr_scheduler.step()
+
             self._optimizer.clear_grad()
 
             if self._run_mode == 'step' and not skip_first:
@@ -484,9 +487,6 @@ class EagerEngine(BasicEngine):
             self._scaler.update()
         else:
             self._optimizer.step()
-
-        if self._lr_scheduler is not None and self._lr_scheduler_mode == 'step':
-            self._lr_scheduler.step()
 
     @paddle.no_grad()
     def evaluate(self, epoch=1, valid_data_loader=None):
@@ -724,12 +724,11 @@ class EagerEngine(BasicEngine):
             tensorrt_config = None
             if 'TensorRT' in self._inference_configs:
                 tensorrt_config = TensorRTConfig(
-                                    **self._inference_configs['TensorRT'])
+                    **self._inference_configs['TensorRT'])
 
             self._inference_engine = InferenceEngine(
                 self._inference_configs['model_dir'],
-                self._inference_configs['mp_degree'],
-                tensorrt_config)
+                self._inference_configs['mp_degree'], tensorrt_config)
 
         return self._inference_engine.predict(data)
 
