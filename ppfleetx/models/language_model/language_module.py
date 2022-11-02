@@ -26,7 +26,7 @@ import paddle.distributed.fleet as fleet
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.language_model.gpt as gpt
 from ppfleetx.models.language_model.gpt.dygraph.sequence_parallel_utils import register_sequence_parallel_allreduce_hooks
-from ppfleetx.utils import env
+from ppfleetx.distributed.apis import env
 from ppfleetx.utils.log import logger
 import paddleslim
 from .utils import process_configs
@@ -175,7 +175,8 @@ class GPTModule(LanguageModule):
         if self.nranks == 1:
             loss_fn = gpt.GPTPretrainingCriterion()
         else:
-            loss_fn = gpt.GPTPretrainingCriterionHybird()
+            loss_fn = gpt.GPTPretrainingCriterionHybird(
+                sequence_parallel=self.configs.Model.sequence_parallel)
         return loss_fn
 
     def pretreating_batch(self, batch):
@@ -680,7 +681,6 @@ class GPTEvalModule(LanguageModule):
 
 class MoEModule(LanguageModule):
     def __init__(self, configs):
-        self.initialize_model_and_expert_group()
         super(MoEModule, self).__init__(configs)
 
         assert self.nranks == configs.Distributed.dp_degree, \
@@ -757,30 +757,8 @@ class MoEModule(LanguageModule):
 
         return loss
 
-    def initialize_model_and_expert_group(self):
-        if paddle.distributed.get_world_size() == 1:
-            return
-
-        hcg = fleet.get_hybrid_communicate_group()
-
-        def get_expert_parallel_world_size(self):
-            return self.get_data_parallel_world_size(
-            ) * self.get_model_parallel_world_size()
-
-        hcg.get_expert_parallel_world_size = types.MethodType(
-            get_expert_parallel_world_size, hcg)
-
-        # need create mp_dp group for expert parallel group in advance
-        _, mp_dp_comm_group = hcg._set_check_group(parallel_method="pipe")
-
-        def get_expert_parallel_group(self):
-            return mp_dp_comm_group
-
-        hcg.get_expert_parallel_group = types.MethodType(
-            get_expert_parallel_group, hcg)
-
     def initialize_mp_dp_parameters(self):
-        hcg = fleet.get_hybrid_communicate_group()
+        hcg = env.get_hcg()
         mp_group = hcg.get_model_parallel_group()
         mp_src_rank = hcg.get_model_parallel_group_src_rank()
 
