@@ -31,6 +31,7 @@ PaddleFleetX旨在打造一套简单易用、性能领先、且功能强大的�
   * [MoCo](projects/moco/)
   * [Imagen](projects/imagen/)
   * [Ernie](projects/ernie/)
+  * [ProteinFolding](projects/protein_folding/)
 * [推理](./docs/inference.md)
 * [开发规范](./docs/standard.md)
 * [集群部署](./docs/cluster_deployment.md)
