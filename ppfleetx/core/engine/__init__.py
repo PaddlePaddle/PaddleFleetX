@@ -13,6 +13,6 @@
 # limitations under the License.
 
 from .basic_engine import BasicEngine
-from .inference_engine import InferenceEngine
+from .inference_engine import InferenceEngine, TensorRTConfig
 from .eager_engine import EagerEngine
 from .auto_engine import AutoEngine
