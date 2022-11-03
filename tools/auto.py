@@ -58,3 +58,4 @@ if __name__ == "__main__":
     engine.fit(train_dataset=train_data,
                valid_dataset=eval_data,
                epoch=cfg.Engine.num_train_epochs)
+    engine.save()
