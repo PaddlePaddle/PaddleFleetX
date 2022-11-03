@@ -36,6 +36,8 @@ from ppfleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from ppfleetx.utils.version import version_check
 from ppfleetx.utils.export import export_inference_model
 
+from paddle.incubate.distributed.utils.io import save_for_auto_inference
+
 
 class EagerEngine(BasicEngine):
     """
@@ -646,6 +648,8 @@ class EagerEngine(BasicEngine):
             paddle.save(self._optimizer.state_dict(),
                         os.path.join(save_dir, "model_state.pdopt"))
 
+            save_for_auto_inference(os.path.join(save_dir, "saved"), self._module.model)
+            
             meta_dict = {
                 "epoch": epoch,
                 "step": step,

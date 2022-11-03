@@ -51,17 +51,14 @@ Data:
 
 
 Optimizer:
-  name: AdamW
+  name: SGD
   weight_decay: 0.01
-  beta1: 0.9
-  beta2: 0.999
-  epsilon: 1.0e-8
   lr:
     name: CosineAnnealingWithWarmupDecay
     decay_steps: 360000
-    warmup_rate: 0.01
-    max_lr: 5.0e-5
-    min_lr: 1.0e-5
+    warmup_rate: 0.00
+    max_lr: 0
+    min_lr: 0
   grad_clip:
     name: "ClipGradByGlobalNorm"
     clip_norm: 1.0

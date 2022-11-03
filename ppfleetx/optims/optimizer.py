@@ -17,7 +17,7 @@ import paddle
 import paddle.distributed.fleet as fleet
 
 from ppfleetx.utils.tensor_fusion_helper import fused_parameters
-from paddle.optimizer import Adam, AdamW, Momentum
+from paddle.optimizer import Adam, AdamW, Momentum, SGD
 from ppfleetx.distributed.apis import env
 
 __all__ = [
@@ -25,6 +25,7 @@ __all__ = [
     'AdamW',
     'Momentum',
     'FusedAdamW',
+    'SGD',
 ]
 
 
