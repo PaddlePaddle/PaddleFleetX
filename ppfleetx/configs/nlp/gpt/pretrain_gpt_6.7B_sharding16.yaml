@@ -6,6 +6,10 @@ Global:
   micro_batch_size: 8
 
 
+Engine:
+  logging_freq: 10
+
+
 Model:
   vocab_size: 50304
   hidden_size: 4096
@@ -20,6 +24,7 @@ Model:
   use_recompute: True
   recompute_granularity:
   no_recompute_layers:
+  fused_linear: True
 
 
 Distributed:
@@ -31,4 +36,8 @@ Distributed:
     sharding_stage: 2
     sharding_offload: False
     reduce_overlap: True
-    broadcast_overlap: False
+    broadcast_overlap: True
+
+
+Optimizer:
+  tensor_fusion: True
