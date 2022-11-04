@@ -4,7 +4,7 @@ export PYTHONPATH=/code_lp/paddle/Paddle/build/python
 # unset PYTHONPATH
 rm -rf $log
 log=output_345
-python -m paddle.distributed.launch --log_dir $log --devices "0" \
+python -m paddle.distributed.launch --log_dir $log --devices "4,5,6,7" \
     tools/train.py \
     -c ./ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_single_card.yaml \
     -o Engine.max_steps=2 \
