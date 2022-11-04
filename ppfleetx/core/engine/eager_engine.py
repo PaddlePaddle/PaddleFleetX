@@ -653,8 +653,14 @@ class EagerEngine(BasicEngine):
                 "cuda_rng_state": paddle.get_cuda_rng_state()
             }
             paddle.save(meta_dict, os.path.join(save_dir, "meta_state.pdopt"))
+
+            static_model_state_dict_path = os.path.join(self._output_dir,
+                                                        "static")
+            logger.info("Save static model to %s" %
+                        static_model_state_dict_path)
             save_for_auto_inference(
-                os.path.join(save_dir, "saved"), self._module.model)
+                os.path.join(static_model_state_dict_path, "auto"),
+                self._module.model)
 
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
