@@ -30,7 +30,7 @@ from paddle.profiler import SummaryView
 from ppfleetx.distributed.apis import env
 from ppfleetx.optims import build_lr_scheduler, build_optimizer
 from ppfleetx.utils.log import logger, get_timestamp, convert_timestamp_to_data
-from ppfleetx.core.engine import BasicEngine, InferenceEngine
+from ppfleetx.core.engine import BasicEngine, InferenceEngine, TensorRTConfig
 from ppfleetx.core.module import BasicModule
 from ppfleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from ppfleetx.utils.version import version_check
@@ -305,6 +305,11 @@ class EagerEngine(BasicEngine):
                 train_step_start = get_timestamp()
                 train_losses = []
 
+            if self._lr_scheduler is not None and self._lr_scheduler_mode == 'step':
+                self._lr_scheduler.step()
+
+            self._optimizer.clear_grad()
+
             if self._run_mode == 'step' and not skip_first:
                 if self._eval_freq > 0 and step % self._eval_freq == 0:
 
@@ -417,18 +422,18 @@ class EagerEngine(BasicEngine):
                                           self._dp_group)
             else:
                 loss = self._model_forward_backward(batch)
-            self._optim_update_params()
         else:
             with paddle.amp.auto_cast(
                     self._use_pure_fp16,
                     custom_black_list=self._custom_black_list,
                     custom_white_list=self._custom_white_list,
                     level='O2'):
-                loss = self._module.model.train_batch(
-                    batch,
-                    optimizer=self._optimizer,
-                    lr_scheduler=self._lr_scheduler,
-                    scaler=self._scaler)
+                batch = self._module.model._prepare_training(
+                    batch, self._optimizer, self._lr_scheduler)
+                loss = self._module.model.forward_backward_pipeline(
+                    batch, self._scaler)
+
+        self._optim_update_params()
         return loss
 
     def _model_forward_backward(self, batch):
@@ -482,11 +487,6 @@ class EagerEngine(BasicEngine):
             self._scaler.update()
         else:
             self._optimizer.step()
-
-        if self._lr_scheduler is not None and self._lr_scheduler_mode == 'step':
-            self._lr_scheduler.step()
-
-        self._optimizer.clear_grad()
 
     @paddle.no_grad()
     def evaluate(self, epoch=1, valid_data_loader=None):
@@ -720,9 +720,15 @@ class EagerEngine(BasicEngine):
 
     def inference(self, data):
         if self._inference_engine is None:
+            # parse TensorRT config
+            tensorrt_config = None
+            if 'TensorRT' in self._inference_configs:
+                tensorrt_config = TensorRTConfig(
+                    **self._inference_configs['TensorRT'])
+
             self._inference_engine = InferenceEngine(
                 self._inference_configs['model_dir'],
-                self._inference_configs['mp_degree'])
+                self._inference_configs['mp_degree'], tensorrt_config)
 
         return self._inference_engine.predict(data)
 

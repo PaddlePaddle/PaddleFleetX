@@ -13,7 +13,6 @@
 # limitations under the License.
 """DocstringChecker is used to check python doc string's style."""
 
-import six
 import astroid
 
 from pylint.checkers import BaseChecker, utils
