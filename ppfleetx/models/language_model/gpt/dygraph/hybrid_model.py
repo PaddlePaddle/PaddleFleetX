@@ -1066,12 +1066,16 @@ class GPTForPretrainingPipe(PipelineLayer):
                 "pp recompute interval should smaller than num layers of each pp chunk"
             recompute_interval = pp_recompute_interval
 
+        seg_method = "layer:TransformerDecoderLayer"
+        if num_layers % fleet.get_hybrid_communicate_group().topology().get_dim_size("pipe") != 0:
+            seg_method = "uniform"
+
         super().__init__(
             layers=self.descs,
             loss_fn=GPTPretrainingCriterionPipe(
                 sequence_parallel=sequence_parallel),
             topology=fleet.get_hybrid_communicate_group().topology(),
-            seg_method="layer:TransformerDecoderLayer",
+            seg_method=seg_method,
             recompute_interval=recompute_interval,
             recompute_ctx={
                 "mp_group": fleet.fleet._hcg.get_model_parallel_group(),
