@@ -654,8 +654,9 @@ class EagerEngine(BasicEngine):
             }
             paddle.save(meta_dict, os.path.join(save_dir, "meta_state.pdopt"))
 
+            save_auto_dir = os.path.join(output_dir, "auto_infer")
             save_for_auto_inference(
-                os.path.join(output_dir, "auto"), self._module.model)
+                os.path.join(save_auto_dir, "auto"), self._module.model)
 
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
