@@ -8,6 +8,7 @@ Inference:
     max_batch_size: 1
     workspace_size: 1<<30
     min_subgraph_size: 3
+    precision: fp16
     use_static: False
     use_calib_mode: False
     collect_shape: False
