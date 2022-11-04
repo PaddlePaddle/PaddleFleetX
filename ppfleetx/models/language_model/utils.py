@@ -99,6 +99,12 @@ def process_model_configs(config):
             logger.warning(
                 "The num_layers of the model is not divisible by pp_degree." \
                 "Receive num_layers: {}, pp_degree: {}.".format(num_layers, pp_degree))
+        else:
+            assert (num_layers %
+                (virtual_pp_degree * pp_degree)) == 0, \
+                "The num_layers of the model should be divisible of pp_degree * virtual_pp_degree." \
+                "Receive num_layers: {}, pp_degree: {}, virtual_pp_degree: {}.".format(
+                num_layers, pp_degree, virtual_pp_degree)
 
         if virtual_pp_degree > 1:
             local_batch_size = config.Global.local_batch_size
