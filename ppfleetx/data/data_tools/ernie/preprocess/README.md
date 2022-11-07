@@ -1,4 +1,4 @@
-# PaddleNLP 预训练数据流程
+# PaddleNLP 预训练数据准备流程
 
 本示例致力于打造基于PaddleNLP预训练模型的最佳实践。
 
@@ -117,7 +117,7 @@ optional arguments:
 ```
 根据说明，我们使用下面简单命令，可以得到`baike_sample.jsonl`文件。此处，我们对文章所有doc进行了shuffle。
 ```shell
-python trans_to_json.py  --input_path ./data --output_path baike_sample
+python ./ppfleetx/data/data_tools/ernie/preprocess/trans_to_json.py  --input_path ./data --output_path baike_sample
 
 #查看数据
 head -1 baike_sample.jsonl
@@ -181,7 +181,7 @@ common config:
 ```
 通过下面脚本转化，我们可以得到处理好的预训练数据，token ids:`baike_sample_ids.npy`, 文章索引信息`baike_sample_idx.npz`.
 ```
-python -u  create_pretraining_data.py \
+python -u  ./ppfleetx/data/data_tools/ernie/preprocess/create_pretraining_data.py \
     --model_name ernie-1.0-base-zh \
     --tokenizer_name ErnieTokenizer \
     --input_path baike_sample.jsonl \
