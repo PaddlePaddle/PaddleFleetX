@@ -184,9 +184,9 @@ class GPTModule(LanguageModule):
             else:
                 model = gpt.GPTForPretrainingPipe(**model_setting)
 
-        if 'Quantization' in self.configs.keys(
-        ) and self.configs.Quantization.enable:
-            model = self.qat_model(model)
+        # if 'Quantization' in self.configs.keys(
+        # ) and self.configs.Quantization.enable:
+        #     model = self.qat_model(model)
 
         return model
 

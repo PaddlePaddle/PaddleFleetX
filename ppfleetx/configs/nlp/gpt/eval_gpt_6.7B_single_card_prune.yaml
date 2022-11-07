@@ -1,0 +1,25 @@
+_base_: ./pretrain_gpt_345M_single_card.yaml
+
+Model:
+  module: GPTEvalModule
+  hidden_size: 4096
+  num_layers: 32
+  num_attention_heads: 32
+  ffn_hidden_size:
+
+Engine:
+  save_load:
+    ckpt_dir: /workspace/distill-gpt/PaddleFleetX/pretrain_model 
+
+Prune:
+  enable: False
+  criterion: l1_norm
+  ratio: 0.125
+
+Offline_Eval:
+  eval_path: ./lambada_test.jsonl
+  cloze_eval: True
+  overlapping_eval: 32
+  batch_size: 8
+  max_seq_len: 1024
+  logging_freq: 10

@@ -37,6 +37,7 @@ Engine:
   save_load:
     save_steps: 2500
 
+
 Optimizer:
   lr:
     decay_steps: 90000
@@ -44,8 +45,21 @@ Optimizer:
     max_lr: 2.5e-5
     min_lr: 5.0e-6
 
+
+Quantization:
+  enable: True
+  weight_quantize_type: 'abs_max'
+  activation_quantize_type: 'moving_average_abs_max'
+  weight_bits: 8
+  activation_bits: 8
+  quantizable_layer_type: ['Conv2D', 'Linear', 'Conv2DTranspose', 'ColumnParallelLinear', 'RowParallelLinear']
+  for_tensorrt: False
+  is_full_quantize: False
+  onnx_format: False
+
+
 Prune:
-  enable: False
+  enable: True
   cal_sens: False
   criterion: l1_norm
   ratio: 0.125

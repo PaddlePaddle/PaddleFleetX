@@ -47,6 +47,9 @@ if __name__ == "__main__":
     if "Prune" in cfg.keys() and cfg.Prune.enable:
         engine.prune_model()
 
+    if "Quantization" in cfg.keys() and cfg.Quantization.enable:
+        engine.quant_model()
+
     valid_data_loader = build_dataloader(cfg.Data, "Eval")
 
     if cfg.Engine.save_load.ckpt_dir is not None:

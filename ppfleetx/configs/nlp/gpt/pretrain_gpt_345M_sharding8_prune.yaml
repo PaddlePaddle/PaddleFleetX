@@ -20,17 +20,17 @@ Model:
   use_recompute: False
   recompute_granularity:
   no_recompute_layers:
-  
+
 
 Distributed:
-  dp_degree: 1
+  dp_degree:
   mp_degree: 1
   pp_degree: 1
   sharding:
-    sharding_degree: 1
-    sharding_stage: 1
+    sharding_degree: 8
+    sharding_stage: 2
     sharding_offload: False
-    comm_overlap: False
+    comm_overlap: True
 
 Engine:
   max_steps: 100000
@@ -45,7 +45,7 @@ Optimizer:
     min_lr: 5.0e-6
 
 Prune:
-  enable: False
+  enable: True
   cal_sens: False
   criterion: l1_norm
   ratio: 0.125

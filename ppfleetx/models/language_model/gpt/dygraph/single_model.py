@@ -378,7 +378,8 @@ class TransformerDecoderLayer(nn.Layer):
                  fuse_attn_qkv=False,
                  use_recompute=False,
                  recompute_granularity="full",
-                 do_recompute=True):
+                 do_recompute=True,
+                 if_quant=True):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
@@ -412,6 +413,10 @@ class TransformerDecoderLayer(nn.Layer):
         self.linear2 = Linear(
             dim_feedforward, d_model, weight_attrs[2], bias_attr=bias_attrs[2])
 
+
+        if not if_quant:
+            self.linear1.skip_quant = True
+            self.linear2.skip_quant = True
         self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.dropout1 = nn.Dropout(dropout, mode="upscale_in_train")
@@ -514,7 +519,8 @@ class GPTModel(nn.Layer):
                  fuse_attn_qkv=False,
                  recompute_granularity="full",
                  sequence_parallel=False,
-                 no_recompute_layers=None):
+                 no_recompute_layers=None,
+                 use_skip_quant=False):
 
         super(GPTModel, self).__init__()
 
@@ -523,6 +529,7 @@ class GPTModel(nn.Layer):
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
+        self.use_skip_quant = use_skip_quant
 
         self.embeddings = GPTEmbeddings(
             vocab_size, hidden_size, hidden_dropout_prob,
@@ -530,6 +537,11 @@ class GPTModel(nn.Layer):
 
         decoder_layers = nn.LayerList()
         for i in range(num_layers):
+            if self.use_skip_quant and i in [3,5,6,7,8]:
+                if_quant = False
+                print('================skip quant: ')
+            else:
+                if_quant = True
             decoder_layers.append(
                 TransformerDecoderLayer(
                     d_model=hidden_size,
@@ -547,7 +559,8 @@ class GPTModel(nn.Layer):
                     fuse_attn_qkv=fuse_attn_qkv,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
-                    do_recompute=i not in no_recompute_layers))
+                    do_recompute=i not in no_recompute_layers,
+                    if_quant=if_quant))
 
         self.decoder = TransformerDecoder(
             decoder_layers,

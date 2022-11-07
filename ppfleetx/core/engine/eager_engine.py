@@ -127,7 +127,7 @@ class EagerEngine(BasicEngine):
         self._logging_freq = self._configs['logging_freq']
         self._num_train_epochs = self._configs['num_train_epochs']
         self._accumulate_steps = self._configs['accumulate_steps']
-
+        self.quant_configs = configs["Quantization"]
         self._use_pure_fp16 = self._configs['mix_precision']['use_pure_fp16']
         if mode == 'export' and self._use_pure_fp16:
             logger.info("NOTE: disable use_pure_fp16 in export mode")
@@ -683,9 +683,6 @@ class EagerEngine(BasicEngine):
             else:
                 pruner = paddleslim.dygraph.L1NormFilterPruner(model, [[8, 1024], [8, 1024]], skip_leaves=False)
         params = self._get_pruned_params(model)
-        # print('====pruned params======')
-        # print(params)
-        # sys.exit()
         ratios = {}
         for param in params:
             ratios[param] = ratio
@@ -693,6 +690,13 @@ class EagerEngine(BasicEngine):
         plan = pruner.prune_vars(ratios, [1])
         # logger.info("Flops after pruning: {}GFLOPS".format(flops(model, [[8, 1024], [8, 1024]], dtypes=['int64'] * 2) / 1000))
 
+
+    def quant_model(self):
+        model = self._module.model
+        quanter = paddleslim.dygraph.quant.QAT(
+            config=self.quant_configs)
+        quanter.quantize(model)
+        print(model)
 
     def sensitive(self, eval_func):
         model = self._module.model

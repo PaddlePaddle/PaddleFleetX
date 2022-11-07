@@ -90,6 +90,9 @@ if __name__ == "__main__":
     if "Prune" in cfg.keys() and cfg.Prune.enable:
         engine.prune_model()
 
+    if 'Quantization' in cfg.keys() and cfg.Quantization.enable:
+        engine.quant_model()
+
     engine.distributed_model()
 
     if "Prune" in cfg.keys() and cfg.Prune.cal_sens:
