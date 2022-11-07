@@ -1,0 +1,94 @@
+_base_: ./base.yaml
+
+Global:
+  device: gpu
+  seed: 2021
+  local_batch_size: 32
+  micro_batch_size: 32
+
+Engine:
+  num_train_epochs: 103
+  eval_freq: 1
+  accumulate_steps: 1
+  logging_freq: 10
+  mix_precision:
+    level: "o2"
+    scale_loss: 32768.0
+    custom_black_list: ["reduce_sum", "elementwise_div"]
+    custom_white_list: []
+  save_load:
+    save_epoch: 1
+    output_dir: ./output
+    ckpt_dir:
+
+Distributed:
+  dp_degree:
+
+Model:
+  module: "GeneralClsModuleAuto"
+  model:
+    name: "ViT_base_patch16_384"
+    class_num: 10
+    drop_rate: 0.1
+    # pretrained:
+    #   prefix_path: ./pretrained/vit/imagenet2012-ViT-B_16-224
+    #   finetune: True
+  loss:
+    name: 'CELoss'
+  # metric:
+  #   name: 'TopkAcc'
+  #   topk: [1, 5]
+
+Optimizer:
+  name: Momentum
+  weight_decay: 0.0001
+  momentum: 0.9
+  lr:
+    name: ViTLRScheduler
+    learning_rate: 0.004
+    decay_type: cosine
+    warmup_steps: 500
+  grad_clip:
+    name: "ClipGradByGlobalNorm"
+    clip_norm: 0.35
+
+
+Data:
+  Train:
+    sample_split: 1
+    dataset:
+      name: CIFAR10
+      root: ./dataset/cifar-10-batches-py/
+      mode: train
+      transform_ops:
+        - RandCropImage:
+            size: 384
+            scale: [0.05, 1.0]
+            interpolation: bilinear
+            backend: pil
+        - RandFlipImage:
+            flip_code: 1
+        - NormalizeImage:
+            scale: 1.0/255.0
+            mean: [0.5, 0.5, 0.5]
+            std: [0.5, 0.5, 0.5]
+            order: ''
+        - ToCHWImage:
+
+  Eval:
+    sample_split: 1
+    dataset: 
+      name: CIFAR10
+      root: ./dataset/cifar-10-batches-py/
+      mode: test
+      transform_ops:
+        - ResizeImage:
+            size: 384
+            interpolation: bilinear
+            backend: pil
+        - NormalizeImage:
+            scale: 1.0/255.0
+            mean: [0.5, 0.5, 0.5]
+            std: [0.5, 0.5, 0.5]
+            order: ''
+        - ToCHWImage:

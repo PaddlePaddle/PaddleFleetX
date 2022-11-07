@@ -18,10 +18,9 @@ from __future__ import print_function
 
 import os
 import sys
-import copy
-import random
-import paddle
-import numpy as np
+
+import paddle.distributed as dist
+from paddle.distributed import fleet
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
@@ -38,6 +37,9 @@ if __name__ == "__main__":
     args = config.parse_args()
     cfg = config.get_auto_config(
         args.config, overrides=args.override, show=False)
+
+    if dist.get_world_size() > 1:
+        fleet.init(is_collective=True)
 
     module = build_module(cfg)
     config.print_config(cfg)
