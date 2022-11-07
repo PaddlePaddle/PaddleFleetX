@@ -110,10 +110,10 @@ class LanguageModule(BasicModule):
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
                log_dict['test_cost'], speed))
 
-    def qat_model(self, model):
+    def qat_model(self):
         quanter = paddleslim.dygraph.quant.QAT(
             config=self.configs.Quantization)
-        return quanter.quantize(model)
+        return quanter.quantize(self.model)
 
     def get_model_size(self, l, h, v, s):
         P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
