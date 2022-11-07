@@ -34,6 +34,7 @@ from ppfleetx.core.module import BasicModule
 from ppfleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from ppfleetx.utils.version import version_check
 from ppfleetx.utils.export import export_inference_model
+from paddle.incubate.distributed.utils.io import save_for_auto_inference
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -658,6 +659,9 @@ class EagerEngine(BasicEngine):
                 "cuda_rng_state": paddle.get_cuda_rng_state()
             }
             paddle.save(meta_dict, os.path.join(save_dir, "meta_state.pdopt"))
+            
+            save_auto_dir = os.path.join(output_dir,"auto_infer")
+            save_for_auto_inference(os.path.join(save_auto_dir,"auto"),self._module.model)
 
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
