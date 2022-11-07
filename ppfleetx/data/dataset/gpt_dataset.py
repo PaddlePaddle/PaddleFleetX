@@ -22,7 +22,7 @@ import json
 
 import paddle
 
-from ppfleetx.utils import env
+from ppfleetx.distributed.apis import env
 from ppfleetx.utils.log import logger
 from ppfleetx.data.tokenizers import GPTTokenizer
 
@@ -34,6 +34,7 @@ mode_to_index = {"Train": 0, "Eval": 1, "Test": 2}
 
 MODEL_CLASSES = {
     "GPT": (GPTTokenizer, "gpt2"),
+    "MoE": (GPTTokenizer, "gpt2"),
     "GPT-cn": (GPTChineseTokenizer, "gpt-cpm-large-cn"),
 }
 

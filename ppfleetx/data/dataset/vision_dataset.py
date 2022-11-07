@@ -22,6 +22,13 @@ import paddle
 from ppfleetx.utils.log import logger
 from ppfleetx.data.transforms.utils import create_preprocess_operators, transform
 
+__all__ = [
+    "GeneralClsDataset",
+    "ImageFolder",
+    "CIFAR10",
+    "ContrativeLearningDataset",
+]
+
 
 class GeneralClsDataset(paddle.io.Dataset):
     def __init__(self,
@@ -319,6 +326,10 @@ class CIFAR10(paddle.io.Dataset):
                 out_dir=os.path.join(self.root, '..'),
                 delete=True)
 
+        # wait to download dataset
+        if paddle.distributed.get_world_size() > 1:
+            paddle.distributed.barrier()
+
         self.images = []
         self.labels = []
         self._load_anno()
@@ -363,3 +374,53 @@ class CIFAR10(paddle.io.Dataset):
     @property
     def class_num(self):
         return len(set(self.labels))
+
+
+class ContrativeLearningDataset(ImageFolder):
+    """ Code ref from https://github.com/pytorch/vision/blob/main/torchvision/datasets/folder.py
+    
+    A generic data loader where the images are arranged in this way by default: ::
+
+        root/dog/xxx.png
+        root/dog/xxy.png
+        root/dog/[...]/xxz.png
+
+        root/cat/123.png
+        root/cat/nsdf3.png
+        root/cat/[...]/asd932_.png
+    """
+
+    def __init__(self, root, extensions=IMG_EXTENSIONS, transform_ops=None):
+        super(ContrativeLearningDataset, self).__init__(
+            root, extensions=extensions, transform_ops=transform_ops)
+
+        # remove unused attr
+        del self.classes
+        del self.class_to_idx
+        del self.targets
+        # only use image path
+        self.imgs = [s[0] for s in self.imgs]
+
+    def __getitem__(self, idx):
+        try:
+            path = self.imgs[idx]
+            with open(path, 'rb') as f:
+                img = f.read()
+            if self._transform_ops:
+                img1 = transform(img, self._transform_ops)
+                img2 = transform(img, self._transform_ops)
+
+            return img1, img2
+
+        except Exception as ex:
+            logger.error("Exception occured when parse line: {} with msg: {}".
+                         format(path, ex))
+            rnd_idx = np.random.randint(self.__len__())
+            return self.__getitem__(rnd_idx)
+
+    def __len__(self) -> int:
+        return len(self.imgs)
+
+    @property
+    def class_num(self):
+        raise NotImplementedError

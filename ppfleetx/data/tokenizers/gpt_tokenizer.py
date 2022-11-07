@@ -37,7 +37,7 @@ except ImportError:
         return lambda func: func
 
 
-logger = logging.getLogger(__name__)
+from ppfleetx.utils.log import logger
 
 PRETRAINED_VOCAB_ARCHIVE_MAP = {
     'gpt2': "http://fleet.bj.bcebos.com/datasets/gpt/gpt2-vocab.json",

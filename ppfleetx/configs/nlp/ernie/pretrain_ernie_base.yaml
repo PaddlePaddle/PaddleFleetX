@@ -69,9 +69,11 @@ Data:
       shuffle: False
       drop_last: True
     loader:
-      num_workers: 1
+      num_workers: 0
       return_list: False
-      collate_fn: ernie_collate_data
+      collate_fn: 
+        name: ErnieCollateData
+        micro_batch_size: 
   
   Eval:
     dataset:
@@ -96,7 +98,9 @@ Data:
     loader:
       num_workers: 1
       return_list: False
-      collate_fn: ernie_collate_data
+      collate_fn: 
+        name: ErnieCollateData
+        micro_batch_size: 1
 
 Optimizer:
   name: FusedAdamW

@@ -36,13 +36,14 @@ def process_dist_config(configs):
 
     config = configs['Distributed']
 
+    config.setdefault("hcg", "HybridCommunicateGroup")
     mp_degree = config.setdefault("mp_degree", 1)
     pp_degree = config.setdefault("pp_degree", 1)
+    pp_recompute_interval = config.setdefault("pp_recompute_interval", 1)
 
     # sharding default
     sharding_config = config['sharding']
     sharding_degree = sharding_config.setdefault("sharding_degree", 1)
-    comm_overlap = sharding_config.setdefault("comm_overlap", 1)
     sharding_stage = sharding_config.setdefault('sharding_stage', 2)
     sharding_offload = sharding_config.setdefault('sharding_offload', False)
     reduce_overlap = sharding_config.setdefault('reduce_overlap', False)
@@ -56,7 +57,7 @@ def process_dist_config(configs):
     assert nranks == dp_degree * other_degree, \
         "Mismatched config using {} cards with dp_degree[{}]," \
             "mp_degree[{}], pp_degree[{}] and sharding_degree[{}]".format(nranks, \
-                dp_degree, mp_degree, pp_degree, _sharding_degree)
+                dp_degree, mp_degree, pp_degree, sharding_degree)
 
     if sharding_config['sharding_degree'] > 1 and reduce_overlap:
         if sharding_config['sharding_stage'] == 3 or sharding_config[
@@ -87,6 +88,9 @@ def process_dist_config(configs):
                 "Enable broadcast overlap for sharding will not use pin memory for dataloader"
             )
             use_pinned_memory(False)
+
+    if 'fuse_sequence_parallel_allreduce' not in config:
+        config['fuse_sequence_parallel_allreduce'] = False
 
 
 def process_global_configs(config):

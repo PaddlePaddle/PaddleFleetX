@@ -23,17 +23,8 @@ from paddle.static import InputSpec
 from ppfleetx.utils.log import logger
 
 from ppfleetx.core.module.basic_module import BasicModule
-from .vit import *
-from .loss import *
-from .metrics import *
 
-
-def build(config):
-    config = copy.deepcopy(config)
-    model_type = config.pop("name")
-    mod = importlib.import_module(__name__)
-    model = getattr(mod, model_type)(**config)
-    return model
+from .factory import build
 
 
 class GeneralClsModule(BasicModule):

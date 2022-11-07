@@ -19,11 +19,14 @@ import logging
 import os
 import sys
 import time
+import datetime
 import threading
 from typing import List
 
 import colorlog
 from colorama import Fore
+
+import paddle
 
 loggers = {}
 
@@ -173,3 +176,12 @@ def advertise():
         "=={}==".format(' ' * AD_LEN),
         "=={}==".format(website.center(AD_LEN)),
         "=" * (AD_LEN + 4), ))
+
+
+def get_timestamp():
+    paddle.device.cuda.synchronize()
+    return time.time()
+
+
+def convert_timestamp_to_data(timeStamp):
+    return str(datetime.timedelta(seconds=int(timeStamp)))
