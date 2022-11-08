@@ -462,12 +462,13 @@ class EagerEngine(BasicEngine):
                 # div the loss for backward
                 loss_bw = loss_bw / self._accumulate_steps
 
-            # self._module.backward(loss_bw)
-
             # NOTE(haohongxiang): To temporarily resolve the problem of INF caused 
             # by primary sharding strategy during training. The division will be removed 
             # after fixing sharding strategy.
-            self._module.backward(loss_bw / self._sharding_group.nranks)
+            if self._distributed:
+                self._module.backward(loss_bw / self._sharding_group.nranks)
+            else:
+                self._module.backward(loss_bw)
 
             detach_loss = loss.detach()
             if final_loss is None:
