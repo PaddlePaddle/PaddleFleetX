@@ -20,6 +20,7 @@ import numpy as np
 
 import paddle
 import paddleslim
+from paddle.static import InputSpec
 from ppfleetx.utils.log import logger
 
 from ppfleetx.core.module.basic_module import BasicModule

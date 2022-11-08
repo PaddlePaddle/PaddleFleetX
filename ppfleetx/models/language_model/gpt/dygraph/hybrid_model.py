@@ -764,7 +764,7 @@ class GPTModelHybrid(nn.Layer):
         if position_ids is None:
             past_length = 0
             if cache is not None:
-                past_length = paddle.shape(cache[0].k)[-2]
+                past_length = paddle.shape(attention_mask)[-1] - 1
             position_ids = paddle.arange(
                 past_length,
                 paddle.shape(input_ids)[-1] + past_length,
@@ -1076,12 +1076,16 @@ class GPTForPretrainingPipe(PipelineLayer):
                 "pp recompute interval should smaller than num layers of each pp chunk"
             recompute_interval = pp_recompute_interval
 
+        seg_method = "layer:TransformerDecoderLayer"
+        if num_layers % env.get_hcg().topology().get_dim_size("pipe") != 0:
+            seg_method = "uniform"
+
         super().__init__(
             layers=self.descs,
             loss_fn=GPTPretrainingCriterionPipe(
                 sequence_parallel=sequence_parallel),
             topology=env.get_hcg().topology(),
-            seg_method="layer:TransformerDecoderLayer",
+            seg_method=seg_method,
             recompute_interval=recompute_interval,
             recompute_ctx={
                 "mp_group": env.get_hcg().get_model_parallel_group(),
