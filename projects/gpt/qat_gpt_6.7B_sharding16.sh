@@ -1,6 +1,5 @@
-
 #! /bin/bash
-
+# Runs the "1.3B" parameter model
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,12 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-
 log_dir=log_hybrid
 rm -rf $log_dir
 
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
     ./tools/train.py \
-    -c ./ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_mp8_qat.yaml 
+    -c ./ppfleetx/configs/nlp/gpt/qat_gpt_6.7B_sharding16.yaml \
+    -o Engine.max_steps=100000 \
+    -o Optimizer.lr.decay_steps=72000 \
+    -o Optimizer.lr.max_lr=5.0e-6 \
+    -o Optimizer.lr.min_lr=1.0e-6 
