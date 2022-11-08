@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from types import MethodType
+
 import paddle
 from paddle.distributed.sharding import group_sharded_parallel
 
@@ -35,7 +37,7 @@ def sharding_wrapper(
 
     def _redefine_opt_step(model, optim):
         grad_func = model._grad_scale
-        for opt in optim._sharding_optimizers:
+        for opt in model._sharding_optimizers:
             opt_step = opt.step
 
             def _opt_step(self):
