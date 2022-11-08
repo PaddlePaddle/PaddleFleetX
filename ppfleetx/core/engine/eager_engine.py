@@ -154,6 +154,8 @@ class EagerEngine(BasicEngine):
         self._broadcast_overlap = sharding_config['broadcast_overlap']
 
         self._use_recompute = configs['Model']['use_recompute']
+        self._quant_mode = True if 'Quantization' in configs and configs[
+            'Quantization']['enable'] else False
 
         if self._use_pure_fp16:
             if mode == 'train':
@@ -715,8 +717,19 @@ class EagerEngine(BasicEngine):
 
         save_dir = os.path.join(self._output_dir,
                                 "rank_{}".format(self._dp_rank))
-        export_inference_model(self._module.model, input_spec, save_dir,
-                               'model')
+
+        if not self._quant_mode:
+            export_inference_model(self._module.model, input_spec, save_dir,
+                                   'model')
+        else:
+            logger.info("export quantized model.")
+            export_inference_model(
+                self._module.model,
+                input_spec,
+                save_dir,
+                'model',
+                export_quant_model=True,
+                quanter=self._module.quanter)
 
     def inference(self, data):
         if self._inference_engine is None:
