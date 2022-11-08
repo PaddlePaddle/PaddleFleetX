@@ -94,6 +94,9 @@ if __name__ == "__main__":
         engine.quant_model()
 
     engine.distributed_model()
+    if cfg.Engine.save_load.save_only:
+        engine.save(0, 0)
+        sys.exit()
 
     if "Prune" in cfg.keys() and cfg.Prune.cal_sens:
         engine.sensitive(_evaluate_one_epoch)

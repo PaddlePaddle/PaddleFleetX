@@ -32,6 +32,7 @@ from .processor import (
     HammingDiversityLogitsProcessor, RepetitionPenaltyLogitsProcessor,
     ForcedBOSTokenLogitsProcessor, ForcedEOSTokenLogitsProcessor)
 
+RATIO = 0.875
 
 def get_attr(layer, name):
     if getattr(layer, name, None) is not None:
@@ -66,8 +67,6 @@ class MultiHeadAttention(nn.Layer):
                  recompute_granularity="full",
                  do_recompute=True):
         super(MultiHeadAttention, self).__init__()
-        print('dropout rate is {}'.format(dropout))
-        print('====================================================')
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
         self.vdim = vdim if vdim is not None else embed_dim
@@ -88,7 +87,7 @@ class MultiHeadAttention(nn.Layer):
             assert self.kdim == embed_dim
             assert self.vdim == embed_dim
             self.qkv_proj = Linear(
-                embed_dim, 3 * embed_dim, weight_attr, bias_attr=bias_attr)
+                embed_dim, int(3 * embed_dim * RATIO), weight_attr, bias_attr=bias_attr)
         else:
             self.q_proj = Linear(
                 embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
@@ -97,12 +96,12 @@ class MultiHeadAttention(nn.Layer):
             self.v_proj = Linear(
                 self.vdim, embed_dim, weight_attr, bias_attr=bias_attr)
 
-        self.reshape0 = nn.Reshape(shape=[0, 0, self.num_heads, 3 * self.head_dim])
-        self.reshape1 = nn.Reshape(shape=[0, 0, self.num_heads, self.head_dim])
-        self.reshape2 = nn.Reshape(shape=[0, 0, self.num_heads * self.head_dim])
+        self.reshape0 = nn.Reshape(shape=[0, 0, int(self.num_heads * RATIO), 3 * self.head_dim])
+        self.reshape1 = nn.Reshape(shape=[0, 0, int(self.num_heads * RATIO), self.head_dim])
+        self.reshape2 = nn.Reshape(shape=[0, 0, int(self.num_heads * self.head_dim * RATIO)])
 
         self.out_proj = Linear(
-            embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
+            int(embed_dim * RATIO), embed_dim, weight_attr, bias_attr=bias_attr)
 
     def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
         mix_layer = self.qkv_proj(query)
@@ -409,9 +408,9 @@ class TransformerDecoderLayer(nn.Layer):
             recompute_granularity=recompute_granularity,
             do_recompute=do_recompute)
         self.linear1 = Linear(
-            d_model, dim_feedforward, weight_attrs[2], bias_attr=bias_attrs[2])
+            d_model, int(dim_feedforward * RATIO), weight_attrs[2], bias_attr=bias_attrs[2])
         self.linear2 = Linear(
-            dim_feedforward, d_model, weight_attrs[2], bias_attr=bias_attrs[2])
+            int(dim_feedforward * RATIO), d_model, weight_attrs[2], bias_attr=bias_attrs[2])
 
 
         if not if_quant:

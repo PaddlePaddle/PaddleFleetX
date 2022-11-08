@@ -34,6 +34,7 @@ import sys
 from .sequence_parallel_utils import ScatterOp, GatherOp, \
         all_reduce_gradient_hook, ColumnSequenceParallelLinear, RowSequenceParallelLinear
 
+RATIO = 0.875
 
 def get_attr(layer, name):
     if getattr(layer, name, None) is not None:
@@ -125,7 +126,7 @@ class MultiHeadAttention(nn.Layer):
             assert self.vdim == embed_dim
             self.qkv_proj = ColumnParallelLinear(
                 embed_dim,
-                3 * embed_dim,
+                int(3 * embed_dim * RATIO),
                 weight_attr=weight_attr,
                 has_bias=True,
                 gather_output=False,
@@ -133,7 +134,7 @@ class MultiHeadAttention(nn.Layer):
         else:
             self.q_proj = ColumnParallelLinear(
                 embed_dim,
-                embed_dim,
+                int(embed_dim * RATIO),
                 weight_attr=weight_attr,
                 has_bias=True,
                 gather_output=False,
@@ -141,7 +142,7 @@ class MultiHeadAttention(nn.Layer):
 
             self.k_proj = ColumnParallelLinear(
                 self.kdim,
-                embed_dim,
+                int(embed_dim * RATIO),
                 weight_attr=weight_attr,
                 has_bias=True,
                 gather_output=False,
@@ -149,23 +150,23 @@ class MultiHeadAttention(nn.Layer):
 
             self.v_proj = ColumnParallelLinear(
                 self.vdim,
-                embed_dim,
+                int(embed_dim * RATIO),
                 weight_attr=weight_attr,
                 has_bias=True,
                 gather_output=False,
                 fuse_matmul_bias=fused_linear)
 
         self.out_proj = RowParallelLinear(
-            embed_dim,
+            int(embed_dim * RATIO),
             embed_dim,
             weight_attr=weight_attr,
             has_bias=True,
             input_is_parallel=True,
             fuse_matmul_bias=fused_linear)
 
-        self.reshape0 = nn.Reshape(shape=[0, 0, self.num_heads, 3 * self.head_dim])
-        self.reshape1 = nn.Reshape(shape=[0, 0, self.num_heads, self.head_dim])
-        self.reshape2 = nn.Reshape(shape=[0, 0, self.num_heads * self.head_dim])
+        self.reshape0 = nn.Reshape(shape=[0, 0, int(self.num_heads*RATIO), 3 * self.head_dim])
+        self.reshape1 = nn.Reshape(shape=[0, 0, int(self.num_heads*RATIO), self.head_dim])
+        self.reshape2 = nn.Reshape(shape=[0, 0,int( self.num_heads * self.head_dim*RATIO)])
 
     def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
         mix_layer = self.qkv_proj(query)
@@ -516,14 +517,14 @@ class TransformerDecoderLayer(nn.Layer):
 
         self.linear1 = ColumnParallelLinear(
             d_model,
-            dim_feedforward,
+            int(dim_feedforward*RATIO),
             weight_attr=weight_attrs[2],
             gather_output=False,
             has_bias=True,
             fuse_matmul_bias=fused_linear)
 
         self.linear2 = RowParallelLinear(
-            dim_feedforward,
+            int(dim_feedforward*RATIO),
             d_model,
             weight_attr=weight_attrs[2],
             input_is_parallel=True,
