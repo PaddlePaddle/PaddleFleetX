@@ -25,6 +25,8 @@ from paddle.distributed.fleet.base import topology as tp
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients_with_group
 
+from ppfleetx.distributed.apis import env
+
 import numpy as np
 
 ####################################################
@@ -35,7 +37,7 @@ import numpy as np
 
 
 def scatter(input):
-    hcg = fleet.get_hybrid_communicate_group()
+    hcg = env.get_hcg()
     group = hcg.get_model_parallel_group()
     parallelism = group.nranks
     rank = group.rank
@@ -52,7 +54,7 @@ def scatter(input):
 
 
 def all_gather(input):
-    hcg = fleet.get_hybrid_communicate_group()
+    hcg = env.get_hcg()
     group = hcg.get_model_parallel_group()
     parallelism = group.nranks
     output_shape = input.shape
@@ -63,12 +65,12 @@ def all_gather(input):
 
 
 def reduce_scatter(input):
-    hcg = fleet.get_hybrid_communicate_group()
+    hcg = env.get_hcg()
     group = hcg.get_model_parallel_group()
     parallelism = group.nranks
     output_shape = input.shape
     assert input.shape[
-        0] % parallelism == 0, "Input sequence length {} can't be divided exactly by sequence parallelism {}".format(
+        0] % parallelism == 0, "Input sequence length {0} can't be divided exactly by sequence parallelism {1}".format(
             input.shape[0], parallelism)
     output_shape[0] = output_shape[0] // parallelism
     output = paddle.empty(shape=output_shape, dtype=input.dtype)
@@ -148,9 +150,8 @@ def is_sequence_parallel_parameter(parameter):
 
 
 def create_fused_allreduce_gradient_hook(parameter_list, accumulation_steps):
-    hcg = fleet.get_hybrid_communicate_group()
+    hcg = env.get_hcg()
     group = hcg.get_model_parallel_group()
-
     step = [0]
     accumulation_steps *= len(parameter_list)
 
@@ -166,7 +167,7 @@ def create_fused_allreduce_gradient_hook(parameter_list, accumulation_steps):
 
 
 def create_non_fused_allreduce_gradient_hook(accumulation_steps):
-    hcg = fleet.get_hybrid_communicate_group()
+    hcg = env.get_hcg()
     pg = hcg.get_model_parallel_group().process_group
 
     step = [0]
@@ -186,7 +187,7 @@ def register_sequence_parallel_allreduce_hooks(
     if accumulation_steps <= 0 or not paddle.distributed.is_initialized():
         return
 
-    mp_group = fleet.get_hybrid_communicate_group().get_model_parallel_group()
+    mp_group = env.get_hcg().get_model_parallel_group()
     if mp_group.nranks <= 1:
         return
 
@@ -224,7 +225,7 @@ class ColumnSequenceParallelLinear(Layer):
                  name=None):
         super(ColumnSequenceParallelLinear, self).__init__()
 
-        hcg = fleet.get_hybrid_communicate_group()
+        hcg = env.get_hcg()
         self.model_parallel_group = hcg.get_model_parallel_group(
         ) if mp_group is None else mp_group
         self.world_size = hcg.get_model_parallel_group(
@@ -319,7 +320,7 @@ class RowSequenceParallelLinear(Layer):
         self._dtype = self._helper.get_default_dtype()
         self._name = name
 
-        hcg = fleet.get_hybrid_communicate_group()
+        hcg = env.get_hcg()
         self.model_parallel_group = hcg.get_model_parallel_group(
         ) if mp_group is None else mp_group
         self.world_size = hcg.get_model_parallel_group(
