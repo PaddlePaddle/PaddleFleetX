@@ -26,8 +26,7 @@ import paddle.distributed as dist
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../../')))
 
-from ppfleetx.utils import config
-from ppfleetx.distributed.apis import env
+from ppfleetx.utils import config, env
 from ppfleetx.utils.log import logger
 from ppfleetx.data import build_dataloader, tokenizers
 from ppfleetx.models import build_module
@@ -39,18 +38,16 @@ if __name__ == "__main__":
     env.set_seed(cfg.Global.seed)
     np.random.seed(1)
     img = np.random.randn(1, 3, 224, 224).astype(np.float32)
-    
-    if(os.path.exists('shape.pbtxt')==False):
+
+    if (os.path.exists('shape.pbtxt') == False):
         cfg.Inference.TensorRT.collect_shape = True
         module = build_module(cfg)
-        engine = EagerEngine(configs=cfg,module=module, mode='inference')
+        engine = EagerEngine(configs=cfg, module=module, mode='inference')
         outs = engine.inference([img])
 
     cfg.Inference.TensorRT.collect_shape = False
     module = build_module(cfg)
     config.print_config(cfg)
-    engine = EagerEngine(configs=cfg,module=module, mode='inference')
+    engine = EagerEngine(configs=cfg, module=module, mode='inference')
     outs = engine.inference([img])
     print(outs['linear_99.tmp_1'])
-
-    
