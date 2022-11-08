@@ -135,8 +135,6 @@ class EagerEngine(BasicEngine):
             'custom_black_list']
         self._custom_white_list = self._configs['mix_precision'][
             'custom_white_list']
-        self._fp16_dtype = "float16" if 'fp16_dtype' not in self._configs['mix_precision'] \
-                                     else self._configs['mix_precision']['fp16_dtype']
 
         self._save_steps = self._configs['save_load']['save_steps']
         self._save_epoch = self._configs['save_load']['save_epoch']
@@ -159,13 +157,6 @@ class EagerEngine(BasicEngine):
 
         self._use_recompute = configs['Model']['use_recompute']
 
-        self._lr_scheduler = build_lr_scheduler(
-            configs.Optimizer.lr) if mode == 'train' else None
-
-        self._optimizer = build_optimizer(
-            configs.Optimizer, self._module.model,
-            self._lr_scheduler) if mode == 'train' else None
-
         if self._use_pure_fp16:
             if mode == 'train':
                 self._scaler = paddle.amp.GradScaler(
@@ -174,7 +165,7 @@ class EagerEngine(BasicEngine):
             # Save dtype is the same as model dtype. Also can set save_dtype='float32' when 
             # training with pure fp16 strategy, but will cause the rise of memory.
             self._module.model = paddle.amp.decorate(
-                models=self._module.model, level='O2', dtype=self._fp16_dtype)
+                models=self._module.model, level='O2')
         else:
             self._scaler = None
 
@@ -418,13 +409,6 @@ class EagerEngine(BasicEngine):
         self._module.model.train()
 
         batch = self._module.pretreating_batch(batch)
-        if self._fp16_dtype is 'bfloat16':
-            with paddle.no_grad():
-                batch = [
-                    paddle.cast(
-                        t, dtype=paddle.bfloat16)
-                    if t.dtype == paddle.float32 else t for t in batch
-                ]
         if self._pp_degree == 1:
             if self._use_recompute and isinstance(self._module.model,
                                                   paddle.DataParallel):
@@ -470,9 +454,9 @@ class EagerEngine(BasicEngine):
                     self._use_pure_fp16,
                     custom_black_list=self._custom_black_list,
                     custom_white_list=self._custom_white_list,
-                    level='O2',
-                    dtype=self._fp16_dtype):
+                    level='O2'):
                 loss = self._module.training_step(micro_batch)
+
             loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
             if self._accumulate_steps > 1:
                 # div the loss for backward
