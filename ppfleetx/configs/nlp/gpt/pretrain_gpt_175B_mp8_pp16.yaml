@@ -18,9 +18,11 @@ Model:
   type_vocab_size: 16
   initializer_range: 0.02
   use_recompute: True
-  recompute_granularity:
+  recompute_granularity: 'core_attn'
   no_recompute_layers:
   virtual_pp_degree: 1
+  sequence_parallel: True
+  fused_linear: True
   
 
 Distributed:

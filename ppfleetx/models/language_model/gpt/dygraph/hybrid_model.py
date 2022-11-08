@@ -33,9 +33,10 @@ import sys
 
 from .single_model import ExpertLayer
 from .sequence_parallel_utils import ScatterOp, GatherOp, \
-        all_reduce_gradient_hook, ColumnSequenceParallelLinear, RowSequenceParallelLinear
+        mark_as_sequence_parallel_parameter, ColumnSequenceParallelLinear, RowSequenceParallelLinear
 
 from ppfleetx.distributed.moe import MoELayer
+from ppfleetx.distributed.apis import env
 
 
 def get_attr(layer, name):
@@ -48,7 +49,7 @@ def get_attr(layer, name):
 def parallel_matmul(lm_output, logit_weights, parallel_output):
     """
     """
-    hcg = fleet.get_hybrid_communicate_group()
+    hcg = env.get_hcg()
     model_parallel_group = hcg.get_model_parallel_group()
     world_size = hcg.get_model_parallel_world_size()
     rank = hcg.get_model_parallel_rank()
@@ -130,6 +131,7 @@ class MultiHeadAttention(nn.Layer):
             self.qkv_proj = ColumnParallelLinear(
                 embed_dim,
                 3 * embed_dim,
+                mp_group=env.get_hcg().get_model_parallel_group(),
                 weight_attr=weight_attr,
                 has_bias=True,
                 gather_output=False,
@@ -138,6 +140,7 @@ class MultiHeadAttention(nn.Layer):
             self.q_proj = ColumnParallelLinear(
                 embed_dim,
                 embed_dim,
+                mp_group=env.get_hcg().get_model_parallel_group(),
                 weight_attr=weight_attr,
                 has_bias=True,
                 gather_output=False,
@@ -146,6 +149,7 @@ class MultiHeadAttention(nn.Layer):
             self.k_proj = ColumnParallelLinear(
                 self.kdim,
                 embed_dim,
+                mp_group=env.get_hcg().get_model_parallel_group(),
                 weight_attr=weight_attr,
                 has_bias=True,
                 gather_output=False,
@@ -154,6 +158,7 @@ class MultiHeadAttention(nn.Layer):
             self.v_proj = ColumnParallelLinear(
                 self.vdim,
                 embed_dim,
+                mp_group=env.get_hcg().get_model_parallel_group(),
                 weight_attr=weight_attr,
                 has_bias=True,
                 gather_output=False,
@@ -162,6 +167,7 @@ class MultiHeadAttention(nn.Layer):
         self.out_proj = RowParallelLinear(
             embed_dim,
             embed_dim,
+            mp_group=env.get_hcg().get_model_parallel_group(),
             weight_attr=weight_attr,
             has_bias=True,
             input_is_parallel=True,
@@ -383,8 +389,8 @@ class TransformerDecoder(nn.Layer):
             # if sequence parallel is true,
             # register hook to all_reduce gradient of weight, bias 
             if self.sequence_parallel:
-                self.norm.weight.register_hook(all_reduce_gradient_hook)
-                self.norm.bias.register_hook(all_reduce_gradient_hook)
+                mark_as_sequence_parallel_parameter(self.norm.weight)
+                mark_as_sequence_parallel_parameter(self.norm.bias)
         elif norm is not None:
             raise ValueError("Only support LayerNorm")
 
@@ -519,12 +525,12 @@ class TransformerDecoderLayer(nn.Layer):
             do_recompute=do_recompute)
 
         if self.expert_mode:
-            experts_list = nn.LayerList()
-            for expi in range(self.num_experts):
-                exp_layer = ExpertLayer(d_model, dim_feedforward)
-                experts_list.append(exp_layer)
+            experts_list = nn.LayerList([
+                ExpertLayer(d_model, dim_feedforward)
+                for e in range(self.num_experts)
+            ])
 
-            hcg = fleet.get_hybrid_communicate_group()
+            hcg = env.get_hcg()
             moe_group = hcg.get_expert_parallel_group()
             mp_group = hcg.get_model_parallel_group()
 
@@ -540,6 +546,7 @@ class TransformerDecoderLayer(nn.Layer):
             self.linear1 = ColumnParallelLinear(
                 d_model,
                 dim_feedforward,
+                mp_group=env.get_hcg().get_model_parallel_group(),
                 weight_attr=weight_attrs[2],
                 gather_output=False,
                 has_bias=True,
@@ -548,6 +555,7 @@ class TransformerDecoderLayer(nn.Layer):
             self.linear2 = RowParallelLinear(
                 dim_feedforward,
                 d_model,
+                mp_group=env.get_hcg().get_model_parallel_group(),
                 weight_attr=weight_attrs[2],
                 input_is_parallel=True,
                 has_bias=True,
@@ -557,10 +565,10 @@ class TransformerDecoderLayer(nn.Layer):
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
         if self.sequence_parallel:
             # if sequence parallel is true, register hook to all_reduce gradient of bias 
-            self.norm1.weight.register_hook(all_reduce_gradient_hook)
-            self.norm2.weight.register_hook(all_reduce_gradient_hook)
-            self.norm1.bias.register_hook(all_reduce_gradient_hook)
-            self.norm2.bias.register_hook(all_reduce_gradient_hook)
+            mark_as_sequence_parallel_parameter(self.norm1.weight)
+            mark_as_sequence_parallel_parameter(self.norm1.bias)
+            mark_as_sequence_parallel_parameter(self.norm2.weight)
+            mark_as_sequence_parallel_parameter(self.norm2.bias)
         self.dropout1 = nn.Dropout(dropout, mode="upscale_in_train")
         self.dropout2 = nn.Dropout(act_dropout, mode="upscale_in_train")
         self.activation = getattr(F, activation)
@@ -636,6 +644,7 @@ class GPTEmbeddings(nn.Layer):
         self.word_embeddings = fleet.meta_parallel.VocabParallelEmbedding(
             vocab_size,
             hidden_size,
+            mp_group=env.get_hcg().get_model_parallel_group(),
             weight_attr=paddle.ParamAttr(initializer=nn.initializer.Normal(
                 mean=0.0, std=initializer_range)))
 
@@ -697,7 +706,7 @@ class GPTModelHybrid(nn.Layer):
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
 
-        hcg = fleet.get_hybrid_communicate_group()
+        hcg = env.get_hcg()
         mp_size = hcg.get_model_parallel_world_size()
         if mp_size <= 1:
             sequence_parallel = False
@@ -755,7 +764,7 @@ class GPTModelHybrid(nn.Layer):
         if position_ids is None:
             past_length = 0
             if cache is not None:
-                past_length = paddle.shape(cache[0].k)[-2]
+                past_length = paddle.shape(attention_mask)[-1] - 1
             position_ids = paddle.arange(
                 past_length,
                 paddle.shape(input_ids)[-1] + past_length,
@@ -795,7 +804,6 @@ class GPTModelHybrid(nn.Layer):
 
         if self.sequence_parallel:
             encoder_outputs = GatherOp.apply(encoder_outputs)
-            encoder_outputs = paddle.transpose(encoder_outputs, [1, 0, 2])
 
         return encoder_outputs
 
@@ -851,10 +859,12 @@ class GPTPretrainingCriterionHybird(nn.Layer):
     Criterion for GPT. It calculates the final loss.
     """
 
-    def __init__(self, topo=None):
+    def __init__(self, topo=None, sequence_parallel=False):
         super(GPTPretrainingCriterionHybird, self).__init__()
         self.loss_func = paddle.nn.CrossEntropyLoss(reduction="none")
-        self.parallel_loss_func = fleet.meta_parallel.ParallelCrossEntropy()
+        self.parallel_loss_func = \
+            fleet.meta_parallel.ParallelCrossEntropy(mp_group=env.get_hcg().get_model_parallel_group())
+        self.sequence_parallel = sequence_parallel
 
     def forward(self, prediction_scores, masked_lm_labels, loss_mask):
         """
@@ -875,8 +885,11 @@ class GPTPretrainingCriterionHybird(nn.Layer):
             Tensor: The pretraining loss. Its data type should be float32 and its shape is [1].
 
         """
-        hcg = fleet.get_hybrid_communicate_group()
+        hcg = env.get_hcg()
         mp_size = hcg.get_model_parallel_world_size()
+        if self.sequence_parallel:
+            masked_lm_labels = masked_lm_labels.transpose([1, 0])
+            loss_mask = loss_mask.transpose([1, 0])
         if mp_size > 1:
             masked_lm_loss = self.parallel_loss_func(
                 prediction_scores, masked_lm_labels.unsqueeze(2))
@@ -936,14 +949,13 @@ class LayerNormPipe(nn.Layer):
             bias_attr=bias_attr,
             name=name)
         if self.sequence_parallel:
-            self.norm.weight.register_hook(all_reduce_gradient_hook)
-            self.norm.bias.register_hook(all_reduce_gradient_hook)
+            mark_as_sequence_parallel_parameter(self.norm.weight)
+            mark_as_sequence_parallel_parameter(self.norm.bias)
 
     def forward(self, input):
         output = self.norm(input)
         if self.sequence_parallel and self.is_last:
             output = GatherOp.apply(output)
-            output = paddle.transpose(output, [1, 0, 2])
         return output
 
 
@@ -975,7 +987,8 @@ class GPTForPretrainingPipe(PipelineLayer):
                  recompute_granularity="full",
                  virtual_pp_degree=1,
                  sequence_parallel=False,
-                 no_recompute_layers=None):
+                 no_recompute_layers=None,
+                 pp_recompute_interval=1):
 
         # forward desc
         self.descs = []
@@ -987,7 +1000,7 @@ class GPTForPretrainingPipe(PipelineLayer):
                 assert len(no_recompute_layers) == 0, \
                     "for pp with full recompute, no_recompute_layers is not support"
 
-        hcg = fleet.get_hybrid_communicate_group()
+        hcg = env.get_hcg()
         mp_size = hcg.get_model_parallel_world_size()
         if mp_size <= 1:
             sequence_parallel = False
@@ -1057,16 +1070,25 @@ class GPTForPretrainingPipe(PipelineLayer):
 
         recompute_interval = 0
         if recompute and recompute_granularity == "full":
-            recompute_interval = 1
+            assert pp_recompute_interval <= \
+                   num_layers // (virtual_pp_degree *
+                                  env.get_hcg().topology().get_dim_size("pipe")), \
+                "pp recompute interval should smaller than num layers of each pp chunk"
+            recompute_interval = pp_recompute_interval
+
+        seg_method = "layer:TransformerDecoderLayer"
+        if num_layers % env.get_hcg().topology().get_dim_size("pipe") != 0:
+            seg_method = "uniform"
 
         super().__init__(
             layers=self.descs,
-            loss_fn=GPTPretrainingCriterionPipe(),
-            topology=fleet.get_hybrid_communicate_group().topology(),
-            seg_method="layer:TransformerDecoderLayer",
+            loss_fn=GPTPretrainingCriterionPipe(
+                sequence_parallel=sequence_parallel),
+            topology=env.get_hcg().topology(),
+            seg_method=seg_method,
             recompute_interval=recompute_interval,
             recompute_ctx={
-                "mp_group": fleet.fleet._hcg.get_model_parallel_group(),
+                "mp_group": env.get_hcg().get_model_parallel_group(),
                 "offload": False,
                 "partition": False,
             },
