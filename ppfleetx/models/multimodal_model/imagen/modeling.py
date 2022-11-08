@@ -711,10 +711,10 @@ class ImagenModel(nn.Layer):
 
     def forward(self,
                 images,
-                unet=None,
-                texts=None,
                 text_embeds=None,
                 text_masks=None,
+                unet=None,
+                texts=None,
                 unet_number=None,
                 cond_images=None):
         assert images.shape[-1] == images.shape[
@@ -735,7 +735,7 @@ class ImagenModel(nn.Layer):
         unet = self.get_unet(unet_number)
 
         noise_scheduler = self.noise_schedulers[unet_index]
-        p2_loss_weight_gamma = self.p2_loss_weight_gamma[unet_index]
+        p2_loss_weight_gamma = paddle.to_tensor(self.p2_loss_weight_gamma[unet_index])
         pred_objective = self.pred_objectives[unet_index]
         target_image_size = self.image_sizes[unet_index]
         random_crop_size = self.random_crop_sizes[unet_index]

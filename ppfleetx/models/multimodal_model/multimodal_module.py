@@ -14,15 +14,16 @@
 
 import sys
 import copy
+import logging
 
 import paddle
-
+from paddle import LazyGuard
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.multimodal_model.imagen as imagen
 from ppfleetx.utils.log import logger
 
 import paddleslim
-from .utils import process_configs
+from .utils import process_configs,is_fused_matmul_bias_supported
 
 
 class MultiModalModule(BasicModule):
@@ -118,3 +119,39 @@ class ImagenModule(MultiModalModule):
 
     def pretreating_batch(self, batch):
         return batch
+
+
+class MultiModalModuleAuto(BasicModule):
+    def __init__(self, configs):
+        self.nranks = paddle.distributed.get_world_size()
+        super(MultiModalModuleAuto, self).__init__(configs)
+
+        self.loss_fn = self.get_loss_fn()
+
+    def process_configs(self, configs):
+        if configs["Model"]['fused_linear'] and not is_fused_matmul_bias_supported():
+            configs["Model"]['fused_linear'] = False
+            logging.warning(
+                "The flag fused_linear only valid for cuda version higher than 11.6, "
+                "but the paddle is compiled with cuda " + paddle.version.cuda())
+        # configs['Optimizer']['multi_precision'] = configs['Engine']['mix_precision']['use_pure_fp16']
+        # process_inference_configs(configs)
+        return configs
+
+
+class ImagenModuleAuto(MultiModalModuleAuto):
+    def __init__(self, configs):
+        super(ImagenModuleAuto, self).__init__(configs)
+
+    def get_model(self):
+        model_setting = copy.deepcopy(self.configs.Model)
+        model_setting.pop("module")
+        imagen_model = model_setting.pop("name")
+        with LazyGuard():
+            model = getattr(imagen, imagen_model)(**model_setting)
+        return model
+
+    def get_loss_fn(self):
+        model_setting = copy.deepcopy(self.configs.Loss)
+        loss_fn = imagen.ImagenCriterion(**model_setting)
+        return loss_fn

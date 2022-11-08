@@ -95,7 +95,7 @@ class AutoEngine(BasicEngine):
         self._auto_engine.fit(train_data=train_dataset,
                               valid_data=valid_dataset,
                               train_sample_split=train_dataset.sample_split,
-                              valid_sample_split=valid_dataset.sample_split,
+                              valid_sample_split=valid_dataset.sample_split if valid_dataset is not None else None,
                               epochs=self._num_train_epochs,
                               batch_size=self.batch_size,
                               steps_per_epoch=self._max_steps,

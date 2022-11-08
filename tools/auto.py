@@ -43,7 +43,11 @@ if __name__ == "__main__":
     config.print_config(cfg)
 
     train_data = build_auto_dataset(cfg.Data, "Train")
-    eval_data = build_auto_dataset(cfg.Data, "Eval")
+
+    if cfg.Data.get("Eval",None) is None:
+        eval_data = None
+    else:
+        eval_data = build_auto_dataset(cfg.Data, "Eval")
 
     cfg.Optimizer.lr.update({
         'epochs': cfg.Engine.num_train_epochs,
@@ -58,3 +62,6 @@ if __name__ == "__main__":
     engine.fit(train_dataset=train_data,
                valid_dataset=eval_data,
                epoch=cfg.Engine.num_train_epochs)
+
+    if cfg.Engine.save_load.get("save_model", False):
+        engine.save()

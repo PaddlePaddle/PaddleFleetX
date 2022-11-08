@@ -1,0 +1,58 @@
+Global:
+  device: gpu
+  seed: 1024
+
+  global_batch_size: 
+  local_batch_size: 1
+  micro_batch_size: 1
+
+Engine:
+  max_steps: 400000
+  num_train_epochs: 1
+  accumulate_steps: 1
+  eval_freq: 10000000
+  eval_iters: 10000000
+  mix_precision:
+    level: "o2"
+    scale_loss: 32768.0
+    custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
+    custom_white_list: ["lookup_table", "lookup_table_v2"]
+    use_fp16_guard: False
+  save_load:
+    save_model: True
+    output_dir: ./output
+    ckpt_dir:
+
+Model:
+  module: "ImagenModuleAuto"
+  name: "Imagen"
+  fused_linear: False
+
+# data loader for train
+Data:
+  Train:
+    collate_fn: imagen_collate_fn
+    sample_split: 3
+    dataset:
+      name: ImagenDataset
+      input_path: ./data/cc12m_base64.lst
+      shuffle: True
+      input_resolusion: 64 
+      max_seq_len: 128 
+
+
+Optimizer:
+  name: Adam
+  weight_decay: 0.
+  beta1: 0.9
+  beta2: 0.999
+  epsilon: 1.0e-8
+  lr:
+    name: CosineAnnealingWithWarmupDecay
+    decay_steps: 400000
+    warmup_rate: 0.025 
+    max_lr: 1.0e-4
+    min_lr: 0.0
+  grad_clip:
+    name: "ClipGradByGlobalNorm"
+    clip_norm: 1.0

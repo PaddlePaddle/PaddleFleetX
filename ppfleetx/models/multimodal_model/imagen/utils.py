@@ -19,12 +19,14 @@ import paddle
 from paddle import nn
 import paddle.nn.functional as F
 from paddle import expm1
+from paddle.jit.dy2static import UndefinedVar
 
 # helper functions
 
 
 def exists(val):
-    return val is not None
+    # return val is not None
+    return not (val is None or isinstance(val, UndefinedVar))
 
 
 def identity(t, *args, **kwargs):
@@ -349,8 +351,9 @@ class GaussianDiffusionContinuousTimes(nn.Layer):
         return paddle.full((batch_size, ), noise_level, dtype=paddle.float32)
 
     def sample_random_times(self, batch_size, max_thres=0.999):
-        return paddle.zeros(
-            (batch_size, )).cast('float32').uniform_(0, max_thres)
+        return paddle.uniform((batch_size, ), 'float32', min = 0, max=max_thres)
+        # return paddle.zeros(
+        #     (batch_size, )).cast('float32').uniform_(0, max_thres)
 
     def get_condition(self, times):
         return maybe(self.log_snr)(times)

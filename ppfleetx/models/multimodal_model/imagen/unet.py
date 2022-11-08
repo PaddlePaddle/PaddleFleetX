@@ -1402,7 +1402,7 @@ class Unet(nn.Layer):
                 text_tokens.dtype)  # for some reason pypaddle AMP not working
 
             text_tokens = paddle.where(
-                text_keep_mask_embed.cast(paddle.uint8),  # fixed
+                text_keep_mask_embed,
                 text_tokens,
                 null_text_embed)
 
