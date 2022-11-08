@@ -465,7 +465,7 @@ class EagerEngine(BasicEngine):
             # NOTE(haohongxiang): To temporarily resolve the problem of INF caused 
             # by primary sharding strategy during training. The division will be removed 
             # after fixing sharding strategy.
-            if self._distributed:
+            if self._distributed and self._sharding_stage == 2:
                 self._module.backward(loss_bw / self._sharding_group.nranks)
             else:
                 self._module.backward(loss_bw)
