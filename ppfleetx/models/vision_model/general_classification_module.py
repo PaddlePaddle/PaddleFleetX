@@ -32,6 +32,7 @@ class GeneralClsModule(BasicModule):
         self.nranks = paddle.distributed.get_world_size()
         self.model_configs = copy.deepcopy(configs.Model)
         self.model_configs.pop('module')
+        self.quant_mode = False
         if 'Quantization' in configs and configs.Quantization.enable:
             self.quant_mode = True
             self.qat_config = copy.deepcopy(configs.Quantization)
