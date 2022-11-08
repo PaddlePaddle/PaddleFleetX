@@ -1,0 +1,130 @@
+_base_: ../base.yaml
+
+Global:
+  device: gpu
+  seed: 2022
+
+Engine:
+  run_mode: 'epoch'
+  num_train_epochs: 100
+  eval_freq: 1
+  eval_iters: 1
+  accumulate_steps: 1
+  logging_freq: 10
+  mix_precision:
+    use_pure_fp16: False
+    scale_loss: 32768.0
+    custom_black_list: ["reduce_sum", "elementwise_div"]
+    custom_white_list: []
+  save_load:
+    save_epoch: 1
+    output_dir: ./output
+    ckpt_dir:
+
+Distributed:
+  dp_degree:
+
+Model:
+  module: "MOCOClsModule"
+  model:
+    base_encoder:
+      name: "resnet50"
+      with_pool: False
+      num_classes: 0 # remove last classifier   
+      #pretrained: ./pretrained/mocov1/model
+      pretrained: ./pretrained/mocov2/model
+    base_classifier:
+      name: "MoCoClassifier"
+      with_pool: True
+      num_features: 2048
+      num_classes: 1000
+
+  loss:
+    train:
+      name: 'CELoss'
+    eval:
+      name: 'CELoss'
+  metric:
+    train:
+      name: 'TopkAcc'
+      topk: [1, 5]
+    eval:
+      name: 'TopkAcc'
+      topk: [1, 5]
+
+
+Optimizer:
+  name: Momentum
+  momentum: 0.9
+  weight_decay: 0.0
+  lr:
+    name: MultiStepDecay
+    run_mode: epoch
+    learning_rate: 30.0
+    gamma: 0.1
+    milestones: [60, 80]
+
+
+Data:
+  Train:
+    dataset:
+      name: GeneralClsDataset
+      image_root: ./dataset/ILSVRC2012/
+      class_num: 1000
+      cls_label_path: ./dataset/ILSVRC2012/train_list.txt
+      transform_ops:
+        - DecodeImage:
+            to_rgb: True
+            channel_first: False
+        - RandCropImage:
+            size: 224
+            interpolation: bilinear
+            backend: pil
+        - RandFlipImage:
+            flip_code: 1
+        - NormalizeImage:
+            scale: 1.0/255.0
+            mean: [0.5, 0.5, 0.5]
+            std: [0.5, 0.5, 0.5]
+            order: ''
+        - ToCHWImage:
+
+    sampler:
+      name: DistributedBatchSampler
+      batch_size: 32 # total bachsize 256
+      drop_last: True
+      shuffle: True
+    loader:
+      num_workers: 8
+      use_shared_memory: True
+
+  Eval:
+    dataset: 
+      name: GeneralClsDataset
+      image_root: ./dataset/ILSVRC2012/
+      cls_label_path: ./dataset/ILSVRC2012/val_list.txt
+      transform_ops:
+        - DecodeImage:
+            to_rgb: True
+            channel_first: False
+        - ResizeImage:
+            resize_short: 256
+            interpolation: bilinear
+            backend: pil
+        - CenterCropImage:
+            size: 224
+        - NormalizeImage:
+            scale: 1.0/255.0
+            mean: [0.5, 0.5, 0.5]
+            std: [0.5, 0.5, 0.5]
+            order: ''
+        - ToCHWImage:
+        
+    sampler:
+      name: DistributedBatchSampler
+      batch_size: 64
+      drop_last: False
+      shuffle: False
+    loader:
+      num_workers: 8
+      use_shared_memory: True
