@@ -53,6 +53,7 @@ def sharding_wrapper(
 
             opt.step = MethodType(_opt_step, opt)
 
-    _redefine_opt_step(model, optimizer)
+    if level == "os_g":
+        _redefine_opt_step(model, optimizer)
 
     return model, optimizer, scaler
