@@ -151,6 +151,23 @@ def is_sequence_parallel_parameter(parameter):
 
 def create_fused_allreduce_gradient_hook(parameter_list, accumulation_steps):
     hcg = env.get_hcg()
+    group = hcg.get_model_parallel_group()
+    step = [0]
+    accumulation_steps *= len(parameter_list)
+
+    def __impl__(grad):
+        step[0] += 1
+        if step[0] == accumulation_steps:
+            step[0] = 0
+            fused_allreduce_gradients_with_group(
+                parameter_list, group=group, scale=1.0)
+        return grad
+
+    return __impl__
+
+
+def create_non_fused_allreduce_gradient_hook(accumulation_steps):
+    hcg = env.get_hcg()
     pg = hcg.get_model_parallel_group().process_group
 
     step = [0]
