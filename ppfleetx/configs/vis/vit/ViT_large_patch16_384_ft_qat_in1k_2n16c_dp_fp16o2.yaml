@@ -6,12 +6,12 @@ Global:
 
 Engine:
   run_mode: 'epoch'
-  num_train_epochs: 103
+  num_train_epochs: 8
   eval_freq: 1
   accumulate_steps: 1
   logging_freq: 10
   mix_precision:
-    use_pure_fp16: False
+    use_pure_fp16: True
     scale_loss: 32768.0
     custom_black_list: ["reduce_sum", "elementwise_div"]
     custom_white_list: []
@@ -26,11 +26,11 @@ Distributed:
 Model:
   module: "GeneralClsModule"
   model:
-    name: "ViT_base_patch16_384"
-    class_num: 10
+    name: "ViT_large_patch16_384"
+    class_num: 1000
     drop_rate: 0.1
     pretrained:
-      prefix_path: ./pretrained/vit/imagenet2012-ViT-B_16-224
+      prefix_path: ./pretrained/vit/imagenet21k-ViT-L_16
       finetune: True
   loss:
     train:
@@ -51,21 +51,25 @@ Optimizer:
   momentum: 0.9
   lr:
     name: ViTLRScheduler
-    learning_rate: 0.004
+    learning_rate: 0.03
     decay_type: cosine
     warmup_steps: 500
   grad_clip:
     name: "ClipGradByGlobalNorm"
-    clip_norm: 0.35
+    clip_norm: 1.0
 
 
 Data:
   Train:
     dataset:
-      name: CIFAR10
-      root: ./dataset/cifar-10-batches-py/
-      mode: train
+      name: GeneralClsDataset
+      image_root: ./dataset/ILSVRC2012/
+      class_num: 1000
+      cls_label_path: ./dataset/ILSVRC2012/train_list.txt
       transform_ops:
+        - DecodeImage:
+            to_rgb: True
+            channel_first: False
         - RandCropImage:
             size: 384
             scale: [0.05, 1.0]
@@ -82,7 +86,7 @@ Data:
 
     sampler:
       name: DistributedBatchSampler
-      batch_size: 64 # total batchsize 512
+      batch_size: 32 # total batchsize 512
       drop_last: True
       shuffle: True
     loader:
@@ -91,10 +95,13 @@ Data:
 
   Eval:
     dataset: 
-      name: CIFAR10
-      root: ./dataset/cifar-10-batches-py/
-      mode: test
+      name: GeneralClsDataset
+      image_root: ./dataset/ILSVRC2012/
+      cls_label_path: ./dataset/ILSVRC2012/val_list.txt
       transform_ops:
+        - DecodeImage:
+            to_rgb: True
+            channel_first: False
         - ResizeImage:
             size: 384
             interpolation: bilinear
