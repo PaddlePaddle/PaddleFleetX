@@ -438,7 +438,8 @@ def process_auto_global_configs(config):
     dp_degree = config['Distributed']['dp_degree']
     pp_degree = config['Distributed']['pp_degree']
     config['Global']['enable_partial_send_recv'] = True
-    if 'sequence_parallel' in config['Model'] and pp_degree > 1:
+    if config.get('Model', None) is not None and 'sequence_parallel' in config[
+            'Model'] and pp_degree > 1:
         if config['Model']['sequence_parallel']:
             config['Global']['enable_partial_send_recv'] = False
             logger.warning(
@@ -508,10 +509,11 @@ def process_auto_strategy(config):
     amp.custom_black_list = amp_configs['custom_black_list']
     amp.custom_white_list = amp_configs['custom_white_list']
 
-    config['Engine']['use_recompute'] = config['Model'].pop('use_recompute',
-                                                            None)
-    recompute = strategy.recompute
-    recompute.enable = config['Engine']['use_recompute']
+    if config.get('Model', None) is not None:
+        config['Engine']['use_recompute'] = config['Model'].pop(
+            'use_recompute', None)
+        recompute = strategy.recompute
+        recompute.enable = config['Engine']['use_recompute']
 
     sharding_configs = config['Distributed']['sharding']
     sharding = strategy.sharding
