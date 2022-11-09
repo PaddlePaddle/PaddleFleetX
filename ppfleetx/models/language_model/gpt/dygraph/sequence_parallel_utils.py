@@ -16,6 +16,7 @@
 
 import paddle
 from paddle import framework
+from paddle import distributed as dist
 from paddle.nn import functional as F
 from paddle.autograd import PyLayer
 from paddle.fluid import core
