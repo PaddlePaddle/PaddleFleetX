@@ -19,6 +19,8 @@ from collections import defaultdict
 import numpy as np
 
 import paddle
+import paddleslim
+from paddle.static import InputSpec
 from ppfleetx.utils.log import logger
 
 from ppfleetx.core.module.basic_module import BasicModule
@@ -31,6 +33,10 @@ class GeneralClsModule(BasicModule):
         self.nranks = paddle.distributed.get_world_size()
         self.model_configs = copy.deepcopy(configs.Model)
         self.model_configs.pop('module')
+        self.quant_mode = False
+        if 'Quantization' in configs and configs.Quantization.enable:
+            self.quant_mode = True
+            self.qat_config = copy.deepcopy(configs.Quantization)
 
         # must init before loss function
         super(GeneralClsModule, self).__init__(configs)
@@ -54,7 +60,15 @@ class GeneralClsModule(BasicModule):
     def get_model(self):
         if not hasattr(self, 'model') or self.model is None:
             self.model = build(self.model_configs.model)
+
+        if self.quant_mode:
+            self.qat_model()
+
         return self.model
+
+    def qat_model(self):
+        self.quanter = paddleslim.dygraph.quant.QAT(config=self.qat_config)
+        self.quanter.quantize(self.model)
 
     def forward(self, inputs):
         return self.model(inputs)

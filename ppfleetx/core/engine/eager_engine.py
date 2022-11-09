@@ -22,12 +22,12 @@ import paddle.nn as nn
 import paddle.distributed as dist
 import paddle.distributed.fleet as fleet
 from paddle.optimizer.lr import LRScheduler
-from paddle.distributed.sharding import group_sharded_parallel
+
 from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 from paddle.profiler import SummaryView
 
-from ppfleetx.distributed.apis import env
+from ppfleetx.distributed.apis import env, sharding
 from ppfleetx.optims import build_lr_scheduler, build_optimizer
 from ppfleetx.utils.log import logger, get_timestamp, convert_timestamp_to_data
 from ppfleetx.core.engine import BasicEngine, InferenceEngine, TensorRTConfig
@@ -35,6 +35,7 @@ from ppfleetx.core.module import BasicModule
 from ppfleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from ppfleetx.utils.version import version_check
 from ppfleetx.utils.export import export_inference_model
+from paddle.incubate.distributed.utils.io import save_for_auto_inference
 
 
 class EagerEngine(BasicEngine):
@@ -155,6 +156,8 @@ class EagerEngine(BasicEngine):
         self._broadcast_overlap = sharding_config['broadcast_overlap']
 
         self._use_recompute = configs['Model']['use_recompute']
+        self._quant_mode = True if 'Quantization' in configs and configs[
+            'Quantization']['enable'] else False
 
         if self._use_pure_fp16:
             if mode == 'train':
@@ -243,7 +246,7 @@ class EagerEngine(BasicEngine):
 
         level = "p_g_os" if self._sharding_stage == 3 else "os_g"
         origin_model = self._module.model
-        self._module.model, self._optimizer, self._scaler = group_sharded_parallel(
+        self._module.model, self._optimizer, self._scaler = sharding.sharding_wrapper(
             model=self._module.model,
             optimizer=self._optimizer,
             level=level,
@@ -460,7 +463,15 @@ class EagerEngine(BasicEngine):
             if self._accumulate_steps > 1:
                 # div the loss for backward
                 loss_bw = loss_bw / self._accumulate_steps
-            self._module.backward(loss_bw)
+
+            # NOTE(haohongxiang): To temporarily resolve the problem of INF caused 
+            # by primary sharding strategy during training. The division will be removed 
+            # after fixing sharding strategy.
+            if self._distributed and self._sharding_stage == 2:
+                self._module.backward(loss_bw / self._sharding_group.nranks)
+            else:
+                self._module.backward(loss_bw)
+
             detach_loss = loss.detach()
             if final_loss is None:
                 final_loss = detach_loss
@@ -653,6 +664,10 @@ class EagerEngine(BasicEngine):
             }
             paddle.save(meta_dict, os.path.join(save_dir, "meta_state.pdopt"))
 
+            save_auto_dir = os.path.join(output_dir, "auto_infer")
+            save_for_auto_inference(
+                os.path.join(save_auto_dir, "auto"), self._module.model)
+
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
 
@@ -715,8 +730,19 @@ class EagerEngine(BasicEngine):
 
         save_dir = os.path.join(self._output_dir,
                                 "rank_{}".format(self._dp_rank))
-        export_inference_model(self._module.model, input_spec, save_dir,
-                               'model')
+
+        if not self._quant_mode:
+            export_inference_model(self._module.model, input_spec, save_dir,
+                                   'model')
+        else:
+            logger.info("export quantized model.")
+            export_inference_model(
+                self._module.model,
+                input_spec,
+                save_dir,
+                'model',
+                export_quant_model=True,
+                quanter=self._module.quanter)
 
     def inference(self, data):
         if self._inference_engine is None:

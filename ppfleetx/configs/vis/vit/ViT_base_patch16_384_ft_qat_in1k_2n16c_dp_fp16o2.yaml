@@ -6,19 +6,19 @@ Global:
 
 Engine:
   run_mode: 'epoch'
-  num_train_epochs: 300
+  num_train_epochs: 8
   eval_freq: 1
   accumulate_steps: 1
   logging_freq: 10
   mix_precision:
-    use_pure_fp16: True
+    use_pure_fp16: False
     scale_loss: 32768.0
     custom_black_list: ["reduce_sum", "elementwise_div"]
     custom_white_list: []
   save_load:
     save_epoch: 1
     output_dir: ./output
-    ckpt_dir: ./ckpt
+    ckpt_dir:
 
 Distributed:
   dp_degree:
@@ -26,13 +26,15 @@ Distributed:
 Model:
   module: "GeneralClsModule"
   model:
-    name: "ViT_base_patch16_224"
+    name: "ViT_base_patch16_384"
     class_num: 1000
     drop_rate: 0.1
+    pretrained:
+      prefix_path: ./pretrained/vit/imagenet2012-ViT-B_16-224
+      finetune: True
   loss:
     train:
-      name: 'ViTCELoss'
-      epsilon: 0.0001
+      name: 'CELoss'
     eval:
       name: 'CELoss'
   metric:
@@ -44,19 +46,18 @@ Model:
       topk: [1, 5]
 
 Optimizer:
-  name: AdamW
-  weight_decay: 0.3
-  beta1: 0.9
-  beta2: 0.999
-  epsilon: 1.0e-8
+  name: Momentum
+  weight_decay: 0.0001
+  momentum: 0.9
   lr:
     name: ViTLRScheduler
-    learning_rate: 0.003
+    learning_rate: 0.004
     decay_type: cosine
-    warmup_steps: 10000
+    warmup_steps: 500
   grad_clip:
     name: "ClipGradByGlobalNorm"
-    clip_norm: 1.0
+    clip_norm: 0.35
+
 
 Data:
   Train:
@@ -70,9 +71,9 @@ Data:
             to_rgb: True
             channel_first: False
         - RandCropImage:
-            size: 224
+            size: 384
             scale: [0.05, 1.0]
-            interpolation: bicubic
+            interpolation: bilinear
             backend: pil
         - RandFlipImage:
             flip_code: 1
@@ -85,7 +86,7 @@ Data:
 
     sampler:
       name: DistributedBatchSampler
-      batch_size: 256
+      batch_size: 32 # total batchsize 512
       drop_last: True
       shuffle: True
     loader:
@@ -102,11 +103,9 @@ Data:
             to_rgb: True
             channel_first: False
         - ResizeImage:
-            resize_short: 256
-            interpolation: bicubic
+            size: 384
+            interpolation: bilinear
             backend: pil
-        - CenterCropImage:
-            size: 224
         - NormalizeImage:
             scale: 1.0/255.0
             mean: [0.5, 0.5, 0.5]
@@ -122,3 +121,13 @@ Data:
     loader:
       num_workers: 8
       use_shared_memory: True
+
+
+Quantization:
+  enable: True
+  weight_quantize_type: 'abs_max'
+  activation_quantize_type: 'moving_average_abs_max'
+  activation_preprocess_type: 'PACT'
+  weight_bits: 8
+  activation_bits: 8
+  onnx_format: True

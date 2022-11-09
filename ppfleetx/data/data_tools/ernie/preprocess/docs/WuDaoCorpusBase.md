@@ -19,7 +19,7 @@ unrar x WuDaoCorpus2.0_base_200G.rar
 
 由于WuDao数据集比较大，分词比较耗时，这里先进行了语料分词：
 ```shell
-python words_segmentation.py \
+python ./ppfleetx/data/data_tools/ernie/preprocess/words_segmentation.py \
     --input_path ./WuDaoCorpus2.0_base_200G \
     --workers 40  \
     --data_format wudao \
@@ -33,7 +33,7 @@ python words_segmentation.py \
 
 文本转化完成后。我们使用 `../data_tools/trans_to_json.py`重新转换为jsonl格式（分词完毕）。
 ```shell
-python ./trans_to_json.py  \
+python ./ppfleetx/data/data_tools/ernie/preprocess/trans_to_json.py  \
     --input_path ./wudao_lac_cut \
     --output_path wudao_corpus_200g_0623.jsonl \
     --workers 40
@@ -49,7 +49,7 @@ python ./trans_to_json.py  \
 下面是针对训练任务的数据集应用，此处以ernie为例。
 
 ```
-python -u  create_pretraining_data.py \
+python -u ./ppfleetx/data/data_tools/ernie/preprocess/create_pretraining_data.py \
     --model_name ernie-1.0-base-zh \
     --tokenizer_name ErnieTokenizer \
     --input_path wudao_corpus_200g_0623.jsonl \

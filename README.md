@@ -25,13 +25,12 @@ PaddleFleetX旨在打造一套简单易用、性能领先、且功能强大的�
 ## 教程
 
 * [快速开始](./docs/quick_start.md)
-* 训练
+* 模型
   * [GPT](projects/gpt/docs/README.md)
   * [VIT](projects/vit/)
   * [MoCo](projects/moco/)
   * [Imagen](projects/imagen/)
   * [Ernie](projects/ernie/)
-* [推理](./docs/inference.md)
 * [开发规范](./docs/standard.md)
 * [集群部署](./docs/cluster_deployment.md)
 * [部署常见问题](./docs/deployment_faq.md)
