@@ -16,6 +16,8 @@ import paddle
 import paddle.nn as nn
 from .initializer import xavier_uniform_, mlp_bias_normal_
 
+__all__ = ['ViTMLP', ]
+
 
 class ViTMLP(nn.Layer):
     def __init__(self,

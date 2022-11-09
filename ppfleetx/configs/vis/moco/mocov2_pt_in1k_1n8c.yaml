@@ -1,0 +1,114 @@
+_base_: ../base.yaml
+
+Global:
+  device: gpu
+  seed: 2022
+
+Engine:
+  run_mode: 'epoch'
+  num_train_epochs: 200
+  eval_freq: -1
+  eval_iters: 0
+  accumulate_steps: 1
+  logging_freq: 10
+  mix_precision:
+    use_pure_fp16: False
+    scale_loss: 32768.0
+    custom_black_list: ["reduce_sum", "elementwise_div"]
+    custom_white_list: []
+  save_load:
+    save_epoch: 1
+    output_dir: ./output
+    ckpt_dir:
+
+Distributed:
+  dp_degree:
+
+Model:
+  module: "MOCOModule"
+  model:
+    T: 0.2
+    base_encoder:
+      name: "resnet50"
+      with_pool: False
+      num_classes: 0 # remove last classifier
+    base_projector:
+      name: "MoCoV2Projector"
+      in_dim: 2048
+      out_dim: 2048
+      with_pool: True
+    base_classifier:
+      name: "MoCoClassifier"
+      with_pool: False
+      num_features: 2048
+      num_classes: 128
+    momentum_encoder:
+      name: "resnet50"
+      with_pool: False
+      num_classes: 0 # remove last classifier
+    momentum_projector:
+      name: "MoCoV2Projector"
+      in_dim: 2048
+      out_dim: 2048
+      with_pool: True
+    momentum_classifier:
+      name: "MoCoClassifier"
+      with_pool: False
+      num_features: 2048
+      num_classes: 128
+  loss:
+    train:
+      name: 'CELoss'
+
+Optimizer:
+  name: Momentum
+  momentum: 0.9
+  weight_decay: 0.0001
+  lr:
+    name: CosineDecay
+    run_mode: epoch
+    update_unit: epoch
+    learning_rate: 0.03
+
+Data:
+  Train:
+    dataset:
+      name: ContrativeLearningDataset
+      root: ./dataset/ILSVRC2012/train
+      transform_ops:
+        - DecodeImage:
+            to_rgb: True
+            channel_first: False
+        - RandCropImage:
+            size: 224
+            scale: [0.2, 1.0]
+            interpolation: bicubic
+            backend: pil
+        - ColorJitter:
+            brightness: 0.4
+            contrast: 0.4
+            saturation: 0.4
+            hue: 0.1
+            p: 0.8
+        - RandomGrayscale:
+            p: 0.2
+        - GaussianBlur:
+            sigma: [.1, 2.]
+            p: 0.5
+        - RandFlipImage:
+            flip_code: 1
+        - NormalizeImage:
+            scale: 1.0/255.0
+            mean: [0.5, 0.5, 0.5]
+            std: [0.5, 0.5, 0.5]
+            order: ''
+        - ToCHWImage:
+
+    sampler:
+      name: DistributedBatchSampler
+      batch_size: 32 # total batchsize 256
+      drop_last: True
+      shuffle: True
+    loader:
+      num_workers: 8
+      use_shared_memory: True

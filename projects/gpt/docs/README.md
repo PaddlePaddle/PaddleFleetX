@@ -21,11 +21,13 @@ GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupe
 ├── export_gpt_345M_single_card.sh         # 单卡345M模型动转静导出入口
 ├── inference_gpt_345M_single_card.sh      # 单卡345M模型推理入口
 ├── pretrain_gpt_345M_single_card.sh       # 单卡345M模型预训练入口
-├── pretrain_gpt_345M_mp8_qat.sh           # 8卡345M模型模型并行量化训练入口
+├── qat_gpt_345M_mp8.sh                    # 8卡345M模型模型并行量化训练入口
 ├── pretrain_gpt_1.3B_single_card.sh       # 单卡1.3B模型预训练入口
 ├── pretrain_gpt_1.3B_dp8.sh               # 8卡1.3B模型数据并行预训练入口
 ├── pretrain_gpt_6.7B_sharding16.sh        # 16卡6.7B模型分组切片并行预训练入口
+├── qat_gpt_6.7B_sharding16.sh             # 16卡6.7B模型分组切片并行量化训练入口
 ├── pretrain_gpt_175B_mp8_pp16.sh          # 128卡175B模型混合并行预训练入口
+
 ```
 
 ## 快速开始
@@ -171,6 +173,7 @@ Engine训练设置完成模型训练/验证/推理等过程中的参数设置，
     no_recompute_layers:
     fused_linear: True
     fuse_attn_qkv: True
+    sequence_parallel: False
 ```
 
 其中参数对应的释义如下：
@@ -192,6 +195,7 @@ Engine训练设置完成模型训练/验证/推理等过程中的参数设置，
 |no_recompute_layers| list of integer，标识哪些层的transformer不需要进行recompute。所有在该list中的值应该 >= 0 同时应该 < num_layers。向该参数中增加不进行recompute 的层数可以提升模型训练的整体吞吐，但是会适当的增加显存。若训练中发现有显存富裕，可以适当增加不进行recompute的层数。如果使用该参数后出现OOM错误，可以适当减小不进行recompute的层数。 ｜
 | fused_linear      | 是否使用fused_linear代替传统Linear加速训练。注：该功能需要cuda 11.6及以上编译的paddle支持。       |
 | fuse_attn_qkv     | 是否对attention层中的qkv计算使用fuse策略以加速训练 |
+| sequence_parallel | 是否使用序列并行策略以加速训练。注：只有混合并行的GPT才支持该功能，它与张量模型并行共用通信组，当mp_degree=1时，序列并行策略会被强制关闭。 |
 | virtual_pp_degree | 虚拟流水线并行维度，该参数会减小流水线bubble的占比以提升流水线的吞吐。但是该参数会增加流水线间的通讯，所以该参数的推荐值为2。并且，只有 num_layers可以被 pp_degree * virtual_pp_degree 整除时，才可以使用虚拟流水线并行。 |
 ### 数据集
 
@@ -275,6 +279,75 @@ GPT训练默认使用AdamW优化器以及cosine学习率衰减，这里通过配
 | tensor_fusion    | 是否使用tensor_fustion功能加速训练 |
 
 另外，[Profiler](./hybrid_profiler.md)中还介绍了在 GPT 中开启 Profiler 并分析调试分析结果的方法及相关的参数解释。
+
+
+### 量化训练
+
+```yaml
+Quantization:
+  enable: True
+  pretrained: 
+  weight_quantize_type: 'abs_max'
+  activation_quantize_type: 'moving_average_abs_max'
+  weight_preprocess_type: None
+  activation_preprocess_type: None
+  weight_bits: 8
+  activation_bits: 8
+  quantizable_layer_type: ['Conv2D', 'Linear', 'Conv2DTranspose', 'ColumnParallelLinear', 'RowParallelLinear']
+  onnx_format: True
+```
+
+其中参数说明：
+
+| **参数名**                   | **参数释义**                              |
+|-----------------------------|-----------------------------------------|
+| enable                      | 是否开启量化训练                           |
+| pretrained                  | 预训练模型路径前缀，去掉 ".pdparams"        |
+| weight_quantize_type        | weight量化方法, 默认为`channel_wise_abs_max`, 此外还支持`abs_max` |
+| activation_quantize_type    | activation量化方法, 默认为`moving_average_abs_max`               |
+| weight_preprocess_type      | weight预处理方法，默认为None，代表不进行预处理；当需要使用`PACT`方法时设置为`PACT` |
+| activation_preprocess_type  | activation预处理方法，默认为None，代表不进行预处理                   |
+| weight_bits                 | weight量化比特数, 默认为 8                                        |
+| activation_bits             | activation量化比特数, 默认为 8                                    |
+| quantizable_layer_type      | 需要量化的算子类型                                                |
+
+更详细的量化训练参数介绍可参考[PaddleSlim动态图量化训练接口介绍](https://github.com/PaddlePaddle/PaddleSlim/blob/develop/docs/zh_cn/api_cn/dygraph/quanter/qat.rst)。
+
+# 推理部署
+
+模型训练完成后，可使用飞桨高性能推理引擎Paddle Inference通过如下方式进行推理部署。
+
+## 1. 模型导出
+
+首先将模型导出为用于部署的推理模型，可通过`tools/export.py`进行模型导出，通过`-c`指定需要导出的模型的配置文件，通过`-o Engine.save_load.ckpt_dir=`指定导出模型时使用的权重。
+
+以`GPT-3(345M)`模型为例，通过如下方式下载PaddleFleetX发布的训练好的权重。若你已下载或使用训练过程中的权重，可跳过此步。
+
+```bash
+mkdir -p ckpt
+wget -O ckpt/GPT_345M.tar.gz https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz
+tar -xzf ckpt/GPT_345M.tar.gz -C ckpt/
+```
+
+通过如下方式进行推理模型导出
+
+```bash
+python tools/export.py \
+    -c ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml \
+    -o Engine.save_load.ckpt_dir=./ckpt/PaddleFleetX_GPT_345M_220826/
+```
+
+导出的模型默认保存在`./output`目录，可通过配置文件中`Engine.save_load.output_dir`或通过`-o Engine.save_load.output_dir=`指定
+
+
+## 2. 推理部署
+
+模型导出后，可通过`tasks/gpt/inference.py`脚本进行推理部署。
+
+```bash
+python tasks/gpt/inference.py -c ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml
+```
+
 
 ## 参考文献
 - [Language Models are Unsupervised Multitask Learners](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)

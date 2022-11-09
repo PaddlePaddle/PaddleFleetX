@@ -36,8 +36,10 @@ def process_dist_config(configs):
 
     config = configs['Distributed']
 
+    config.setdefault("hcg", "HybridCommunicateGroup")
     mp_degree = config.setdefault("mp_degree", 1)
     pp_degree = config.setdefault("pp_degree", 1)
+    pp_recompute_interval = config.setdefault("pp_recompute_interval", 1)
 
     # sharding default
     sharding_config = config['sharding']
@@ -86,6 +88,9 @@ def process_dist_config(configs):
                 "Enable broadcast overlap for sharding will not use pin memory for dataloader"
             )
             use_pinned_memory(False)
+
+    if 'fuse_sequence_parallel_allreduce' not in config:
+        config['fuse_sequence_parallel_allreduce'] = False
 
 
 def process_global_configs(config):

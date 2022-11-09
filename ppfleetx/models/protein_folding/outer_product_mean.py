@@ -17,6 +17,8 @@ import paddle.nn as nn
 
 from ppfleetx.distributed.protein_folding import dap
 
+from .common import subbatch
+
 
 class OuterProductMean(nn.Layer):
     """Computes mean outer product.

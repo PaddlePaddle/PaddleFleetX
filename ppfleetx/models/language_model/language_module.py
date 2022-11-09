@@ -25,7 +25,8 @@ import paddle.distributed.fleet as fleet
 
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.language_model.gpt as gpt
-from ppfleetx.utils import env
+from ppfleetx.models.language_model.gpt.dygraph.sequence_parallel_utils import register_sequence_parallel_allreduce_hooks
+from ppfleetx.distributed.apis import env
 from ppfleetx.utils.log import logger
 import paddleslim
 from .utils import process_configs
@@ -110,9 +111,26 @@ class LanguageModule(BasicModule):
                log_dict['test_cost'], speed))
 
     def qat_model(self, model):
-        quanter = paddleslim.dygraph.quant.QAT(
+        if self.configs.Quantization.pretrained is not None:
+            pretrained_path = self.configs.Quantization.pretrained + ".pdparams"
+            assert os.path.exists(
+                pretrained_path), f'{pretrained_path} is not exists!'
+            model_dict = paddle.load(pretrained_path)
+            for name, param in model.state_dict().items():
+                assert name in model_dict.keys(
+                ), "No param named `{}` was found in checkpoint file.".format(
+                    name)
+                if param.dtype != model_dict[name].dtype:
+                    model_dict[name] = model_dict[name].cast(param.dtype)
+            model.set_state_dict(model_dict)
+            logger.info(
+                f'Load pretrained weight from {pretrained_path} for quantization.'
+            )
+
+        self.quanter = paddleslim.dygraph.quant.QAT(
             config=self.configs.Quantization)
-        return quanter.quantize(model)
+
+        return self.quanter.quantize(model)
 
     def get_model_size(self, l, h, v, s):
         P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
@@ -127,6 +145,10 @@ class LanguageModule(BasicModule):
 class GPTModule(LanguageModule):
     def __init__(self, configs):
         super(GPTModule, self).__init__(configs)
+        if configs.Model.sequence_parallel:
+            register_sequence_parallel_allreduce_hooks(
+                self, configs.Engine.accumulate_steps,
+                configs.Distributed.fuse_sequence_parallel_allreduce)
 
     def get_model(self):
         model_setting = copy.deepcopy(self.configs.Model)
@@ -160,8 +182,7 @@ class GPTModule(LanguageModule):
             else:
                 model = gpt.GPTForPretrainingPipe(**model_setting)
 
-        if 'Quantization' in self.configs.keys(
-        ) and self.configs.Quantization.enable:
+        if 'Quantization' in self.configs and self.configs.Quantization.enable:
             model = self.qat_model(model)
 
         return model
@@ -170,7 +191,8 @@ class GPTModule(LanguageModule):
         if self.nranks == 1:
             loss_fn = gpt.GPTPretrainingCriterion()
         else:
-            loss_fn = gpt.GPTPretrainingCriterionHybird()
+            loss_fn = gpt.GPTPretrainingCriterionHybird(
+                sequence_parallel=self.configs.Model.sequence_parallel)
         return loss_fn
 
     def pretreating_batch(self, batch):
@@ -495,6 +517,9 @@ class GPTGenerationModule(BasicModule):
         self.generation_cfgs['eos_token_id'] = self.tokenizer.eos_token_id
         self.generation_cfgs['pad_token_id'] = self.tokenizer.eos_token_id
 
+        if 'Quantization' in self.configs and self.configs.Quantization.enable:
+            model = self.qat_model(model)
+
         return model
 
     def adjust_length_to_model(self, length, max_sequence_length):
@@ -601,6 +626,9 @@ class GPTEvalModule(LanguageModule):
             raise RuntimeError(
                 "Only single-card offline eval is supported in GPTModel now.")
 
+        if 'Quantization' in self.configs and self.configs.Quantization.enable:
+            model = self.qat_model(model)
+
         return model
 
     def forward(self, tokens, ids, mask):
@@ -675,7 +703,6 @@ class GPTEvalModule(LanguageModule):
 
 class MoEModule(LanguageModule):
     def __init__(self, configs):
-        self.initialize_model_and_expert_group()
         super(MoEModule, self).__init__(configs)
 
         assert self.nranks == configs.Distributed.dp_degree, \
@@ -752,30 +779,8 @@ class MoEModule(LanguageModule):
 
         return loss
 
-    def initialize_model_and_expert_group(self):
-        if paddle.distributed.get_world_size() == 1:
-            return
-
-        hcg = fleet.get_hybrid_communicate_group()
-
-        def get_expert_parallel_world_size(self):
-            return self.get_data_parallel_world_size(
-            ) * self.get_model_parallel_world_size()
-
-        hcg.get_expert_parallel_world_size = types.MethodType(
-            get_expert_parallel_world_size, hcg)
-
-        # need create mp_dp group for expert parallel group in advance
-        _, mp_dp_comm_group = hcg._set_check_group(parallel_method="pipe")
-
-        def get_expert_parallel_group(self):
-            return mp_dp_comm_group
-
-        hcg.get_expert_parallel_group = types.MethodType(
-            get_expert_parallel_group, hcg)
-
     def initialize_mp_dp_parameters(self):
-        hcg = fleet.get_hybrid_communicate_group()
+        hcg = env.get_hcg()
         mp_group = hcg.get_model_parallel_group()
         mp_src_rank = hcg.get_model_parallel_group_src_rank()
 

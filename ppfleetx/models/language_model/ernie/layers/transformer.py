@@ -28,6 +28,7 @@ from paddle.fluid import layers
 from paddle import ParamAttr
 from paddle.fluid.data_feeder import convert_dtype
 from .model_outputs import BaseModelOutputWithPastAndCrossAttentions
+from paddle.distributed.fleet.utils import recompute
 
 __all__ = []
 
