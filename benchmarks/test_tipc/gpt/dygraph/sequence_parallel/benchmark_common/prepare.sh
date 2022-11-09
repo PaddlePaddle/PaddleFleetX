@@ -1,3 +1,14 @@
+sed -i "s/paddleslim/#paddleslim/g" ../requirements.txt
+rm -rf /usr/local/lib/python3.7/dist-packages/paddleslim*
+python -m pip uninstall paddleslim -y
+hadoop fs -D fs.default.name=afs://cygnus.afs.baidu.com:9902 -D hadoop.job.ugi=userdata,userdata -get /user/userdata/PaddleSlim.tar.gz ./
+tar zxvf PaddleSlim.tar.gz
+cd PaddleSlim
+python -m pip install -r requirements.txt
+python setup.py install
+python -m pip list | grep paddleslim
+cd -
+
 python -m pip install -r ../requirements.txt
 # get data
 cd ../
