@@ -3,11 +3,11 @@ _base_: ./base.yaml
 Global:
   device: gpu
   seed: 2021
-  local_batch_size: 32
-  micro_batch_size: 32
+  local_batch_size: 256
+  micro_batch_size: 256
 
 Engine:
-  num_train_epochs: 103
+  num_train_epochs: 1
   eval_freq: 1
   accumulate_steps: 1
   logging_freq: 10
@@ -27,31 +27,29 @@ Distributed:
 Model:
   module: "GeneralClsModuleAuto"
   model:
-    name: "ViT_base_patch16_384"
+    name: "ViT_tiny_patch16_224"
     class_num: 10
     drop_rate: 0.1
-    # pretrained:
-    #   prefix_path: ./pretrained/vit/imagenet2012-ViT-B_16-224
-    #   finetune: True
   loss:
-    name: 'CELoss'
-  # metric:
-  #   name: 'TopkAcc'
-  #   topk: [1, 5]
+    name: 'ViTCELoss'
+  metric:
+    name: 'TopkAcc'
+    topk: [1, 5]
 
 Optimizer:
-  name: Momentum
-  weight_decay: 0.0001
-  momentum: 0.9
+  name: AdamW
+  weight_decay: 0.3
+  beta1: 0.9
+  beta2: 0.999
+  epsilon: 1.0e-8
   lr:
     name: ViTLRScheduler
-    learning_rate: 0.004
+    learning_rate: 0.003
     decay_type: cosine
-    warmup_steps: 500
+    warmup_steps: 10000
   grad_clip:
     name: "ClipGradByGlobalNorm"
-    clip_norm: 0.35
-
+    clip_norm: 1.0
 
 Data:
   Train:
@@ -62,9 +60,9 @@ Data:
       mode: train
       transform_ops:
         - RandCropImage:
-            size: 384
+            size: 224
             scale: [0.05, 1.0]
-            interpolation: bilinear
+            interpolation: bicubic
             backend: pil
         - RandFlipImage:
             flip_code: 1
@@ -83,9 +81,11 @@ Data:
       mode: test
       transform_ops:
         - ResizeImage:
-            size: 384
-            interpolation: bilinear
+            resize_short: 256
+            interpolation: bicubic
             backend: pil
+        - CenterCropImage:
+            size: 224
         - NormalizeImage:
             scale: 1.0/255.0
             mean: [0.5, 0.5, 0.5]
