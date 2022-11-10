@@ -294,7 +294,7 @@ __global__ void KeMatrixTopPBeamTopK(const T *src, T *top_ps, int64_t *out_id,
     float sum_prob = 0.0f;
 #pragma unroll
     for (int i = 0; i < TopPBeamTopK; i++) {
-      sum_prob += static_cast<float>((beam_max[i].v);
+      sum_prob += static_cast<float>(beam_max[i].v);
       if (sum_prob >= rand_top_p) {
         count_iter_begin[bid] += 1;
         out_id[bid] = static_cast<int64_t>(beam_max[i].id);
