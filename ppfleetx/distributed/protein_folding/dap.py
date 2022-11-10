@@ -160,9 +160,8 @@ def _reduce_scatter(tensor, sync_op=True):
     tensor_shape[0] = divide(tensor_shape[0], group.nranks)
     output = paddle.zeros(tensor_shape, tensor.dtype)
     output.stop_gradient = tensor.stop_gradient
-    task = group.process_group._reduce_scatter_base(
-        output, tensor, paddle.fluid.core.ReduceOp.SUM)
-    task.wait()
+    dist.stream.reduce_scatter(
+        output, tensor, op=dist.ReduceOp.SUM, group=group, sync_op=True)
     return output
 
 
