@@ -18,8 +18,12 @@ from __future__ import print_function
 
 import os
 import sys
-
+import copy
+import random
+import paddle
+import numpy as np
 import paddle.distributed as dist
+
 from paddle.distributed import fleet
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))

@@ -21,6 +21,7 @@ import numpy as np
 import paddle
 import paddle.nn as nn
 import paddle.distributed as dist
+import paddle.fluid.core as core
 from paddle.distributed.fleet import auto
 from paddle.optimizer.lr import LRScheduler
 
@@ -36,33 +37,45 @@ logger = logging.getLogger(__name__)
 
 
 class AutoEngine(BasicEngine):
-    def __init__(self, configs, module, mode='train'):
+    def __init__(self, configs, module=None, mode='train'):
         super().__init__()
         version_check()
 
-        self.mode = mode
+        model = None
+        loss_fn = None
 
-        if not isinstance(module, BasicModule):
+        if module and not isinstance(module, BasicModule):
             raise TypeError(
                 "'module' must be sub classes of `BasicModule`, but got: {model.__class__.__name__}."
             )
+
+        if module:
+            if module.model and not isinstance(
+                    module.model, nn.Layer) and not callable(module.model):
+                raise TypeError(
+                    "'model' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.model.__class__.__name__}."
+                )
+            model = module.model
+
+            if mode == 'train':
+                if module.loss_fn and not isinstance(
+                        module.loss_fn,
+                        nn.Layer) and not callable(module.loss_fn):
+                    raise TypeError(
+                        "'loss_fn' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.loss_fn.__class__.__name__}."
+                    )
+            else:
+                module.loss_fn = None
+                module.model.eval()
+            loss_fn = module.loss_fn
+
         self._module = module
 
-        if module.model and not isinstance(
-                module.model, nn.Layer) and not callable(module.model):
-            raise TypeError(
-                "'model' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.model.__class__.__name__}."
-            )
-
-        if mode == 'train':
-            if module.loss_fn and not isinstance(
-                    module.loss_fn, nn.Layer) and not callable(module.loss_fn):
-                raise TypeError(
-                    "'loss_fn' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.loss_fn.__class__.__name__}."
-                )
-        else:
-            module.loss_fn = None
-            module.model.eval()
+        # lr_scheduler and optimizer
+        lr = build_lr_scheduler(
+            configs.Optimizer.lr) if mode == "train" else None
+        optimizer = build_optimizer(configs.Optimizer, model,
+                                    lr) if mode == "train" else None
 
         # engine configs
         self._configs = configs['Engine']
@@ -83,15 +96,9 @@ class AutoEngine(BasicEngine):
         # engine fit inputs
         self.batch_size = configs['Global']['global_batch_size']
 
-        # lr_scheduler and optimizer
-        lr = build_lr_scheduler(
-            configs.Optimizer.lr) if mode == "train" else None
-        optimizer = build_optimizer(configs.Optimizer, module.model,
-                                    lr) if mode == "train" else None
-
         # init engine
         self._auto_engine = auto.Engine(
-            module.model, module.loss_fn, optimizer, strategy=self._strategy)
+            model, loss_fn, optimizer, strategy=self._strategy)
 
     def fit(self, epoch=1, train_dataset=None, valid_dataset=None):
 
@@ -147,3 +154,48 @@ class AutoEngine(BasicEngine):
             self._auto_engine.load(path)
         else:
             logger.warning("`load` requires a valid value of `ckpt_dir`.")
+
+    def export_from_prog(self):
+        paddle.enable_static()
+
+        if not (self._ckpt_dir and isinstance(self._ckpt_dir, str)):
+            raise ValueError("invalid ckpt_dir.")
+
+        exe = paddle.static.Executor()
+        [inference_program, feed_target_names,
+         fetch_targets] = paddle.static.load_inference_model(
+             path_prefix=self._ckpt_dir, executor=exe)
+        feed_targets = [
+            inference_program.global_block().var(name)
+            for name in feed_target_names
+        ]
+
+        self._auto_engine.prepare(
+            inputs=feed_targets,
+            main_program=inference_program,
+            startup_program=paddle.static.Program(),
+            mode="predict")
+
+        model_dict = self._auto_engine.main_program.state_dict()
+        for param in list(
+                filter(lambda var: var.persistable,
+                       self._auto_engine.main_program.list_vars())):
+            if param.type in [
+                    core.VarDesc.VarType.FEED_MINIBATCH,
+                    core.VarDesc.VarType.FETCH_LIST
+            ]:
+                continue
+            if param.dtype != model_dict[param.name]._dtype():
+                model_dict[param.name] = model_dict[param.name]._as_type(
+                    param.dtype)
+        self._auto_engine.main_program.set_state_dict(model_dict)
+
+        path = os.path.join(self._output_dir, "auto_dist0")
+        paddle.static.save_inference_model(
+            path,
+            feed_targets,
+            fetch_targets,
+            exe,
+            program=self._auto_engine.main_program, )
+
+        paddle.disable_static()

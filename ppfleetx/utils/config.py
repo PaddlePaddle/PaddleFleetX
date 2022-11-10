@@ -426,7 +426,8 @@ def process_auto_global_configs(config):
     # sharding_degree = config['Distributed']['sharding_degree']
 
     config['Global']['enable_partial_send_recv'] = True
-    if 'sequence_parallel' in config['Model'] and pp_degree > 1:
+    if config.get('Model', None) is not None and 'sequence_parallel' in config[
+            'Model'] and pp_degree > 1:
         if config['Model']['sequence_parallel']:
             config['Global']['enable_partial_send_recv'] = False
             logger.warning(
@@ -507,10 +508,11 @@ def process_auto_strategy(config):
     amp.custom_white_list = amp_cfg.get('custom_white_list', [])
 
     # recompute config
-    config['Engine']['use_recompute'] = config['Model'].pop('use_recompute',
-                                                            None)
-    recompute = strategy.recompute
-    recompute.enable = config.Engine.get('use_recompute', False)
+    if config.get('Model', None) is not None:
+        config['Engine']['use_recompute'] = config['Model'].pop(
+            'use_recompute', None)
+        recompute = strategy.recompute
+        recompute.enable = config['Engine']['use_recompute']
 
     # sharding config
     sharding_cfg = config.Distributed.get('sharding', {})
