@@ -16,6 +16,7 @@
 
 import paddle
 from paddle import framework
+from paddle import distributed as dist
 from paddle.nn import functional as F
 from paddle.autograd import PyLayer
 from paddle.fluid import core
@@ -74,7 +75,8 @@ def reduce_scatter(input):
             input.shape[0], parallelism)
     output_shape[0] = output_shape[0] // parallelism
     output = paddle.empty(shape=output_shape, dtype=input.dtype)
-    group.process_group._reduce_scatter_base(output, input).wait()
+    dist.stream.reduce_scatter(
+        output, input, op=dist.ReduceOp.SUM, group=group, sync_op=True)
     return output
 
 
@@ -353,7 +355,7 @@ class RowSequenceParallelLinear(Layer):
 
         self.weight.is_distributed = True if self.is_mp else False
 
-        # if sequence parallel is true, 
+        # if sequence parallel is true,
         # register hook to all_reduce gradient of weight and bias
         if has_bias:
             self.bias = self.create_parameter(
