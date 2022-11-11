@@ -433,8 +433,7 @@ int GetBlockSize(int vocab_size) {
 
 template <paddle::DataType D>
 std::vector<paddle::Tensor> top_p_sampling_kernel(const paddle::Tensor &x,
-                                                  const paddle::Tensor &top_ps,
-                                                  int max_dec_len) {
+                                                  const paddle::Tensor &top_ps) {
   typedef PDTraits<D> traits_;
   typedef typename traits_::DataType DataType_;
   typedef typename traits_::data_t data_t;
@@ -462,15 +461,17 @@ std::vector<paddle::Tensor> top_p_sampling_kernel(const paddle::Tensor &x,
   }
 
   static int count = 0;
+  constexpr int max_bs = 128;
   static curandState_t *dev_curand_states;
-  if (count % max_dec_len == 0) {
+  if (count == 0) {
 #if CUDA_VERSION >= 11020
-    cudaMallocAsync(&dev_curand_states, bs * sizeof(curandState_t), cu_stream);
+    cudaMallocAsync(&dev_curand_states, max_bs * sizeof(curandState_t), cu_stream);
 #else
-    cudaMalloc(&dev_curand_states, bs * sizeof(curandState_t));
+    cudaMalloc(&dev_curand_states, max_bs * sizeof(curandState_t));
 #endif
-    setup_kernel<<<1, 256, 0, cu_stream>>>(dev_curand_states, 2022, bs);
+    setup_kernel<<<1, 256, 0, cu_stream>>>(dev_curand_states, 2022, max_bs);
   }
+  count = 1;
   PD_CHECK(bs == p_num, "PD_CHECK returns ", false, ", expected bs == p_num.");
 
   auto count_iter = paddle::empty({bs + 1}, paddle::DataType::INT32, x.place());
@@ -495,14 +496,6 @@ std::vector<paddle::Tensor> top_p_sampling_kernel(const paddle::Tensor &x,
   default:
     PD_THROW("the input data shape has error in the topp_beam_topk kernel.");
   }
-  if (count % max_dec_len == max_dec_len - 1) {
-#if CUDA_VERSION >= 11020
-    cudaFreeAsync(dev_curand_states, cu_stream);
-#else
-    cudaFree(dev_curand_states);
-#endif
-  }
-  count++;
 
   size_t temp_storage_bytes = 0;
 
@@ -553,16 +546,13 @@ std::vector<paddle::Tensor> top_p_sampling_kernel(const paddle::Tensor &x,
 }
 
 std::vector<paddle::Tensor> TopPSampling(const paddle::Tensor &x,
-                                         const paddle::Tensor &top_ps,
-                                         int max_dec_length) {
+                                         const paddle::Tensor &top_ps) {
   switch (x.type()) {
     case paddle::DataType::FLOAT16: {
-      return top_p_sampling_kernel<paddle::DataType::FLOAT16>(x, top_ps,
-                                                              max_dec_length);
+      return top_p_sampling_kernel<paddle::DataType::FLOAT16>(x, top_ps);
     }
     case paddle::DataType::FLOAT32: {
-      return top_p_sampling_kernel<paddle::DataType::FLOAT32>(x, top_ps,
-                                                              max_dec_length);
+      return top_p_sampling_kernel<paddle::DataType::FLOAT32>(x, top_ps);
     }
     default: {
       PD_THROW("NOT supported data type. "
@@ -588,7 +578,6 @@ TopPSamplingInferDtype(const paddle::DataType &x_dtype,
 PD_BUILD_OP(topp_sampling)
     .Inputs({"x", "top_ps"})
     .Outputs({"topp_ids"})
-    .Attrs({"max_dec_length: int"})
     .SetKernelFn(PD_KERNEL(TopPSampling))
     .SetInferShapeFn(PD_INFER_SHAPE(TopPSamplingInferShape))
     .SetInferDtypeFn(PD_INFER_DTYPE(TopPSamplingInferDtype));

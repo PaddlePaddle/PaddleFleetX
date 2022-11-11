@@ -1050,8 +1050,7 @@ class GPTForGenerationAuto(nn.Layer):
                         shape=[paddle.shape(probs)[0]],
                         fill_value=top_p,
                         dtype=probs.dtype)
-                    next_tokens = custom_setup_ops.topp_sampling(
-                        probs, top_ps_tensor, self.max_length)
+                    next_tokens = custom_setup_ops.topp_sampling(probs, top_ps_tensor)
                 else:
                     probs = TopPProcess(probs, top_p, min_tokens_to_keep)
 
