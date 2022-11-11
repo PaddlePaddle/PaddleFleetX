@@ -1033,6 +1033,7 @@ class GPTForGenerationAuto(nn.Layer):
             origin_probs = F.softmax(logits)
             if temperature is None or temperature == 1.0:
                 probs = paddle.assign(origin_probs)
+                origin_probs = paddle.log(origin_probs)
             else:
                 origin_probs = paddle.log(origin_probs)
                 logits = logits / temperature
@@ -1054,7 +1055,7 @@ class GPTForGenerationAuto(nn.Layer):
                 else:
                     probs = TopPProcess(probs, top_p, min_tokens_to_keep)
 
-            if top_k is not None and top_k != 0 or not self.use_topp_sampling:
+            if not self.use_topp_sampling:
                 next_tokens = paddle.multinomial(probs)
 
             next_scores = paddle.index_sample(origin_probs, next_tokens)
@@ -1115,9 +1116,9 @@ class GPTForGenerationAuto(nn.Layer):
                 # Note(ZhenyuLi): Avoid the synchronization caused by scale in dy2static
                 paddle.increment(cur_len)
             paddle.increment(cur_len_gpu)
-            if eos_token_id is not None:
-                if not paddle.any(unfinished_flag):
-                    break
+
+            if not paddle.any(unfinished_flag):
+                break
 
         return model_kwargs['res'][:, origin_len:], scores
 
