@@ -1068,9 +1068,11 @@ class GPTForGeneration(nn.Layer):
             return probs
 
         batch_size, cur_len = input_ids.shape
+        # used for compute on gpu, avoid memcpy D2H
         cur_len_gpu = paddle.full([1], cur_len, dtype='int64')
 
         origin_len = input_ids.shape[1]
+        # used for compute on gpu, avoid memcpy D2H
         origin_len_gpu = paddle.full([1], origin_len, dtype='int64')
 
         unfinished_flag = paddle.full([batch_size, 1], True, dtype='bool')
@@ -1119,7 +1121,10 @@ class GPTForGeneration(nn.Layer):
             if top_p is not None and top_p < 1.0:
                 sorted_indices = paddle.argsort(probs, descending=True)
                 if self.use_topp_sampling:
-                    import custom_setup_ops
+                    try:
+                        import custom_setup_ops
+                    except ImportError:
+                        raise ImportError("please install custom ops!")
                     top_ps_tensor = paddle.full(
                         shape=[paddle.shape(probs)[0]],
                         fill_value=top_p,
@@ -1163,7 +1168,11 @@ class GPTForGeneration(nn.Layer):
         input_ids, scores, unfinished_flag, model_kwargs = _post_process_(
             outputs, input_ids, cur_len_gpu, origin_len_gpu, scores,
             unfinished_flag, model_kwargs)
-        cur_len += 1
+        if not self.inference:
+            cur_len += 1
+        else:
+            # Note(ZhenyuLi): Avoid the synchronization caused by scale in dy2static
+            paddle.increment(cur_len)
         paddle.increment(cur_len_gpu)
 
         attn_mask = model_kwargs['attention_mask']
@@ -1179,11 +1188,15 @@ class GPTForGeneration(nn.Layer):
             input_ids, scores, unfinished_flag, model_kwargs = _post_process_(
                 _forward_(**model_kwargs), input_ids, cur_len_gpu,
                 origin_len_gpu, scores, unfinished_flag, model_kwargs)
-            cur_len += 1
+            if not self.inference:
+                cur_len += 1
+            else:
+                # Note(ZhenyuLi): Avoid the synchronization caused by scale in dy2static
+                paddle.increment(cur_len)
             paddle.increment(cur_len_gpu)
-
-            if not paddle.any(unfinished_flag):
-                break
+            if eos_token_id is not None:
+                if not paddle.any(unfinished_flag):
+                    break
 
         return model_kwargs['res'][:, origin_len:], scores
 
@@ -1251,6 +1264,7 @@ class GPTForGeneration(nn.Layer):
         model_kwargs["use_cache"] = use_cache
 
         if self.inference:
+            # Note(ZhenyuLi): Avoid the synchronization caused by scale in dy2static
             min_len = input_ids.shape[-1]
             max_len = input_ids.shape[-1]
             paddle.increment(min_len, min_length)
