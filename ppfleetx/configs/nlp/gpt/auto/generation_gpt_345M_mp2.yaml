@@ -3,11 +3,7 @@ _base_: ./pretrain_gpt_base.yaml
 
 Engine:
   mix_precision:
-    level: "o2"
-    scale_loss: 32768.0
-    custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div", "where"]
-    custom_white_list: ["lookup_table", "lookup_table_v2"]
-    use_fp16_guard: False
+    level:
 
 
 Generation:

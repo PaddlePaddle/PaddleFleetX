@@ -35,19 +35,12 @@ if __name__ == "__main__":
     cfg = config.get_auto_config(
         args.config, overrides=args.override, show=False)
 
-    if cfg.get('Model', None) is not None:
-        module = build_module(cfg)
-        config.print_config(cfg)
+    module = build_module(cfg)
+    config.print_config(cfg)
 
-        engine = AutoEngine(configs=cfg, module=module, mode="export")
+    engine = AutoEngine(configs=cfg, module=module, mode="export")
 
-        if cfg.Engine.save_load.ckpt_dir is not None:
-            engine.load()
+    if cfg.Engine.save_load.ckpt_dir is not None:
+        engine.load()
 
-        engine.export()
-    else:
-        engine = AutoEngine(configs=cfg, mode="export")
-        if cfg.Engine.save_load.ckpt_dir is None:
-            raise ValueError("invalid ckpt_dir.")
-
-        engine.export_from_prog()
+    engine.export()

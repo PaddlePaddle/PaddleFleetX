@@ -35,7 +35,7 @@ python trans_to_json.py  --input_path ./clue_corpus_small_14g --output_path clue
 下面是针对训练任务的数据集应用，此处以ernie为例。
 
 ```
-python -u ./ppfleetx/data/data_tools/ernie/preprocess/create_pretraining_data.py \
+python -u  create_pretraining_data.py \
     --model_name ernie-1.0-base-zh \
     --tokenizer_name ErnieTokenizer \
     --input_path clue_corpus_small_14g.jsonl \
