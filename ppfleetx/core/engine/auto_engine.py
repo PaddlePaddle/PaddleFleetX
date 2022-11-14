@@ -80,6 +80,7 @@ class AutoEngine(BasicEngine):
         # engine configs
         self._configs = configs['Engine']
         self._max_steps = self._configs['max_steps']
+        self._verbose = self._configs["verbose"]
         self._eval_freq = self._configs['eval_freq']
         self._eval_iters = self._configs['eval_iters']
         self._test_iters = self._configs['test_iters']
@@ -117,7 +118,8 @@ class AutoEngine(BasicEngine):
                               collate_fn=train_dataset.collate_fn,
                               log_freq=self._logging_freq,
                               save_dir=self._output_dir,
-                              save_freq=self._save_steps)
+                              save_freq=self._save_steps,
+                              verbose=self._verbose)
 
     def evaluate(self, valid_dataset=None):
 
@@ -150,8 +152,7 @@ class AutoEngine(BasicEngine):
 
     def load(self):
         if self._ckpt_dir and isinstance(self._ckpt_dir, str):
-            path = os.path.join(self._ckpt_dir, "auto")
-            self._auto_engine.load(path)
+            self._auto_engine.load(self._ckpt_dir)
         else:
             logger.warning("`load` requires a valid value of `ckpt_dir`.")
 
@@ -162,9 +163,11 @@ class AutoEngine(BasicEngine):
             raise ValueError("invalid ckpt_dir.")
 
         exe = paddle.static.Executor()
+
+        ckpt_dir = os.path.split(self._ckpt_dir)[0]
         [inference_program, feed_target_names,
          fetch_targets] = paddle.static.load_inference_model(
-             path_prefix=self._ckpt_dir, executor=exe)
+             path_prefix=ckpt_dir, executor=exe)
         feed_targets = [
             inference_program.global_block().var(name)
             for name in feed_target_names

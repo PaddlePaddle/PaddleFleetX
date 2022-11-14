@@ -18,6 +18,7 @@ import argparse
 import yaml
 import codecs
 import sys
+import logging
 from .log import logger, advertise
 
 from . import check
@@ -461,6 +462,11 @@ def process_auto_engine_configs(config):
     """
     process engine configs for auto parallel
     """
+    if config.Engine.get("verbose", None) is None:
+        config.Engine.verbose = 2
+    if config.Engine.get("logging_freq", None) is None:
+        config.Engine.logging_freq = 10
+    
     config.Engine['save_load'] = config.Engine.get('save_load', {})
     save_load_cfg = config.Engine.save_load
     save_steps = save_load_cfg.get('save_steps', None)
@@ -529,6 +535,28 @@ def process_auto_strategy(config):
     configs['strategy'] = strategy
 
 
+def process_auto_ckpt_dir(config):
+    configs = config["Engine"]["save_load"]
+    ckpt_dir = configs.get("ckpt_dir", None)
+    if ckpt_dir is None:
+        return
+
+    assert os.path.isdir(ckpt_dir)==False,"Wrong setting of ckpt_dir!ckpt_dir can't be a folder,"\
+        "but {} is a folder".format(ckpt_dir)
+
+    assert os.path.exists(ckpt_dir)==False,"Wrong setting of ckpt_dir,"\
+        "if you want to load weight,you should set ckpt_dir like this!"\
+        "for example:\ngpt_auto_model_save\n\t--auto_dist0.pdparams\n\t--auto_dist0.pdparams\n"\
+        "\t--auto_dist0.pdattr\nyou should set ckpt_dir=\"gpt_auto_model_save/auto\""
+
+    parent_path = os.path.split(ckpt_dir)[0]
+
+    if os.path.exists(parent_path) == False:
+        logging.warning("{} path is not existed!we will set ckpt_dir None.".
+                        format(parent_path))
+        configs["ckpt_dir"] == None
+
+
 def get_auto_config(fname, overrides=None, show=False):
     """
     Read config from file for auto parallel
@@ -542,6 +570,7 @@ def get_auto_config(fname, overrides=None, show=False):
     process_auto_global_configs(config)
     process_auto_engine_configs(config)
     process_auto_strategy(config)
+    process_auto_ckpt_dir(config)
 
     if show:
         print_config(config)
