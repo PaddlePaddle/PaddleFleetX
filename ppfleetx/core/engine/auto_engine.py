@@ -164,10 +164,9 @@ class AutoEngine(BasicEngine):
 
         exe = paddle.static.Executor()
 
-        ckpt_dir = os.path.split(self._ckpt_dir)[0]
         [inference_program, feed_target_names,
          fetch_targets] = paddle.static.load_inference_model(
-             path_prefix=ckpt_dir, executor=exe)
+             path_prefix=self._ckpt_dir, executor=exe)
         feed_targets = [
             inference_program.global_block().var(name)
             for name in feed_target_names
