@@ -540,7 +540,7 @@ def process_auto_ckpt_dir(config):
     if ckpt_dir is None:
         return
 
-    assert os.path.isdir(ckpt_dir) == False,"Wrong setting of ckpt_dir!ckpt_dir can't be a folder,"\
+    assert os.path.isdir(ckpt_dir) == False, "Wrong setting of ckpt_dir!ckpt_dir can't be a folder,"\
         "but {} is a folder".format(ckpt_dir)
 
     assert os.path.exists(ckpt_dir) == False, "Wrong setting of ckpt_dir,"\
