@@ -462,11 +462,9 @@ def process_auto_engine_configs(config):
     """
     process engine configs for auto parallel
     """
-    if config.Engine.get("verbose", None) is None:
-        config.Engine.verbose = 2
-    if config.Engine.get("logging_freq", None) is None:
-        config.Engine.logging_freq = 10
-    
+    config.Engine.get("verbose", 2)
+    config.Engine.get("logging_freq", 10)
+
     config.Engine['save_load'] = config.Engine.get('save_load', {})
     save_load_cfg = config.Engine.save_load
     save_steps = save_load_cfg.get('save_steps', None)
