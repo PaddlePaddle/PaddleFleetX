@@ -24,13 +24,9 @@ minus_tens_ = Constant(value=-10.)
 ones_ = Constant(value=1.)
 
 
-class XavierUniform2D(XavierUniform):
-    def __call__(self, param, block=None):
-        fan_in = int(np.prod(param.shape[:-1]))
-        fan_out = param.shape[-1]
-        limit = math.sqrt(6.0 / (fan_in + fan_out))
-        uniform = Uniform(low=-limit, high=limit)
-        uniform(param)
-
-
-xavier_uniform_2d_ = XavierUniform2D()
+def xavier_uniform_2d_(param, axis=-1):
+    fan_in = int(np.prod(param.shape[:axis]))
+    fan_out = int(np.prod(param.shape[axis:]))
+    limit = math.sqrt(6.0 / (fan_in + fan_out))
+    uniform = Uniform(low=-limit, high=limit)
+    uniform(param)
