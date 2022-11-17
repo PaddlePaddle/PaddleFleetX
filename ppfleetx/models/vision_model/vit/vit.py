@@ -22,20 +22,15 @@ import paddle.nn as nn
 import paddle.nn.functional as F
 from paddle.incubate.nn import FusedMultiHeadAttention, FusedFeedForward
 
+from ppfleetx.utils.log import logger
 from ..layers.droppath import DropPath
 from ..layers.identity import Identity
 from ..layers.attention import ViTAttention
 from ..layers.embedding import ViTPatchEmbed
 from ..layers.mlp import ViTMLP
-from ..layers.initializer import (
-    xavier_uniform_,
-    xavier_uniform_2d_,
-    mlp_bias_normal_,
-    zeros_,
-    minus_tens_,
-    pos_normal_,
-    ones_
-)
+from ..layers.initializer import (xavier_uniform_, xavier_uniform_2d_,
+                                  mlp_bias_normal_, zeros_, minus_tens_,
+                                  pos_normal_, ones_)
 
 __all__ = [
     'ViT_tiny_patch16_224',
@@ -55,6 +50,7 @@ __all__ = [
     'ViT',
 ]
 
+
 class FusedBlock(nn.Layer):
     def __init__(self,
                  dim,
@@ -69,15 +65,16 @@ class FusedBlock(nn.Layer):
                  norm_layer='nn.LayerNorm',
                  epsilon=1e-5):
         super().__init__()
-        
+
         assert qk_scale is None, "Fused attention doesn't support qk_scale."
         if isinstance(drop_path, int):
             assert drop_path is 0, "Fused attention doesn't support drop_path."
         elif isinstance(drop_path, list):
-            assert drop_path is [0] * len(drop_path), "Fused attention doesn't support drop_path."
+            assert drop_path is [0] * len(
+                drop_path), "Fused attention doesn't support drop_path."
         assert norm_layer is "nn.LayerNorm", "Fused attention only support nn.LayerNorm"
-        assert (isinstance(act_layer, nn.GELU) or isinstance(act_layer, nn.ReLU) or
-                (isinstance(act_layer, str) and act_layer.lower() is "gelu" or act_layer.lower() is "relu")), \
+        assert ((act_layer == nn.GELU) or (act_layer == nn.ReLU)) or \
+                (isinstance(act_layer, str) and act_layer.lower() is "gelu" or act_layer.lower() is "relu"), \
                 "Fused attention only support GELU and ReLU activation."
 
         self.attn = FusedMultiHeadAttention(
@@ -96,19 +93,17 @@ class FusedBlock(nn.Layer):
             dropout_rate=drop,
             activation="gelu",
             act_dropout_rate=drop,
-            normalize_before=True
-           )
-    
+            normalize_before=True)
+
         xavier_uniform_2d_(self.attn.qkv_weight)
         xavier_uniform_2d_(self.attn.linear_weight)
         xavier_uniform_2d_(self.mlp._linear1_weight)
         xavier_uniform_2d_(self.mlp._linear2_weight)
-        
+
         zeros_(self.attn.qkv_bias)
         zeros_(self.attn.linear_bias)
         mlp_bias_normal_(self.mlp._linear1_bias)
         mlp_bias_normal_(self.mlp._linear2_bias)
-            
 
     def forward(self, x):
         return self.mlp(self.attn(x))
@@ -210,6 +205,10 @@ class ViT(nn.Layer):
 
         self.use_fused_attn = use_fused_attn
         if self.use_fused_attn:
+            logger.info(
+                "ViT use fused attention. Fused attention model checkpoint will be" \
+                " saved in normal attention format for inference checkpoint export," \
+                " and its optimizer checkpoint keeps the same.")
             self.blocks = nn.LayerList([
                 FusedBlock(
                     dim=embed_dim,
@@ -290,15 +289,13 @@ class ViT(nn.Layer):
         return x
 
     def state_dict(self,
-            destination=None,
-            include_sublayers=True,
-            structured_name_prefix="",
-            use_hook=True):
-        state_dict = super().state_dict(destination,
-                                        include_sublayers,
-                                        structured_name_prefix,
-                                        use_hook)
-        if self.use_fused_op:
+                   destination=None,
+                   include_sublayers=True,
+                   structured_name_prefix="",
+                   use_hook=True):
+        state_dict = super().state_dict(destination, include_sublayers,
+                                        structured_name_prefix, use_hook)
+        if self.use_fused_attn:
             new_dict = []
             poped_keys = []
             for key, value in state_dict.items():
@@ -307,7 +304,8 @@ class ViT(nn.Layer):
                 elif r'linear_' in key:
                     new_key = key.replace(r'linear_', r'proj.')
                 elif r'attn.pre_ln_scale' in key:
-                    new_key = key.replace(r'attn.pre_ln_scale', r'norm1.weight')
+                    new_key = key.replace(r'attn.pre_ln_scale',
+                                          r'norm1.weight')
                 elif r'attn.pre_ln_bias' in key:
                     new_key = key.replace(r'attn.pre_ln_bias', r'norm1.bias')
                 elif r'_linear1_' in key:
@@ -322,14 +320,14 @@ class ViT(nn.Layer):
                     continue
                 new_dict.append({new_key: value})
                 poped_keys.append(key)
-            
+
             for i in range(len(new_dict)):
                 state_dict.update(new_dict[i])
                 state_dict.pop(poped_keys[i])
         return state_dict
-    
+
     def set_state_dict(self, state_dict, use_structured_name=True):
-        if self.use_fused_op:
+        if self.use_fused_attn:
             new_dict = []
             poped_keys = []
             for key, value in state_dict.items():
@@ -338,7 +336,8 @@ class ViT(nn.Layer):
                 elif r'linear.' in key:
                     new_key = key.replace(r'linear.', r'proj_')
                 elif r'norm1.weight' in key:
-                    new_key = key.replace(r'norm1.weight', r'attn.pre_ln_scale')
+                    new_key = key.replace(r'norm1.weight',
+                                          r'attn.pre_ln_scale')
                 elif r'norm1.bias' in key:
                     new_key = key.replace(r'norm1.bias', r'attn.pre_ln_bias')
                 elif r'fc1.' in key:
@@ -353,7 +352,7 @@ class ViT(nn.Layer):
                     continue
                 new_dict.append({new_key: value})
                 poped_keys.append(key)
-            
+
             for i in range(len(new_dict)):
                 state_dict.update(new_dict[i])
                 state_dict.pop(poped_keys[i])
@@ -412,6 +411,7 @@ class ViT(nn.Layer):
         self.set_state_dict(param_state_dict)
         return
 
+
 def ViT_tiny_patch16_224(**kwargs):
     model = ViT(patch_size=16,
                 embed_dim=192,
@@ -423,6 +423,7 @@ def ViT_tiny_patch16_224(**kwargs):
                 representation_size=192,
                 **kwargs)
     return model
+
 
 def ViT_base_patch16_224(**kwargs):
     model = ViT(patch_size=16,
