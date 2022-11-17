@@ -158,6 +158,10 @@ class EagerEngine(BasicEngine):
         self._use_recompute = configs['Model']['use_recompute']
         self._quant_mode = True if 'Quantization' in configs and configs[
             'Quantization']['enable'] else False
+        self._use_dali = True if 'use_dali' in configs['Global'] and configs[
+            'Global']['use_dali'] else False
+        self._use_fused_attn = True if 'use_dali' in configs['Model']['model'] and configs[
+            'Model']['model']['use_fused_attn'] else False
 
         if self._use_pure_fp16:
             if mode == 'train':
@@ -286,6 +290,12 @@ class EagerEngine(BasicEngine):
             if epoch_index == self._load_recovery['epoch']:
                 if step < self._load_recovery['step']:
                     continue
+            
+            if self._use_dali:
+                batch = [
+                    paddle.to_tensor(batch[0]['data']),
+                    paddle.to_tensor(batch[0]['label'])
+                ]
 
             loss = self._fit_impl(batch)
             train_losses.append(loss)
@@ -536,6 +546,12 @@ class EagerEngine(BasicEngine):
         eval_losses = []
         total_eval_batch = len(valid_data_loader)
         for eval_step, batch in enumerate(valid_data_loader):
+            if self._use_dali:
+                batch = [
+                    paddle.to_tensor(batch[0]['data']),
+                    paddle.to_tensor(batch[0]['label'])
+                ]
+
             loss = self._evaluate_impl(batch)
             eval_losses.append(loss.numpy()[0])
 

@@ -20,13 +20,22 @@ import numpy as np
 import paddle
 import paddle.nn as nn
 import paddle.nn.functional as F
+from paddle.incubate.nn import FusedMultiHeadAttention, FusedFeedForward
 
 from ..layers.droppath import DropPath
 from ..layers.identity import Identity
 from ..layers.attention import ViTAttention
 from ..layers.embedding import ViTPatchEmbed
 from ..layers.mlp import ViTMLP
-from ..layers.initializer import xavier_uniform_, zeros_, minus_tens_, pos_normal_, ones_
+from ..layers.initializer import (
+    xavier_uniform_,
+    xavier_uniform_2d_,
+    mlp_bias_normal_,
+    zeros_,
+    minus_tens_,
+    pos_normal_,
+    ones_
+)
 
 __all__ = [
     'ViT_tiny_patch16_224',
@@ -45,6 +54,64 @@ __all__ = [
     'ViT_6B_patch14_224',
     'ViT',
 ]
+
+class FusedBlock(nn.Layer):
+    def __init__(self,
+                 dim,
+                 num_heads,
+                 mlp_ratio=4.,
+                 qkv_bias=False,
+                 qk_scale=None,
+                 drop=0.,
+                 attn_drop=0.,
+                 drop_path=0.,
+                 act_layer=nn.GELU,
+                 norm_layer='nn.LayerNorm',
+                 epsilon=1e-5):
+        super().__init__()
+        
+        assert qk_scale is None, "Fused attention doesn't support qk_scale."
+        if isinstance(drop_path, int):
+            assert drop_path is 0, "Fused attention doesn't support drop_path."
+        elif isinstance(drop_path, list):
+            assert drop_path is [0] * len(drop_path), "Fused attention doesn't support drop_path."
+        assert norm_layer is "nn.LayerNorm", "Fused attention only support nn.LayerNorm"
+        assert (isinstance(act_layer, nn.GELU) or isinstance(act_layer, nn.ReLU) or
+                (isinstance(act_layer, str) and act_layer.lower() is "gelu" or act_layer.lower() is "relu")), \
+                "Fused attention only support GELU and ReLU activation."
+
+        self.attn = FusedMultiHeadAttention(
+            dim,
+            num_heads=num_heads,
+            qkv_bias_attr=qkv_bias,
+            dropout_rate=drop,
+            attn_dropout_rate=attn_drop,
+            normalize_before=True,
+            epsilon=epsilon)
+
+        mlp_hidden_dim = int(dim * mlp_ratio)
+        self.mlp = FusedFeedForward(
+            d_model=dim,
+            dim_feedforward=mlp_hidden_dim,
+            dropout_rate=drop,
+            activation="gelu",
+            act_dropout_rate=drop,
+            normalize_before=True
+           )
+    
+        xavier_uniform_2d_(self.attn.qkv_weight)
+        xavier_uniform_2d_(self.attn.linear_weight)
+        xavier_uniform_2d_(self.mlp._linear1_weight)
+        xavier_uniform_2d_(self.mlp._linear2_weight)
+        
+        zeros_(self.attn.qkv_bias)
+        zeros_(self.attn.linear_bias)
+        mlp_bias_normal_(self.mlp._linear1_bias)
+        mlp_bias_normal_(self.mlp._linear2_bias)
+            
+
+    def forward(self, x):
+        return self.mlp(self.attn(x))
 
 
 class Block(nn.Layer):
@@ -118,6 +185,7 @@ class ViT(nn.Layer):
                  norm_layer='nn.LayerNorm',
                  epsilon=1e-5,
                  representation_size=None,
+                 use_fused_attn=False,
                  **kwargs):
         super().__init__()
         self.class_num = class_num
@@ -140,19 +208,35 @@ class ViT(nn.Layer):
 
         dpr = np.linspace(0, drop_path_rate, depth)
 
-        self.blocks = nn.LayerList([
-            Block(
-                dim=embed_dim,
-                num_heads=num_heads,
-                mlp_ratio=mlp_ratio,
-                qkv_bias=qkv_bias,
-                qk_scale=qk_scale,
-                drop=drop_rate,
-                attn_drop=attn_drop_rate,
-                drop_path=dpr[i],
-                norm_layer=norm_layer,
-                epsilon=epsilon) for i in range(depth)
-        ])
+        self.use_fused_attn = use_fused_attn
+        if self.use_fused_attn:
+            self.blocks = nn.LayerList([
+                FusedBlock(
+                    dim=embed_dim,
+                    num_heads=num_heads,
+                    mlp_ratio=mlp_ratio,
+                    qkv_bias=qkv_bias,
+                    qk_scale=qk_scale,
+                    drop=drop_rate,
+                    attn_drop=attn_drop_rate,
+                    drop_path=dpr[i],
+                    norm_layer=norm_layer,
+                    epsilon=epsilon) for i in range(depth)
+            ])
+        else:
+            self.blocks = nn.LayerList([
+                Block(
+                    dim=embed_dim,
+                    num_heads=num_heads,
+                    mlp_ratio=mlp_ratio,
+                    qkv_bias=qkv_bias,
+                    qk_scale=qk_scale,
+                    drop=drop_rate,
+                    attn_drop=attn_drop_rate,
+                    drop_path=dpr[i],
+                    norm_layer=norm_layer,
+                    epsilon=epsilon) for i in range(depth)
+            ])
 
         self.norm = eval(norm_layer)(embed_dim, epsilon=epsilon)
 
@@ -205,6 +289,76 @@ class ViT(nn.Layer):
         x = self.head(x)
         return x
 
+    def state_dict(self,
+            destination=None,
+            include_sublayers=True,
+            structured_name_prefix="",
+            use_hook=True):
+        state_dict = super().state_dict(destination,
+                                        include_sublayers,
+                                        structured_name_prefix,
+                                        use_hook)
+        if self.use_fused_op:
+            new_dict = []
+            poped_keys = []
+            for key, value in state_dict.items():
+                if r'qkv_' in key:
+                    new_key = key.replace(r'qkv_', r'qkv.')
+                elif r'linear_' in key:
+                    new_key = key.replace(r'linear_', r'proj.')
+                elif r'attn.pre_ln_scale' in key:
+                    new_key = key.replace(r'attn.pre_ln_scale', r'norm1.weight')
+                elif r'attn.pre_ln_bias' in key:
+                    new_key = key.replace(r'attn.pre_ln_bias', r'norm1.bias')
+                elif r'_linear1_' in key:
+                    new_key = key.replace(r'_linear1_', r'fc1.')
+                elif r'_linear2_' in key:
+                    new_key = key.replace(r'_linear2_', r'fc2.')
+                elif r'mlp._ln1_scale' in key:
+                    new_key = key.replace(r'mlp._ln1_scale', r'norm2.weight')
+                elif r'mlp._ln1_bias' in key:
+                    new_key = key.replace(r'mlp._ln1_bias', r'norm2.bias')
+                else:
+                    continue
+                new_dict.append({new_key: value})
+                poped_keys.append(key)
+            
+            for i in range(len(new_dict)):
+                state_dict.update(new_dict[i])
+                state_dict.pop(poped_keys[i])
+        return state_dict
+    
+    def set_state_dict(self, state_dict, use_structured_name=True):
+        if self.use_fused_op:
+            new_dict = []
+            poped_keys = []
+            for key, value in state_dict.items():
+                if r'qkv.' in key:
+                    new_key = key.replace(r'qkv.', r'qkv_')
+                elif r'linear.' in key:
+                    new_key = key.replace(r'linear.', r'proj_')
+                elif r'norm1.weight' in key:
+                    new_key = key.replace(r'norm1.weight', r'attn.pre_ln_scale')
+                elif r'norm1.bias' in key:
+                    new_key = key.replace(r'norm1.bias', r'attn.pre_ln_bias')
+                elif r'fc1.' in key:
+                    new_key = key.replace(r'fc1.', r'_linear1_')
+                elif r'fc2.' in key:
+                    new_key = key.replace(r'fc2.', r'_linear2_')
+                elif r'norm2.weight' in key:
+                    new_key = key.replace(r'norm2.weight', r'mlp._ln1_scale')
+                elif r'norm2.bias' in key:
+                    new_key = key.replace(r'norm2.bias', r'mlp._ln1_bias')
+                else:
+                    continue
+                new_dict.append({new_key: value})
+                poped_keys.append(key)
+            
+            for i in range(len(new_dict)):
+                state_dict.update(new_dict[i])
+                state_dict.pop(poped_keys[i])
+        super().set_state_dict(state_dict)
+
     def load_pretrained(self, prefix_path, finetune=False):
         if not os.path.exists(prefix_path + '.pdparams'):
             raise ValueError("Model pretrain path {} does not "
@@ -219,7 +373,7 @@ class ViT(nn.Layer):
                 paddle.float32)
 
         if not finetune:
-            self.set_dict(param_state_dict)
+            self.set_state_dict(param_state_dict)
             return
 
         for k in ['head0.weight', 'head0.bias', 'head.weight', 'head.bias']:
@@ -255,7 +409,7 @@ class ViT(nn.Layer):
         new_pos_embed = paddle.concat((extra_tokens, pos_tokens), axis=1)
         param_state_dict['pos_embed'] = new_pos_embed
 
-        self.set_dict(param_state_dict)
+        self.set_state_dict(param_state_dict)
         return
 
 def ViT_tiny_patch16_224(**kwargs):
