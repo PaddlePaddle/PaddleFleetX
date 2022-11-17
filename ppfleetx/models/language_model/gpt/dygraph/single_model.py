@@ -630,7 +630,9 @@ class GPTModel(nn.Layer):
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
 
-        if self.training == False:
+        # fused_soiftmax_with_triangular is only suppported on GPU/DCU.
+        # If on non-GPU devices, we use user defined mask and non-fused softmax.
+        if self.training == False or not paddle.is_compiled_with_cuda():
             # TODO, use registered buffer
             causal_mask = paddle.tensor.triu(
                 paddle.ones(
@@ -649,7 +651,7 @@ class GPTModel(nn.Layer):
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
-            tgt_mask=None if self.training else
+            tgt_mask=None if self.training and paddle.is_compiled_with_cuda() else
             attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
