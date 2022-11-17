@@ -67,14 +67,14 @@ class FusedBlock(nn.Layer):
         super().__init__()
 
         assert qk_scale is None, "Fused attention doesn't support qk_scale."
-        if isinstance(drop_path, int):
-            assert drop_path is 0, "Fused attention doesn't support drop_path."
+        if isinstance(drop_path, float):
+            assert drop_path == 0.0, "Fused attention doesn't support drop_path."
         elif isinstance(drop_path, list):
-            assert drop_path is [0] * len(
+            assert drop_path == [0.0] * len(
                 drop_path), "Fused attention doesn't support drop_path."
-        assert norm_layer is "nn.LayerNorm", "Fused attention only support nn.LayerNorm"
+        assert norm_layer == "nn.LayerNorm", "Fused attention only support nn.LayerNorm"
         assert ((act_layer == nn.GELU) or (act_layer == nn.ReLU)) or \
-                (isinstance(act_layer, str) and act_layer.lower() is "gelu" or act_layer.lower() is "relu"), \
+                (isinstance(act_layer, str) and act_layer.lower() == "gelu" or act_layer.lower() == "relu"), \
                 "Fused attention only support GELU and ReLU activation."
 
         self.attn = FusedMultiHeadAttention(
