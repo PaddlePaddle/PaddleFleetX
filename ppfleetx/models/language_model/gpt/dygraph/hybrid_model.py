@@ -779,7 +779,7 @@ class GPTModelHybrid(nn.Layer):
             input_ids=input_ids, position_ids=position_ids)
 
         # fused_soiftmax_with_triangular is only suppported on GPU/DCU.
-        # If on XPU, we use user defined mask and non-fused softmax.
+        # If on non-GPU devices, we use user defined mask and non-fused softmax.
         if self.training == False or not paddle.is_compiled_with_cuda():
             # TODO, use registered buffer
             causal_mask = paddle.tensor.triu(
