@@ -287,12 +287,6 @@ class EagerEngine(BasicEngine):
                 if step < self._load_recovery['step']:
                     continue
 
-            if self._use_dali:
-                batch = [
-                    paddle.to_tensor(batch[0]['data']),
-                    paddle.to_tensor(batch[0]['label'])
-                ]
-
             loss = self._fit_impl(batch)
             train_losses.append(loss)
 
@@ -542,12 +536,6 @@ class EagerEngine(BasicEngine):
         eval_losses = []
         total_eval_batch = len(valid_data_loader)
         for eval_step, batch in enumerate(valid_data_loader):
-            if self._use_dali:
-                batch = [
-                    paddle.to_tensor(batch[0]['data']),
-                    paddle.to_tensor(batch[0]['label'])
-                ]
-
             loss = self._evaluate_impl(batch)
             eval_losses.append(loss.numpy()[0])
 
