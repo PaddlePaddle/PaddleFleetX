@@ -37,7 +37,7 @@ from .sequence_parallel_utils import ScatterOp, GatherOp, \
 
 from ppfleetx.distributed.moe import MoELayer
 from ppfleetx.distributed.apis import env
-
+from ppfleetx.utils.log import logger
 
 def get_attr(layer, name):
     if getattr(layer, name, None) is not None:
@@ -778,13 +778,16 @@ class GPTModelHybrid(nn.Layer):
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
 
-        if self.training == False:
+        # fused_soiftmax_with_triangular is only suppported on GPU/DCU.
+        # If on non-GPU devices, we use user defined mask and non-fused softmax.
+        if self.training == False or not paddle.is_compiled_with_cuda():
             # TODO, use registered buffer
             causal_mask = paddle.tensor.triu(
                 paddle.ones(
                     (paddle.shape(input_ids)[-1], paddle.shape(input_ids)[-1]))
                 * -1e4,
                 diagonal=1)
+            logger.debug(f"attention mask: {attention_mask}")
             if attention_mask is not None:
                 if len(attention_mask.shape) == 2:
                     attention_mask = attention_mask[:, None, None, :]
@@ -797,7 +800,7 @@ class GPTModelHybrid(nn.Layer):
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
-            tgt_mask=None if self.training else
+            tgt_mask=None if self.training and paddle.is_compiled_with_cuda() else
             attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
