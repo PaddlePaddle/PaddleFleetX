@@ -34,15 +34,7 @@ from ppfleetx.models import build_module
 from ppfleetx.core import EagerEngine
 from ppfleetx.distributed.apis import env
 
-
-def set_default_flags(flags):
-    for flag_name, flag_value in flags.items():
-        if os.getenv(flag_name) is None:
-            paddle.set_flags({flag_name: flag_value})
-
-
 if __name__ == "__main__":
-    set_default_flags({'FLAGS_enable_cublas_tensor_op_math': True, })
 
     args = config.parse_args()
     cfg = config.get_config(args.config, overrides=args.override, show=False)
