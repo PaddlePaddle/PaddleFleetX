@@ -160,9 +160,8 @@ def _reduce_scatter(tensor, sync_op=True):
     tensor_shape[0] = divide(tensor_shape[0], group.nranks)
     output = paddle.zeros(tensor_shape, tensor.dtype)
     output.stop_gradient = tensor.stop_gradient
-    task = group.process_group._reduce_scatter_base(
-        output, tensor, paddle.fluid.core.ReduceOp.SUM)
-    task.wait()
+    dist.stream.reduce_scatter(
+        output, tensor, op=dist.ReduceOp.SUM, group=group, sync_op=True)
     return output
 
 
@@ -246,19 +245,11 @@ def _all_to_all(tensor, in_axis=-1, out_axis=-1, sync_op=True):
     group = scg.dap_group
     tensor_shape = list(tensor.shape)
 
-    #TODO(GuoxiaWang): remove cast when paddle process_group.alltoall support bfloat16 
-    dtype = tensor.dtype
-    if dtype == paddle.bfloat16:
-        tensor = tensor.astype(paddle.float32)
-
     out = paddle.zeros(tensor_shape, tensor.dtype)
     out.stop_gradient = tensor.stop_gradient
     task = group.process_group.alltoall(tensor, out)
     task.wait()
 
-    #TODO(GuoxiaWang): remove cast when paddle process_group.alltoall support bfloat16 
-    if dtype == paddle.bfloat16:
-        out = out.astype(dtype)
     return out
 
 

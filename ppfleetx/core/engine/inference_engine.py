@@ -19,6 +19,13 @@ from collections.abc import Sequence, Mapping
 import paddle
 import paddle.distributed.fleet as fleet
 
+# TensorRT precisions
+TRT_PRECISIONS = {
+    'fp32': paddle.inference.PrecisionType.Float32,
+    'fp16': paddle.inference.PrecisionType.Half,
+    'int8': paddle.inference.PrecisionType.Int8,
+}
+
 
 class _StaticGuard(object):
     def __init__(self):
@@ -31,6 +38,69 @@ class _StaticGuard(object):
         paddle.disable_static()
 
 
+class TensorRTConfig(object):
+    """
+    TensorRT Inference Configuration
+
+    Args:
+        max_batch_size (int): The maxmum batch size of input data. Default 1
+        workspace_size (int): The size of TensorRT workspace in bytes. Default 1<<30
+        min_subgraph_size (int): The minimum subgraph node size to convert subgraph to TensorRT engine. Default 3
+        precision (str): The inference precision, can be 'fp32', 'fp16' and 'int8'. Default 'fp16'
+        use_static (bool): Whether to serialize and save TensorRT engine. Default False
+        use_calib_mode (bool): Whether to use TensorRT calibration. Default False
+        collect_shape (bool): Whether to collect dynamic shape. Default False
+        shape_range_info_filename (str): Path to dynamic shape range file. Default None
+    """
+
+    def __init__(self,
+                 max_batch_size=1,
+                 workspace_size=1<<30,
+                 min_subgraph_size=3,
+                 precision='fp16',
+                 use_static=False,
+                 use_calib_mode=False,
+                 collect_shape=False,
+                 shape_range_info_filename=None):
+        self.max_batch_size = max_batch_size
+        self.workspace_size = eval(workspace_size)
+        self.min_subgraph_size = min_subgraph_size
+        self.precision = precision
+        self.use_static = use_static
+        self.use_calib_mode = use_calib_mode
+        self.shape_range_info_filename = shape_range_info_filename
+        self.collect_shape = collect_shape
+
+    @property
+    def precision(self):
+        return TRT_PRECISIONS[self._precision]
+
+    @precision.setter
+    def precision(self, value):
+        print("value", value)
+        assert value.lower() in ['fp32', 'fp16', 'int8'], \
+            "TensorRT precision can only be 'fp32', 'fp16' or 'int8', " \
+            "but got {}".format(value.lower())
+        self._precision = value.lower()
+
+    @property
+    def collect_shape(self):
+        return self._collect_shape
+
+    @collect_shape.setter
+    def collect_shape(self, value):
+        if value:
+            assert self.shape_range_info_filename is not None, \
+                    "shape_range_info_filename should be set in " \
+                    "collect_shape mode"
+        else:
+            assert self.shape_range_info_filename and \
+                    os.path.isfile(self.shape_range_info_filename), \
+                    "shape_range_info_filename {} is not a " \
+                    "file".format(self.shape_range_info_filename)
+        self._collect_shape = value
+
+
 class InferenceEngine(object):
     """
     Model Parallel Inference Engine
@@ -38,11 +108,13 @@ class InferenceEngine(object):
     Args:
         model_dir (string): root directory of inference model
         mp_degree (int): model parallel size
+        tensorrt_config (TensorRTConfig): configurations for TensorRT inference
     """
 
-    def __init__(self, model_dir, mp_degree=1):
+    def __init__(self, model_dir, mp_degree=1, tensorrt_config=None):
         self.model_dir = model_dir
         self.mp_degree = mp_degree
+        self.tensorrt_config = tensorrt_config
 
         if mp_degree == 1:
             self.nranks = 1
@@ -123,10 +195,23 @@ class InferenceEngine(object):
             dist_config.set_comm_init_config(config_fname)
             config.set_dist_config(dist_config)
 
-        # FIXME(dengkaipeng): remove this after constant_folding_pass fixed
-        config.delete_pass('constant_folding_pass')
-        config.delete_pass('fused_multi_transformer_encoder_fuse_qkv_pass')
-        config.delete_pass('fused_multi_transformer_decoder_fuse_qkv_pass')
+        # TensorRT config
+        if self.tensorrt_config:
+            config.enable_tensorrt_engine(
+                    max_batch_size=self.tensorrt_config.max_batch_size,
+                    workspace_size=self.tensorrt_config.workspace_size,
+                    min_subgraph_size=self.tensorrt_config.min_subgraph_size,
+                    precision_mode=self.tensorrt_config.precision,
+                    use_static=self.tensorrt_config.use_static,
+                    use_calib_mode=self.tensorrt_config.use_calib_mode)
+
+            if self.tensorrt_config.collect_shape:
+                config.collect_shape_range_info(
+                        self.tensorrt_config.shape_range_info_filename)
+            else:
+                config.enable_tuned_tensorrt_dynamic_shape(
+                        self.tensorrt_config.shape_range_info_filename,
+                        True)
 
         self.predictor = paddle.inference.create_predictor(config)
 
