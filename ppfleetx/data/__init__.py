@@ -29,6 +29,12 @@ def build_auto_dataset(config, mode):
     """
     build dataset for auto parallel
     """
+    assert mode in ['Train', 'Eval', 'Test'
+                    ], "Dataset mode should be Train, Eval, Test"
+
+    if mode not in config:
+        return None
+
     dataset = build_dataset(config, mode)
 
     collate_fn = None

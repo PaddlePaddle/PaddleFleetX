@@ -1,4 +1,72 @@
-_base_: ./ViT_base_patch16_224_pt_in1k_2n16c_dp_fp16o2.yaml
+Global:
+  device: gpu
+  seed: 2021
+  global_batch_size:
+  local_batch_size: 1
+  micro_batch_size: 1
+
+Distributed:
+  dp_degree:
+  mp_degree: 1
+  pp_degree: 1
+  sharding:
+    sharding_degree: 1
+    sharding_stage: 1
+    sharding_offload: False
+    reduce_overlap: False
+    broadcast_overlap: False
+
+Engine:
+  run_mode: 'epoch'
+  num_train_epochs: 300
+  eval_freq: 1
+  accumulate_steps: 1
+  logging_freq: 10
+  mix_precision:
+    use_pure_fp16: True
+    scale_loss: 32768.0
+    custom_black_list: ["reduce_sum", "elementwise_div"]
+    custom_white_list: []
+  save_load:
+    save_epoch: 1
+    output_dir: ./output
+    ckpt_dir: ./ckpt
+
+Model:
+  use_recompute: False
+  module: "GeneralClsModule"
+  model:
+    name: "ViT_base_patch16_224"
+    class_num: 1000
+    drop_rate: 0.1
+  loss:
+    train:
+      name: 'ViTCELoss'
+      epsilon: 0.0001
+    eval:
+      name: 'CELoss'
+  metric:
+    train:
+      name: 'TopkAcc'
+      topk: [1, 5]
+    eval:
+      name: 'TopkAcc'
+      topk: [1, 5]
+
+Optimizer:
+  name: AdamW
+  weight_decay: 0.3
+  beta1: 0.9
+  beta2: 0.999
+  epsilon: 1.0e-8
+  lr:
+    name: ViTLRScheduler
+    learning_rate: 0.003
+    decay_type: cosine
+    warmup_steps: 10000
+  grad_clip:
+    name: "ClipGradByGlobalNorm"
+    clip_norm: 1.0
 
 Inference:
   model_dir: ./output
