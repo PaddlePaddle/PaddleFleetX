@@ -1125,7 +1125,7 @@ class GPTForGeneration(nn.Layer):
                         import custom_setup_ops
                     except ImportError:
                         raise ImportError(
-                            "please install custom_setup_ops by 'cd ops && python setup_cuda.py install'!"
+                            "please install custom_setup_ops by 'cd ppfleetx/ops && python setup_cuda.py install'!"
                         )
                     top_ps_tensor = paddle.full(
                         shape=[paddle.shape(probs)[0]],

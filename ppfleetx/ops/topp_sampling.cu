@@ -432,8 +432,8 @@ int GetBlockSize(int vocab_size) {
 }
 
 template <paddle::DataType D>
-std::vector<paddle::Tensor> top_p_sampling_kernel(const paddle::Tensor &x,
-                                                  const paddle::Tensor &top_ps) {
+std::vector<paddle::Tensor>
+top_p_sampling_kernel(const paddle::Tensor &x, const paddle::Tensor &top_ps) {
   typedef PDTraits<D> traits_;
   typedef typename traits_::DataType DataType_;
   typedef typename traits_::data_t data_t;
@@ -465,7 +465,8 @@ std::vector<paddle::Tensor> top_p_sampling_kernel(const paddle::Tensor &x,
   static curandState_t *dev_curand_states;
   if (count == 0) {
 #if CUDA_VERSION >= 11020
-    cudaMallocAsync(&dev_curand_states, max_bs * sizeof(curandState_t), cu_stream);
+    cudaMallocAsync(&dev_curand_states, max_bs * sizeof(curandState_t),
+                    cu_stream);
 #else
     cudaMalloc(&dev_curand_states, max_bs * sizeof(curandState_t));
 #endif
@@ -548,17 +549,17 @@ std::vector<paddle::Tensor> top_p_sampling_kernel(const paddle::Tensor &x,
 std::vector<paddle::Tensor> TopPSampling(const paddle::Tensor &x,
                                          const paddle::Tensor &top_ps) {
   switch (x.type()) {
-    case paddle::DataType::FLOAT16: {
-      return top_p_sampling_kernel<paddle::DataType::FLOAT16>(x, top_ps);
-    }
-    case paddle::DataType::FLOAT32: {
-      return top_p_sampling_kernel<paddle::DataType::FLOAT32>(x, top_ps);
-    }
-    default: {
-      PD_THROW("NOT supported data type. "
-              "Only float16 and float32 are supported. ");
-      break;
-    }
+  case paddle::DataType::FLOAT16: {
+    return top_p_sampling_kernel<paddle::DataType::FLOAT16>(x, top_ps);
+  }
+  case paddle::DataType::FLOAT32: {
+    return top_p_sampling_kernel<paddle::DataType::FLOAT32>(x, top_ps);
+  }
+  default: {
+    PD_THROW("NOT supported data type. "
+             "Only float16 and float32 are supported. ");
+    break;
+  }
   }
 }
 
