@@ -14,12 +14,12 @@
 
 import paddle
 import numpy as np
-import custom_setup_ops
+from ppfleetx.ops import topp_sampling
 
 paddle.seed(2022)
 
 x = paddle.randn([1, 51200], dtype="float16")
 x = paddle.nn.functional.softmax(x)
 top_ps = paddle.to_tensor(np.random.uniform(0, 1, [1]).astype(np.float16))
-out = custom_setup_ops.topp_sampling(x, top_ps, 8)
+out = topp_sampling(x, top_ps)
 print(out)
