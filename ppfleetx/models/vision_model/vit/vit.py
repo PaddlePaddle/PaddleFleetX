@@ -67,9 +67,9 @@ class FusedBlock(nn.Layer):
         super().__init__()
 
         assert qk_scale is None, "Fused attention doesn't support qk_scale."
-        if isinstance(drop_path, float):
+        if isinstance(drop_path, (float, int)):
             assert drop_path == 0.0, "Fused attention doesn't support drop_path."
-        elif isinstance(drop_path, list):
+        elif isinstance(drop_path, (tuple, list)):
             assert drop_path == [0.0] * len(
                 drop_path), "Fused attention doesn't support drop_path."
         assert norm_layer == "nn.LayerNorm", "Fused attention only support nn.LayerNorm"
@@ -87,11 +87,15 @@ class FusedBlock(nn.Layer):
             epsilon=epsilon)
 
         mlp_hidden_dim = int(dim * mlp_ratio)
+        if (act_layer == nn.GELU) or act_layer.lower() == "gelu":
+            act_func = "gelu"
+        else:
+            act_func = "relu"
         self.mlp = FusedFeedForward(
             d_model=dim,
             dim_feedforward=mlp_hidden_dim,
             dropout_rate=drop,
-            activation="gelu",
+            activation=act_func,
             act_dropout_rate=drop,
             normalize_before=True)
 
@@ -185,7 +189,7 @@ class ViT(nn.Layer):
         super().__init__()
         self.class_num = class_num
         self.representation_size = representation_size
-
+        self.num_heads = num_heads
         self.num_features = self.embed_dim = embed_dim
 
         self.patch_embed = ViTPatchEmbed(
@@ -204,38 +208,25 @@ class ViT(nn.Layer):
         dpr = np.linspace(0, drop_path_rate, depth)
 
         self.use_fused_attn = use_fused_attn
+        block_fn = FusedBlock if self.use_fused_attn else Block
         if self.use_fused_attn:
             logger.info(
                 "ViT use fused attention. Fused attention model checkpoint will be" \
                 " saved in normal attention format for inference checkpoint export," \
                 " and its optimizer checkpoint keeps the same.")
-            self.blocks = nn.LayerList([
-                FusedBlock(
-                    dim=embed_dim,
-                    num_heads=num_heads,
-                    mlp_ratio=mlp_ratio,
-                    qkv_bias=qkv_bias,
-                    qk_scale=qk_scale,
-                    drop=drop_rate,
-                    attn_drop=attn_drop_rate,
-                    drop_path=dpr[i],
-                    norm_layer=norm_layer,
-                    epsilon=epsilon) for i in range(depth)
-            ])
-        else:
-            self.blocks = nn.LayerList([
-                Block(
-                    dim=embed_dim,
-                    num_heads=num_heads,
-                    mlp_ratio=mlp_ratio,
-                    qkv_bias=qkv_bias,
-                    qk_scale=qk_scale,
-                    drop=drop_rate,
-                    attn_drop=attn_drop_rate,
-                    drop_path=dpr[i],
-                    norm_layer=norm_layer,
-                    epsilon=epsilon) for i in range(depth)
-            ])
+        self.blocks = nn.LayerList([
+            block_fn(
+                dim=embed_dim,
+                num_heads=num_heads,
+                mlp_ratio=mlp_ratio,
+                qkv_bias=qkv_bias,
+                qk_scale=qk_scale,
+                drop=drop_rate,
+                attn_drop=attn_drop_rate,
+                drop_path=dpr[i],
+                norm_layer=norm_layer,
+                epsilon=epsilon) for i in range(depth)
+        ])
 
         self.norm = eval(norm_layer)(embed_dim, epsilon=epsilon)
 
@@ -288,6 +279,25 @@ class ViT(nn.Layer):
         x = self.head(x)
         return x
 
+    # Saved the fused attention checkpoint in origin attention checkpoint format
+    replaced_dict = {
+        # FusedMultiHeadAttention
+        'attn.pre_ln_scale': 'norm1.weight',
+        'attn.pre_ln_bias': 'norm1.bias',
+        'attn.qkv_weight': 'attn.qkv.weight',
+        'attn.qkv_bias': 'attn.qkv.bias',
+        'attn.linear_weight': 'attn.proj.weight',
+        'attn.linear_bias': 'attn.proj.bias',
+        # FusedFeedForward
+        'mlp._ln1_scale': 'norm2.weight',
+        'mlp._ln1_bias': 'norm2.bias',
+        'mlp._linear1_weight': 'mlp.fc1.weight',
+        'mlp._linear1_bias': 'mlp.fc1.bias',
+        'mlp._linear2_weight': 'mlp.fc2.weight',
+        'mlp._linear2_bias': 'mlp.fc2.bias',
+    }
+
+    @paddle.no_grad()
     def state_dict(self,
                    destination=None,
                    include_sublayers=True,
@@ -299,59 +309,49 @@ class ViT(nn.Layer):
             new_dict = []
             poped_keys = []
             for key, value in state_dict.items():
-                if r'qkv_' in key:
-                    new_key = key.replace(r'qkv_', r'qkv.')
-                elif r'linear_' in key:
-                    new_key = key.replace(r'linear_', r'proj.')
-                elif r'attn.pre_ln_scale' in key:
-                    new_key = key.replace(r'attn.pre_ln_scale',
-                                          r'norm1.weight')
-                elif r'attn.pre_ln_bias' in key:
-                    new_key = key.replace(r'attn.pre_ln_bias', r'norm1.bias')
-                elif r'_linear1_' in key:
-                    new_key = key.replace(r'_linear1_', r'fc1.')
-                elif r'_linear2_' in key:
-                    new_key = key.replace(r'_linear2_', r'fc2.')
-                elif r'mlp._ln1_scale' in key:
-                    new_key = key.replace(r'mlp._ln1_scale', r'norm2.weight')
-                elif r'mlp._ln1_bias' in key:
-                    new_key = key.replace(r'mlp._ln1_bias', r'norm2.bias')
-                else:
-                    continue
-                new_dict.append({new_key: value})
-                poped_keys.append(key)
+                new_key = ""
+                for k, v in self.replaced_dict.items():
+                    if k in key:
+                        new_key = key.replace(k, v)
+                        break
+                if new_key != "":
+                    if 'attn.qkv.weight' in new_key:
+                        value = value.reshape([-1, value.shape[-1]]).transpose(
+                            [1, 0])
+                    if 'attn.qkv.bias' in new_key:
+                        value = value.reshape([-1])
+                    new_dict.append({new_key: value})
+                    poped_keys.append(key)
 
             for i in range(len(new_dict)):
                 state_dict.update(new_dict[i])
                 state_dict.pop(poped_keys[i])
         return state_dict
 
+    @paddle.no_grad()
     def set_state_dict(self, state_dict, use_structured_name=True):
+        reversed_replaced_dict = {}
+        for k, v in self.replaced_dict.items():
+            reversed_replaced_dict.update({v: k})
+
         if self.use_fused_attn:
             new_dict = []
             poped_keys = []
             for key, value in state_dict.items():
-                if r'qkv.' in key:
-                    new_key = key.replace(r'qkv.', r'qkv_')
-                elif r'linear.' in key:
-                    new_key = key.replace(r'linear.', r'proj_')
-                elif r'norm1.weight' in key:
-                    new_key = key.replace(r'norm1.weight',
-                                          r'attn.pre_ln_scale')
-                elif r'norm1.bias' in key:
-                    new_key = key.replace(r'norm1.bias', r'attn.pre_ln_bias')
-                elif r'fc1.' in key:
-                    new_key = key.replace(r'fc1.', r'_linear1_')
-                elif r'fc2.' in key:
-                    new_key = key.replace(r'fc2.', r'_linear2_')
-                elif r'norm2.weight' in key:
-                    new_key = key.replace(r'norm2.weight', r'mlp._ln1_scale')
-                elif r'norm2.bias' in key:
-                    new_key = key.replace(r'norm2.bias', r'mlp._ln1_bias')
-                else:
-                    continue
-                new_dict.append({new_key: value})
-                poped_keys.append(key)
+                new_key = ""
+                for k, v in reversed_replaced_dict.items():
+                    if k in key:
+                        new_key = key.replace(k, v)
+                        break
+                if new_key != "":
+                    if 'attn.qkv_weight' in new_key:
+                        value = value.transpose([1, 0])
+                        value = value.reshape(
+                            [3, self.num_heads, -1, value.shape[-1]])
+                    if 'attn.qkv_bias' in new_key:
+                        value = value.reshape([3, self.num_heads, -1])
+                    new_dict.append({new_key: value})
+                    poped_keys.append(key)
 
             for i in range(len(new_dict)):
                 state_dict.update(new_dict[i])
@@ -539,6 +539,8 @@ def ViT_huge_patch14_224(**kwargs):
                 depth=32,
                 num_heads=16,
                 mlp_ratio=4,
+                qkv_bias=True,
+                epsilon=1e-6,
                 representation_size=1280,
                 **kwargs)
     return model
@@ -551,6 +553,8 @@ def ViT_huge_patch14_384(**kwargs):
                 depth=32,
                 num_heads=16,
                 mlp_ratio=4,
+                qkv_bias=True,
+                epsilon=1e-6,
                 representation_size=None,
                 **kwargs)
     return model
