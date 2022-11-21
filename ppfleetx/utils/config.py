@@ -120,22 +120,11 @@ def process_global_configs(config):
                 paddle.set_flags({flag_name: flag_value})
 
     # Set environment variable
-    # Whether clublas computation is placed on Tensor core
-    if 'enable_cublas_tensor_op_math' in global_cfg:
-        set_default_flags({
-            'FLAGS_enable_cublas_tensor_op_math':
-            global_cfg['enable_cublas_tensor_op_math']
-        })
-        logger.info("FLAGS_enable_cublas_tensor_op_math is set {}.".format(
-            global_cfg['enable_cublas_tensor_op_math']))
-    # Whether gemm computation type is half precision, if set False, computation uses float32
-    if 'gemm_use_half_precision_compute_type' in global_cfg:
-        set_default_flags({
-            'FLAGS_gemm_use_half_precision_compute_type':
-            global_cfg['gemm_use_half_precision_compute_type']
-        })
-        logger.info("FLAGS_gemm_use_half_precision_compute_type is set {}.".
-                    format(global_cfg['gemm_use_half_precision_compute_type']))
+    flags = global_cfg.get("flags", {})
+    print(flags)
+    set_default_flags(flags)
+    for k, v in flags.items():
+        logger.info("Environment variable {} is set {}.".format(k, v))
 
     if global_cfg['global_batch_size'] is None and global_cfg[
             'local_batch_size'] is None:
