@@ -319,6 +319,11 @@ Quantization:
 
 ## 1. 模型导出
 
+top_p采样加速依赖：
+```bash
+cd ops
+python setup.py install
+```
 <!-- 首先将模型导出为用于部署的推理模型，可通过`tools/export.py`进行模型导出，通过`-c`指定需要导出的模型的配置文件，通过`-o Engine.save_load.ckpt_dir=`指定导出模型时使用的权重。 -->
 首先将模型导出为用于部署的推理模型，可通过`projects/gpt/auto_export_gpt_***.sh`进行模型导出，通过`-c`指定需要导出的模型的配置文件。
 
@@ -367,8 +372,17 @@ python tasks/gpt/inference.py -c ppfleetx/configs/nlp/gpt/inference_gpt_345M_sin
 ```
 
 ## 3. 推理性能测试
+- 单卡测试
 ```bash
-python tasks/gpt/run_inference.py --seq_len 128 --iter 10 --mp_size $MP_SIZE --model_dir output
+
+export CUDA_VISIBLE_DEVICES=0
+python -m paddle.distributed.launch --devices "0" tasks/gpt/run_inference.py  --seq_len 128 --iter 10 --mp_size 1 --model_dir output
+```
+
+- 多卡测试
+```bash
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+python -m paddle.distributed.launch --devices "0,1,2,3,4,5,6,7" tasks/gpt/run_inference.py  --seq_len 128 --iter 10 --mp_size 8 --model_dir output
 ```
 
 

@@ -25,16 +25,15 @@ def predict(engine, data, args):
             handle = engine.predictor.get_input_handle(name)
             handle.copy_from_cpu(d)
         
-        for _ in range(10):
+        for _ in range(1):
             engine.predictor.run()
         engine.predictor.get_output_handle(engine.output_names()[0]).copy_to_cpu()
-        
         
         start = time.perf_counter()
         for _ in range(args.iter):
             engine.predictor.run()
         end = time.perf_counter()
-        print("run time: ", 1000 * (end - start) / 10, " ms")
+        print(f"batch {args.iter} run time: {1000 * (end - start) / args.iter}ms")
         
         return {name: engine.predictor.get_output_handle(name).copy_to_cpu() \
                 for name in engine.output_names()}
@@ -46,7 +45,6 @@ def main():
 
     fleet.init(is_collective=True)
     infer_engine = InferenceEngine(args.model_dir, args.mp_size)
-    batch = args.batch
     ids = [100] * args.seq_len
     
     # run test

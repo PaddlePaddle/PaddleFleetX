@@ -130,33 +130,8 @@ class InferenceEngine(object):
             self._init_predictor()
 
     def _check_model(self):
-        if not os.path.isdir(self.model_dir):
-            raise ValueError('model_dir is not a directory')
-
-        rank_path = os.path.join(self.model_dir, "rank_{}".format(self.rank))
-        if not os.path.isdir(rank_path):
-            raise ValueError('rank_{} directory not found'.format(self.rank))
-        model_files = []
-        param_files = []
-        for fname in os.listdir(rank_path):
-            if os.path.splitext(fname)[1] == '.pdmodel':
-                model_files.append(fname)
-            if os.path.splitext(fname)[1] == '.pdiparams':
-                param_files.append(fname)
-
-        def _check_and_get_file(files, tag):
-            if len(files) == 0:
-                raise ValueError("no {} file found under {}".format(tag,
-                                                                    rank_path))
-            elif len(files) > 1:
-                raise ValueError("multiple {} file found under {}".format(
-                    tag, rank_path))
-            else:
-                return os.path.join(self.model_dir,
-                                    'rank_{}'.format(self.rank), files[0])
-
-        self.model_file = _check_and_get_file(model_files, 'pdmodel')
-        self.param_file = _check_and_get_file(param_files, 'pdiparams')
+        self.model_file = './{}/auto_dist{}.pdmodel'.format(self.model_dir, self.rank)
+        self.param_file = './{}/auto_dist{}.pdiparams'.format(self.model_dir, self.rank)
 
     def _generate_comm_init_config(self, rank, nranks):
         ring_id_to_ranks = ','.join(['0'] + [str(i) for i in range(nranks)])
@@ -164,7 +139,7 @@ class InferenceEngine(object):
         comm_str = '[ring_id -> ranks]\n' + ring_id_to_ranks + \
                     '\n[rank -> ring_ids]\n' + rank_to_ring_ids
 
-        config_fname = "./.comm_config{}.csv".format(rank)
+        config_fname = "/tmp/.comm_config{}.csv".format(rank)
         if os.path.exists(config_fname):
             os.remove(config_fname)
         with open(config_fname, 'w') as f:
