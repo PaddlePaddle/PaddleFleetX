@@ -22,6 +22,7 @@ import logging
 from .log import logger, advertise
 
 from . import check
+import paddle
 import paddle.distributed as dist
 import paddle.distributed.auto_parallel as auto
 from paddle.fluid.reader import use_pinned_memory
@@ -113,15 +114,9 @@ def process_global_configs(config):
 
     global_cfg = config['Global']
 
-    def set_default_flags(flags):
-        import paddle
-        for flag_name, flag_value in flags.items():
-            if os.getenv(flag_name) is None:
-                paddle.set_flags({flag_name: flag_value})
-
     # Set environment variable
     flags = global_cfg.get("flags", {})
-    set_default_flags(flags)
+    paddle.set_flags(flags)
     for k, v in flags.items():
         logger.info("Environment variable {} is set {}.".format(k, v))
 
