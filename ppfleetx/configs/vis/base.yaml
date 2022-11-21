@@ -4,6 +4,8 @@ Global:
   global_batch_size: 
   local_batch_size: 1
   micro_batch_size: 1
+  enable_cublas_tensor_op_math: True
+  gemm_use_half_precision_compute_type: False
 
 Engine:
   run_mode: epoch
