@@ -315,12 +315,19 @@ class ViT(nn.Layer):
                         new_key = key.replace(k, v)
                         break
                 if new_key != "":
+                    value_name = value.name
                     if 'attn.qkv.weight' in new_key:
                         value = value.reshape([-1, value.shape[-1]]).transpose(
                             [1, 0])
                     if 'attn.qkv.bias' in new_key:
                         value = value.reshape([-1])
-                    new_dict.append({new_key: value})
+                    # value is a Tensor after transformation,
+                    # it will be transformed to ParamBase for auto_infer
+                    param = paddle.create_parameter(
+                        shape=value.shape, dtype=value.dtype)
+                    param.set_value(value)
+                    param.name = value_name
+                    new_dict.append({new_key: param})
                     poped_keys.append(key)
 
             for i in range(len(new_dict)):
