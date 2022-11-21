@@ -121,7 +121,6 @@ def process_global_configs(config):
 
     # Set environment variable
     flags = global_cfg.get("flags", {})
-    print(flags)
     set_default_flags(flags)
     for k, v in flags.items():
         logger.info("Environment variable {} is set {}.".format(k, v))
