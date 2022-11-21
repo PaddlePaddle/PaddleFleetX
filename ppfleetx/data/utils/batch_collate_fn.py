@@ -131,15 +131,18 @@ class ErnieCollateData():
 
     def __call__(self, data):
         accumulate_steps = len(data) // self.micro_batch_size
-
-        self.micro_batch_size = len(data) // accumulate_steps
-        all_data = [[] for _ in range(6)]
-        for acc_step in range(accumulate_steps):
-            tmp = self.generate_data(data[acc_step * self.micro_batch_size:(
-                acc_step + 1) * self.micro_batch_size])
-            for i in range(6):
-                all_data[i].append(tmp[i])
-        return all_data
+        if accumulate_steps == 1:
+            return self.generate_data(data)
+        else:
+            self.micro_batch_size = len(data) // accumulate_steps
+            all_data = [[] for _ in range(6)]
+            for acc_step in range(accumulate_steps):
+                tmp = self.generate_data(
+                    data[acc_step * self.micro_batch_size:(acc_step + 1) *
+                         self.micro_batch_size])
+                for i in range(6):
+                    all_data[i].append(tmp[i])
+            return all_data
 
 
 def imagen_collate_fn(batch):

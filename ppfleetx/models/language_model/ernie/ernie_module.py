@@ -110,6 +110,12 @@ class ErnieModule(BasicModule):
         if self.configs.Distributed.pp_degree > 1:
             input_ids, segment_ids, input_mask, masked_lm_positions, \
                         masked_lm_labels, next_sentence_labels = batch
+
+            if not isinstance(masked_lm_positions, list):
+                masked_lm_positions = [masked_lm_positions]
+            if not isinstance(masked_lm_labels, list):
+                masked_lm_labels = [masked_lm_labels]
+
             data = [
                 (input_ids, segment_ids, input_mask),
                 (masked_lm_positions, masked_lm_labels, next_sentence_labels)
