@@ -15,5 +15,5 @@
 from paddle.utils.cpp_extension import CUDAExtension, setup
 
 setup(
-    name='ppfleetx.ops',
+    name='ppfleetx_ops',
     ext_modules=CUDAExtension(sources=['topp_sampling.cu']))

@@ -651,8 +651,8 @@ class GPTModel(nn.Layer):
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
-            tgt_mask=None if self.training and paddle.is_compiled_with_cuda() else
-            attention_mask,  # use softmax_mask_fuse_upper_triangle
+            tgt_mask=None if self.training and paddle.is_compiled_with_cuda()
+            else attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
 
@@ -1124,10 +1124,10 @@ class GPTForGeneration(nn.Layer):
             if top_p is not None and top_p < 1.0:
                 if self.use_topp_sampling:
                     try:
-                        from ppfleetx.ops import topp_sampling
+                        from ppfleetx_ops import topp_sampling
                     except ImportError:
                         raise ImportError(
-                            "please install ppfleetx.ops by 'cd ppfleetx/ops && python setup_cuda.py install'!"
+                            "please install ppfleetx_ops by 'cd ppfleetx/ops && python setup_cuda.py install'!"
                         )
                     top_ps_tensor = paddle.full(
                         shape=[paddle.shape(probs)[0]],

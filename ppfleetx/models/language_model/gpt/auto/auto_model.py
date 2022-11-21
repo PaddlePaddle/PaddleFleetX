@@ -1043,10 +1043,10 @@ class GPTForGenerationAuto(nn.Layer):
             if top_p is not None and top_p < 1.0:
                 if self.use_topp_sampling:
                     try:
-                        from ppfleetx.ops import topp_sampling
+                        from ppfleetx_ops import topp_sampling
                     except ImportError:
                         raise ImportError(
-                            "please install ppfleetx.ops by 'cd ppfleetx/ops && python setup_cuda.py install'!"
+                            "please install ppfleetx_ops by 'cd ppfleetx/ops && python setup_cuda.py install'!"
                         )
                     top_ps_tensor = paddle.full(
                         shape=[paddle.shape(probs)[0]],
