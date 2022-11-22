@@ -22,6 +22,7 @@ import logging
 from .log import logger, advertise
 
 from . import check
+import paddle
 import paddle.distributed as dist
 import paddle.distributed.auto_parallel as auto
 from paddle.fluid.reader import use_pinned_memory
@@ -112,6 +113,13 @@ def process_global_configs(config):
             )
 
     global_cfg = config['Global']
+
+    # Set environment variable
+    flags = global_cfg.get("flags", {})
+    paddle.set_flags(flags)
+    for k, v in flags.items():
+        logger.info("Environment variable {} is set {}.".format(k, v))
+
     if global_cfg['global_batch_size'] is None and global_cfg[
             'local_batch_size'] is None:
         raise ValueError(
