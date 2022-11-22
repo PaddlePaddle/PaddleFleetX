@@ -17,16 +17,13 @@ import sys
 import copy
 import math
 import numpy as np
-import types
 
 import paddle
 from paddle.static import InputSpec
-import paddle.distributed.fleet as fleet
 
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.language_model.gpt as gpt
-from ppfleetx.models.language_model.gpt.dygraph.sequence_parallel_utils import register_sequence_parallel_allreduce_hooks
-from ppfleetx.distributed.apis import env
+from ppfleetx.utils import env
 from ppfleetx.utils.log import logger
 import paddleslim
 from .utils import process_configs
@@ -39,7 +36,6 @@ from paddlenlp.transformers.gpt.tokenizer import GPTChineseTokenizer
 
 MODEL_CLASSES = {
     "GPT": (GPTTokenizer, "gpt2"),
-    "MoE": (GPTTokenizer, "gpt2"),
     "GPT-cn": (GPTChineseTokenizer, "gpt-cpm-large-cn"),
 }
 
@@ -67,6 +63,7 @@ class LanguageModule(BasicModule):
         position_ids.stop_gradient = True
 
         preds = self(tokens, position_ids)
+        preds = preds / self.configs.Engine.T
         loss = self.loss_fn(preds, labels, loss_mask)
 
         return loss
@@ -111,26 +108,9 @@ class LanguageModule(BasicModule):
                log_dict['test_cost'], speed))
 
     def qat_model(self, model):
-        if self.configs.Quantization.pretrained is not None:
-            pretrained_path = self.configs.Quantization.pretrained + ".pdparams"
-            assert os.path.exists(
-                pretrained_path), f'{pretrained_path} is not exists!'
-            model_dict = paddle.load(pretrained_path)
-            for name, param in model.state_dict().items():
-                assert name in model_dict.keys(
-                ), "No param named `{}` was found in checkpoint file.".format(
-                    name)
-                if param.dtype != model_dict[name].dtype:
-                    model_dict[name] = model_dict[name].cast(param.dtype)
-            model.set_state_dict(model_dict)
-            logger.info(
-                f'Load pretrained weight from {pretrained_path} for quantization.'
-            )
-
-        self.quanter = paddleslim.dygraph.quant.QAT(
+        quanter = paddleslim.dygraph.quant.QAT(
             config=self.configs.Quantization)
-
-        return self.quanter.quantize(model)
+        return quanter.quantize(model)
 
     def get_model_size(self, l, h, v, s):
         P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
@@ -141,18 +121,18 @@ class LanguageModule(BasicModule):
         logger.info("[Training] epoch: %d, total time: %.5f sec" %
                     (log_dict['epoch'], log_dict['train_cost']))
 
-
 class GPTModule(LanguageModule):
     def __init__(self, configs):
         super(GPTModule, self).__init__(configs)
-        if configs.Model.sequence_parallel:
-            register_sequence_parallel_allreduce_hooks(
-                self, configs.Engine.accumulate_steps,
-                configs.Distributed.fuse_sequence_parallel_allreduce)
 
     def get_model(self):
         model_setting = copy.deepcopy(self.configs.Model)
         model_setting.pop("module")
+        model_setting.pop("name")
+
+        model_name = model_setting.pop("name")
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
+        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
 
         l = model_setting['num_layers']
         h = model_setting['hidden_size']
@@ -160,14 +140,7 @@ class GPTModule(LanguageModule):
         s = self.configs.Data.Train.dataset.max_seq_len
         self.get_model_size(l, h, v, s)
 
-        model_name = model_setting.pop("name")
-        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
-        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
-
-        moe_configs = model_setting.get('moe_configs', {'expert_mode': False})
-        assert not moe_configs[
-            'expert_mode'], "Not support expert mode in GPT model!"
-        model_setting["moe_configs"] = moe_configs
+        self.tokenizer = GPTTokenizer.from_pretrained("gpt2")
 
         if self.nranks == 1:
             model_setting.pop("sequence_parallel")
@@ -182,7 +155,8 @@ class GPTModule(LanguageModule):
             else:
                 model = gpt.GPTForPretrainingPipe(**model_setting)
 
-        if 'Quantization' in self.configs and self.configs.Quantization.enable:
+        if 'Quantization' in self.configs.keys(
+        ) and self.configs.Quantization.enable:
             model = self.qat_model(model)
 
         return model
@@ -191,8 +165,148 @@ class GPTModule(LanguageModule):
         if self.nranks == 1:
             loss_fn = gpt.GPTPretrainingCriterion()
         else:
-            loss_fn = gpt.GPTPretrainingCriterionHybird(
-                sequence_parallel=self.configs.Model.sequence_parallel)
+            loss_fn = gpt.GPTPretrainingCriterionHybird()
+        return loss_fn
+
+    def pretreating_batch(self, batch):
+        if self.configs.Distributed.pp_degree > 1:
+            tokens, position_ids, labels, loss_mask = batch
+            data = [(tokens, position_ids), (labels, loss_mask)]
+            return data
+        else:
+            return batch
+
+    def input_spec(self):
+        return [
+            InputSpec(
+                shape=[None, None], name="tokens", dtype='int64'), InputSpec(
+                    shape=[None, None], name="ids", dtype='int64')
+        ]
+
+    def inference_end(self, outputs):
+        for k, v in outputs.items():
+            for i in range(v.shape[0]):
+                out_ids = [int(x) for x in v[i]]
+                ret_str = self.tokenizer.decode(out_ids)
+                # ret_str = text[i] + ret_str
+                print(ret_str)
+
+
+class GPTDistillModule(LanguageModule):
+    def __init__(self, configs):
+        super(GPTDistillModule, self).__init__(configs)
+        paddle.distributed.init_parallel_env()
+        self.student_group = paddle.distributed.new_group([0, 1])
+
+    def get_model(self):
+        model_setting = copy.deepcopy(self.configs.Model)
+        
+        if paddle.distributed.get_rank() == 0:
+            '''
+            model_setting['hidden_size'] = 4096
+            model_setting['num_layers'] = 32
+            model_setting['num_attention_heads'] = 32
+            model_setting['ffn_hidden_size'] = 16384
+            '''
+            model_setting['hidden_size'] =2048 
+            model_setting['num_layers'] = 24 
+            model_setting['num_attention_heads'] = 16 
+            model_setting['ffn_hidden_size'] = 8192 
+
+        
+        model_setting.pop("module")
+        model_setting.pop("sequence_parallel")
+
+        l = model_setting['num_layers']
+        h = model_setting['hidden_size']
+        v = model_setting['vocab_size']
+        s = self.configs.Data.Train.dataset.max_seq_len
+        self.get_model_size(l, h, v, s)
+
+        model_name = model_setting.pop("name")
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
+        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
+
+        if paddle.distributed.get_rank() == 0:
+            with paddle.no_grad():
+                model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
+        else:
+            model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
+
+
+        if 'Quantization' in self.configs.keys(
+        ) and self.configs.Quantization.enable and paddle.distributed.get_rank() == 0:
+            model = self.qat_model(model)
+
+        return model
+
+    def training_step(self, batch):
+        tokens, position_ids, labels, loss_mask = batch
+
+        loss_mask.stop_gradient = True
+        labels.stop_gradient = True
+        position_ids.stop_gradient = True
+
+        if self.model.gpt.need_weights is True:
+            preds, weights = self(tokens, position_ids)
+            weights = paddle.cast(weights, 'float32')
+        else:
+            preds = self(tokens, position_ids)
+            preds = paddle.cast(preds, "float32")
+
+        loss = 0.0
+
+        if paddle.distributed.get_rank() == 0:
+            loss = self.loss_fn(preds, labels, loss_mask)
+
+            if self.model.gpt.need_weights is True:
+                weights = self.model.gpt.linear(paddle.transpose(weights, perm=[0,2,3,1]))
+                weights = paddle.transpose(weights, perm=[0,3,1,2])
+
+            paddle.distributed.broadcast(
+                    paddle.to_tensor(weights) if self.model.gpt.need_weights  else paddle.to_tensor(preds),
+                    src=0,
+                    group=self.student_group)
+
+        elif paddle.distributed.get_rank() == 1:
+            with paddle.amp.auto_cast(enable=False):
+                loss = self.loss_fn(preds, labels, loss_mask)
+            
+            if self.model.gpt.need_weights is True:
+                teacher_encoder_output = paddle.zeros([6,16,1024,1024])
+            else:
+                teacher_encoder_output = paddle.zeros(preds.shape)
+
+            teacher_encoder_output.stop_gradient = True
+            paddle.distributed.broadcast(
+                    teacher_encoder_output,
+                    src=0,
+                    group=self.student_group)
+            with paddle.amp.auto_cast(enable=False):
+                
+                if not self.configs.Engine.kd_rejection:
+                    if self.model.gpt.need_weights is True:
+                        dist_loss = paddle.nn.functional.kl_div(weights, teacher_encoder_output, reduction='mean')
+                    else:
+                        dist_loss = paddle.nn.functional.kl_div(preds, teacher_encoder_output, reduction='mean')
+                        #dist_loss = (paddle.nn.functional.kl_div(preds, teacher_encoder_output, reduction='mean') + paddle.nn.functional.kl_div(preds, teacher_encoder_output, reduction='mean')) / 2.0 
+                else:
+                    outputs = paddle.argmax(teacher_encoder_output, -1)
+                    kl_mask = paddle.cast(outputs == labels, 'float32')
+                    if self.model.gpt.need_weights is True:
+                        dist_loss = paddle.nn.functional.kl_div(weights, teacher_encoder_output, reduction='batch_mean')
+                    else:
+                        dist_loss = paddle.nn.functional.kl_div(preds, teacher_encoder_output, reduction='batch_mean')
+                    dist_loss = (dist_loss.mean(axis=-1) * kl_mask).mean()
+                    print("{},{}".format(outputs.shape, labels.shape))
+
+
+                #dist_loss = paddle.nn.functional.mse_loss(preds, teacher_encoder_output, reduction='mean')
+                loss = loss + self.configs.Engine.distil_weight*dist_loss
+        return loss
+
+    def get_loss_fn(self):
+        loss_fn = gpt.GPTPretrainingCriterion()
         return loss_fn
 
     def pretreating_batch(self, batch):
@@ -517,9 +631,6 @@ class GPTGenerationModule(BasicModule):
         self.generation_cfgs['eos_token_id'] = self.tokenizer.eos_token_id
         self.generation_cfgs['pad_token_id'] = self.tokenizer.eos_token_id
 
-        if 'Quantization' in self.configs and self.configs.Quantization.enable:
-            model = self.qat_model(model)
-
         return model
 
     def adjust_length_to_model(self, length, max_sequence_length):
@@ -626,9 +737,6 @@ class GPTEvalModule(LanguageModule):
             raise RuntimeError(
                 "Only single-card offline eval is supported in GPTModel now.")
 
-        if 'Quantization' in self.configs and self.configs.Quantization.enable:
-            model = self.qat_model(model)
-
         return model
 
     def forward(self, tokens, ids, mask):
@@ -699,108 +807,3 @@ class GPTEvalModule(LanguageModule):
             string += 'avg accuracy: {:.4E}'.format(acc)
 
         logger.info(string)
-
-
-class MoEModule(LanguageModule):
-    def __init__(self, configs):
-        super(MoEModule, self).__init__(configs)
-
-        assert self.nranks == configs.Distributed.dp_degree, \
-            "only support single card or data parallel in MoE model."
-
-    def get_model(self):
-        model_setting = copy.deepcopy(self.configs.Model)
-        model_setting.pop("module")
-        model_setting.pop("name")
-
-        l = model_setting['num_layers']
-        h = model_setting['hidden_size']
-        v = model_setting['vocab_size']
-        s = self.configs.Data.Train.dataset.max_seq_len
-        self.get_model_size(l, h, v, s)
-
-        moe_configs = model_setting.get('moe_configs', {'expert_mode': False})
-        model_setting["moe_configs"] = moe_configs
-
-        if self.nranks == 1:
-            model_setting.pop("sequence_parallel")
-            model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
-        else:
-            model_setting[
-                'num_partitions'] = self.configs.Distributed.mp_degree
-            if self.configs.Distributed.pp_degree == 1:
-                model_setting.pop("virtual_pp_degree", None)
-                model = gpt.GPTForPretrainingHybrid(
-                    gpt.GPTModelHybrid(**model_setting))
-            else:
-                model = gpt.GPTForPretrainingPipe(**model_setting)
-
-        return model
-
-    def get_loss_fn(self):
-        if self.nranks == 1:
-            loss_fn = gpt.GPTPretrainingCriterion()
-        else:
-            loss_fn = gpt.GPTPretrainingCriterionHybird()
-        return loss_fn
-
-    def get_model_size(self, l, h, v, s):
-        P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
-        logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 /
-                                                  1000.0))
-
-    def training_step(self, batch):
-        tokens, position_ids, labels, loss_mask = batch
-
-        loss_mask.stop_gradient = True
-        labels.stop_gradient = True
-        position_ids.stop_gradient = True
-
-        preds = self(tokens, position_ids)
-        loss = self.loss_fn(preds, labels, loss_mask)
-
-        with paddle.amp.auto_cast(enable=False):
-            if self.configs.Model.moe_configs.gate != "naive" and \
-                self.configs.Engine.balance_loss_weight:
-
-                gpt_layer = self.model._layers.gpt if isinstance(
-                    self.model, paddle.DataParallel) else self.model.gpt
-
-                aux_loss_list = [
-                    l.moe_mlp.gate.get_loss(clear=False)
-                    for l in gpt_layer.decoder.layers
-                    if hasattr(l.moe_mlp, "gate")
-                ]
-                bal_loss = paddle.concat(aux_loss_list)
-                if bal_loss.dtype == paddle.float16:
-                    bal_loss = paddle.cast(bal_loss, dtype=paddle.float32)
-                bal_loss = bal_loss.mean()
-                loss += bal_loss * self.configs.Engine.balance_loss_weight
-
-        return loss
-
-    def initialize_mp_dp_parameters(self):
-        hcg = env.get_hcg()
-        mp_group = hcg.get_model_parallel_group()
-        mp_src_rank = hcg.get_model_parallel_group_src_rank()
-
-        dp_group = hcg.get_data_parallel_group()
-        dp_src_rank = hcg.get_data_parallel_group_src_rank()
-
-        for param in self.model.parameters():
-            if "expert_" in param.name:
-                setattr(param, "no_sync", True)
-                continue
-
-            if not param.is_distributed:
-                paddle.distributed.broadcast(
-                    param.detach(),
-                    src=mp_src_rank,
-                    group=mp_group,
-                    use_calc_stream=True)
-
-            paddle.distributed.broadcast(
-                param.detach(),
-                src=dp_src_rank,
-                group=dp_group,
-                use_calc_stream=True)

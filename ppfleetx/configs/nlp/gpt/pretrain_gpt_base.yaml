@@ -8,7 +8,7 @@ Global:
 
 
 Engine:
-  max_steps: 500000
+  max_steps: 10000
   num_train_epochs: 1
   accumulate_steps:
   logging_freq: 1
@@ -75,10 +75,10 @@ Optimizer:
   epsilon: 1.0e-8
   lr:
     name: CosineAnnealingWithWarmupDecay
-    decay_steps: 360000
+    decay_steps: 7200
     warmup_rate: 0.01
-    max_lr: 5.0e-5
-    min_lr: 1.0e-5
+    max_lr: 5.0e-6
+    min_lr: 1.0e-6
   grad_clip:
     name: "ClipGradByGlobalNorm"
     clip_norm: 1.0
@@ -90,6 +90,3 @@ Profiler:
   scheduler: [1, 5]
   profiler_log: profiler_log
   detailed: False
-
-Distributed:
-  fuse_sequence_parallel_allreduce: False

@@ -22,7 +22,7 @@ import json
 
 import paddle
 
-from ppfleetx.distributed.apis import env
+from ppfleetx.utils import env
 from ppfleetx.utils.log import logger
 from ppfleetx.data.tokenizers import GPTTokenizer
 
@@ -34,7 +34,6 @@ mode_to_index = {"Train": 0, "Eval": 1, "Test": 2}
 
 MODEL_CLASSES = {
     "GPT": (GPTTokenizer, "gpt2"),
-    "MoE": (GPTTokenizer, "gpt2"),
     "GPT-cn": (GPTChineseTokenizer, "gpt-cpm-large-cn"),
 }
 
@@ -55,6 +54,8 @@ class GPTDataset(paddle.io.Dataset):
 
         local_rank = int(os.getenv("PADDLE_RANK_IN_NODE", 0))
 
+
+        '''
         if local_rank == 0:
             try:
                 import ppfleetx.data.data_tools.cpp.fast_index_map_helpers
@@ -69,7 +70,7 @@ class GPTDataset(paddle.io.Dataset):
                     flush=True)
 
         device_world_size = paddle.distributed.get_world_size()
-
+        device_world_size = 1
         if device_world_size > 1 and local_rank != 0:
             while True:
                 try:
@@ -81,12 +82,13 @@ class GPTDataset(paddle.io.Dataset):
 
         try:
             data_world_size = env.get_data_world_size()
-
+            print(data_world_size)
             logger.info(
                 "The distributed run, total device num:{}, distinct dataflow num:{}.".
                 format(device_world_size, data_world_size))
         except AttributeError:
             pass
+        '''
 
         assert len(input_dir) == 1, "GPT only support one dataset for now."
 

@@ -32,37 +32,12 @@ from .processor import (
     HammingDiversityLogitsProcessor, RepetitionPenaltyLogitsProcessor,
     ForcedBOSTokenLogitsProcessor, ForcedEOSTokenLogitsProcessor)
 
-from ppfleetx.distributed.moe import MoELayer
-
 
 def get_attr(layer, name):
     if getattr(layer, name, None) is not None:
         return getattr(layer, name, None)
     else:
         return get_attr(layer._layer, name)
-
-
-class ExpertLayer(nn.Layer):
-    def __init__(self, d_model, d_hidden, name=None):
-        super(ExpertLayer, self).__init__()
-
-        self.htoh4 = nn.Linear(d_model, d_hidden, \
-            weight_attr=nn.initializer.KaimingUniform(), \
-             bias_attr=nn.initializer.Constant(value=0.0))
-        self.h4toh = nn.Linear(d_hidden, d_model, \
-            weight_attr=nn.initializer.KaimingUniform(), \
-             bias_attr=nn.initializer.Constant(value=0.0))
-
-        self.htoh4.weight.name = "expert_" + self.htoh4.weight.name
-        self.h4toh.weight.name = "expert_" + self.h4toh.weight.name
-        self.htoh4.bias.name = "expert_" + self.htoh4.bias.name
-        self.h4toh.bias.name = "expert_" + self.h4toh.bias.name
-
-    def forward(self, x):
-        x = self.htoh4(x)
-        x = F.gelu(x, approximate=True)
-        x = self.h4toh(x)
-        return x
 
 
 class MultiHeadAttention(nn.Layer):
@@ -272,6 +247,7 @@ class MultiHeadAttention(nn.Layer):
         else:
             out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
 
+        #print("{}, {}, {}".format(q.shape, k.shape, v.shape))
         # project to output
         out = self.out_proj(out)
 
@@ -280,6 +256,7 @@ class MultiHeadAttention(nn.Layer):
             outs.append(weights)
         if use_cache:
             outs.append(cache)
+
         return out if len(outs) == 1 else tuple(outs)
 
 
@@ -293,6 +270,7 @@ class TransformerDecoder(nn.Layer):
                  num_layers,
                  norm=None,
                  hidden_size=None,
+                 need_weights = False,
                  use_recompute=False,
                  recompute_granularity="full",
                  no_recompute_layers=None):
@@ -302,6 +280,7 @@ class TransformerDecoder(nn.Layer):
             no_recompute_layers = []
         self.no_recompute_layers = no_recompute_layers
 
+        self.need_weights = need_weights
         self.num_layers = num_layers
         self.layers = decoder_layers
         self.norm = norm
@@ -341,8 +320,12 @@ class TransformerDecoder(nn.Layer):
                         output = recompute(mod, output, memory, tgt_mask,
                                            use_cache, cache)
                     else:
-                        output = mod(output, memory, tgt_mask, use_cache,
+                        if self.need_weights is True:
+                            output, weights = mod(output, memory, tgt_mask, use_cache,cache)
+                        else:
+                            output = mod(output, memory, tgt_mask, use_cache,
                                      cache)
+
             else:
                 output, new_cache = mod(output,
                                         memory,
@@ -353,7 +336,16 @@ class TransformerDecoder(nn.Layer):
 
         if self.norm is not None:
             output = self.norm(output)
-        return output if use_cache is False else (output, new_caches)
+
+        if use_cache is True:
+            return (output, new_caches)
+
+        if self.need_weights is True:
+            return (output, weights)
+
+        return output 
+
+        #return output if use_cache is False else (output, new_caches)
 
     def gen_cache(self, memory, do_zip=False):
         r"""
@@ -389,9 +381,9 @@ class TransformerDecoderLayer(nn.Layer):
                  bias_attr=None,
                  fused_linear=False,
                  fuse_attn_qkv=False,
-                 moe_configs=None,
                  use_recompute=False,
                  recompute_granularity="full",
+                 need_weights = False,
                  do_recompute=True):
         self._config = locals()
         self._config.pop("self")
@@ -405,13 +397,8 @@ class TransformerDecoderLayer(nn.Layer):
         self.recompute_granularity = recompute_granularity
         self.do_recompute = do_recompute
 
-        self.expert_mode = False
-        # moe config
-        if moe_configs is not None:
-            self.gate = moe_configs.get('gate', 'gshard')
-            self.top_k = moe_configs.get('top_k', 2)
-            self.num_experts = moe_configs.get('num_experts', 1)
-            self.expert_mode = moe_configs.get('expert_mode', False)
+        ## Hanyu's change
+        self.need_weights = need_weights 
 
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
@@ -428,31 +415,12 @@ class TransformerDecoderLayer(nn.Layer):
             fuse_attn_qkv=fuse_attn_qkv,
             use_recompute=use_recompute,
             recompute_granularity=recompute_granularity,
+            need_weights = self.need_weights,
             do_recompute=do_recompute)
-
-        if self.expert_mode:
-            experts_list = nn.LayerList([
-                ExpertLayer(d_model, dim_feedforward)
-                for e in range(self.num_experts)
-            ])
-
-            self.moe_mlp = MoELayer(
-                d_model=d_model,
-                experts=experts_list,
-                gate=self.gate,
-                top_k=self.top_k,
-                recompute_interval=int(self.use_recompute))
-        else:
-            self.linear1 = Linear(
-                d_model,
-                dim_feedforward,
-                weight_attrs[2],
-                bias_attr=bias_attrs[2])
-            self.linear2 = Linear(
-                dim_feedforward,
-                d_model,
-                weight_attrs[2],
-                bias_attr=bias_attrs[2])
+        self.linear1 = Linear(
+            d_model, dim_feedforward, weight_attrs[2], bias_attr=bias_attrs[2])
+        self.linear2 = Linear(
+            dim_feedforward, d_model, weight_attrs[2], bias_attr=bias_attrs[2])
 
         self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
@@ -474,10 +442,14 @@ class TransformerDecoderLayer(nn.Layer):
                 tgt = recompute(self.self_attn, tgt, None, None, tgt_mask,
                                 use_cache, cache)
             else:
-                tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
+                if self.need_weights is True:
+                    tgt, weights = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
+                else:
+                    tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
         else:
             tgt, incremental_cache = self.self_attn(tgt, tgt, tgt, tgt_mask,
                                                     use_cache, cache)
+        
         tgt = residual + self.dropout1(tgt)
         if not self.normalize_before:
             tgt = self.norm1(tgt)
@@ -485,19 +457,20 @@ class TransformerDecoderLayer(nn.Layer):
         residual = tgt
         if self.normalize_before:
             tgt = self.norm2(tgt)
-
-        if self.expert_mode:
-            tgt = self.moe_mlp(tgt)
-        else:
-            tgt = self.dropout2(
-                self.linear2(self.activation(self.linear1(tgt))))
-
+        tgt = self.dropout2(self.linear2(self.activation(self.linear1(tgt))))
         tgt = residual + tgt
 
         if not self.normalize_before:
             tgt = self.norm2(tgt)
+        
+        if use_cache is True:
+            return (tgt, incremental_cache)
+        
+        if self.need_weights is True:
+            return (tgt, weights)
 
-        return tgt if use_cache is False else (tgt, incremental_cache)
+        return tgt
+        #return tgt if use_cache is False else (tgt, incremental_cache)
 
     def gen_cache(self, memory):
         incremental_cache = self.self_attn.gen_cache(
@@ -558,12 +531,13 @@ class GPTModel(nn.Layer):
                  type_vocab_size=16,
                  use_recompute=False,
                  initializer_range=0.02,
-                 moe_configs=None,
                  fused_linear=False,
                  fuse_attn_qkv=False,
                  recompute_granularity="full",
                  sequence_parallel=False,
+                 need_weights = False,
                  no_recompute_layers=None):
+
 
         super(GPTModel, self).__init__()
 
@@ -572,6 +546,11 @@ class GPTModel(nn.Layer):
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
+
+        self.need_weights = need_weights 
+        if self.need_weights:
+            self.linear = paddle.nn.Linear(16,16)
+            #self.linear = paddle.nn.Linear(32,16)
 
         self.embeddings = GPTEmbeddings(
             vocab_size, hidden_size, hidden_dropout_prob,
@@ -594,8 +573,8 @@ class GPTModel(nn.Layer):
                     bias_attr=None,
                     fused_linear=fused_linear,
                     fuse_attn_qkv=fuse_attn_qkv,
-                    moe_configs=moe_configs,
                     use_recompute=use_recompute,
+                    need_weights = self.need_weights,
                     recompute_granularity=recompute_granularity,
                     do_recompute=i not in no_recompute_layers))
 
@@ -605,6 +584,7 @@ class GPTModel(nn.Layer):
             norm="LayerNorm",
             hidden_size=hidden_size,
             use_recompute=use_recompute,
+            need_weights = self.need_weights,
             recompute_granularity=recompute_granularity,
             no_recompute_layers=no_recompute_layers)
 
@@ -618,7 +598,7 @@ class GPTModel(nn.Layer):
         if position_ids is None:
             past_length = 0
             if cache is not None:
-                past_length = paddle.shape(attention_mask)[-1] - 1
+                past_length = paddle.shape(cache[0].k)[-2]
             position_ids = paddle.arange(
                 past_length,
                 paddle.shape(input_ids)[-1] + past_length,
@@ -688,6 +668,10 @@ class GPTForPretraining(nn.Layer):
             encoder_outputs, cached_kvs = outputs[:2]
         else:
             encoder_outputs = outputs
+
+        if self.gpt.need_weights is True:
+            encoder_outputs, weights = outputs[:2]
+
         logits = paddle.matmul(
             encoder_outputs,
             get_attr(self.gpt.embeddings.word_embeddings, "weight"),
@@ -695,8 +679,11 @@ class GPTForPretraining(nn.Layer):
 
         if use_cache:
             return logits, cached_kvs
-        else:
-            return logits
+
+        if self.gpt.need_weights is True:
+            return logits, weights
+            
+        return logits
 
 
 class GPTPretrainingCriterion(nn.Layer):
