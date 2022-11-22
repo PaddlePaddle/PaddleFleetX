@@ -12,19 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-model_item=ernie
-dp_degree=4
-mp_degree=8
-pp_degree=1
-bs_item=16
-fp_item=fp32
-run_mode=DP4-MP8-PP1
-device_num=N4C32
-
-model=ernie
-micro_bs=4
-
-cd ./benchmarks
-bash ./test_tipc/ernie/dygraph/hybrid_parallel/benchmark_common/prepare.sh
-# run
-bash ./test_tipc/ernie/dygraph/hybrid_parallel/benchmark_common/run_benchmark.sh ${model_item} ${fp_item} ${dp_degree} ${mp_degree} ${pp_degree} ${micro_bs} ${bs_item} ${run_mode} ${device_num} 2>&1;
+python -m pip install -r ../requirements.txt
+# get ckpt
+cd ../
+rm -rf ckpt
+mkdir -p ckpt
+wget -O ckpt/GPT_345M.tar.gz https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz
+tar -xzf ckpt/GPT_345M.tar.gz -C ckpt/
