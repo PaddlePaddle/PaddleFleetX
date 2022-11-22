@@ -39,7 +39,7 @@ function _set_params(){
     use_recompute=${12:-"False"}    # (可选)是否打开recompute
     sharding_stage=${13:-"1"}       # (可选)sharding case
     sharding_offload=${14:-"False"} # (可选)
-    eval_freq=${15:-"1000"}         # (可选)
+    eval_freq=${15:-"1000000"}         # (可选)
     sharding_degree=${16:-"1"}      # (可选)
     # 以下为通用执行命令，无特殊可不用修改
     model_name=${model_item}_bs${global_batch_size}_${fp_item}_${run_mode}  # (必填) 且格式不要改动,与竞品名称对齐
@@ -87,13 +87,13 @@ function _train(){
 
     # data_path="./data/"
 
-    use_pure_fp16=False
 
     local_batch_size=`expr ${global_batch_size} / ${dp_degree} / ${sharding_degree}`
     num_attention_heads=16 #"gpt2-medium-en"
     if [ ${mp_degree} -lt 8 -a ${pp_degree} -lt 8 ]; then num_attention_heads=4; fi #"gpt2-small-en"
     num_layers=24 #"gpt2-medium-en"
     if [ ${mp_degree} -lt 8 -a ${pp_degree} -lt 8 ]; then num_layers=4; fi #"gpt2-small-en"
+    use_pure_fp16=False # fp32
     if [ "fp16" = ${fp_item} ]; then use_pure_fp16=True; fi
     train_cmd="-o Global.seed=1234 \
                -o Global.local_batch_size=${local_batch_size} \
@@ -103,10 +103,11 @@ function _train(){
                -o Engine.mix_precision.use_pure_fp16=${use_pure_fp16} \
                -o Engine.save_load.save_steps=100000 \
                -o Model.hidden_size=1024 \
-               -o Model.num_layers=${num_layers} \
+               -o Model.num_hidden_layers=${num_layers} \
                -o Model.num_attention_heads=${num_attention_heads} \
-               -o Model.type_vocab_size=1 \
                -o Model.use_recompute=${use_recompute} \
+               -o Data.Train.dataset.input_dir=./dataset/ernie \
+               -o Data.Eval.dataset.input_dir=./dataset/ernie \
                -o Distributed.dp_degree=${dp_degree} \
                -o Distributed.mp_degree=${mp_degree} \
                -o Distributed.pp_degree=${pp_degree} \
@@ -118,41 +119,30 @@ function _train(){
 
 
     # 以下为通用执行命令，无特殊可不用修改
-    if [ "N1C2" = ${device_num} ]; then
-        # sharding case
-        echo "run run_mode: DP1-MP1-PP1 device_num: N1C2"
-        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1 \
-              tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
-              ${train_cmd}" 
+    # hybrid_parallelism case
+    case ${run_mode} in
+    DP1-MP1-PP1) echo "run run_mode: ${run_mode}"
+        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0 \
+            tools/train.py -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_3D.yaml \
+            ${train_cmd}"
         workerlog_id=0
-    else
-        # hybrid_parallelism case
-        case ${run_mode} in
-        DP1-MP1-PP1) echo "run run_mode: DP1-MP1-PP1"
-            train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0 \
-                tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
-                ${train_cmd}"
-            workerlog_id=0
-            ;;
-        DP1-MP1-PP4|DP1-MP4-PP1) echo "run run_mode: ${run_mode}"
-            train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3 \
-                tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
-                ${train_cmd}"
-            workerlog_id=0
-            ;;
-        DP8-MP1-PP1|DP1-MP8-PP1|DP1-MP1-PP8|DP1-MP2-PP4|DP1-MP4-PP2|DP2-MP2-PP2| \
-        DP2-MP8-PP2|DP4-MP8-PP1|DP1-MP8-PP4) echo "run run_mode: ${run_mode}"
-            train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 \
-                tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
-                ${train_cmd}"
-            workerlog_id=0
-            ;;
-        *) echo "choose run_mode "; exit 1;
-        esac
-    fi
+        ;;
+    DP2-MP1-PP1) echo "run run_mode: ${run_mode}"
+        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1 \
+            tools/train.py -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_3D.yaml \
+            ${train_cmd}"
+        workerlog_id=0
+        ;;
+    DP2-MP2-PP2|DP2-MP8-PP2|DP4-MP8-PP1|DP1-MP8-PP4) echo "run run_mode: ${run_mode}"
+        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 \
+            tools/train.py -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_3D.yaml \
+            ${train_cmd}"
+        workerlog_id=0
+        ;;
+    *) echo "choose run_mode "; exit 1;
+    esac
     cd ../
     echo "train_cmd: ${train_cmd}  log_file: ${log_file}"
-    python -c "import paddlenlp"
     if [[ ${model_item} =~ "CE" ]];then # CE精度-不限制执行时间
         ${train_cmd} > ${log_file} 2>&1
     else
