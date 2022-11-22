@@ -313,9 +313,13 @@ def check_config(config):
 
     global_config = config.get('Global')
     check.check_version()
-    use_gpu = global_config.get('device', True)
-    if use_gpu:
-        check.check_gpu()
+    device = global_config.get('device', 'gpu')
+    device = device.lower()
+    if device in ['gpu', 'xpu', 'rocm', 'npu', "cpu"]:
+        check.check_device(device)
+    else:
+        raise ValueError(f"device({device}) is not in ['gpu', 'xpu', 'rocm', 'npu', 'cpu'],\n"
+                "Please ensure the config option Global.device is one of these devices")
 
 
 def override(dl, ks, v):
