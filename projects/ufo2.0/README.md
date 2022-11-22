@@ -21,6 +21,7 @@
 
 ![图3:UFO_Perf](./img/UFO_Perf.png)
 
+
 ## 使用方案
 1. 有关UFO的更多细节原理请参看[VIMER-UFO 2.0](https://github.com/PaddlePaddle/VIMER/tree/develop/UFO)
 2. VIMER-UFO 2.0 相关的模型、训练代码和评测脚本均已开源，更多细节正在逐渐完善中，了解详细信息可访问：https://github.com/PaddlePaddle/VIMER/tree/main/UFO/OneForAll
