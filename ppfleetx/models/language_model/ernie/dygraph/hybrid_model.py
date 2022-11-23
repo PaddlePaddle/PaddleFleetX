@@ -23,7 +23,11 @@ import paddle.nn as nn
 from paddle.nn import functional as F
 from dataclasses import dataclass, field
 
-from ..layers.model_outputs import BaseModelOutputWithPoolingAndCrossAttentions, ModelOutput
+from ..layers.model_outputs import (
+    BaseModelOutputWithPoolingAndCrossAttentions,
+    ModelOutput,
+    ErnieForPreTrainingOutput, )
+
 from ..layers.distributed_transformer import TransformerEncoderLayer, TransformerEncoder
 from paddle.distributed import fleet
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
@@ -163,10 +167,7 @@ class ErnieModelHybrid(nn.Layer):
     r"""
     The bare ERNIE Model transformer outputting raw hidden-states.
 
-    This model inherits from :class:`~paddlenlp.transformers.model_utils.PretrainedModel`.
-    Refer to the superclass documentation for the generic methods.
-
-    This model is also a Paddle `paddle.nn.Layer <https://www.paddlepaddle.org.cn/documentation
+    This model is a Paddle `paddle.nn.Layer <https://www.paddlepaddle.org.cn/documentation
     /docs/en/api/paddle/fluid/dygraph/layers/Layer_en.html>`__ subclass. Use it as a regular Paddle Layer
     and refer to the Paddle documentation for all matter related to general usage and behavior.
 
@@ -339,27 +340,14 @@ class ErnieModelHybrid(nn.Layer):
                 Whether to return the attentions tensors of all attention layers.
                 Defaults to `False`.
             return_dict (bool, optional):
-                Whether to return a :class:`~paddlenlp.transformers.model_outputs.ModelOutput` object. If `False`, the output
-                will be a tuple of tensors. Defaults to `False`.
+                Whether to return a :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.ModelOutput` object. 
+                If `False`, the output will be a tuple of tensors. Defaults to `False`.
 
         Returns:
-            An instance of :class:`~paddlenlp.transformers.model_outputs.BaseModelOutputWithPoolingAndCrossAttentions` if
+            An instance of :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.BaseModelOutputWithPoolingAndCrossAttentions` if
             `return_dict=True`. Otherwise it returns a tuple of tensors corresponding
             to ordered and not None (depending on the input arguments) fields of
-            :class:`~paddlenlp.transformers.model_outputs.BaseModelOutputWithPoolingAndCrossAttentions`.
-
-        Example:
-            .. code-block::
-
-                import paddle
-                from paddlenlp.transformers import ErnieModel, ErnieTokenizer
-
-                tokenizer = ErnieTokenizer.from_pretrained('ernie-1.0')
-                model = ErnieModel.from_pretrained('ernie-1.0')
-
-                inputs = tokenizer("Welcome to use PaddlePaddle and PaddleNLP!")
-                inputs = {k:paddle.to_tensor([v]) for (k, v) in inputs.items()}
-                sequence_output, pooled_output = model(**inputs)
+            :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.BaseModelOutputWithPoolingAndCrossAttentions`.
 
         """
         if input_ids is not None and inputs_embeds is not None:
@@ -581,13 +569,13 @@ class ErnieForPretrainingHybrid(nn.Layer):
                 Whether to return the attentions tensors of all attention layers.
                 Defaults to `False`.
             return_dict (bool, optional):
-                Whether to return a :class:`~paddlenlp.transformers.bert.ErnieForPreTrainingOutput` object. If
+                Whether to return a :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.ErnieForPreTrainingOutput` object. If
                 `False`, the output will be a tuple of tensors. Defaults to `False`.
 
         Returns:
-            An instance of :class:`~paddlenlp.transformers.bert.ErnieForPreTrainingOutput` if `return_dict=True`.
+            An instance of :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.ErnieForPreTrainingOutput` if `return_dict=True`.
             Otherwise it returns a tuple of tensors corresponding to ordered and
-            not None (depending on the input arguments) fields of :class:`~paddlenlp.transformers.bert.ErnieForPreTrainingOutput`.
+            not None (depending on the input arguments) fields of :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.ErnieForPreTrainingOutput`.
 
         """
         # with paddle.static.amp.fp16_guard():
@@ -647,37 +635,6 @@ class ErnieForPretrainingHybrid(nn.Layer):
                         shape=layer.weight.shape))
         elif isinstance(layer, nn.LayerNorm):
             layer._epsilon = 1e-12
-
-
-@dataclass
-class ErnieForPreTrainingOutput(ModelOutput):
-    """
-    Output type of [`ErnieForPreTraining`].
-    Args:
-        loss (*optional*, returned when `labels` is provided, `paddle.Tensor` of shape `(1,)`):
-            Total loss as the sum of the masked language modeling loss and the next sequence prediction
-            (classification) loss.
-        prediction_logits (`paddle.Tensor` of shape `(batch_size, sequence_length, config.vocab_size)`):
-            Prediction scores of the language modeling head (scores for each vocabulary token before SoftMax).
-        seq_relationship_logits (`paddle.Tensor` of shape `(batch_size, 2)`):
-            Prediction scores of the next sequence prediction (classification) head (scores of True/False continuation
-            before SoftMax).
-        hidden_states (`tuple(paddle.Tensor)`, *optional*, returned when `output_hidden_states=True` is passed or when `config.output_hidden_states=True`):
-            Tuple of `paddle.Tensor` (one for the output of the embeddings + one for the output of each layer) of
-            shape `(batch_size, sequence_length, hidden_size)`.
-            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
-        attentions (`tuple(paddle.Tensor)`, *optional*, returned when `output_attentions=True` is passed or when `config.output_attentions=True`):
-            Tuple of `paddle.Tensor` (one for each layer) of shape `(batch_size, num_heads, sequence_length,
-            sequence_length)`.
-            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
-            heads.
-    """
-
-    loss = None
-    prediction_logits = None
-    seq_relationship_logits = None
-    hidden_states = None
-    attentions = None
 
 
 class ErniePretrainingCriterionHybrid(paddle.nn.Layer):

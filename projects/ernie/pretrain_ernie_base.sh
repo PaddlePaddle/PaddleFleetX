@@ -16,4 +16,4 @@
 # limitations under the License.
 
 export CUDA_VISIBLE_DEVICES=1
-python tools/train.py -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_single_card.yaml 
+python tools/train.py -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_345M_single_card.yaml 
