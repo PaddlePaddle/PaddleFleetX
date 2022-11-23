@@ -102,9 +102,6 @@ class ErnieModule(BasicModule):
         else:
             model = ErnieForPretraining(ErnieModel(**model_setting))
 
-        if 'Quantization' in self.configs and self.configs.Quantization.enable:
-            model = self.qat_model(model)
-
         return model
 
     def forward(self, tokens):
