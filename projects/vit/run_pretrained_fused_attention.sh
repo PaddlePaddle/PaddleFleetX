@@ -1,30 +1,19 @@
-# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
-# 
+# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-model_item=gpt
-dp_degree=4
-mp_degree=8
-pp_degree=1
-bs_item=16
-fp_item=fp32
-run_mode=DP4-MP8-PP1
-device_num=N4C32
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 
-model=gpt
-micro_bs=4
-
-cd ./benchmarks
-bash ./test_tipc/gpt/dygraph/hybrid_parallel/benchmark_common/prepare.sh
-# run
-bash ./test_tipc/gpt/dygraph/hybrid_parallel/benchmark_common/run_benchmark.sh ${model_item} ${fp_item} ${dp_degree} ${mp_degree} ${pp_degree} ${micro_bs} ${bs_item} ${run_mode} ${device_num} 2>&1;
+python -m paddle.distributed.launch --gpus="0,1,2,3,4,5,6,7" tools/train.py \
+       -c ppfleetx/configs/vis/vit/ViT_base_patch16_224_pt_in1k_2n16c_dp_fp16o2.yaml \
+       -o Model.model.use_fused_attn=True

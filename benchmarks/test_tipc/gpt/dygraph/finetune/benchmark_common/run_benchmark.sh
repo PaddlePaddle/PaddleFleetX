@@ -28,19 +28,15 @@ function _set_params(){
     device_num=${9:-"N1C1"}         # (必选) 使用的卡数量，N1C1|N1C8|N4C32 （4机32卡）
     profiling=${PROFILING:-"false"}      # (必选) Profiling  开关，默认关闭，通过全局变量传递
     model_repo="PaddleFleetX"          # (必选) 模型套件的名字
-    speed_unit="tokens/s"         # (必选)速度指标单位
+    speed_unit="steps/s"         # (必选)速度指标单位
     skip_steps=0                  # (必选)解析日志，跳过模型前几个性能不稳定的step
     keyword="ips:"                 # (必选)解析日志，筛选出性能数据所在行的关键字
-    convergence_key="loss:"        # (可选)解析日志，筛选出收敛数据所在行的关键字 如：convergence_key="loss:"
-    max_iter=${10:-500}                      # （可选）需保证模型执行时间在5分钟内，需要修改代码提前中断的直接提PR 合入套件；或使用max_epoch参数
-    use_sharding=${11:-"false"}               # （可选) 是否使用Sharding
-    num_workers=0                  # (可选)
+    convergence_key=${10:-"loss:"}        # (可选)解析日志，筛选出收敛数据所在行的关键字 如：convergence_key="loss:"
+    dataset=${11:-"CoLA"}                 # 数据集
+    max_iter=${12:-500}                      # （可选）需保证模型执行时间在5分钟内，需要修改代码提前中断的直接提PR 合入套件；或使用max_epoch参数
     base_batch_size=$global_batch_size
-    use_recompute=${12:-"False"}    # (可选)是否打开recompute
-    sharding_stage=${13:-"1"}       # (可选)sharding case
-    sharding_offload=${14:-"False"} # (可选)
-    eval_freq=${15:-"1000"}         # (可选)
-    sharding_degree=${16:-"1"}      # (可选)
+    sharding_degree=${13-"1"}      # (可选)
+    sharding_stage=${14:-"1"}       # (可选)sharding case
     # 以下为通用执行命令，无特殊可不用修改
     model_name=${model_item}_bs${global_batch_size}_${fp_item}_${run_mode}  # (必填) 且格式不要改动,与竞品名称对齐
     device=${CUDA_VISIBLE_DEVICES//,/ }
@@ -81,83 +77,29 @@ function _train(){
         log_file=${train_log_file}
     fi
 
-    if [ $fp_item = "fp16" ]; then
-        use_fp16_cmd="--use_amp true"
-    fi
-
     # data_path="./data/"
 
-    use_pure_fp16=False
 
     local_batch_size=`expr ${global_batch_size} / ${dp_degree} / ${sharding_degree}`
-    num_attention_heads=16 #"gpt2-medium-en"
-    if [ ${mp_degree} -lt 8 -a ${pp_degree} -lt 8 ]; then num_attention_heads=4; fi #"gpt2-small-en"
-    num_layers=24 #"gpt2-medium-en"
-    if [ ${mp_degree} -lt 8 -a ${pp_degree} -lt 8 ]; then num_layers=4; fi #"gpt2-small-en"
-    if [ "fp16" = ${fp_item} ]; then use_pure_fp16=True; fi
-    train_cmd="-o Global.seed=1234 \
-               -o Global.local_batch_size=${local_batch_size} \
-               -o Global.micro_batch_size=${micro_batch_size} \
-               -o Engine.max_steps=${max_iter} \
-               -o Engine.eval_freq=${eval_freq} \
-               -o Engine.mix_precision.use_pure_fp16=${use_pure_fp16} \
-               -o Engine.save_load.save_steps=100000 \
-               -o Model.hidden_size=1024 \
-               -o Model.num_layers=${num_layers} \
-               -o Model.num_attention_heads=${num_attention_heads} \
-               -o Model.type_vocab_size=1 \
-               -o Model.use_recompute=${use_recompute} \
-               -o Distributed.dp_degree=${dp_degree} \
-               -o Distributed.mp_degree=${mp_degree} \
-               -o Distributed.pp_degree=${pp_degree} \
-               -o Distributed.sharding.sharding_degree=${sharding_degree} \
-               -o Distributed.sharding.sharding_stage=${sharding_stage} \
-               -o Distributed.sharding.sharding_offload=${sharding_offload} \
-               -o Optimizer.lr.max_lr=1e-4 \
-               -o Optimizer.lr.min_lr=1e-5 "
+    
+    train_cmd="${dataset}"
 
 
     # 以下为通用执行命令，无特殊可不用修改
-    if [ "N1C2" = ${device_num} ]; then
-        # sharding case
-        echo "run run_mode: DP1-MP1-PP1 device_num: N1C2"
-        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1 \
-              tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
-              ${train_cmd}" 
-        workerlog_id=0
-    else
-        # hybrid_parallelism case
-        case ${run_mode} in
-        DP1-MP1-PP1) echo "run run_mode: DP1-MP1-PP1"
-            train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0 \
-                tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
-                ${train_cmd}"
-            workerlog_id=0
-            ;;
-        DP1-MP1-PP4|DP1-MP4-PP1) echo "run run_mode: ${run_mode}"
-            train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3 \
-                tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
-                ${train_cmd}"
-            workerlog_id=0
-            ;;
-        DP8-MP1-PP1|DP1-MP8-PP1|DP1-MP1-PP8|DP1-MP2-PP4|DP1-MP4-PP2|DP2-MP2-PP2| \
-        DP2-MP8-PP2|DP4-MP8-PP1|DP1-MP8-PP4) echo "run run_mode: ${run_mode}"
-            train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 \
-                tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
-                ${train_cmd}"
-            workerlog_id=0
-            ;;
-        *) echo "choose run_mode "; exit 1;
-        esac
-    fi
+
+    # hybrid_parallelism case
+    case ${run_mode} in
+    DP1-MP1-PP1) echo "run run_mode: DP1-MP1-PP1"
+        train_cmd="bash projects/gpt/finetune_gpt_345M_single_card.sh \
+            ${train_cmd}"
+        ;;
+    *) echo "choose run_mode "; exit 1;
+    esac
     cd ../
     echo "train_cmd: ${train_cmd}  log_file: ${log_file}"
-    python -c "import paddlenlp"
-    if [[ ${model_item} =~ "CE" ]];then # CE精度-不限制执行时间
-        ${train_cmd} > ${log_file} 2>&1
-    else
-        timeout 15m ${train_cmd} > ${log_file} 2>&1
-    fi
+
+    workerlog_id=0
+    timeout 40m ${train_cmd} > ${log_file} 2>&1
     if [ $? -ne 0 ];then
         echo -e "${model_name}, FAIL"
     else

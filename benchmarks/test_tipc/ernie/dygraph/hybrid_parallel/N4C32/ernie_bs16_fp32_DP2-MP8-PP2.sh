@@ -12,19 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-model_item=gpt
-dp_degree=4
+model_item=ernie
+dp_degree=2
 mp_degree=8
-pp_degree=1
+pp_degree=2
 bs_item=16
 fp_item=fp32
-run_mode=DP4-MP8-PP1
+run_mode=DP2-MP8-PP2
 device_num=N4C32
 
-model=gpt
-micro_bs=4
+model=ernie
+micro_bs=2
 
 cd ./benchmarks
-bash ./test_tipc/gpt/dygraph/hybrid_parallel/benchmark_common/prepare.sh
+bash ./test_tipc/ernie/dygraph/hybrid_parallel/benchmark_common/prepare.sh
 # run
-bash ./test_tipc/gpt/dygraph/hybrid_parallel/benchmark_common/run_benchmark.sh ${model_item} ${fp_item} ${dp_degree} ${mp_degree} ${pp_degree} ${micro_bs} ${bs_item} ${run_mode} ${device_num} 2>&1;
+bash ./test_tipc/ernie/dygraph/hybrid_parallel/benchmark_common/run_benchmark.sh ${model_item} ${fp_item} ${dp_degree} ${mp_degree} ${pp_degree} ${micro_bs} ${bs_item} ${run_mode} ${device_num} 2>&1;
