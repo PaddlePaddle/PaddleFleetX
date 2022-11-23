@@ -145,6 +145,37 @@ class ModelOutput(OrderedDict):
 
 
 @dataclass
+class ErnieForPreTrainingOutput(ModelOutput):
+    """
+    Output type of [`ErnieForPreTraining`].
+    Args:
+        loss (*optional*, returned when `labels` is provided, `paddle.Tensor` of shape `(1,)`):
+            Total loss as the sum of the masked language modeling loss and the next sequence prediction
+            (classification) loss.
+        prediction_logits (`paddle.Tensor` of shape `(batch_size, sequence_length, config.vocab_size)`):
+            Prediction scores of the language modeling head (scores for each vocabulary token before SoftMax).
+        seq_relationship_logits (`paddle.Tensor` of shape `(batch_size, 2)`):
+            Prediction scores of the next sequence prediction (classification) head (scores of True/False continuation
+            before SoftMax).
+        hidden_states (`tuple(paddle.Tensor)`, *optional*, returned when `output_hidden_states=True` is passed or when `config.output_hidden_states=True`):
+            Tuple of `paddle.Tensor` (one for the output of the embeddings + one for the output of each layer) of
+            shape `(batch_size, sequence_length, hidden_size)`.
+            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
+        attentions (`tuple(paddle.Tensor)`, *optional*, returned when `output_attentions=True` is passed or when `config.output_attentions=True`):
+            Tuple of `paddle.Tensor` (one for each layer) of shape `(batch_size, num_heads, sequence_length,
+            sequence_length)`.
+            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
+            heads.
+    """
+
+    loss = None
+    prediction_logits = None
+    seq_relationship_logits = None
+    hidden_states = None
+    attentions = None
+
+
+@dataclass
 class BaseModelOutputWithPastAndCrossAttentions(ModelOutput):
     """
     Base class for model's outputs that may also contain a past key/values (to speed up sequential decoding).
