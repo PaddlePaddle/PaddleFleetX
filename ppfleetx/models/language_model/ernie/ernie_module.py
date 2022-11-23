@@ -16,6 +16,7 @@ import sys
 import copy
 
 import paddle
+from paddle.static import InputSpec
 
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.language_model.gpt as gpt
@@ -101,6 +102,9 @@ class ErnieModule(BasicModule):
         else:
             model = ErnieForPretraining(ErnieModel(**model_setting))
 
+        if 'Quantization' in self.configs and self.configs.Quantization.enable:
+            model = self.qat_model(model)
+
         return model
 
     def forward(self, tokens):
@@ -162,3 +166,11 @@ class ErnieModule(BasicModule):
             "ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'], log_dict['train_cost'], speed,
                speed * default_global_tokens_num, speed * default_global_tokens_num / self.nranks, log_dict['lr']))
+
+    def input_spec(self):
+        return [
+            InputSpec(
+                shape=[None, None], dtype='int64'), InputSpec(
+                    shape=[None, None], dtype='int64'), InputSpec(
+                        shape=[None, None], dtype='int64')
+        ]
