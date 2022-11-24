@@ -158,9 +158,10 @@ class InferenceEngine(object):
         config.switch_ir_debug()
         config.enable_use_gpu(100, device_id)
         all_pass = [
-            # "multihead_matmul_fuse_pass_v2",
-            # "fc_elementwise_layernorm_fuse_pass",
-            # "embedding_eltwise_layernorm_fuse_pass",
+            "multihead_matmul_fuse_pass_v2",
+            "fc_elementwise_layernorm_fuse_pass",
+            "embedding_eltwise_layernorm_fuse_pass",
+            "constant_folding_pass",
         ]
         for pass_item in all_pass:
             config.delete_pass(pass_item)
