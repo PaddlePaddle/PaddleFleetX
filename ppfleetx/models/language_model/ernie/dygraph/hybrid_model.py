@@ -26,7 +26,8 @@ from dataclasses import dataclass, field
 from ..layers.model_outputs import (
     BaseModelOutputWithPoolingAndCrossAttentions,
     ModelOutput,
-    ErnieForPreTrainingOutput, )
+    ErnieForPreTrainingOutput,
+    SequenceClassifierOutput, )
 
 from ..layers.distributed_transformer import TransformerEncoderLayer, TransformerEncoder
 from paddle.distributed import fleet
@@ -867,3 +868,125 @@ class ErnieForPretrainingPipe(PipelineLayer):
                 "offload": False,
                 "partition": False
             })
+
+
+class ErnieForSequenceClassificationHybrid(nn.Layer):
+    """
+    Ernie Model with a linear layer on top of the output layer,
+    designed for sequence classification/regression tasks like GLUE tasks.
+
+    Args:
+        ernie (:class:`ErnieModel`):
+            An instance of ErnieModel.
+        num_classes (int, optional):
+            The number of classes. Defaults to `2`.
+        dropout (float, optional):
+            The dropout probability for output of ERNIE.
+            If None, use the same value as `hidden_dropout_prob` of `ErnieModel`
+            instance `ernie`. Defaults to None.
+    """
+
+    def __init__(self, ernie, num_classes=2, dropout=None):
+        super(ErnieForSequenceClassificationHybrid, self).__init__()
+        self.num_classes = num_classes
+        self.ernie = ernie  # allow ernie to be config
+        self.dropout = nn.Dropout(dropout if dropout is not None else
+                                  self.ernie.config["hidden_dropout_prob"])
+        self.classifier = nn.Linear(self.ernie.config["hidden_size"],
+                                    num_classes)
+        self.apply(self.init_weights)
+
+    def forward(self,
+                input_ids,
+                token_type_ids=None,
+                position_ids=None,
+                attention_mask=None,
+                labels=None,
+                output_hidden_states=False,
+                output_attentions=False,
+                return_dict=False):
+        r"""
+        The ErnieForSequenceClassification forward method, overrides the __call__() special method.
+
+        Args:
+            input_ids (Tensor):
+                See :class:`ErnieModelHybrid`.
+            token_type_ids (Tensor, optional):
+                See :class:`ErnieModelHybrid`.
+            position_ids(Tensor, optional):
+                See :class:`ErnieModelHybrid`.
+            attention_mask (Tensor, optional):
+                See :class:`ErnieModelHybrid`.
+            labels (Tensor of shape `(batch_size,)`, optional):
+                Labels for computing the sequence classification/regression loss.
+                Indices should be in `[0, ..., num_classes - 1]`. If `num_classes == 1`
+                a regression loss is computed (Mean-Square loss), If `num_classes > 1`
+                a classification loss is computed (Cross-Entropy).
+            output_hidden_states (bool, optional):
+                Whether to return the hidden states of all layers.
+                Defaults to `False`.
+            output_attentions (bool, optional):
+                Whether to return the attentions tensors of all attention layers.
+                Defaults to `False`.
+            return_dict (bool, optional):
+                Whether to return a :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.SequenceClassifierOutput` object. If
+                `False`, the output will be a tuple of tensors. Defaults to `False`.
+
+        Returns:
+            An instance of :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.SequenceClassifierOutput` if `return_dict=True`.
+            Otherwise it returns a tuple of tensors corresponding to ordered and
+            not None (depending on the input arguments) fields of :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.SequenceClassifierOutput`.
+
+        """
+
+        outputs = self.ernie(
+            input_ids,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            attention_mask=attention_mask,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict)
+        pooled_output = outputs[1]
+
+        pooled_output = self.dropout(pooled_output)
+        logits = self.classifier(pooled_output)
+
+        loss = None
+        if labels is not None:
+            if self.num_classes == 1:
+                loss_fct = paddle.nn.MSELoss()
+                loss = loss_fct(logits, labels)
+            elif labels.dtype == paddle.int64 or labels.dtype == paddle.int32:
+                loss_fct = paddle.nn.CrossEntropyLoss()
+                loss = loss_fct(
+                    logits.reshape((-1, self.num_classes)),
+                    labels.reshape((-1, )))
+            else:
+                loss_fct = paddle.nn.BCEWithLogitsLoss()
+                loss = loss_fct(logits, labels)
+
+        if not return_dict:
+            output = (logits, ) + outputs[2:]
+            return ((loss, ) + output) if loss is not None else (
+                output[0] if len(output) == 1 else output)
+
+        return SequenceClassifierOutput(
+            loss=loss,
+            logits=logits,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions, )
+
+    def init_weights(self, layer):
+        """ Initialization hook """
+        if isinstance(layer, (nn.Linear, nn.Embedding)):
+            if isinstance(layer.weight, paddle.Tensor):
+                layer.weight.set_value(
+                    paddle.tensor.normal(
+                        mean=0.0,
+                        std=self.initializer_range
+                        if hasattr(self, "initializer_range") else
+                        self.ernie.config["initializer_range"],
+                        shape=layer.weight.shape))
+        elif isinstance(layer, nn.LayerNorm):
+            layer._epsilon = 1e-12
