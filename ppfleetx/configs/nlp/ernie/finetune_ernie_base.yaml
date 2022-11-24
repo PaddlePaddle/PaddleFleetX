@@ -4,8 +4,8 @@ Global:
   binary_head: True
   
   global_batch_size: 
-  local_batch_size: 1
-  micro_batch_size: 1
+  local_batch_size: 16
+  micro_batch_size: 16
 
 
 Engine:
@@ -93,7 +93,7 @@ Optimizer:
     decay_steps: 990000
     warmup_rate: 0.01
     max_lr: 0.0001
-    min_lr: 0.00001
+    min_lr: 5e-05
   grad_clip:
     name: "ClipGradByGlobalNorm"
     clip_norm: 1.0
