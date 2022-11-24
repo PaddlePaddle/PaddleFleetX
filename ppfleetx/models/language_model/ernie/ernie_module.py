@@ -17,13 +17,21 @@ import copy
 
 import paddle
 from paddle.static import InputSpec
+import paddle.nn as nn
 
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.language_model.gpt as gpt
 from ppfleetx.utils.log import logger
 
-from .dygraph.single_model import ErnieModel, ErnieForPretraining, ErniePretrainingCriterion
-from .dygraph.hybrid_model import ErnieModelHybrid, ErnieForPretrainingHybrid, ErniePretrainingCriterionHybrid, ErnieForPretrainingPipe
+from .dygraph.single_model import (
+    ErnieModel,
+    ErnieForPretraining,
+    ErniePretrainingCriterion,
+    ErnieForSequenceClassification, )
+from .dygraph.hybrid_model import (ErnieModelHybrid, ErnieForPretrainingHybrid,
+                                   ErniePretrainingCriterionHybrid,
+                                   ErnieForPretrainingPipe,
+                                   ErnieForSequenceClassificationHybrid)
 
 from ppfleetx.models.language_model.utils import process_configs
 
@@ -80,7 +88,7 @@ class ErnieModule(BasicModule):
             self.criterion = ErniePretrainingCriterion(self.binary_head)
 
     def process_configs(self, configs):
-        process_data_configs(configs)
+        # process_data_configs(configs)
         process_model_configs(configs)
         return configs
 
@@ -171,3 +179,41 @@ class ErnieModule(BasicModule):
                     shape=[None, None], dtype='int64'), InputSpec(
                         shape=[None, None], dtype='int64')
         ]
+
+
+class ErnieSeqClsModule(BasicModule):
+    def __init__(self, configs):
+        self.nranks = paddle.distributed.get_world_size()
+        super(ErnieSeqClsModule, self).__init__(configs)
+
+        self.criterion = nn.loss.CrossEntropyLoss(
+        )  # if data_args.label_list else nn.loss.MSELoss()
+
+    def process_configs(self, configs):
+        process_data_configs(configs)
+        process_model_configs(configs)
+        return configs
+
+    def get_model(self):
+        model_setting = copy.deepcopy(self.configs.Model)
+        model_setting.pop("module")
+        model_setting.pop("name")
+
+        if self.nranks > 1:
+            model_setting[
+                'num_partitions'] = self.configs.Distributed.mp_degree
+
+            if self.configs.Distributed.pp_degree == 1:
+                model = ErnieForSequenceClassificationHybrid(
+                    ErnieModelHybrid(**model_setting))
+            else:
+                raise ValueError(
+                    "Pipeline Parallelism is not supported in Sequence \
+                    Classification task of Ernie model.")
+        else:
+            model = ErnieForSequenceClassification(ErnieModel(**model_setting))
+
+        return model
+
+    def forward(self, tokens):
+        return self.model(tokens)
