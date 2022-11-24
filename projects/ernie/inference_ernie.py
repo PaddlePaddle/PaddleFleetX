@@ -41,18 +41,16 @@ if __name__ == "__main__":
     input_ids = np.ones((16, 128), dtype="int64")
     position_ids = np.ones((16, 128), dtype="int64")
     type_ids = np.ones((16, 128), dtype="int64")
-    
-    if(os.path.exists('shape.pbtxt')==False):
+
+    if (os.path.exists('shape.pbtxt') == False):
         cfg.Inference.TensorRT.collect_shape = True
         module = build_module(cfg)
-        engine = EagerEngine(configs=cfg,module=module, mode='inference')
+        engine = EagerEngine(configs=cfg, module=module, mode='inference')
         outs = engine.inference([input_ids, position_ids, type_ids])
 
     cfg.Inference.TensorRT.collect_shape = False
     module = build_module(cfg)
     config.print_config(cfg)
-    engine = EagerEngine(configs=cfg,module=module, mode='inference')
+    engine = EagerEngine(configs=cfg, module=module, mode='inference')
     outs = engine.inference([input_ids, position_ids, type_ids])
     print(outs)
-
-    

@@ -122,11 +122,11 @@ class ErnieModule(BasicModule):
         from paddle.static import InputSpec
         return [
             InputSpec(
-                shape=[None, None],  dtype='int64', name="input_ids"), 
+                shape=[None, None], dtype='int64',
+                name="input_ids"), InputSpec(
+                    shape=[None, None], dtype='int64', name="position_ids"),
             InputSpec(
-                shape=[None, None],  dtype='int64', name="position_ids"),
-            InputSpec(
-                shape=[None, None],  dtype='int64', name="token_type_ids")
+                shape=[None, None], dtype='int64', name="token_type_ids")
         ]
 
     def training_step(self, batch):

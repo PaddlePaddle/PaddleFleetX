@@ -55,7 +55,7 @@ class TensorRTConfig(object):
 
     def __init__(self,
                  max_batch_size=1,
-                 workspace_size=1<<30,
+                 workspace_size=1 << 30,
                  min_subgraph_size=3,
                  precision='fp16',
                  use_static=False,
@@ -179,25 +179,23 @@ class InferenceEngine(object):
                                                            self.nranks)
             dist_config.set_comm_init_config(config_fname)
             config.set_dist_config(dist_config)
-        
 
-        # TensorRT config
+# TensorRT config
         if self.tensorrt_config:
             config.enable_tensorrt_engine(
-                    max_batch_size=self.tensorrt_config.max_batch_size,
-                    workspace_size=self.tensorrt_config.workspace_size,
-                    min_subgraph_size=self.tensorrt_config.min_subgraph_size,
-                    precision_mode=self.tensorrt_config.precision,
-                    use_static=self.tensorrt_config.use_static,
-                    use_calib_mode=self.tensorrt_config.use_calib_mode)
+                max_batch_size=self.tensorrt_config.max_batch_size,
+                workspace_size=self.tensorrt_config.workspace_size,
+                min_subgraph_size=self.tensorrt_config.min_subgraph_size,
+                precision_mode=self.tensorrt_config.precision,
+                use_static=self.tensorrt_config.use_static,
+                use_calib_mode=self.tensorrt_config.use_calib_mode)
 
             if self.tensorrt_config.collect_shape:
                 config.collect_shape_range_info(
-                        self.tensorrt_config.shape_range_info_filename)
+                    self.tensorrt_config.shape_range_info_filename)
             else:
                 config.enable_tuned_tensorrt_dynamic_shape(
-                        self.tensorrt_config.shape_range_info_filename,
-                        True)
+                    self.tensorrt_config.shape_range_info_filename, True)
 
         self.predictor = paddle.inference.create_predictor(config)
 

@@ -358,7 +358,7 @@ class ErnieModel(nn.Layer):
         #     attention_mask = paddle.unsqueeze(
         #         attention_mask, axis=[1, 2]).astype(paddle.get_default_dtype())
         #     attention_mask = (1.0 - attention_mask) * -1e4
-        
+
         attention_mask = paddle.ones(input_shape, dtype="float32")
         attention_mask = paddle.unsqueeze(attention_mask, axis=[1, 2])
         attention_mask.stop_gradient = True
