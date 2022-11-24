@@ -771,7 +771,7 @@ class GPTModelHybrid(nn.Layer):
                 dtype=input_ids.dtype)
             position_ids = position_ids.unsqueeze(0)
             # .expand_as(input_ids)
-            position_ids = paddle.fluid.layers.expand_as(position_ids,
+            position_ids = paddle.expand_as(position_ids,
                                                          input_ids)
         # if sequence_parallel is true, embedding_output shape is [s/n, b, h]
         # else its shape is [b, s, h], n is mp parallelism
