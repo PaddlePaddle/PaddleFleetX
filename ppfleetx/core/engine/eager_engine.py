@@ -22,23 +22,23 @@ import paddle.nn as nn
 import paddle.distributed as dist
 import paddle.distributed.fleet as fleet
 from paddle.optimizer.lr import LRScheduler
-from paddle.distributed.sharding import group_sharded_parallel
+
 from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 from paddle.profiler import SummaryView
 import paddleslim
 from paddleslim.analysis import dygraph_flops as flops
+from paddle.distributed.fleet.meta_parallel import TensorParallel
 
+from ppfleetx.distributed.apis import env, sharding
 from ppfleetx.optims import build_lr_scheduler, build_optimizer
-from ppfleetx.utils.log import logger
-from ppfleetx.core.engine import BasicEngine, InferenceEngine
+from ppfleetx.utils.log import logger, get_timestamp, convert_timestamp_to_data
+from ppfleetx.core.engine import BasicEngine, InferenceEngine, TensorRTConfig
 from ppfleetx.core.module import BasicModule
 from ppfleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from ppfleetx.utils.version import version_check
 from ppfleetx.utils.export import export_inference_model
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from paddle.incubate.distributed.utils.io import save_for_auto_inference
 
 
 class EagerEngine(BasicEngine):
@@ -107,15 +107,25 @@ class EagerEngine(BasicEngine):
                 "'model' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.model.__class__.__name__}."
             )
 
-        if mode == 'train':
-            if module.loss_fn and not isinstance(
-                    module.loss_fn, nn.Layer) and not callable(module.loss_fn):
-                raise TypeError(
-                    "'loss_fn' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.loss_fn.__class__.__name__}."
-                )
+        # if mode == 'train':
+        #     if module.loss_fn and not isinstance(
+        #             module.loss_fn, nn.Layer) and not callable(module.loss_fn):
+        #         raise TypeError(
+        #             "'loss_fn' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.loss_fn.__class__.__name__}."
+        #         )
 
         # engine configs
         self._configs = configs['Engine']
+        self._compress_configs = None
+        self.prune_configs = None
+        self.quant_configs = None
+
+        if 'Compress' in configs:
+            self._compress_configs = configs['Compress']
+            if "Prune" in self._compress_configs:
+                self.prune_configs = self._compress_configs["Prune"]
+            if "Quantization" in self._compress_configs:
+                self.quant_configs = self._compress_configs["Quantization"]
 
         self._run_mode = self._configs.get('run_mode', 'step')
         assert self._run_mode in ['epoch', 'step'
@@ -127,7 +137,6 @@ class EagerEngine(BasicEngine):
         self._logging_freq = self._configs['logging_freq']
         self._num_train_epochs = self._configs['num_train_epochs']
         self._accumulate_steps = self._configs['accumulate_steps']
-        self.quant_configs = configs["Quantization"]
         self._use_pure_fp16 = self._configs['mix_precision']['use_pure_fp16']
         if mode == 'export' and self._use_pure_fp16:
             logger.info("NOTE: disable use_pure_fp16 in export mode")
@@ -150,16 +159,17 @@ class EagerEngine(BasicEngine):
         self._dp_degree = self._dist_configs['dp_degree']
         self._mp_degree = self._dist_configs['mp_degree']
         self._pp_degree = self._dist_configs['pp_degree']
-        self._sharding_stage = self._dist_configs['sharding']['sharding_stage']
-        self._sharding_degree = self._dist_configs['sharding'][
-            'sharding_degree']
-        self._sharding_offload = self._dist_configs['sharding'][
-            'sharding_offload']
-        self._reduce_overlap = getattr(self._dist_configs['sharding'],
-                                       'reduce_overlap', False)
-        self._broadcast_overlap = getattr(self._dist_configs['sharding'],
-                                          'broadcast_overlap', False)
+        sharding_config = self._dist_configs['sharding']
+
+        self._sharding_stage = sharding_config['sharding_stage']
+        self._sharding_degree = sharding_config['sharding_degree']
+        self._sharding_offload = sharding_config['sharding_offload']
+        self._reduce_overlap = sharding_config['reduce_overlap']
+        self._broadcast_overlap = sharding_config['broadcast_overlap']
+
         self._use_recompute = configs['Model']['use_recompute']
+        self._quant_mode = True if 'Quantization' in configs and configs[
+            'Quantization']['enable'] else False
 
         if self._use_pure_fp16:
             if mode == 'train':
@@ -173,6 +183,10 @@ class EagerEngine(BasicEngine):
         else:
             self._scaler = None
 
+        self._lr_scheduler_mode = configs.Optimizer.lr.pop('run_mode', 'step')
+        assert self._lr_scheduler_mode in [
+            'epoch', 'step'
+        ], 'lr.run_mode must be epoch or step'
         self._lr_scheduler = build_lr_scheduler(
             configs.Optimizer.lr) if mode == 'train' else None
 
@@ -182,7 +196,20 @@ class EagerEngine(BasicEngine):
 
         # distributed configs
         self._distributed = (dist.get_world_size() > 1)
-        self._dp_rank = 0
+
+        if self._distributed:
+            self._hcg = env.get_hcg()
+            self._dp_group = self._hcg.get_data_parallel_group()
+            self._sharding_group = self._hcg.get_sharding_parallel_group()
+
+            self._dp_rank = self._hcg.get_data_parallel_rank()
+            self._mp_rank = self._hcg.get_model_parallel_rank()
+            self._pp_rank = self._hcg.get_stage_id()
+            self._sharding_rank = self._hcg.get_sharding_parallel_rank()
+
+            self._wrap_with_fleet()
+        else:
+            self._dp_rank = 0
 
         # using for save/load
         self._load_recovery = {'step': 0, 'epoch': 0, 'rng_state': -1}
@@ -215,50 +242,39 @@ class EagerEngine(BasicEngine):
             logger.warning(
                 "Profiler is enabled, do not enable it in production.")
 
-    def distributed_model(self):
-        if self._distributed:
-            self._hcg = fleet.get_hybrid_communicate_group()
-            self._dp_group = self._hcg.get_data_parallel_group()
-            self._sharding_group = self._hcg.get_sharding_parallel_group()
-
-            self._dp_rank = self._hcg.get_data_parallel_rank()
-            self._mp_rank = self._hcg.get_model_parallel_rank()
-            self._pp_rank = self._hcg.get_stage_id()
-            self._sharding_rank = self._hcg.get_sharding_parallel_rank()
-
-            if self._hcg.nranks > 1:
-                self._wrap_with_fleet()
-        else:
-            self._dp_rank = 0
-
     def _wrap_with_fleet(self):
         if self._sharding_stage in [2, 3]:
-            assert self._mp_degree == self._pp_degree == 1, "sharding stage2/3 will support hybrid parallel later"
+            assert self._pp_degree == 1, "sharding stage2/3 will support pipeline parallel later"
             self._wrap_sharding_2_3()
         else:
             self._wrap_3D_parallel()
 
     def _wrap_sharding_2_3(self):
-        if self._dp_degree > 1:
+        if self._dp_degree > 1 and self._sharding_stage == 3:
             sync_params_buffers(
                 self._module.model,
                 comm_group=self._dp_group,
                 src_rank=self._dp_group.ranks[0])
 
+        if self._mp_degree > 1:
+            assert self._sharding_stage == 2, "only support mp + sharding stage2 hybrid parallel now."
+            self._module.model =  TensorParallel(self._module.model, self._hcg, strategy=None)
+
         level = "p_g_os" if self._sharding_stage == 3 else "os_g"
         origin_model = self._module.model
-        self._module.model, self._optimizer, self._scaler = group_sharded_parallel(
+        self._module.model, self._optimizer, self._scaler = sharding.sharding_wrapper(
             model=self._module.model,
             optimizer=self._optimizer,
             level=level,
             scaler=self._scaler,
             group=self._sharding_group,
-            offload=self._sharding_offload)
+            offload=self._sharding_offload,
+            dp_group=self._dp_group if self._dp_group.nranks > 1 else None)
         if self._reduce_overlap:
             self._module.model._set_reduce_overlap(self._reduce_overlap)
         if self._broadcast_overlap:
-            self._optimizer._set_broadcast_overlap(self._broadcast_overlap,
-                                                   origin_model)
+            self._optimizer._set_broadcast_overlap(
+                self._broadcast_overlap, layers=origin_model, num_groups=2)
 
     def _wrap_3D_parallel(self):
         self._module.model = fleet.distributed_model(self._module.model)
@@ -270,10 +286,11 @@ class EagerEngine(BasicEngine):
                          epoch_index,
                          train_data_loader=None,
                          valid_data_loader=None):
+        self._module.model.train()
 
         # time count
         train_losses = []
-        train_start = time.time()
+        train_step_start = get_timestamp()
         skip_first = True
         # Note(GuoxiaWang): Do not use len(train_data_loader()),
         # it will cause a memory leak.
@@ -290,32 +307,33 @@ class EagerEngine(BasicEngine):
             train_losses.append(loss)
 
             if (step + 1) % self._logging_freq == 0:
-                # Sync for profile time, delete it may be a little faster
-                paddle.device.cuda.synchronize()
-                train_costs = time.time() - train_start
+                train_step_cost = get_timestamp() - train_step_start
                 numpy_losses = [loss.numpy()[0] for loss in train_losses]
                 log_dict = {
                     'epoch': epoch_index,
                     'total_epoch': self._num_train_epochs,
                     'batch': step,
                     'total_batch': total_train_batch,
-                    'train_cost': train_costs
-                    if step == 0 else train_costs / self._logging_freq,
+                    'train_cost': train_step_cost
+                    if step == 0 else train_step_cost / self._logging_freq,
                     'loss': sum(numpy_losses) / len(numpy_losses),
                     'lr': self._optimizer.get_lr()
                 }
                 self._module.training_step_end(log_dict)
 
-                train_start = time.time()
+                train_step_start = get_timestamp()
                 train_losses = []
+
+            if self._lr_scheduler is not None and self._lr_scheduler_mode == 'step':
+                self._lr_scheduler.step()
+
+            self._optimizer.clear_grad()
 
             if self._run_mode == 'step' and not skip_first:
                 if self._eval_freq > 0 and step % self._eval_freq == 0:
-                    paddle.device.cuda.synchronize()
-                    self._module.model.eval()
 
                     eval_losses = []
-                    eval_start = time.time()
+                    eval_step_start = get_timestamp()
 
                     for eval_step, batch in enumerate(valid_data_loader):
                         loss = self._evaluate_impl(batch)
@@ -324,8 +342,7 @@ class EagerEngine(BasicEngine):
                         if eval_step >= self._eval_iters - 1:
                             break
 
-                    paddle.device.cuda.synchronize()
-                    eval_cost = time.time() - eval_start
+                    eval_step_cost = get_timestamp() - eval_step_start
                     eval_loss = sum(eval_losses) / len(eval_losses)
 
                     log_dict = {
@@ -333,11 +350,9 @@ class EagerEngine(BasicEngine):
                         'epoch': epoch_index,
                         'batch': eval_step,
                         'total_batch': total_eval_batch,
-                        'eval_cost': eval_cost / self._logging_freq,
+                        'eval_cost': eval_step_cost / self._logging_freq,
                     }
                     self._module.validation_step_end(log_dict)
-
-                    self._module.model.train()
 
                 if self._save_steps > 0 and step % self._save_steps == 0:
                     paddle.device.cuda.synchronize()
@@ -346,7 +361,6 @@ class EagerEngine(BasicEngine):
                 skip_first = False
 
             if self._run_mode == 'step' and step >= self._max_steps:
-                logger.info("The training process is complete.")
                 return
 
             if self.profiler:
@@ -367,44 +381,51 @@ class EagerEngine(BasicEngine):
         """
         self._module.model.train()
 
-        train_cost = 0.0
-        train_start = time.time()
+        train_start = get_timestamp()
 
         start_epoch = self._load_recovery['epoch']
         if self._load_recovery['rng_state'] != -1:
             paddle.set_cuda_rng_state(self._load_recovery['rng_state'])
 
         for epoch_index in range(start_epoch, epoch):
+            train_epoch_start = get_timestamp()
             self._train_one_epoch(epoch_index, train_data_loader,
                                   valid_data_loader)
 
-            paddle.device.cuda.synchronize()
-            train_cost += time.time() - train_start
+            train_epoch_cost = get_timestamp() - train_epoch_start
             log_dict = {
                 'epoch': epoch_index,
-                'train_cost': train_cost,
+                'train_cost': train_epoch_cost,
             }
             self._module.training_epoch_end(log_dict)
 
-            eval_start = time.time()
+            if self._lr_scheduler is not None and self._lr_scheduler_mode == 'epoch':
+                self._lr_scheduler.step()
+
             if self._run_mode == 'epoch' and self._eval_freq > 0 and \
                 epoch_index % self._eval_freq == 0:
+                eval_epoch_start = get_timestamp()
                 self._evaluate_one_epoch(epoch_index, valid_data_loader)
-                self._module.model.train()
-                eval_cost = time.time() - eval_start
+                eval_epoch_cost = get_timestamp() - eval_epoch_start
                 log_dict = {
                     'epoch': epoch_index,
-                    'eval_cost': eval_cost,
+                    'eval_cost': eval_epoch_cost,
                 }
                 self._module.validation_epoch_end(log_dict)
 
             if self._save_epoch > 0 and self._run_mode == 'epoch' and epoch_index % self._save_epoch == 0:
                 self.save(epoch=epoch_index, step=len(train_data_loader))
 
+        logger.info(
+            "The training process is complete and total cost of time for training is : {}".
+            format(convert_timestamp_to_data(get_timestamp() - train_start)))
+
         if self.profiler:
             self._profiler_done()
 
     def _fit_impl(self, batch):
+        self._module.model.train()
+
         batch = self._module.pretreating_batch(batch)
         if self._pp_degree == 1:
             if self._use_recompute and isinstance(self._module.model,
@@ -420,18 +441,18 @@ class EagerEngine(BasicEngine):
                                           self._dp_group)
             else:
                 loss = self._model_forward_backward(batch)
-            self._optim_update_params()
         else:
             with paddle.amp.auto_cast(
                     self._use_pure_fp16,
                     custom_black_list=self._custom_black_list,
                     custom_white_list=self._custom_white_list,
                     level='O2'):
-                loss = self._module.model.train_batch(
-                    batch,
-                    optimizer=self._optimizer,
-                    lr_scheduler=self._lr_scheduler,
-                    scaler=self._scaler)
+                batch = self._module.model._prepare_training(
+                    batch, self._optimizer, self._lr_scheduler)
+                loss = self._module.model.forward_backward_pipeline(
+                    batch, self._scaler)
+
+        self._optim_update_params()
         return loss
 
     def _model_forward_backward(self, batch):
@@ -455,37 +476,44 @@ class EagerEngine(BasicEngine):
                 loss = self._module.training_step(micro_batch)
 
             loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
-            self._module.backward(loss_bw)
+            if self._accumulate_steps > 1:
+                # div the loss for backward
+                loss_bw = loss_bw / self._accumulate_steps
+
+            # NOTE(haohongxiang): To temporarily resolve the problem of INF caused 
+            # by primary sharding strategy during training. The division will be removed 
+            # after fixing sharding strategy.
+            if self._distributed and self._sharding_stage == 2:
+                self._module.backward(loss_bw / self._sharding_group.nranks)
+            else:
+                self._module.backward(loss_bw)
+
             detach_loss = loss.detach()
             if final_loss is None:
                 final_loss = detach_loss
             else:
                 final_loss = paddle.add(final_loss, detach_loss)
         if self._accumulate_steps > 1:
+            # div the loss for print
             final_loss = final_loss / self._accumulate_steps
         return final_loss
 
     def _optim_update_params(self):
-        if self._sharding_stage in [2, 3] and self._dp_degree > 1:
+        if self._sharding_stage in [3] and self._dp_degree > 1:
             fused_allreduce_gradients(self._module.model.parameters(),
                                       self._hcg)
-            if self._sharding_stage == 3:
-                for p in self._module.model.parameters():
-                    if hasattr(p, "bw_storage"):
-                        assert p.grad is None, "This case shouldn't happen."
-                        p.bw_storage.scale_(1.0 / self._dp_group.nranks)
-                        dist.all_reduce(p.bw_storage, group=self._dp_group)
+
+            for p in self._module.model.parameters():
+                if hasattr(p, "bw_storage"):
+                    assert p.grad is None, "This case shouldn't happen."
+                    p.bw_storage.scale_(1.0 / self._dp_group.nranks)
+                    dist.all_reduce(p.bw_storage, group=self._dp_group)
 
         if self._use_pure_fp16:
             self._scaler.step(self._optimizer)
             self._scaler.update()
         else:
             self._optimizer.step()
-
-        if self._lr_scheduler is not None:
-            self._lr_scheduler.step()
-
-        self._optimizer.clear_grad()
 
     @paddle.no_grad()
     def evaluate(self, epoch=1, valid_data_loader=None):
@@ -501,17 +529,14 @@ class EagerEngine(BasicEngine):
         """
         self._module.model.eval()
 
-        eval_cost = 0.0
-        eval_epoch_start = time.time()
-
         for epoch_index in range(epoch):
+            eval_epoch_start = get_timestamp()
             self._evaluate_one_epoch(epoch_index, valid_data_loader)
 
-            paddle.device.cuda.synchronize()
-            eval_cost += time.time() - eval_epoch_start
+            eval_epoch_cost = get_timestamp() - eval_epoch_start
             log_dict = {
                 'epoch': epoch_index,
-                'eval_cost': eval_cost,
+                'eval_cost': eval_epoch_cost,
             }
             self._module.validation_epoch_end(log_dict)
 
@@ -521,27 +546,27 @@ class EagerEngine(BasicEngine):
 
     @paddle.no_grad()
     def _evaluate_one_epoch(self, epoch=1, valid_data_loader=None):
-        eval_start = time.time()
+        self._module.model.eval()
+
+        eval_step_start = get_timestamp()
         eval_losses = []
         total_eval_batch = len(valid_data_loader)
         for eval_step, batch in enumerate(valid_data_loader):
             loss = self._evaluate_impl(batch)
-
-            paddle.device.cuda.synchronize()
-            eval_cost = time.time() - eval_start
             eval_losses.append(loss.numpy()[0])
 
             if eval_step % self._logging_freq == 0:
+                eval_step_cost = get_timestamp() - eval_step_start
                 log_dict = {
                     'loss': sum(eval_losses) / len(eval_losses),
                     'epoch': epoch,
                     'batch': eval_step,
                     'total_batch': total_eval_batch,
-                    'eval_cost': eval_cost
-                    if eval_step == 0 else eval_cost / self._logging_freq,
+                    'eval_cost': eval_step_cost
+                    if eval_step == 0 else eval_step_cost / self._logging_freq,
                 }
                 self._module.validation_step_end(log_dict)
-                eval_start = time.time()
+                eval_step_start = get_timestamp()
                 eval_losses = []
 
             if self._run_mode == 'step' and eval_step >= self._max_steps:
@@ -551,8 +576,9 @@ class EagerEngine(BasicEngine):
 
     @paddle.no_grad()
     def _evaluate_impl(self, batch):
-        batch = self._module.pretreating_batch(batch)
+        self._module.model.eval()
 
+        batch = self._module.pretreating_batch(batch)
         with paddle.amp.auto_cast(
                 self._use_pure_fp16,
                 custom_black_list=self._custom_black_list,
@@ -579,16 +605,15 @@ class EagerEngine(BasicEngine):
         """
         self._module.model.eval()
 
-        test_start = time.time()
+        test_start = get_timestamp()
         test_losses = []
         for test_step, batch in enumerate(test_data_loader):
             loss = self._predict_impl(batch)
 
-            paddle.device.cuda.synchronize()
-            test_cost = time.time() - test_start
             test_losses.append(loss.numpy()[0])
 
             if test_step % self._logging_freq == 0:
+                test_cost = get_timestamp() - test_start
                 log_dict = {
                     'loss': sum(test_losses) / len(test_losses),
                     'epoch': epoch,
@@ -597,7 +622,7 @@ class EagerEngine(BasicEngine):
                     if test_step == 0 else test_cost / self._logging_freq,
                 }
                 self._module.test_step_end(log_dict)
-                test_start = time.time()
+                test_start = get_timestamp()
                 test_losses = []
 
             if test_step >= self._max_steps:
@@ -607,6 +632,7 @@ class EagerEngine(BasicEngine):
 
     @paddle.no_grad()
     def _predict_impl(self, batch):
+        self._module.model.eval()
         batch = self._module.pretreating_batch(batch)
 
         with paddle.amp.auto_cast(
@@ -654,59 +680,84 @@ class EagerEngine(BasicEngine):
             }
             paddle.save(meta_dict, os.path.join(save_dir, "meta_state.pdopt"))
 
+            save_auto_dir = os.path.join(output_dir, "auto_infer")
+            save_for_auto_inference(
+                os.path.join(save_auto_dir, "auto"), self._module.model)
+
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
 
     def _get_pruned_params(self, model):
         params = []
         for sublayer in model.sublayers():
-            print(type(sublayer))
             for param in sublayer.parameters(include_sublayers=False):
                 if isinstance(sublayer, paddle.nn.layer.common.Linear) or isinstance(sublayer, paddle.distributed.fleet.layers.mpu.mp_layers.ColumnParallelLinear) or isinstance(sublayer, paddle.distributed.fleet.layers.mpu.mp_layers.RowParallelLinear): 
-                    params.append(param.name)
+                    if len(param.shape) != 2: continue
+                    if param.shape[1] == 3 * param.shape[0] or param.shape[1] == 4 * param.shape[0]:
+                        params.append(param.name)
 
         return params
 
-    def prune_model(self, infer=False):
+    def _prune_model(self, infer=False):
         model = self._module.model
+        prune_criterion = self.prune_configs.criterion
+        ratio = self.prune_configs.ratio
 
-        prune_criterion = 'l1_norm' #  self._configs.Prune.criterion
-        ratio = 0.125 # self._configs.Prune.ratio
+        #TODO(minghaoBD): remove hardcode
+        batch_size = 8
+        seq_len = 1024
 
-        # logger.info("Flops before pruning: {}GFLOPS".format(flops(model, [[8, 1024], [8, 1024]], dtypes=['int64'] * 2) / 1000))
-        if prune_criterion == 'fpgm':
-            #TODO(minghaoBD): test fc pruning in fpgm pruner
-            pruner = paddleslim.dygraph.FPGMFilterPruner(model, [[8, 1024], [8, 1024]])
-        elif prune_criterion == 'l1_norm':
+        if prune_criterion == 'l1_norm':
             if infer:
-                pruner = paddleslim.dygraph.L1NormFilterPruner(model, [[8, 1024]], skip_leaves=False)
+                pruner = paddleslim.dygraph.L1NormFilterPruner(model, [[batch_size, seq_len]], skip_leaves=False, prune_type='fc', input_dtype='int8')
             else:
-                pruner = paddleslim.dygraph.L1NormFilterPruner(model, [[8, 1024], [8, 1024]], skip_leaves=False)
+                pruner = paddleslim.dygraph.L1NormFilterPruner(model, [[batch_size, seq_len], [batch_size, seq_len]], skip_leaves=False, prune_type='fc', input_dtype='int8')
+        elif prune_criterion == 'l2_norm':
+            if infer:
+                pruner = paddleslim.dygraph.L2NormFilterPruner(model, [[batch_size, seq_len]], skip_leaves=False, prune_type='fc', input_dtype='int8')
+            else:
+                pruner = paddleslim.dygraph.L2NormFilterPruner(model, [[batch_size, seq_len], [batch_size, seq_len]], skip_leaves=False, prune_type='fc', input_dtype='int8')
         params = self._get_pruned_params(model)
         ratios = {}
         for param in params:
             ratios[param] = ratio
         #NOTE(minghaoBD): hidden size in Layernorm must be 768/1024/2048/4096 for best inference performace, and when axis=0, the hidden size in layernorm will be changed accordingly. So axis=1 is required.
         plan = pruner.prune_vars(ratios, [1])
-        # logger.info("Flops after pruning: {}GFLOPS".format(flops(model, [[8, 1024], [8, 1024]], dtypes=['int64'] * 2) / 1000))
 
 
-    def quant_model(self):
+    def _quant_model(self):
         model = self._module.model
         quanter = paddleslim.dygraph.quant.QAT(
             config=self.quant_configs)
         quanter.quantize(model)
-        print(model)
 
-    def sensitive(self, eval_func):
+    def sensitive(self, eval_func, output_file="./sen.pickle"):
         model = self._module.model
-        prune_criterion = 'l1_norm'
-        if prune_criterion == 'fpgm':
-            pruner = paddleslim.dygraph.FPGMFilterPruner(model, [[8, 1024], [8, 1024]])
-        elif prune_criterion == 'l1_norm':
-            pruner = paddleslim.dygraph.L1NormFilterPruner(model, [[8, 1024], [8, 1024]], skip_leaves=False)
+        prune_criterion = self.prune_configs.criterion
+        #TODO(minghaoBD): remove hardcode
+        batch_size = 8
+        seq_len = 1024
 
-        pruner.sensitive(eval_func=eval_func, sen_file="./sen.pickle")
+        if prune_criterion == 'l1_norm':
+            pruner = paddleslim.dygraph.L1NormFilterPruner(model, [[batch_size, seq_len], [batch_size, seq_len]], skip_leaves=False, prune_type='fc', input_dtype='int8')
+        elif prune_criterion == 'l2_norm':
+            pruner = paddleslim.dygraph.L2NormFilterPruner(model, [[batch_size, seq_len], [batch_size, seq_len]], skip_leaves=False, prune_type='fc', input_dtype='int8')
+
+        pruner.sensitive(eval_func=eval_func, sen_file=output_file)
+
+    def compress_model(self, infer=False):
+        if self._compress_configs is None: return
+        #if self._compress_configs.pretrained is not None:
+        #    self._compress_load()
+        if self.prune_configs is not None and self.prune_configs.enable:
+            self._prune_model(infer=infer)
+        if self.prune_configs is not None and self.prune_configs.cal_sens:
+            self.sensitive(self._evaluate_one_epoch)
+            sys.exit()
+
+        #NOTE(minghaoBD): We haven't fully tested Prune+Quantization, so an "else if" is put here for separation.
+        elif self.quant_configs is not None and self.quant_configs.enable:
+            self._quant_model()
 
 
     def load(self):
@@ -716,10 +767,9 @@ class EagerEngine(BasicEngine):
         if self._ckpt_dir and isinstance(self._ckpt_dir, str):
             logger.info("Try to load checkpoint from %s " % self._ckpt_dir)
 
-            # load_dir = "{}/mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}".format(
-            #     self._ckpt_dir, self._mp_rank, self._sharding_rank,
-            #     self._pp_rank) if self._distributed else self._ckpt_dir
-            load_dir = self._ckpt_dir
+            load_dir = "{}/mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}".format(
+                self._ckpt_dir, self._mp_rank, self._sharding_rank,
+                self._pp_rank) if self._distributed else self._ckpt_dir
             model_path = os.path.join(load_dir, "model.pdparams")
             opt_path = os.path.join(load_dir, "model_state.pdopt")
             meta_path = os.path.join(load_dir, "meta_state.pdopt")
@@ -727,29 +777,25 @@ class EagerEngine(BasicEngine):
             if os.path.exists(model_path):
                 model_dict = paddle.load(model_path)
                 for name, param in self._module.model.state_dict().items():
-                    # print(name, param.shape, model_dict[name].shape)
-                    if name not in model_dict.keys(
-                            ):
-                        "No param named `{}` was found in checkpoint file.".format(
+                    assert name in model_dict.keys(
+                    ), "No param named `{}` was found in checkpoint file.".format(
                         name)
-                        continue
 
                     if param.dtype != model_dict[name].dtype:
                         model_dict[name] = model_dict[name].cast(param.dtype)
-                    
+
                 self._module.model.set_state_dict(model_dict)
             else:
                 raise ValueError("No optimizer checkpoint file found in %s." %
                                  model_path)
 
-            if self.mode == 'train':
+            if False: #self.mode == 'train':
                 if os.path.exists(opt_path):
                     opt_dict = paddle.load(opt_path)
                     self._optimizer.set_state_dict(opt_dict)
                 else:
-                    pass
-                    # raise ValueError(
-                    #     "No optimizer checkpoint file found in %s." % opt_path)
+                    raise ValueError(
+                        "No optimizer checkpoint file found in %s." % opt_path)
 
                 if os.path.exists(meta_path):
                     meta_dict = paddle.load(meta_path)
@@ -759,14 +805,29 @@ class EagerEngine(BasicEngine):
                         'rng_state': meta_dict['cuda_rng_state']
                     }
                 else:
-                    pass
-                    # raise ValueError("No meta checkpoint file found in %s." %
-                    #                  meta_path)
+                    raise ValueError("No meta checkpoint file found in %s." %
+                                     meta_path)
 
             logger.info("successfully load checkpoints")
         else:
             logger.warning("`load` requires a valid value of `ckpt_dir`.")
             raise TypeError("`load` requires a valid value of `ckpt_dir`.")
+
+    def _compress_load(self):
+        pretrained_path = self._compress_configs.pretrained + ".pdparams"
+        assert os.path.exists(
+            pretrained_path), f'{pretrained_path} is not exists!'
+        model_dict = paddle.load(pretrained_path)
+        for name, param in model.state_dict().items():
+            assert name in model_dict.keys(
+            ), "No param named `{}` was found in checkpoint file.".format(
+                name)
+            if param.dtype != model_dict[name].dtype:
+                model_dict[name] = model_dict[name].cast(param.dtype)
+        model.set_state_dict(model_dict)
+        logger.info(
+            f'Load pretrained weight from {pretrained_path} for model compression.'
+        )
 
     def export(self):
         self._module.model.eval()
@@ -774,14 +835,31 @@ class EagerEngine(BasicEngine):
 
         save_dir = os.path.join(self._output_dir,
                                 "rank_{}".format(self._dp_rank))
-        export_inference_model(self._module.model, input_spec, save_dir,
-                               'model')
+
+        if not self._quant_mode:
+            export_inference_model(self._module.model, input_spec, save_dir,
+                                   'model')
+        else:
+            logger.info("export quantized model.")
+            export_inference_model(
+                self._module.model,
+                input_spec,
+                save_dir,
+                'model',
+                export_quant_model=True,
+                quanter=self._module.quanter)
 
     def inference(self, data):
         if self._inference_engine is None:
+            # parse TensorRT config
+            tensorrt_config = None
+            if 'TensorRT' in self._inference_configs:
+                tensorrt_config = TensorRTConfig(
+                    **self._inference_configs['TensorRT'])
+
             self._inference_engine = InferenceEngine(
                 self._inference_configs['model_dir'],
-                self._inference_configs['mp_degree'])
+                self._inference_configs['mp_degree'], tensorrt_config)
 
         return self._inference_engine.predict(data)
 

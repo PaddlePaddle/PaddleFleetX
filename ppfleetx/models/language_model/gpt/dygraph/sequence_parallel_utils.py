@@ -16,6 +16,7 @@
 
 import paddle
 from paddle import framework
+from paddle import distributed as dist
 from paddle.nn import functional as F
 from paddle.autograd import PyLayer
 from paddle.fluid import core
@@ -23,6 +24,9 @@ from paddle.fluid.dygraph.layers import Layer
 from paddle.distributed import fleet
 from paddle.distributed.fleet.base import topology as tp
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
+from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients_with_group
+
+from ppfleetx.distributed.apis import env
 
 import numpy as np
 
@@ -34,19 +38,24 @@ import numpy as np
 
 
 def scatter(input):
-    hcg = fleet.get_hybrid_communicate_group()
+    hcg = env.get_hcg()
     group = hcg.get_model_parallel_group()
     parallelism = group.nranks
     rank = group.rank
-    assert input.shape[0] % parallelism == 0, \
-            "Input sequence length {0} can't be divided exactly \
-             by sequence parallelism {1}".format(input.shape[0], parallelism)
-    input = paddle.split(input, num_or_sections=parallelism, axis=0)[rank]
+    seq_len = input.shape[0]
+    assert seq_len % parallelism == 0, "Input sequence length {} can't be divided exactly by sequence parallelism {}".format(
+        seq_len, parallelism)
+    interval = seq_len // parallelism
+    input = paddle.slice(
+        input,
+        axes=[0],
+        starts=[interval * rank],
+        ends=[interval * (rank + 1)])
     return input
 
 
 def all_gather(input):
-    hcg = fleet.get_hybrid_communicate_group()
+    hcg = env.get_hcg()
     group = hcg.get_model_parallel_group()
     parallelism = group.nranks
     output_shape = input.shape
@@ -57,16 +66,17 @@ def all_gather(input):
 
 
 def reduce_scatter(input):
-    hcg = fleet.get_hybrid_communicate_group()
+    hcg = env.get_hcg()
     group = hcg.get_model_parallel_group()
     parallelism = group.nranks
     output_shape = input.shape
-    assert input.shape[0] % parallelism == 0, \
-        "Input sequence length {0} can't be divided exactly by \
-         sequence parallelism {1}".format(input.shape[0], parallelism)
+    assert input.shape[
+        0] % parallelism == 0, "Input sequence length {0} can't be divided exactly by sequence parallelism {1}".format(
+            input.shape[0], parallelism)
     output_shape[0] = output_shape[0] // parallelism
     output = paddle.empty(shape=output_shape, dtype=input.dtype)
-    group.process_group._reduce_scatter_base(output, input).wait()
+    dist.stream.reduce_scatter(
+        output, input, op=dist.ReduceOp.SUM, group=group, sync_op=True)
     return output
 
 
@@ -133,11 +143,70 @@ class ReduceScatterOp(PyLayer):
 ###################################################
 
 
-def all_reduce_gradient_hook(grad):
-    hcg = fleet.get_hybrid_communicate_group()
+def mark_as_sequence_parallel_parameter(parameter):
+    setattr(parameter, 'sequence_parallel', True)
+
+
+def is_sequence_parallel_parameter(parameter):
+    return getattr(parameter, 'sequence_parallel', False)
+
+
+def create_fused_allreduce_gradient_hook(parameter_list, accumulation_steps):
+    hcg = env.get_hcg()
     group = hcg.get_model_parallel_group()
-    group.process_group.allreduce(grad).wait()
-    return grad
+
+    step = [0]
+    accumulation_steps *= len(parameter_list)
+
+    def __impl__(grad):
+        step[0] += 1
+        if step[0] == accumulation_steps:
+            step[0] = 0
+            fused_allreduce_gradients_with_group(
+                parameter_list, group=group, scale=1.0)
+        return grad
+
+    return __impl__
+
+
+def create_non_fused_allreduce_gradient_hook(accumulation_steps):
+    hcg = env.get_hcg()
+    pg = hcg.get_model_parallel_group().process_group
+
+    step = [0]
+
+    def __impl__(grad):
+        step[0] += 1
+        if step[0] == accumulation_steps:
+            step[0] = 0
+            pg.allreduce(grad).wait()
+        return grad
+
+    return __impl__
+
+
+def register_sequence_parallel_allreduce_hooks(
+        model, accumulation_steps, fuse_sequence_parallel_allreduce):
+    if accumulation_steps <= 0 or not paddle.distributed.is_initialized():
+        return
+
+    mp_group = env.get_hcg().get_model_parallel_group()
+    if mp_group.nranks <= 1:
+        return
+
+    params = []
+    for p in model.parameters():
+        if is_sequence_parallel_parameter(p):
+            params.append(p)
+
+    if fuse_sequence_parallel_allreduce:
+        hook = create_fused_allreduce_gradient_hook(params, accumulation_steps)
+        for p in params:
+            p.register_hook(hook)
+    else:
+        for p in params:
+            p.register_hook(
+                create_non_fused_allreduce_gradient_hook(accumulation_steps))
 
 
 def is_fused_matmul_bias_supported():
@@ -159,7 +228,7 @@ class ColumnSequenceParallelLinear(Layer):
                  name=None):
         super(ColumnSequenceParallelLinear, self).__init__()
 
-        hcg = fleet.get_hybrid_communicate_group()
+        hcg = env.get_hcg()
         self.model_parallel_group = hcg.get_model_parallel_group(
         ) if mp_group is None else mp_group
         self.world_size = hcg.get_model_parallel_group(
@@ -254,7 +323,7 @@ class RowSequenceParallelLinear(Layer):
         self._dtype = self._helper.get_default_dtype()
         self._name = name
 
-        hcg = fleet.get_hybrid_communicate_group()
+        hcg = env.get_hcg()
         self.model_parallel_group = hcg.get_model_parallel_group(
         ) if mp_group is None else mp_group
         self.world_size = hcg.get_model_parallel_group(
@@ -286,7 +355,7 @@ class RowSequenceParallelLinear(Layer):
 
         self.weight.is_distributed = True if self.is_mp else False
 
-        # if sequence parallel is true, 
+        # if sequence parallel is true,
         # register hook to all_reduce gradient of weight and bias
         if has_bias:
             self.bias = self.create_parameter(
@@ -295,7 +364,7 @@ class RowSequenceParallelLinear(Layer):
                 dtype=self._dtype,
                 is_bias=True)
             if self.is_mp:
-                self.bias.register_hook(all_reduce_gradient_hook)
+                mark_as_sequence_parallel_parameter(self.bias)
         else:
             self.bias = None
 

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import numpy as np
+import functools
 import numbers
 import collections
 import paddle
@@ -44,6 +45,59 @@ def recompute_wrapper(func, *args, is_recompute=True):
         return recompute(func, *args)
     else:
         return func(*args)
+
+
+def subbatch(f, arg_idx, dim, bs, out_idx, same_arg_idx={}):
+    """ Converts a function to one that applies to subbatch of an input
+    dimension.
+    Args:
+        f(Callable): original function.
+        arg_idx([int]): indices of the inputs to be subbatched.
+        dim([int]): index of the dimension to be subbatched.
+        bs(int): subbatch size.
+        out_idx(int): index of the output dimension that needs stacking
+        same_arg_idx(dict), optional: index of same arg mapping. e.g {1: 0} means arg[1] == arg[0],
+                            we assign _args[1] = _args[0] avoiding slice repeatly.
+    Returns:
+        converted function.
+    """
+
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+
+        assert len(arg_idx) == len(
+            dim
+        ), f'Number of batching args and number of batching dims should match.'
+
+        inps = [args[i] for i in arg_idx]
+        dim_width = [inp.shape[d] for inp, d in zip(inps, dim)]
+        assert len(set(dim_width)) == 1, f'Batch sizes should be kept equal.'
+
+        inp_dim = {inp: d for inp, d in zip(inps, dim)}
+
+        dim_width = dim_width[0]
+        if dim_width < bs:
+            return f(*args, **kwargs)
+
+        outs = []
+        for slice_at in np.arange(0, dim_width, bs):
+            _args = []
+            for i, inp in enumerate(args):
+                if i in same_arg_idx:
+                    assert i > same_arg_idx[
+                        i], f"expect i > same_arg_idx[i], but got i: {i} and same_arg_idx[i]: {same_arg_idx[i]}"
+                    _args.append(_args[same_arg_idx[i]])
+                elif i in arg_idx:
+                    inp = inp.slice([inp_dim[inp]], [slice_at],
+                                    [slice_at + bs])
+                    _args.append(inp)
+                else:
+                    _args.append(inp)
+            outs.append(f(*_args, **kwargs))
+
+        return paddle.concat(outs, out_idx)
+
+    return wrapper
 
 
 def batched_gather(params, indices, axis=0, batch_dims=0):

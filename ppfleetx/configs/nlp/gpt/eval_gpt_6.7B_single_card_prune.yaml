@@ -12,7 +12,7 @@ Engine:
     ckpt_dir: /workspace/distill-gpt/PaddleFleetX/pretrain_model 
 
 Prune:
-  enable: False
+  enable: True
   criterion: l1_norm
   ratio: 0.125
 

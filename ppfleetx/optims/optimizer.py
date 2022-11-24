@@ -18,6 +18,7 @@ import paddle.distributed.fleet as fleet
 
 from ppfleetx.utils.tensor_fusion_helper import fused_parameters
 from paddle.optimizer import Adam, AdamW, Momentum
+from ppfleetx.distributed.apis import env
 
 __all__ = [
     'Adam',
@@ -32,7 +33,7 @@ class FusedAdamW(paddle.optimizer.AdamW):
         tensor_fusion = config.pop("tensor_fusion", False)
 
         if paddle.distributed.get_world_size() > 1:
-            hcg = fleet.get_hybrid_communicate_group()
+            hcg = env.get_hcg()
             sharding_size = hcg.get_sharding_parallel_world_size()
 
         if tensor_fusion:

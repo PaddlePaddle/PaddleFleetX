@@ -19,11 +19,15 @@ import logging
 import os
 import sys
 import time
+import datetime
 import threading
 from typing import List
 
 import colorlog
 from colorama import Fore
+
+import paddle
+from .version import get_device
 
 loggers = {}
 
@@ -173,3 +177,17 @@ def advertise():
         "=={}==".format(' ' * AD_LEN),
         "=={}==".format(website.center(AD_LEN)),
         "=" * (AD_LEN + 4), ))
+
+
+def get_timestamp():
+    if paddle.is_compiled_with_cuda():
+        paddle.device.cuda.synchronize()
+    elif paddle.is_compiled_with_xpu():
+        paddle.device.xpu.synchronize()
+    else:
+        logger.warning(f"the time stamp is only supported on cuda and xpu. "
+        f"However current supported is {get_device()}, which may result uncorrect time")
+    return time.time()
+
+def convert_timestamp_to_data(timeStamp):
+    return str(datetime.timedelta(seconds=int(timeStamp)))

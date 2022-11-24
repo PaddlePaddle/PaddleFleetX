@@ -25,16 +25,17 @@ import paddle.distributed as dist
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
 
-from ppfleetx.utils import config, env
+from ppfleetx.utils import config
 from ppfleetx.models import build_module
 from ppfleetx.core import EagerEngine
+from ppfleetx.distributed.apis import env
 
 if __name__ == "__main__":
     args = config.parse_args()
     cfg = config.get_config(args.config, overrides=args.override, show=False)
 
     if dist.get_world_size() > 1:
-        fleet.init(is_collective=True, strategy=env.init_dist_env(cfg))
+        env.init_dist_env(cfg)
 
     env.set_seed(cfg.Global.seed)
 
@@ -43,8 +44,7 @@ if __name__ == "__main__":
 
     engine = EagerEngine(configs=cfg, module=module, mode='export')
 
-    if "Prune" in cfg.keys() and cfg.Prune.enable:
-        engine.prune_model(True)
+    engine.compress_model(infer=True)
 
     if cfg.Engine.save_load.ckpt_dir is not None:
         engine.load()

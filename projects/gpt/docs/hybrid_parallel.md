@@ -57,7 +57,7 @@
 
 ### 策略支持
 
-飞桨的混合并行技术包括4个维度：数据并行、张量模型并行、流水线并行和分组切片并行，此外还支持重计算、offload、混合精度等策略，来减少显存占用、加速训练。
+飞桨的混合并行技术包括4个维度：数据并行、张量模型并行、流水线并行和分组切片并行，此外还支持重计算、offload、混合精度、序列并行等策略，来减少显存占用、加速训练。
 
 目前，GPT模型训练已支持前3个维度的任意策略组合，但分组切片并行stage2/3仅支持与数据并行策略组合使用；详见下表。
 
@@ -154,12 +154,17 @@ python -m paddle.distributed.launch --log_dir $log_dir \
 
 ### 量化训练
 
-若需要对模型进行量化训练，按照以上在配置文件中添加量化参数，可参考`pretrain_gpt_345M_mp8_qat.yaml`，启动命令与以上训练一致。以单机345M模型模型并行训练为例，通过``paddle.distributed.launch``启动多进程训练，该gpt程序需要8卡32G V100以运行，命令如下：
+
+若需要对模型进行量化训练，按照以上在配置文件中添加量化参数，可参考`qat_gpt_345M_mp8.yaml`，量化训练时可以可以适当减少训练轮数和学习率。以单机345M模型模型并行训练为例，通过``paddle.distributed.launch``启动多进程训练，该gpt程序需要8卡32G V100以运行，命令如下：
 
 ```shell
 log_dir=log_mp8
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" tools/train.py \
-    -c ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_mp8_qat.yaml
+    -c ppfleetx/configs/nlp/gpt/qat_gpt_345M_mp8.yaml
+    -o Engine.max_steps=100000 \
+    -o Optimizer.lr.decay_steps=72000 \
+    -o Optimizer.lr.max_lr=5.0e-6 \
+    -o Optimizer.lr.min_lr=1.0e-6 
 ```
 
 

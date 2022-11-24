@@ -17,13 +17,16 @@ import sys
 import copy
 import math
 import numpy as np
+import types
 
 import paddle
 from paddle.static import InputSpec
+import paddle.distributed.fleet as fleet
 
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.language_model.gpt as gpt
-from ppfleetx.utils import env
+from ppfleetx.models.language_model.gpt.dygraph.sequence_parallel_utils import register_sequence_parallel_allreduce_hooks
+from ppfleetx.distributed.apis import env
 from ppfleetx.utils.log import logger
 import paddleslim
 from paddleslim.analysis import dygraph_flops as flops
@@ -38,6 +41,7 @@ from paddlenlp.transformers.gpt.tokenizer import GPTChineseTokenizer
 
 MODEL_CLASSES = {
     "GPT": (GPTTokenizer, "gpt2"),
+    "MoE": (GPTTokenizer, "gpt2"),
     "GPT-cn": (GPTChineseTokenizer, "gpt-cpm-large-cn"),
 }
 
@@ -107,42 +111,6 @@ class LanguageModule(BasicModule):
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
                log_dict['test_cost'], speed))
 
-    def _get_pruned_params(self, model):
-        params = []
-        for sublayer in model.sublayers():
-            for param in sublayer.parameters(include_sublayers=False):
-                if isinstance(sublayer, paddle.nn.layer.common.Linear): 
-                    params.append(param.name)
-
-        return params
-
-    def prune_model(self, model):
-        prune_criterion = self.configs.Prune.criterion
-        ratio = self.configs.Prune.ratio
-        
-        # logger.info("Flops before pruning: {}GFLOPS".format(flops(model, [[8, 1024], [8, 1024]]) / 1000))
-        if prune_criterion == 'fpgm':
-            #TODO(minghaoBD): test fc pruning in fpgm pruner
-            pruner = paddleslim.dygraph.FPGMFilterPruner(model, [[8, 1024], [8, 1024]])
-        elif prune_criterion == 'l1_norm':
-            pruner = paddleslim.dygraph.L1NormFilterPruner(model, [[8, 1024], [8, 1024]], skip_leaves=False)
-        params = self._get_pruned_params(model)
-        # print('====pruned params======')
-        # print(params)
-        # sys.exit()
-        ratios = {}
-        for param in params:
-            ratios[param] = ratio
-        #NOTE(minghaoBD): hidden size in Layernorm must be 768/1024/2048/4096 for best inference performace, and when axis=0, the hidden size in layernorm will be changed accordingly. So axis=1 is required.
-        plan = pruner.prune_vars(ratios, [1])
-        # logger.info("Flops after pruning: {}GFLOPS".format(flops(model, [1] + image_shape) / 1000))
-        return model
-
-    def qat_model(self, model):
-        quanter = paddleslim.dygraph.quant.QAT(
-            config=self.configs.Quantization)
-        return quanter.quantize(model)
-
     def get_model_size(self, l, h, v, s):
         P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
         logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 /
@@ -156,6 +124,10 @@ class LanguageModule(BasicModule):
 class GPTModule(LanguageModule):
     def __init__(self, configs):
         super(GPTModule, self).__init__(configs)
+        if configs.Model.sequence_parallel:
+            register_sequence_parallel_allreduce_hooks(
+                self, configs.Engine.accumulate_steps,
+                configs.Distributed.fuse_sequence_parallel_allreduce)
 
     def get_model(self):
         model_setting = copy.deepcopy(self.configs.Model)
@@ -171,6 +143,11 @@ class GPTModule(LanguageModule):
         tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
         self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
 
+        moe_configs = model_setting.get('moe_configs', {'expert_mode': False})
+        assert not moe_configs[
+            'expert_mode'], "Not support expert mode in GPT model!"
+        model_setting["moe_configs"] = moe_configs
+
         if self.nranks == 1:
             model_setting.pop("sequence_parallel")
             model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
@@ -184,17 +161,14 @@ class GPTModule(LanguageModule):
             else:
                 model = gpt.GPTForPretrainingPipe(**model_setting)
 
-        # if 'Quantization' in self.configs.keys(
-        # ) and self.configs.Quantization.enable:
-        #     model = self.qat_model(model)
-
         return model
 
     def get_loss_fn(self):
         if self.nranks == 1:
             loss_fn = gpt.GPTPretrainingCriterion()
         else:
-            loss_fn = gpt.GPTPretrainingCriterionHybird()
+            loss_fn = gpt.GPTPretrainingCriterionHybird(
+                sequence_parallel=self.configs.Model.sequence_parallel)
         return loss_fn
 
     def pretreating_batch(self, batch):
@@ -695,3 +669,108 @@ class GPTEvalModule(LanguageModule):
             string += 'avg accuracy: {:.4E}'.format(acc)
 
         logger.info(string)
+
+
+class MoEModule(LanguageModule):
+    def __init__(self, configs):
+        super(MoEModule, self).__init__(configs)
+
+        assert self.nranks == configs.Distributed.dp_degree, \
+            "only support single card or data parallel in MoE model."
+
+    def get_model(self):
+        model_setting = copy.deepcopy(self.configs.Model)
+        model_setting.pop("module")
+        model_setting.pop("name")
+
+        l = model_setting['num_layers']
+        h = model_setting['hidden_size']
+        v = model_setting['vocab_size']
+        s = self.configs.Data.Train.dataset.max_seq_len
+        self.get_model_size(l, h, v, s)
+
+        moe_configs = model_setting.get('moe_configs', {'expert_mode': False})
+        model_setting["moe_configs"] = moe_configs
+
+        if self.nranks == 1:
+            model_setting.pop("sequence_parallel")
+            model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
+        else:
+            model_setting[
+                'num_partitions'] = self.configs.Distributed.mp_degree
+            if self.configs.Distributed.pp_degree == 1:
+                model_setting.pop("virtual_pp_degree", None)
+                model = gpt.GPTForPretrainingHybrid(
+                    gpt.GPTModelHybrid(**model_setting))
+            else:
+                model = gpt.GPTForPretrainingPipe(**model_setting)
+
+        return model
+
+    def get_loss_fn(self):
+        if self.nranks == 1:
+            loss_fn = gpt.GPTPretrainingCriterion()
+        else:
+            loss_fn = gpt.GPTPretrainingCriterionHybird()
+        return loss_fn
+
+    def get_model_size(self, l, h, v, s):
+        P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
+        logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 /
+                                                  1000.0))
+
+    def training_step(self, batch):
+        tokens, position_ids, labels, loss_mask = batch
+
+        loss_mask.stop_gradient = True
+        labels.stop_gradient = True
+        position_ids.stop_gradient = True
+
+        preds = self(tokens, position_ids)
+        loss = self.loss_fn(preds, labels, loss_mask)
+
+        with paddle.amp.auto_cast(enable=False):
+            if self.configs.Model.moe_configs.gate != "naive" and \
+                self.configs.Engine.balance_loss_weight:
+
+                gpt_layer = self.model._layers.gpt if isinstance(
+                    self.model, paddle.DataParallel) else self.model.gpt
+
+                aux_loss_list = [
+                    l.moe_mlp.gate.get_loss(clear=False)
+                    for l in gpt_layer.decoder.layers
+                    if hasattr(l.moe_mlp, "gate")
+                ]
+                bal_loss = paddle.concat(aux_loss_list)
+                if bal_loss.dtype == paddle.float16:
+                    bal_loss = paddle.cast(bal_loss, dtype=paddle.float32)
+                bal_loss = bal_loss.mean()
+                loss += bal_loss * self.configs.Engine.balance_loss_weight
+
+        return loss
+
+    def initialize_mp_dp_parameters(self):
+        hcg = env.get_hcg()
+        mp_group = hcg.get_model_parallel_group()
+        mp_src_rank = hcg.get_model_parallel_group_src_rank()
+
+        dp_group = hcg.get_data_parallel_group()
+        dp_src_rank = hcg.get_data_parallel_group_src_rank()
+
+        for param in self.model.parameters():
+            if "expert_" in param.name:
+                setattr(param, "no_sync", True)
+                continue
+
+            if not param.is_distributed:
+                paddle.distributed.broadcast(
+                    param.detach(),
+                    src=mp_src_rank,
+                    group=mp_group,
+                    use_calc_stream=True)
+
+            paddle.distributed.broadcast(
+                param.detach(),
+                src=dp_src_rank,
+                group=dp_group,
+                use_calc_stream=True)

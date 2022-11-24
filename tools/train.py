@@ -27,20 +27,26 @@ import paddle.distributed as dist
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
 
-from ppfleetx.utils import config, env
+from ppfleetx.utils import config
 from ppfleetx.utils.log import logger
 from ppfleetx.data import build_dataloader
 from ppfleetx.models import build_module
 from ppfleetx.core import EagerEngine
+from ppfleetx.distributed.apis import env
 
-#init_logger()
+
+def set_default_flags(flags):
+    for flag_name, flag_value in flags.items():
+        if os.getenv(flag_name) is None:
+            paddle.set_flags({flag_name: flag_value})
+
 
 if __name__ == "__main__":
     args = config.parse_args()
     cfg = config.get_config(args.config, overrides=args.override, show=False)
 
     if dist.get_world_size() > 1:
-        fleet.init(is_collective=True, strategy=env.init_dist_env(cfg))
+        env.init_dist_env(cfg)
 
     env.set_seed(cfg.Global.seed)
 
@@ -61,46 +67,7 @@ if __name__ == "__main__":
     if cfg.Engine.save_load.ckpt_dir is not None:
         engine.load()
 
-    def _evaluate_one_epoch():
-        eval_losses = []
-        total_eval_batch = len(eval_data_loader)
-        for eval_step, batch in enumerate(eval_data_loader):
-            loss = _evaluate_impl(batch)
-
-            paddle.device.cuda.synchronize()
-            eval_losses.append(loss.numpy()[0])
-
-        return sum(eval_losses) / len(eval_losses)
-
-    def _evaluate_impl(batch):
-        batch = engine._module.pretreating_batch(batch)
-
-        with paddle.amp.auto_cast(
-                engine._use_pure_fp16,
-                custom_black_list=engine._custom_black_list,
-                custom_white_list=engine._custom_white_list,
-                level='O2'):
-            if engine._pp_degree == 1:
-                loss = engine._module.validation_step(batch)
-            else:
-                loss = engine._module.model.eval_batch(batch, compute_loss=True)
-        return loss
-
-
-    if "Prune" in cfg.keys() and cfg.Prune.enable:
-        engine.prune_model()
-
-    if 'Quantization' in cfg.keys() and cfg.Quantization.enable:
-        engine.quant_model()
-
-    engine.distributed_model()
-    if cfg.Engine.save_load.save_only:
-        engine.save(0, 0)
-        sys.exit()
-
-    if "Prune" in cfg.keys() and cfg.Prune.cal_sens:
-        engine.sensitive(_evaluate_one_epoch)
-        sys.exit()
+    engine.compress_model()
 
     engine.fit(train_data_loader=train_data_loader,
                valid_data_loader=eval_data_loader,

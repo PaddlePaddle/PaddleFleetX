@@ -95,6 +95,56 @@ def gpt_collate_fn(batch):
     return Tuple([Stack() for raw in zip(*batch)])(batch)
 
 
+class ErnieCollateData():
+    def __init__(self, micro_batch_size=1):
+        self.micro_batch_size = micro_batch_size
+
+    def generate_data(self, data, stack_fn=Stack()):
+        num_fields = len(data[0])
+        out = [None] * num_fields
+        # 0. input_ids,
+        # 1. segment_ids,
+        # 2. input_mask,
+        # 3. masked_lm_positions,
+        # 4. masked_lm_labels,
+        # 5. next_sentence_labels
+        for i in (0, 1, 2, 5):
+            out[i] = stack_fn([x[i] for x in data])
+        out[5] = out[5].reshape([-1, 1])
+        batch_size, seq_length = out[0].shape
+        size = num_mask = sum(len(x[3]) for x in data)
+        # masked_lm_positions
+        # Organize as a 1D tensor for gather or use gather_nd
+        if size % 8 != 0:
+            size += 8 - (size % 8)
+        out[3] = np.full(size, 0, dtype=np.int32)
+
+        # masked_lm_labels
+        out[4] = np.full([size, 1], -1, dtype=np.int64)
+        mask_token_num = 0
+        for i, x in enumerate(data):
+            for j, pos in enumerate(x[3]):
+                out[3][mask_token_num] = i * seq_length + pos
+                out[4][mask_token_num] = x[4][j]
+                mask_token_num += 1
+        return out
+
+    def __call__(self, data):
+        accumulate_steps = len(data) // self.micro_batch_size
+        if accumulate_steps == 1:
+            return self.generate_data(data)
+        else:
+            self.micro_batch_size = len(data) // accumulate_steps
+            all_data = [[] for _ in range(6)]
+            for acc_step in range(accumulate_steps):
+                tmp = self.generate_data(
+                    data[acc_step * self.micro_batch_size:(acc_step + 1) *
+                         self.micro_batch_size])
+                for i in range(6):
+                    all_data[i].append(tmp[i])
+            return all_data
+
+
 def imagen_collate_fn(batch):
     """ collate for imagen base64 """
     text_embs = []

@@ -24,7 +24,7 @@ Engine:
     save_steps: 10000
     save_epoch: 1
     output_dir: ./output
-    ckpt_dir: /workspace/prune-fc/PaddleFleetX/PaddleFleetX_GPT_345M_220826
+    ckpt_dir: ./PaddleFleetX_GPT_345M_220826
 
 
 Model:
@@ -90,3 +90,6 @@ Profiler:
   scheduler: [1, 5]
   profiler_log: profiler_log
   detailed: False
+
+Distributed:
+  fuse_sequence_parallel_allreduce: False

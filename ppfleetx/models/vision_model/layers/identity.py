@@ -15,6 +15,8 @@
 import paddle
 import paddle.nn as nn
 
+__all__ = ['Identity', ]
+
 
 class Identity(nn.Layer):
     def __init__(self):

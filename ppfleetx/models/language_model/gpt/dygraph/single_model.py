@@ -32,13 +32,36 @@ from .processor import (
     HammingDiversityLogitsProcessor, RepetitionPenaltyLogitsProcessor,
     ForcedBOSTokenLogitsProcessor, ForcedEOSTokenLogitsProcessor)
 
-RATIO = 0.875
+from ppfleetx.distributed.moe import MoELayer
 
 def get_attr(layer, name):
     if getattr(layer, name, None) is not None:
         return getattr(layer, name, None)
     else:
         return get_attr(layer._layer, name)
+
+
+class ExpertLayer(nn.Layer):
+    def __init__(self, d_model, d_hidden, name=None):
+        super(ExpertLayer, self).__init__()
+
+        self.htoh4 = nn.Linear(d_model, d_hidden, \
+            weight_attr=nn.initializer.KaimingUniform(), \
+             bias_attr=nn.initializer.Constant(value=0.0))
+        self.h4toh = nn.Linear(d_hidden, d_model, \
+            weight_attr=nn.initializer.KaimingUniform(), \
+             bias_attr=nn.initializer.Constant(value=0.0))
+
+        self.htoh4.weight.name = "expert_" + self.htoh4.weight.name
+        self.h4toh.weight.name = "expert_" + self.h4toh.weight.name
+        self.htoh4.bias.name = "expert_" + self.htoh4.bias.name
+        self.h4toh.bias.name = "expert_" + self.h4toh.bias.name
+
+    def forward(self, x):
+        x = self.htoh4(x)
+        x = F.gelu(x, approximate=True)
+        x = self.h4toh(x)
+        return x
 
 
 class MultiHeadAttention(nn.Layer):
@@ -87,7 +110,7 @@ class MultiHeadAttention(nn.Layer):
             assert self.kdim == embed_dim
             assert self.vdim == embed_dim
             self.qkv_proj = Linear(
-                embed_dim, int(3 * embed_dim * RATIO), weight_attr, bias_attr=bias_attr)
+                embed_dim, 3 * embed_dim, weight_attr, bias_attr=bias_attr)
         else:
             self.q_proj = Linear(
                 embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
@@ -96,17 +119,15 @@ class MultiHeadAttention(nn.Layer):
             self.v_proj = Linear(
                 self.vdim, embed_dim, weight_attr, bias_attr=bias_attr)
 
-        self.reshape0 = nn.Reshape(shape=[0, 0, int(self.num_heads * RATIO), 3 * self.head_dim])
-        self.reshape1 = nn.Reshape(shape=[0, 0, int(self.num_heads * RATIO), self.head_dim])
-        self.reshape2 = nn.Reshape(shape=[0, 0, int(self.num_heads * self.head_dim * RATIO)])
+        self.reshape0 = nn.Reshape(shape=[0, 0, self.num_heads, 3 * self.head_dim])
+        self.reshape1 = nn.Reshape(shape=[0, 0, self.num_heads, self.head_dim])
+        self.reshape2 = nn.Reshape(shape=[0, 0, self.num_heads * self.head_dim])
 
         self.out_proj = Linear(
-            int(embed_dim * RATIO), embed_dim, weight_attr, bias_attr=bias_attr)
+            embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
 
     def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
         mix_layer = self.qkv_proj(query)
-        # mix_layer = paddle.reshape_(mix_layer,
-        #                             [0, 0, self.num_heads, 3 * self.head_dim])
         mix_layer = self.reshape0(mix_layer)
         mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
         q, k, v = paddle.split(mix_layer, num_or_sections=3, axis=-1)
@@ -132,7 +153,6 @@ class MultiHeadAttention(nn.Layer):
 
         """
         q = self.q_proj(query)
-        # q = tensor.reshape(x=q, shape=[0, 0, self.num_heads, self.head_dim])
         q = self.reshape1(q)
         q = tensor.transpose(x=q, perm=[0, 2, 1, 3])
 
@@ -165,10 +185,8 @@ class MultiHeadAttention(nn.Layer):
         """
         k = self.k_proj(key)
         v = self.v_proj(value)
-        # k = tensor.reshape(x=k, shape=[0, 0, self.num_heads, self.head_dim])
         k = self.reshape1(k)
         k = tensor.transpose(x=k, perm=[0, 2, 1, 3])
-        # v = tensor.reshape(x=v, shape=[0, 0, self.num_heads, self.head_dim])
         v = self.reshape1(v)
         v = tensor.transpose(x=v, perm=[0, 2, 1, 3])
         return k, v
@@ -220,7 +238,6 @@ class MultiHeadAttention(nn.Layer):
 
         # combine heads
         out = tensor.transpose(out, perm=[0, 2, 1, 3])
-        # out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
         out = self.reshape2(out)
 
         return out, weights
@@ -375,6 +392,7 @@ class TransformerDecoderLayer(nn.Layer):
                  bias_attr=None,
                  fused_linear=False,
                  fuse_attn_qkv=False,
+                 moe_configs=None,
                  use_recompute=False,
                  recompute_granularity="full",
                  do_recompute=True,
@@ -390,6 +408,14 @@ class TransformerDecoderLayer(nn.Layer):
         self.use_recompute = use_recompute
         self.recompute_granularity = recompute_granularity
         self.do_recompute = do_recompute
+
+        self.expert_mode = False
+        # moe config
+        if moe_configs is not None:
+            self.gate = moe_configs.get('gate', 'gshard')
+            self.top_k = moe_configs.get('top_k', 2)
+            self.num_experts = moe_configs.get('num_experts', 1)
+            self.expert_mode = moe_configs.get('expert_mode', False)
 
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
@@ -407,10 +433,30 @@ class TransformerDecoderLayer(nn.Layer):
             use_recompute=use_recompute,
             recompute_granularity=recompute_granularity,
             do_recompute=do_recompute)
-        self.linear1 = Linear(
-            d_model, int(dim_feedforward * RATIO), weight_attrs[2], bias_attr=bias_attrs[2])
-        self.linear2 = Linear(
-            int(dim_feedforward * RATIO), d_model, weight_attrs[2], bias_attr=bias_attrs[2])
+
+        if self.expert_mode:
+            experts_list = nn.LayerList([
+                ExpertLayer(d_model, dim_feedforward)
+                for e in range(self.num_experts)
+            ])
+
+            self.moe_mlp = MoELayer(
+                d_model=d_model,
+                experts=experts_list,
+                gate=self.gate,
+                top_k=self.top_k,
+                recompute_interval=int(self.use_recompute))
+        else:
+            self.linear1 = Linear(
+                d_model,
+                dim_feedforward,
+                weight_attrs[2],
+                bias_attr=bias_attrs[2])
+            self.linear2 = Linear(
+                dim_feedforward,
+                d_model,
+                weight_attrs[2],
+                bias_attr=bias_attrs[2])
 
 
         if not if_quant:
@@ -447,7 +493,13 @@ class TransformerDecoderLayer(nn.Layer):
         residual = tgt
         if self.normalize_before:
             tgt = self.norm2(tgt)
-        tgt = self.dropout2(self.linear2(self.activation(self.linear1(tgt))))
+
+        if self.expert_mode:
+            tgt = self.moe_mlp(tgt)
+        else:
+            tgt = self.dropout2(
+                self.linear2(self.activation(self.linear1(tgt))))
+
         tgt = residual + tgt
 
         if not self.normalize_before:
@@ -514,6 +566,7 @@ class GPTModel(nn.Layer):
                  type_vocab_size=16,
                  use_recompute=False,
                  initializer_range=0.02,
+                 moe_configs=None,
                  fused_linear=False,
                  fuse_attn_qkv=False,
                  recompute_granularity="full",
@@ -556,6 +609,7 @@ class GPTModel(nn.Layer):
                     bias_attr=None,
                     fused_linear=fused_linear,
                     fuse_attn_qkv=fuse_attn_qkv,
+                    moe_configs=moe_configs,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
                     do_recompute=i not in no_recompute_layers,
@@ -580,7 +634,7 @@ class GPTModel(nn.Layer):
         if position_ids is None:
             past_length = 0
             if cache is not None:
-                past_length = paddle.shape(cache[0].k)[-2]
+                past_length = paddle.shape(attention_mask)[-1] - 1
             position_ids = paddle.arange(
                 past_length,
                 paddle.shape(input_ids)[-1] + past_length,
@@ -592,7 +646,9 @@ class GPTModel(nn.Layer):
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
 
-        if self.training == False:
+        # fused_soiftmax_with_triangular is only suppported on GPU/DCU.
+        # If on non-GPU devices, we use user defined mask and non-fused softmax.
+        if self.training == False or not paddle.is_compiled_with_cuda():
             # TODO, use registered buffer
             causal_mask = paddle.tensor.triu(
                 paddle.ones(
@@ -611,7 +667,7 @@ class GPTModel(nn.Layer):
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
-            tgt_mask=None if self.training else
+            tgt_mask=None if self.training and paddle.is_compiled_with_cuda() else
             attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
