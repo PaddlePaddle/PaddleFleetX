@@ -88,7 +88,7 @@ class ErnieModule(BasicModule):
             self.criterion = ErniePretrainingCriterion(self.binary_head)
 
     def process_configs(self, configs):
-        # process_data_configs(configs)
+        process_data_configs(configs)
         process_model_configs(configs)
         return configs
 
@@ -190,8 +190,20 @@ class ErnieSeqClsModule(BasicModule):
         )  # if data_args.label_list else nn.loss.MSELoss()
 
     def process_configs(self, configs):
-        process_data_configs(configs)
         process_model_configs(configs)
+
+        cfg_global = configs['Global']
+        cfg_data = configs['Data']
+
+        for mode in ("Train", "Eval", "Test"):
+            if mode in cfg_data.keys():
+                cfg_data[mode]['dataset']['mode'] = mode
+                cfg_data[mode]['sampler']['batch_size'] = cfg_global[
+                    'local_batch_size']
+                cfg_data[mode]['loader']['collate_fn'].setdefault(
+                    'tokenizer_type',
+                    cfg_data[mode]['dataset']['tokenizer_type'])
+
         return configs
 
     def get_model(self):

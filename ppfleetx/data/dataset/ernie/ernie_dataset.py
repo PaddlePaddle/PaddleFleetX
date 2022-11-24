@@ -325,13 +325,15 @@ def get_train_valid_test_split_(splits, size):
 
 
 class ErnieSeqClsDataset(paddle.io.Dataset):
-    def __init__(self, dataset, tokenizer_type, max_seq_len, mode):
-        self.dataset = dataset
+    def __init__(self, dataset_type, tokenizer_type, max_seq_len, mode):
+        self.dataset = dataset_type
         self.max_seq_len = max_seq_len
-        self.tokenizer = ErnieTokenizer.from_pretrained(tokenizer_type)
         self.mode = mode_to_key[mode]
 
-        dataset_config = dataset.split(" ")
+        from ppfleetx.data.tokenizers import get_ernie_tokenizer
+        self.tokenizer = get_ernie_tokenizer(tokenizer_type)
+
+        dataset_config = self.dataset.split(" ")
         raw_datasets = load_dataset(
             dataset_config[0],
             None if len(dataset_config) <= 1 else dataset_config[1], )

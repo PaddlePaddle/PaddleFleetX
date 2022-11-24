@@ -52,8 +52,9 @@ Data:
   Train:
     dataset:
       name: ErnieSeqClsDataset
+      dataset_type: chnsenticorp_v2
       tokenizer_type: ernie-1.0-base-zh-cw
-      max_seq_length: 512
+      max_seq_len: 512
     sampler:
       name: GPTBatchSampler
       shuffle: False
@@ -62,13 +63,14 @@ Data:
       num_workers: 0
       return_list: False
       collate_fn: 
-        name: ErnieCollateData
+        name: DataCollatorWithPadding
   
   Eval:
     dataset:
       name: ErnieSeqClsDataset
+      dataset_type: chnsenticorp_v2
       tokenizer_type: ernie-1.0-base-zh-cw
-      max_seq_length: 512
+      max_seq_len: 512
     sampler:
       name: GPTBatchSampler
       shuffle: False
@@ -77,7 +79,7 @@ Data:
       num_workers: 0
       return_list: False
       collate_fn: 
-        name: ErnieCollateData
+        name: DataCollatorWithPadding
 
 
 Optimizer:
