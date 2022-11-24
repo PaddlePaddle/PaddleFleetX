@@ -118,6 +118,17 @@ class ErnieModule(BasicModule):
         else:
             return batch
 
+    def input_spec(self):
+        from paddle.static import InputSpec
+        return [
+            InputSpec(
+                shape=[None, None],  dtype='int64', name="input_ids"), 
+            InputSpec(
+                shape=[None, None],  dtype='int64', name="position_ids"),
+            InputSpec(
+                shape=[None, None],  dtype='int64', name="token_type_ids")
+        ]
+
     def training_step(self, batch):
         input_ids, segment_ids, input_mask, masked_lm_positions, \
             masked_lm_labels, next_sentence_labels = batch

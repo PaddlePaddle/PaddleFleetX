@@ -341,23 +341,26 @@ class ErnieModel(nn.Layer):
         if past_key_values is not None:
             past_key_values_length = past_key_values[0][0].shape[2]
 
-        if attention_mask is None:
-            attention_mask = paddle.unsqueeze(
-                (input_ids == self.pad_token_id
-                 ).astype(self.pooler.dense.weight.dtype) * -1e4,
-                axis=[1, 2])
-            if past_key_values is not None:
-                batch_size = past_key_values[0][0].shape[0]
-                past_mask = paddle.zeros(
-                    [batch_size, 1, 1, past_key_values_length],
-                    dtype=attention_mask.dtype)
-                attention_mask = paddle.concat(
-                    [past_mask, attention_mask], axis=-1)
-        # For 2D attention_mask from tokenizer
-        elif attention_mask.ndim == 2:
-            attention_mask = paddle.unsqueeze(
-                attention_mask, axis=[1, 2]).astype(paddle.get_default_dtype())
-            attention_mask = (1.0 - attention_mask) * -1e4
+        # if attention_mask is None:
+        #     attention_mask = paddle.unsqueeze(
+        #         (input_ids == self.pad_token_id
+        #          ).astype(self.pooler.dense.weight.dtype) * -1e4,
+        #         axis=[1, 2])
+        #     if past_key_values is not None:
+        #         batch_size = past_key_values[0][0].shape[0]
+        #         past_mask = paddle.zeros(
+        #             [batch_size, 1, 1, past_key_values_length],
+        #             dtype=attention_mask.dtype)
+        #         attention_mask = paddle.concat(
+        #             [past_mask, attention_mask], axis=-1)
+        # # For 2D attention_mask from tokenizer
+        # elif attention_mask.ndim == 2:
+        #     attention_mask = paddle.unsqueeze(
+        #         attention_mask, axis=[1, 2]).astype(paddle.get_default_dtype())
+        #     attention_mask = (1.0 - attention_mask) * -1e4
+        
+        attention_mask = paddle.ones(input_shape, dtype="float32")
+        attention_mask = paddle.unsqueeze(attention_mask, axis=[1, 2])
         attention_mask.stop_gradient = True
 
         embedding_output = self.embeddings(

@@ -121,3 +121,18 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
     -c ./ppfleetx/configs/nlp/ernie/pretrain_ernie_base_175B_mp8_pp16.yaml
 
 ```
+
+- 单卡模型导出
+```shell
+python3 ./tools/export.py -c ppfleetx/configs/nlp/ernie/inference_pretrain_ernie_large_single_card.yaml
+
+python3 ./tools/auto_export.py -c ppfleetx/configs/nlp/ernie/pretrain_ernie_large_single_card.yaml
+
+```
+
+- 模型推理
+```shell
+python3 projects/ernie/inference_ernie.py -c ppfleetx/configs/nlp/ernie/inference_pretrain_ernie_large_single_card.yaml
+
+python3 -m paddle.distributed.launch --devices "0" tasks/gpt/run_ernie.py  --seq_len 128 --iter 10 --mp_size 1 --model_dir output
+```

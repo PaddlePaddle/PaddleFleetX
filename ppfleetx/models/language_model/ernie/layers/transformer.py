@@ -403,8 +403,7 @@ class MultiHeadAttention(Layer):
             q, k, v, cache = self._prepare_qkv(query, key, value, cache)
 
         # scale dot product attention
-        product = paddle.matmul(
-            x=q * (self.head_dim**-0.5), y=k, transpose_y=True)
+        product = paddle.matmul(x=q * (self.head_dim**-0.5), y=k, transpose_y=True)
         if attn_mask is not None:
             # Support bool or int mask
             attn_mask = _convert_attention_mask(attn_mask, product.dtype)
@@ -758,18 +757,19 @@ class TransformerEncoder(Layer):
                 all_hidden_states[-1] = output
 
         if not return_dict:
-            outputs = tuple(
-                tuple(v) if isinstance(v, list) else v
-                for v in [
-                    output,
-                    new_caches,
-                    all_hidden_states,
-                    all_attentions,
-                ] if v is not None)
-            if len(outputs) == 1:
-                return output
-            else:
-                return outputs
+            return output
+            # outputs = tuple(
+            #     tuple(v) if isinstance(v, list) else v
+            #     for v in [
+            #         output,
+            #         new_caches,
+            #         all_hidden_states,
+            #         all_attentions,
+            #     ] if v is not None)
+            # if len(outputs) == 1:
+            #     return output
+            # else:
+            #     return outputs
 
         return BaseModelOutputWithPastAndCrossAttentions(
             last_hidden_state=output,

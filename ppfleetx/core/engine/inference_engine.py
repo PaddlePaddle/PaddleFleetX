@@ -130,8 +130,10 @@ class InferenceEngine(object):
             self._init_predictor()
 
     def _check_model(self):
-        self.model_file = './{}/auto_dist{}.pdmodel'.format(self.model_dir, self.rank)
-        self.param_file = './{}/auto_dist{}.pdiparams'.format(self.model_dir, self.rank)
+        self.model_file = f"{self.model_dir}/rank_{self.rank}/model.pdmodel"
+        self.param_file = f"{self.model_dir}/rank_{self.rank}/model.pdiparams"
+        # self.model_file = './{}/auto_dist{}.pdmodel'.format(self.model_dir, self.rank)
+        # self.param_file = './{}/auto_dist{}.pdiparams'.format(self.model_dir, self.rank)
 
     def _generate_comm_init_config(self, rank, nranks):
         ring_id_to_ranks = ','.join(['0'] + [str(i) for i in range(nranks)])
@@ -153,7 +155,15 @@ class InferenceEngine(object):
 
         config.enable_memory_optim()
         config.switch_ir_optim(True)
+        config.switch_ir_debug()
         config.enable_use_gpu(100, device_id)
+        all_pass = [
+            # "multihead_matmul_fuse_pass_v2",
+            # "fc_elementwise_layernorm_fuse_pass",
+            # "embedding_eltwise_layernorm_fuse_pass",
+        ]
+        for pass_item in all_pass:
+            config.delete_pass(pass_item)
 
         # distributed config
         if self.mp_degree > 1:
@@ -169,6 +179,7 @@ class InferenceEngine(object):
                                                            self.nranks)
             dist_config.set_comm_init_config(config_fname)
             config.set_dist_config(dist_config)
+        
 
         # TensorRT config
         if self.tensorrt_config:

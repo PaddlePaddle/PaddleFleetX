@@ -17,10 +17,11 @@ Engine:
   eval_iters: 10
   test_iters: -1
   mix_precision:
-    use_pure_fp16: False
+    level: "o1"
     scale_loss: 32768.0
-    custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
+    custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div", "where"]
     custom_white_list: ["lookup_table", "lookup_table_v2"]
+    use_fp16_guard: False
   save_load:
     save_steps: 50000
     save_epoch: 1
