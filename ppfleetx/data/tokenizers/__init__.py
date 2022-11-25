@@ -13,3 +13,4 @@
 # limitations under the License.
 
 from .gpt_tokenizer import GPTTokenizer
+from .ernie_tokenizer import get_ernie_tokenizer
