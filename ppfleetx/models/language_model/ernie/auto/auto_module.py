@@ -20,7 +20,11 @@ from paddle import LazyGuard
 from ppfleetx.core.module.basic_module import BasicModule
 from ppfleetx.utils.log import logger
 
-from .auto_model import ErnieModelAuto, ErnieForPretrainingAuto, ErniePretrainingCriterionAuto
+from .auto_model import (
+    ErnieModelAuto,
+    ErnieForPretrainingAuto,
+    ErniePretrainingCriterionAuto,
+    ErnieForSequenceClassificationAuto, )
 
 from ppfleetx.models.language_model.auto_utils import process_configs, process_mesh_config
 
@@ -52,13 +56,16 @@ def process_data_configs(config):
             cfg_data[mode]['dataset']['seed'] = cfg_global['seed']
             cfg_data[mode]['dataset'].setdefault('binary_head',
                                                  cfg_global['binary_head'])
+            cfg_data[mode]['collate_fn'].setdefault(
+                'micro_batch_size', cfg_global['micro_batch_size'])
 
 
 def process_model_configs(config):
-    cfg_model = config['Model']
     mesh = process_mesh_config(config['Distributed'])
+    cfg_model = config['Model']
+    hidden_size = cfg_model['hidden_size']
     cfg_model.update({'mesh': mesh})
-    cfg_model.setdefault("intermediate_size", cfg_model['hidden_size'] * 4)
+    cfg_model.setdefault("intermediate_size", hidden_size * 4)
 
 
 class ErnieModuleAuto(BasicModule):
@@ -80,7 +87,6 @@ class ErnieModuleAuto(BasicModule):
         model_setting.pop("module")
         model_setting.pop("name")
 
-        print("model_setting:", model_setting)
         with LazyGuard():
             model = ErnieForPretrainingAuto(ErnieModelAuto(**model_setting))
 
@@ -97,3 +103,44 @@ class ErnieModuleAuto(BasicModule):
         ]
 
         return inputs_spec
+
+
+class ErnieSeqClsModuleAuto(BasicModule):
+    def __init__(self, configs):
+        self.nranks = paddle.distributed.get_world_size()
+        super(ErnieSeqClsModuleAuto, self).__init__(configs)
+
+    def process_configs(self, configs):
+        process_model_configs(configs)
+
+        cfg_global = configs['Global']
+        cfg_data = configs['Data']
+
+        for mode in ("Train", "Eval", "Test"):
+            if mode in cfg_data.keys():
+                cfg_data[mode]['dataset']['mode'] = mode
+                cfg_data[mode]['collate_fn'].setdefault(
+                    'tokenizer_type',
+                    cfg_data[mode]['dataset']['tokenizer_type'])
+
+        return configs
+
+    def get_model(self):
+        model_setting = copy.deepcopy(self.configs.Model)
+        model_setting.pop("module")
+        model_setting.pop("name")
+
+        with LazyGuard():
+            model = ErnieForSequenceClassificationAuto(
+                ErnieModelAuto(**model_setting))
+
+        return model
+
+    def input_spec(self):
+        input_spec = [
+            paddle.static.InputSpec(
+                shape=[None, None], dtype="int64", name='input_ids'),
+            paddle.static.InputSpec(
+                shape=[None, None], dtype="int64", name='segment_ids')
+        ]
+        return input_spec

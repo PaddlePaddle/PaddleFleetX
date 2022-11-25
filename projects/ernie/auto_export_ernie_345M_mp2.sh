@@ -22,5 +22,5 @@ rm -rf $log_dir
 # 345M mp2 export
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1" \
     ./tools/auto_export.py \
-    -c ./ppfleetx/configs/nlp/ernie/auto/pretrain_ernie_base_345M_single_card.yaml \
+    -c ./ppfleetx/configs/nlp/ernie/auto/finetune_ernie_345M_single_card.yaml \
     -o Distributed.mp_degree=2 \
