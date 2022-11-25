@@ -12,4 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .ernie_module import ErnieModule, ErnieSeqClsModule
+from paddlenlp.transformers import ErnieTokenizer
+
+tokenizer = None
+
+
+def get_ernie_tokenizer(tokenizer_type):
+    global tokenizer
+    if tokenizer is None:
+        tokenizer = ErnieTokenizer.from_pretrained(tokenizer_type)
+
+    return tokenizer
