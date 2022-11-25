@@ -258,7 +258,8 @@ class EagerEngine(BasicEngine):
 
         if self._mp_degree > 1:
             assert self._sharding_stage == 2, "only support mp + sharding stage2 hybrid parallel now."
-            self._module.model =  TensorParallel(self._module.model, self._hcg, strategy=None)
+            self._module.model = TensorParallel(
+                self._module.model, self._hcg, strategy=None)
 
         level = "p_g_os" if self._sharding_stage == 3 else "os_g"
         origin_model = self._module.model
@@ -691,9 +692,15 @@ class EagerEngine(BasicEngine):
         params = []
         for sublayer in model.sublayers():
             for param in sublayer.parameters(include_sublayers=False):
-                if isinstance(sublayer, paddle.nn.layer.common.Linear) or isinstance(sublayer, paddle.distributed.fleet.layers.mpu.mp_layers.ColumnParallelLinear) or isinstance(sublayer, paddle.distributed.fleet.layers.mpu.mp_layers.RowParallelLinear): 
+                if isinstance(
+                        sublayer, paddle.nn.layer.common.Linear) or isinstance(
+                            sublayer, paddle.distributed.fleet.layers.mpu.
+                            mp_layers.ColumnParallelLinear) or isinstance(
+                                sublayer, paddle.distributed.fleet.layers.mpu.
+                                mp_layers.RowParallelLinear):
                     if len(param.shape) != 2: continue
-                    if param.shape[1] == 3 * param.shape[0] or param.shape[1] == 4 * param.shape[0]:
+                    if param.shape[1] == 3 * param.shape[0] or param.shape[
+                            1] == 4 * param.shape[0]:
                         params.append(param.name)
 
         return params
@@ -709,14 +716,32 @@ class EagerEngine(BasicEngine):
 
         if prune_criterion == 'l1_norm':
             if infer:
-                pruner = paddleslim.dygraph.L1NormFilterPruner(model, [[batch_size, seq_len]], skip_leaves=False, prune_type='fc', input_dtype='int8')
+                pruner = paddleslim.dygraph.L1NormFilterPruner(
+                    model, [[batch_size, seq_len]],
+                    skip_leaves=False,
+                    prune_type='fc',
+                    input_dtype='int8')
             else:
-                pruner = paddleslim.dygraph.L1NormFilterPruner(model, [[batch_size, seq_len], [batch_size, seq_len]], skip_leaves=False, prune_type='fc', input_dtype='int8')
+                pruner = paddleslim.dygraph.L1NormFilterPruner(
+                    model, [[batch_size, seq_len], [batch_size, seq_len]],
+                    skip_leaves=False,
+                    prune_type='fc',
+                    input_dtype='int8',
+                    num_head=16)
         elif prune_criterion == 'l2_norm':
             if infer:
-                pruner = paddleslim.dygraph.L2NormFilterPruner(model, [[batch_size, seq_len]], skip_leaves=False, prune_type='fc', input_dtype='int8')
+                pruner = paddleslim.dygraph.L2NormFilterPruner(
+                    model, [[batch_size, seq_len]],
+                    skip_leaves=False,
+                    prune_type='fc',
+                    input_dtype='int8')
             else:
-                pruner = paddleslim.dygraph.L2NormFilterPruner(model, [[batch_size, seq_len], [batch_size, seq_len]], skip_leaves=False, prune_type='fc', input_dtype='int8')
+                pruner = paddleslim.dygraph.L2NormFilterPruner(
+                    model, [[batch_size, seq_len], [batch_size, seq_len]],
+                    skip_leaves=False,
+                    prune_type='fc',
+                    input_dtype='int8',
+                    num_head=16)
         params = self._get_pruned_params(model)
         ratios = {}
         for param in params:
@@ -724,11 +749,9 @@ class EagerEngine(BasicEngine):
         #NOTE(minghaoBD): hidden size in Layernorm must be 768/1024/2048/4096 for best inference performace, and when axis=0, the hidden size in layernorm will be changed accordingly. So axis=1 is required.
         plan = pruner.prune_vars(ratios, [1])
 
-
     def _quant_model(self):
         model = self._module.model
-        quanter = paddleslim.dygraph.quant.QAT(
-            config=self.quant_configs)
+        quanter = paddleslim.dygraph.quant.QAT(config=self.quant_configs)
         quanter.quantize(model)
 
     def sensitive(self, eval_func, output_file="./sen.pickle"):
@@ -739,9 +762,19 @@ class EagerEngine(BasicEngine):
         seq_len = 1024
 
         if prune_criterion == 'l1_norm':
-            pruner = paddleslim.dygraph.L1NormFilterPruner(model, [[batch_size, seq_len], [batch_size, seq_len]], skip_leaves=False, prune_type='fc', input_dtype='int8')
+            pruner = paddleslim.dygraph.L1NormFilterPruner(
+                model, [[batch_size, seq_len], [batch_size, seq_len]],
+                skip_leaves=False,
+                prune_type='fc',
+                input_dtype='int8',
+                num_head=16)
         elif prune_criterion == 'l2_norm':
-            pruner = paddleslim.dygraph.L2NormFilterPruner(model, [[batch_size, seq_len], [batch_size, seq_len]], skip_leaves=False, prune_type='fc', input_dtype='int8')
+            pruner = paddleslim.dygraph.L2NormFilterPruner(
+                model, [[batch_size, seq_len], [batch_size, seq_len]],
+                skip_leaves=False,
+                prune_type='fc',
+                input_dtype='int8',
+                num_head=16)
 
         pruner.sensitive(eval_func=eval_func, sen_file=output_file)
 
@@ -758,7 +791,6 @@ class EagerEngine(BasicEngine):
         #NOTE(minghaoBD): We haven't fully tested Prune+Quantization, so an "else if" is put here for separation.
         elif self.quant_configs is not None and self.quant_configs.enable:
             self._quant_model()
-
 
     def load(self):
         """
@@ -789,7 +821,7 @@ class EagerEngine(BasicEngine):
                 raise ValueError("No optimizer checkpoint file found in %s." %
                                  model_path)
 
-            if False: #self.mode == 'train':
+            if False:  #self.mode == 'train':
                 if os.path.exists(opt_path):
                     opt_dict = paddle.load(opt_path)
                     self._optimizer.set_state_dict(opt_dict)
@@ -820,8 +852,7 @@ class EagerEngine(BasicEngine):
         model_dict = paddle.load(pretrained_path)
         for name, param in model.state_dict().items():
             assert name in model_dict.keys(
-            ), "No param named `{}` was found in checkpoint file.".format(
-                name)
+            ), "No param named `{}` was found in checkpoint file.".format(name)
             if param.dtype != model_dict[name].dtype:
                 model_dict[name] = model_dict[name].cast(param.dtype)
         model.set_state_dict(model_dict)
