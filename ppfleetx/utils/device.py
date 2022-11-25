@@ -26,7 +26,7 @@ def get_device():
 
 def synchronize():
     """
-    Synchronize device, return True if succeeded, otherwise rteurn False
+    Synchronize device, return True if succeeded, otherwise return False
     """
     if paddle.is_compiled_with_cuda():
         paddle.device.cuda.synchronize()
@@ -35,5 +35,5 @@ def synchronize():
         paddle.device.xpu.synchronize()
         return True
     else:
-        logger.warning("The synchronizzation is only supported on cuda and xpu now.")
+        logger.warning("The synchronization is only supported on cuda and xpu now.")
     return False
