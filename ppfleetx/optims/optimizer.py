@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import sys
 import paddle
 import paddle.distributed.fleet as fleet
@@ -33,8 +34,10 @@ class FusedAdamW(paddle.optimizer.AdamW):
         tensor_fusion = config.pop("tensor_fusion", False)
 
         if paddle.distributed.get_world_size() > 1:
-            hcg = env.get_hcg()
-            sharding_size = hcg.get_sharding_parallel_world_size()
+            distill_mode = int(os.getenv("DISTILL_MODE"))
+            if distill_mode == 0:
+                hcg = env.get_hcg()
+                sharding_size = hcg.get_sharding_parallel_world_size()
 
         if tensor_fusion:
             self.decay_fused_tensors, self.all_fused_tensors = fused_parameters(

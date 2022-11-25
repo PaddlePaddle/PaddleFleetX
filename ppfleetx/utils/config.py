@@ -56,10 +56,20 @@ def process_dist_config(configs):
     assert nranks % other_degree == 0, "unreasonable config of dist_strategy."
     dp_degree = config.setdefault("dp_degree", nranks // other_degree)
     assert nranks % dp_degree == 0, "unreasonable config of dist_strategy."
-    assert nranks == dp_degree * other_degree, \
-        "Mismatched config using {} cards with dp_degree[{}]," \
-            "mp_degree[{}], pp_degree[{}] and sharding_degree[{}]".format(nranks, \
-                dp_degree, mp_degree, pp_degree, sharding_degree)
+
+    distill_mode = True if 'Distillation' in configs and configs[
+            'Distillation']['enable'] else False
+
+    if distill_mode is True:
+        os.environ["DISTILL_MODE"] = '1'
+    else:
+        os.environ["DISTILL_MODE"] = '0'
+
+    if distill_mode is False:
+        assert nranks == dp_degree * other_degree, \
+            "Mismatched config using {} cards with dp_degree[{}]," \
+                "mp_degree[{}], pp_degree[{}] and sharding_degree[{}]".format(nranks, \
+                    dp_degree, mp_degree, pp_degree, sharding_degree)
 
     if sharding_config['sharding_degree'] > 1 and reduce_overlap:
         if sharding_config['sharding_stage'] == 3 or sharding_config[

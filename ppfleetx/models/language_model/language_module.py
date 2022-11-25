@@ -32,6 +32,7 @@ import paddleslim
 from .utils import process_configs
 from ppfleetx.data.tokenizers import GPTTokenizer
 from .metrics import *
+from .distillation import Distillation, parse_teacher_cfg
 
 # TODO(haohongxiang): to solve the problem of cross-reference
 import paddlenlp
@@ -218,6 +219,114 @@ class GPTModule(LanguageModule):
                 # ret_str = text[i] + ret_str
                 print(ret_str)
 
+class GPTDistillModule(LanguageModule):
+    def __init__(self, configs):
+        super(GPTDistillModule, self).__init__(configs)
+        paddle.distributed.init_parallel_env()
+        self.student_group = paddle.distributed.new_group([0, 1])
+
+    def get_model(self):
+        model_setting = copy.deepcopy(self.configs.Model)
+
+        if paddle.distributed.get_rank() == 0:
+            self.configs.Distillation.update({'StudentModel': self.configs.Model})
+            self.configs.Distillation.update({'Student_ckpt': self.configs.Engine.save_load.ckpt_dir})
+            self.configs.Distillation = parse_teacher_cfg(self.configs.Distillation)
+
+            model_setting['hidden_size'] = self.configs.Distillation['Teacher']['Model']['hidden_size']
+            model_setting['num_layers'] = self.configs.Distillation['Teacher']['Model']['num_layers']
+            model_setting['num_attention_heads'] = self.configs.Distillation['Teacher']['Model']['num_attention_heads']
+            model_setting['ffn_hidden_size'] = 4 * model_setting['hidden_size']
+
+        if paddle.distributed.get_rank() == 1:
+            self.distill = Distillation(self.configs.Distillation)
+        
+
+        model_setting.pop("module")
+        model_setting.pop("sequence_parallel")
+
+        l = model_setting['num_layers']
+        h = model_setting['hidden_size']
+        v = model_setting['vocab_size']
+        s = self.configs.Data.Train.dataset.max_seq_len
+        self.get_model_size(l, h, v, s)
+
+        model_name = model_setting.pop("name")
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
+        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
+
+        if paddle.distributed.get_rank() == 0:
+            with paddle.no_grad():
+                model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
+        else:
+            model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
+
+
+        if 'Quantization' in self.configs.keys(
+        ) and self.configs.Quantization.enable and paddle.distributed.get_rank() == 0:
+            model = self.qat_model(model)
+
+        return model
+
+    def training_step(self, batch):
+        tokens, position_ids, labels, loss_mask = batch
+
+        loss_mask.stop_gradient = True
+        labels.stop_gradient = True
+        position_ids.stop_gradient = True
+
+        preds = self(tokens, position_ids)
+        preds = paddle.cast(preds, "float32")
+
+        loss = 0.0
+        if paddle.distributed.get_rank() == 0:
+            loss = self.loss_fn(preds, labels, loss_mask)
+            paddle.distributed.broadcast(
+                    paddle.to_tensor(preds),
+                    src=0,
+                    group=self.student_group)
+        elif paddle.distributed.get_rank() == 1:
+            preds = preds / self.distill.configs['T']
+            preds = paddle.cast(preds, "float32")
+            with paddle.amp.auto_cast(enable=False):
+                loss = self.loss_fn(preds, labels, loss_mask)
+            teacher_encoder_output = paddle.zeros(preds.shape)
+            teacher_encoder_output.stop_gradient = True
+            paddle.distributed.broadcast(
+                    teacher_encoder_output,
+                    src=0,
+                    group=self.student_group)
+            with paddle.amp.auto_cast(enable=False):
+                dist_loss = self.distill.distill(preds, teacher_encoder_output)
+                loss = loss + dist_loss
+        return loss
+
+    def get_loss_fn(self):
+        loss_fn = gpt.GPTPretrainingCriterion()
+        return loss_fn
+
+    def pretreating_batch(self, batch):
+        if self.configs.Distributed.pp_degree > 1:
+            tokens, position_ids, labels, loss_mask = batch
+            data = [(tokens, position_ids), (labels, loss_mask)]
+            return data
+        else:
+            return batch
+
+    def input_spec(self):
+        return [
+            InputSpec(
+                shape=[None, None], name="tokens", dtype='int64'), InputSpec(
+                    shape=[None, None], name="ids", dtype='int64')
+        ]
+
+    def inference_end(self, outputs):
+        for k, v in outputs.items():
+            for i in range(v.shape[0]):
+                out_ids = [int(x) for x in v[i]]
+                ret_str = self.tokenizer.decode(out_ids)
+                # ret_str = text[i] + ret_str
+                print(ret_str)
 
 class GPTFinetuneModule(BasicModule):
     def __init__(self, configs):

@@ -16,7 +16,7 @@ import sys
 import copy
 
 from ppfleetx.core.module.basic_module import BasicModule
-from ppfleetx.models.language_model.language_module import GPTModule, GPTGenerationModule, GPTEvalModule, GPTFinetuneModule
+from ppfleetx.models.language_model.language_module import GPTModule, GPTGenerationModule, GPTEvalModule, GPTFinetuneModule, GPTDistillModule
 from ppfleetx.models.language_model.gpt.auto.auto_module import GPTModuleAuto, GPTGenerationModuleAuto
 from ppfleetx.models.vision_model.general_classification_module import GeneralClsModule, GeneralClsModuleAuto
 from ppfleetx.models.vision_model.moco_module import MOCOModule, MOCOClsModule

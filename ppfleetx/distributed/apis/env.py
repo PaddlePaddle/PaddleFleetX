@@ -33,10 +33,15 @@ _hcg = None
 
 def set_seed(seed):
     if dist.get_world_size() > 1:
+        distill_mode = int(os.getenv("DISTILL_MODE"))
         # obtain rank message of hybrid parallel
-        hcg = get_hcg()
-        mp_rank = hcg.get_model_parallel_rank()
-        pp_rank = hcg.get_stage_id()
+        if distill_mode == 0:
+            hcg = get_hcg()
+            mp_rank = hcg.get_model_parallel_rank()
+            pp_rank = hcg.get_stage_id()
+        else:
+            mp_rank = 0
+            pp_rank = 0
         data_world_rank = get_data_world_rank()
         data_world_size = get_data_world_size()
     else:
@@ -122,6 +127,10 @@ def get_data_world_size():
     if paddle.distributed.get_world_size() == 1:
         return 1
 
+    distill_mode = int(os.getenv("DISTILL_MODE"))
+    if distill_mode == 1:
+        return 1 
+
     hcg = get_hcg()
     dp_size = hcg.get_data_parallel_world_size()
     sharding_size = hcg.get_sharding_parallel_world_size()
@@ -131,6 +140,10 @@ def get_data_world_size():
 
 def get_data_world_rank():
     if paddle.distributed.get_world_size() == 1:
+        return 0
+
+    distill_mode = int(os.getenv("DISTILL_MODE"))
+    if distill_mode == 1:
         return 0
 
     hcg = get_hcg()
