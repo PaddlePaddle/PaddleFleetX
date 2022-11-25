@@ -99,8 +99,6 @@ def unscaled_group_sharded_parallel(
     logger_.info("Sharded level os uses sharded level os_g achieved now.")
     logger_.info("*" * 30)
 
-    
-    # assert False
     optimizer = GroupShardedOptimizerStage2(
         params=optimizer._parameter_list,
         optim=optimizer,
