@@ -2,7 +2,7 @@ import paddle
 
 def get_device_and_mapping():
     """
-        Return gpu type and name-bool mapping implifying which type is supported.
+        Return device type and name-bool mapping implifying which type is supported.
     """
     suppoted_device_map = {
         "gpu": paddle.is_compiled_with_cuda(),
@@ -18,7 +18,7 @@ def get_device_and_mapping():
 
 def get_device():
     """
-        Return the GPU Type, including 'gpu'(for rocm and gpu), 'npu', 'xpu', 'cpu'.
+        Return the device with which the paddle is compiled, including 'gpu'(for rocm and gpu), 'npu', 'xpu', 'cpu'.
     """
     d, _ = get_device_and_mapping()
     return d
@@ -26,7 +26,7 @@ def get_device():
 
 def synchronize():
     """
-    synchronize device, return True if suceed synchronized, Otherwise rtunr False
+    Synchronize device, return True if succeeded, otherwise rteurn False
     """
     if paddle.is_compiled_with_cuda():
         paddle.device.cuda.synchronize()
