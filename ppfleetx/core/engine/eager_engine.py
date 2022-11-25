@@ -114,6 +114,7 @@ class EagerEngine(BasicEngine):
 
         # engine configs
         self._configs = configs['Engine']
+        self._device = configs['Global'].get('device', 'gpu')
 
         self._run_mode = self._configs.get('run_mode', 'step')
         assert self._run_mode in ['epoch', 'step'
@@ -258,7 +259,8 @@ class EagerEngine(BasicEngine):
             scaler=self._scaler,
             group=self._sharding_group,
             offload=self._sharding_offload,
-            dp_group=self._dp_group if self._dp_group.nranks > 1 else None)
+            dp_group=self._dp_group if self._dp_group.nranks > 1 else None,
+            device=self._device)
         if self._reduce_overlap:
             self._module.model._set_reduce_overlap(self._reduce_overlap)
         if self._broadcast_overlap:

@@ -38,7 +38,8 @@ def sharding_wrapper(
         buffer_max_size=2**23,
         segment_size=2**20,
         sync_comm=False,
-        dp_group=None, ):
+        dp_group=None, 
+        device="gpu"):
 
     assert level in [
         'os',
@@ -51,7 +52,7 @@ def sharding_wrapper(
 
     model, optimizer, scaler = wrapper_func(
         model, optimizer, level, scaler, group, offload, sync_buffers,
-        buffer_max_size, segment_size, sync_comm, dp_group)
+        buffer_max_size, segment_size, sync_comm, dp_group, device=device)
 
     return model, optimizer, scaler
 
@@ -67,7 +68,8 @@ def unscaled_group_sharded_parallel(
         buffer_max_size=2**23,
         segment_size=2**20,
         sync_comm=False,
-        dp_group=None, ):
+        dp_group=None, 
+        device="gpu"):
     """
     Use unscaled_group_sharded_parallel can perform group shared configuration on the model, optimizer and GradScaler.
     """
@@ -97,20 +99,23 @@ def unscaled_group_sharded_parallel(
     logger_.info("Sharded level os uses sharded level os_g achieved now.")
     logger_.info("*" * 30)
 
+    
+    # assert False
     optimizer = GroupShardedOptimizerStage2(
         params=optimizer._parameter_list,
         optim=optimizer,
         group=group,
         offload=offload,
-        dp_group=dp_group, )
-
+        dp_group=dp_group,
+        device=device)
     model = UnscaledGroupShardedStage2(
         model,
         optimizer,
         group=group,
         sync_buffers=sync_buffers,
         buffer_max_size=buffer_max_size,
-        dp_group=dp_group, )
+        dp_group=dp_group,
+        device=device)
 
     if isinstance(scaler, paddle.amp.GradScaler):
         scaler = GroupShardedScaler(scaler)
