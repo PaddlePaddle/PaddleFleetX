@@ -18,6 +18,7 @@ import os
 import sys
 import numbers
 import numpy as np
+from dataclasses import dataclass
 
 try:
     from collections.abc import Sequence, Mapping
@@ -143,6 +144,47 @@ class ErnieCollateData():
                 for i in range(6):
                     all_data[i].append(tmp[i])
             return all_data
+
+
+@dataclass
+class DataCollatorWithPadding:
+    """
+    Data collator that will dynamically pad the inputs to the longest sequence in the batch.
+
+    Args:
+        tokenizer_type (str): The type of tokenizer used for encoding the data.
+    """
+
+    def __init__(self,
+                 tokenizer_type,
+                 padding=True,
+                 max_length=None,
+                 pad_to_multiple_of=None,
+                 return_tensors="pd",
+                 return_attention_mask=None):
+        from ppfleetx.data.tokenizers import get_ernie_tokenizer
+        self.tokenizer = get_ernie_tokenizer(tokenizer_type)
+        self.padding = padding
+        self.max_length = max_length
+        self.pad_to_multiple_of = pad_to_multiple_of
+        self.return_tensors = return_tensors
+        self.return_attention_mask = return_attention_mask
+
+    def __call__(self, features):
+        batch = self.tokenizer.pad(
+            features,
+            padding=self.padding,
+            max_length=self.max_length,
+            pad_to_multiple_of=self.pad_to_multiple_of,
+            return_tensors=self.return_tensors,
+            return_attention_mask=self.return_attention_mask)
+        if "label" in batch:
+            batch["labels"] = batch["label"]
+            del batch["label"]
+        if "label_ids" in batch:
+            batch["labels"] = batch["label_ids"]
+            del batch["label_ids"]
+        return batch
 
 
 def imagen_collate_fn(batch):
