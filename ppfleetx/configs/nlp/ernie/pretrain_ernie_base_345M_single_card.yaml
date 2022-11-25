@@ -2,8 +2,8 @@ _base_: ./pretrain_ernie_base.yaml
 
 Global:
   global_batch_size: 
-  local_batch_size: 64
-  micro_batch_size: 64
+  local_batch_size: 8
+  micro_batch_size: 8
 
 
 Model:
