@@ -21,4 +21,4 @@ from .vision_dataset import (
 from .multimodal_dataset import ImagenDataset
 from .gpt_dataset import GPTDataset, LM_Eval_Dataset, Lambada_Eval_Dataset
 from .glue_dataset import *
-from .ernie.ernie_dataset import ErnieDataset
+from .ernie.ernie_dataset import ErnieDataset, ErnieSeqClsDataset
