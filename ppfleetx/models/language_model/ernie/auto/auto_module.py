@@ -141,6 +141,6 @@ class ErnieSeqClsModuleAuto(BasicModule):
             paddle.static.InputSpec(
                 shape=[None, None], dtype="int64", name='input_ids'),
             paddle.static.InputSpec(
-                shape=[None, None], dtype="int64", name='segment_ids')
+                shape=[None, None], dtype="int64", name='token_type_ids')
         ]
         return input_spec
