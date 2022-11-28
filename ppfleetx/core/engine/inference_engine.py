@@ -255,4 +255,3 @@ class InferenceEngine(object):
             self.predictor.run()
             return {name: self.predictor.get_output_handle(name).copy_to_cpu() \
                     for name in self.output_names()}
-
