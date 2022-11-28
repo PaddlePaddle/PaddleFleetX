@@ -39,7 +39,7 @@ Distributed:
     broadcast_overlap: False
 
 Compress:
-  pretrained: /workspace/distill-gpt/PaddleFleetX/PaddleFleetX_GPT_345M_220826/mp_00_sharding_00_pp_00
+  pretrained: ./PaddleFleetX_GPT_345M_220826/
   Distillation:
     enable: True
     distill_loss_ratio: 0.1 
@@ -47,7 +47,7 @@ Compress:
     T: 1.5
     Teacher:
       save_load:
-        ckpt_dir: /workspace/distill-gpt/PaddleFleetX/pretrain_model 
+        ckpt_dir: ./pretrain_model
       Model:
         vocab_size: 50304
         hidden_size: 2048
