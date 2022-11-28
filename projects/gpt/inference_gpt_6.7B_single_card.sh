@@ -17,12 +17,4 @@
 log_dir=log_mp1
 rm -rf $log_dir
 
-echo "step 1: export model"
-python -m paddle.distributed.launch --log_dir $log_dir --devices "0" \
-    ./tools/auto_export.py \
-    -c ./ppfleetx/configs/nlp/gpt/auto/generation_gpt_6.7B_single_card.yaml \
-
-
-echo "step 2: run GPT inference"
-
-python projects/gpt/inference.py --mp_size 2 --model_dir output
+python projects/gpt/inference.py --mp_size 1 --model_dir output

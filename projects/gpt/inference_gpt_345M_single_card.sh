@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+log_dir=log_mp1
+rm -rf $log_dir
 
-export CUDA_VISIBLE_DEVICES=0
-python ./tasks/gpt/inference.py -c ./ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml
+python projects/gpt/inference.py --mp_size 1 --model_dir output

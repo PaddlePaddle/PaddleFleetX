@@ -36,22 +36,19 @@ sh projects/gpt/auto_export_gpt_175B_mp8.sh
 ## 2. 推理部署
 
 模型导出后，可通过`tasks/gpt/inference.py`脚本进行推理部署。
-
+`GPT-3(345M)` 推理
 ```bash
-python projects/gpt/inference.py --mp_size $MP_SIZE --model_dir output
-
+bash projects/gpt/inference_gpt_345M_single_card.sh
+```
+`GPT-3(6.7B)` 推理
+```bash
+bash projects/gpt/inference_gpt_6.7B_single_card.sh
 ```
 ## 3. Benchmark
 - 运行benchmark脚本
 ```
 cd ppfleetx && python setup_cuda.py install && cd ..
-export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-# for mp=8
-python -m -m paddle.distributed.launch --devices "0,1,2,3,4,5,6,7" projects/gpt/benchmark.py --seq_len 128 --iter 10 --mp_size 8 --model_dir ./output
-
-export CUDA_VISIBLE_DEVICES=0
-# for mp=1
-python -m -m paddle.distributed.launch --devices "0" projects/gpt/benchmark.py --seq_len 128 --iter 10 --mp_size 1 --model_dir ./output
+bash projects/gpt/run_benchmark.sh
 ```
 
 | 模型          | 输入长度 | 输出长度 | batch size | GPU卡数 | FP16推理时延 | INT8推理时延 |
