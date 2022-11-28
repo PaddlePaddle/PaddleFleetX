@@ -192,7 +192,10 @@ class EagerEngine(BasicEngine):
 
         # distributed configs
         self._distributed = (dist.get_world_size() > 1)
-
+          
+        #NOTE(penghanyuphy): In distillation mode, two cards are used to run the 
+        #teacher and student network respectively. But this case is nothing about 
+        #distributed training, so we set self._distributed to False  
         if self._distill_mode:
             self._distributed = False
 
@@ -353,14 +356,12 @@ class EagerEngine(BasicEngine):
                     }
                     self._module.validation_step_end(log_dict)
                     
-                    if self._distill_mode:
-                        if paddle.distributed.get_rank() == 1:
-                            self._module.model.train()
+                    if self._distill_mode and paddle.distributed.get_rank() == 1:
+                        self._module.model.train()
 
                 if self._save_steps > 0 and step % self._save_steps == 0:
-                    if self._distill_mode is False:
-                        paddle.device.cuda.synchronize()
-                    if self._distill_mode is True and paddle.distributed.get_rank() == 1:
+                    if self._distill_mode is False or (self._distill_mode is True \ 
+                        and paddle.distributed.get_rank() == 1):
                         paddle.device.cuda.synchronize()
                     self.save(epoch=epoch_index, step=step)
             else:
@@ -386,14 +387,11 @@ class EagerEngine(BasicEngine):
 
         """
 
-        if self._distill_mode is False: 
+        if self._distill_mode is False or (self._distill_mode is True \ 
+            and paddle.distributed.get_rank() == 1):
             self._module.model.train()
-        
-        if self._distill_mode is True:
-            if paddle.distributed.get_rank() == 0:
-                self._module.model.eval()
-            else:
-                self._module.model.train()
+        else:
+            self._module.model.eval()
 
         train_start = get_timestamp()
 
@@ -466,13 +464,9 @@ class EagerEngine(BasicEngine):
                 loss = self._module.model.forward_backward_pipeline(
                     batch, self._scaler)
 
-        if self._distill_mode is False:
+        if self._distill_mode is False or (if self._distill_mode is True \ 
+            and paddle.distributed.get_rank() == 1):
             self._optim_update_params()
-
-        if self._distill_mode is True:
-            if paddle.distributed.get_rank() == 1:
-                self._optim_update_params()
-
 
         return loss
 
@@ -721,10 +715,8 @@ class EagerEngine(BasicEngine):
         load the saved checkpoint file and update the state dicts of model and optimizer.
         """
 
-        if self._distill_mode is True:
-            if paddle.distributed.get_rank() == 0:
-                print(self._ckpt_dir)
-                self._ckpt_dir = self.teacher_ckpt_dir
+        if self._distill_mode is True and paddle.distributed.get_rank() == 0:
+            self._ckpt_dir = self.teacher_ckpt_dir
 
         if self._ckpt_dir and isinstance(self._ckpt_dir, str):
             logger.info("Try to load checkpoint from %s " % self._ckpt_dir)

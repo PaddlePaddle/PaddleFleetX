@@ -1,7 +1,3 @@
----
-marp: true
----
-
 # GPT
 
 ## 模型介绍
@@ -325,7 +321,7 @@ Quantization:
 | -------- | -------- | -------- | --------------------------------- |
 | 1.3B     | 345M     | fp16     | distill_gpt_345M_single_card.yaml |
 
-用户可以使用配置文件配置评估相关的参数，包括：
+用户可以使用配置文件配置相关的参数，包括：
 
 ```yaml
   Distillation:
@@ -360,8 +356,9 @@ Quantization:
 | distill_loss_ratio     | 蒸馏损失函数的权重                                          |
 | distillation_loss_type | 蒸馏损失函数的类型，支持mse, kl_div和token_wise_contrastive |
 | ckpt_dir               | 教师网络 checkpoint的加载目录                               |
+| T                      | 学生网络除的温度                                            |
 
-Model部分的参数意义和部分相同，如果不置顶Model部分内容，则默认用学生网络用作教师网络，实现
+Model部分的参数意义和部分相同，如果不指定Model部分内容，则默认用学生网络用作教师网络。
 
 # 推理部署
 
