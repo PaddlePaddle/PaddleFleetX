@@ -206,6 +206,7 @@ class ErnieModel(nn.Layer):
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
         self.hidden_act = hidden_act
+        self.hidden_dropout_prob = hidden_dropout_prob
 
         weight_attr = paddle.ParamAttr(
             initializer=nn.initializer.TruncatedNormal(
@@ -664,9 +665,8 @@ class ErnieForSequenceClassification(nn.Layer):
         self.num_classes = num_classes
         self.ernie = ernie  # allow ernie to be config
         self.dropout = nn.Dropout(dropout if dropout is not None else
-                                  self.ernie.config["hidden_dropout_prob"])
-        self.classifier = nn.Linear(self.ernie.config["hidden_size"],
-                                    num_classes)
+                                  self.ernie.hidden_dropout_prob)
+        self.classifier = nn.Linear(self.ernie.hidden_size, num_classes)
         self.apply(self.init_weights)
 
     def forward(self,
@@ -759,7 +759,7 @@ class ErnieForSequenceClassification(nn.Layer):
                         mean=0.0,
                         std=self.initializer_range
                         if hasattr(self, "initializer_range") else
-                        self.ernie.config["initializer_range"],
+                        self.ernie.initializer_range,
                         shape=layer.weight.shape))
         elif isinstance(layer, nn.LayerNorm):
             layer._epsilon = 1e-12
