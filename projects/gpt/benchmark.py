@@ -1,3 +1,17 @@
+# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 import time
 import argparse
@@ -11,7 +25,7 @@ import custom_setup_ops
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--seq_len", default=128, type=int, required=False, help="seq length of inputs")
-    parser.add_argument("--iter", default=10, type=int,  help="run iterations for timing")
+    parser.add_argument("--iter", default=100, type=int,  help="run iterations for timing")
     parser.add_argument("--mp_size", default=1, type=int,  help="")
     parser.add_argument("--model_dir", default="output", type=str,  help="model directory")
 
@@ -25,7 +39,7 @@ def predict(engine, data, args):
             handle = engine.predictor.get_input_handle(name)
             handle.copy_from_cpu(d)
         
-        for _ in range(1):
+        for _ in range(10):
             engine.predictor.run()
         engine.predictor.get_output_handle(engine.output_names()[0]).copy_to_cpu()
         

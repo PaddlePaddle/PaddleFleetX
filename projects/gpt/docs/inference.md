@@ -14,20 +14,20 @@ tar -xzf ckpt/GPT_345M.tar.gz -C ckpt/
 ```
 
 通过如下方式进行推理模型导出
-### `GPT-3(345M)` 模型导出与推理
+`GPT-3(345M)` 模型导出与推理
 导出单卡`GPT-3(345M)`模型：
 ```bash
 sh projects/gpt/auto_export_gpt_345M_mp1.sh
 ```
 
-### `GPT-3(6.7B)` 模型导出与推理
+`GPT-3(6.7B)` 模型导出与推理
 导出单卡`GPT-3(6.7B)`模型：
 ```bash
 sh projects/gpt/auto_export_gpt_6.7B_mp1.sh
 ```
 
-### `GPT-3(175B)` 模型导出与推理
-导出单卡`GPT-3(175B)`模型：
+`GPT-3(175B)` 模型导出与推理
+导出8卡`GPT-3(175B)`模型：
 ```bash
 sh projects/gpt/auto_export_gpt_175B_mp8.sh
 ```
