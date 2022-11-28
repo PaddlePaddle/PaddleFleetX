@@ -64,6 +64,8 @@ if __name__ == "__main__":
 
     engine = EagerEngine(configs=cfg, module=module)
 
+    engine.compress_model()
+
     if cfg.Engine.save_load.ckpt_dir is not None:
         engine.load()
 

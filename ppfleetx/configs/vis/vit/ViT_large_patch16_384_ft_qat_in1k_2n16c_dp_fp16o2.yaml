@@ -122,11 +122,13 @@ Data:
       num_workers: 8
       use_shared_memory: True
 
-Quantization:
-  enable: True
-  weight_quantize_type: 'abs_max'
-  activation_quantize_type: 'moving_average_abs_max'
-  activation_preprocess_type: 'PACT'
-  weight_bits: 8
-  activation_bits: 8
-  onnx_format: True
+
+Compress:
+  Quantization:
+    enable: True
+    weight_quantize_type: 'channel_wise_abs_max'
+    activation_quantize_type: 'moving_average_abs_max'
+    activation_preprocess_type: 'PACT'
+    weight_bits: 8
+    activation_bits: 8
+    onnx_format: True

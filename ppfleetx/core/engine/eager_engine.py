@@ -28,6 +28,7 @@ from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_
 from paddle.profiler import SummaryView
 from paddle.distributed.fleet.meta_parallel import TensorParallel
 
+import paddleslim
 from ppfleetx.distributed.apis import env, sharding
 from ppfleetx.optims import build_lr_scheduler, build_optimizer
 from ppfleetx.utils.log import logger, get_timestamp, convert_timestamp_to_data
@@ -142,6 +143,15 @@ class EagerEngine(BasicEngine):
 
         self._output_dir = self._configs['save_load']['output_dir']
         self._ckpt_dir = self._configs['save_load']['ckpt_dir']
+
+        self._compress_configs = None
+        self.quant_configs = None
+
+        if 'Compress' in configs:
+            self.mode = 'compress'
+            self._compress_configs = configs['Compress']
+            if "Quantization" in self._compress_configs:
+                self.quant_configs = self._compress_configs["Quantization"]
 
         # TODO(haohongxiang): Remove there extra configs after reconstruct of Fleet API
         self._dist_configs = configs['Distributed']
@@ -259,7 +269,8 @@ class EagerEngine(BasicEngine):
 
         if self._mp_degree > 1:
             assert self._sharding_stage == 2, "only support mp + sharding stage2 hybrid parallel now."
-            self._module.model =  TensorParallel(self._module.model, self._hcg, strategy=None)
+            self._module.model = TensorParallel(
+                self._module.model, self._hcg, strategy=None)
 
         level = "p_g_os" if self._sharding_stage == 3 else "os_g"
         origin_model = self._module.model
@@ -708,6 +719,24 @@ class EagerEngine(BasicEngine):
 
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
+
+    def _quant_model(self):
+        # Load pretrained model before quantized
+        if 'pretrained' in self._compress_configs and self._compress_configs[
+                'pretrained'] is not None:
+            self._ckpt_dir = self._compress_configs['pretrained']
+            self.load()
+            # Avoid load again
+            self._configs['save_load']['ckpt_dir'] = None
+
+        model = self._module.model
+        quanter = paddleslim.dygraph.quant.QAT(config=self.quant_configs)
+        quanter.quantize(model)
+
+    def compress_model(self, infer=False):
+        if self._compress_configs is None: return
+        if self.quant_configs is not None and self.quant_configs.enable:
+            self._quant_model()
 
     def load(self):
         """
