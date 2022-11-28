@@ -758,18 +758,7 @@ class TransformerEncoder(Layer):
                 all_hidden_states[-1] = output
 
         if not return_dict:
-            outputs = tuple(
-                tuple(v) if isinstance(v, list) else v
-                for v in [
-                    output,
-                    new_caches,
-                    all_hidden_states,
-                    all_attentions,
-                ] if v is not None)
-            if len(outputs) == 1:
-                return output
-            else:
-                return outputs
+            return output
 
         return BaseModelOutputWithPastAndCrossAttentions(
             last_hidden_state=output,
