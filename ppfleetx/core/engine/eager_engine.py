@@ -690,6 +690,19 @@ class EagerEngine(BasicEngine):
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
 
+    def _quant_model(self):
+        # Load pretrained model before quantized
+        if 'pretrained' in self._compress_configs and self._compress_configs[
+                'pretrained'] is not None:
+            self._ckpt_dir = self._compress_configs['pretrained']
+            self.load()
+            # Avoid load again
+            self._configs['save_load']['ckpt_dir'] = None
+
+        model = self._module.model
+        quanter = paddleslim.dygraph.quant.QAT(config=self.quant_configs)
+        quanter.quantize(model)
+
     def compress_model(self, infer=False):
         if self._compress_configs is None: return
         if self.prune_configs is not None and self.prune_configs.enable:
