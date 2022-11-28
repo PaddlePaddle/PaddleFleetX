@@ -116,6 +116,7 @@ python tools/train.py -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_345M_sin
 cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 # 175B run_pretrain
+log_dir=log_175B
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
     ./tools/train.py \
     -c ./ppfleetx/configs/nlp/ernie/pretrain_ernie_base_175B_mp8_pp16.yaml
