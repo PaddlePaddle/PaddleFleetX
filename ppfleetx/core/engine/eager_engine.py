@@ -123,14 +123,6 @@ class EagerEngine(BasicEngine):
         self.prune_configs = None
         self.quant_configs = None
 
-        if 'Compress' in configs:
-            self.mode = 'compress'
-            self._compress_configs = configs['Compress']
-            if "Prune" in self._compress_configs:
-                self.prune_configs = self._compress_configs["Prune"]
-            if "Quantization" in self._compress_configs:
-                self.quant_configs = self._compress_configs["Quantization"]
-
         self._max_steps = self._configs['max_steps']
         self._eval_freq = self._configs['eval_freq']
         self._eval_iters = self._configs['eval_iters']
@@ -155,6 +147,15 @@ class EagerEngine(BasicEngine):
 
         self._output_dir = self._configs['save_load']['output_dir']
         self._ckpt_dir = self._configs['save_load']['ckpt_dir']
+
+        if 'Compress' in configs:
+            self.mode = 'compress'
+            self._compress_configs = configs['Compress']
+            self._ckpt_dir = self._compress_configs['pretrained']
+            if "Prune" in self._compress_configs:
+                self.prune_configs = self._compress_configs["Prune"]
+            if "Quantization" in self._compress_configs:
+                self.quant_configs = self._compress_configs["Quantization"]
 
         # TODO(haohongxiang): Remove there extra configs after reconstruct of Fleet API
         self._dist_configs = configs['Distributed']
