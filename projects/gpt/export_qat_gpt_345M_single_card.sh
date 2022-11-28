@@ -18,8 +18,18 @@
 
 export CUDA_VISIBLE_DEVICES=0
 
+"""
+# 导出可验证模型
 python ./tools/export.py \
-    -c ./ppfleetx/configs/nlp/gpt/export_quantized_gpt_345M_single_card.yaml \
+    -c ./ppfleetx/configs/nlp/gpt/export_qat_gpt_345M_single_card.yaml \
+    -o Model.hidden_dropout_prob=0.0 \
+    -o Model.attention_probs_dropout_prob=0.0 \
+    -o Engine.save_load.ckpt_dir='./GPT_345M_QAT_w_analysis/'
+"""
+
+# 导出可生成句子模型
+python ./tools/export.py \
+    -c ./ppfleetx/configs/nlp/gpt/generation_qat_gpt_345M_single_card.yaml \
     -o Model.hidden_dropout_prob=0.0 \
     -o Model.attention_probs_dropout_prob=0.0 \
     -o Engine.save_load.ckpt_dir='./GPT_345M_QAT_w_analysis/'
