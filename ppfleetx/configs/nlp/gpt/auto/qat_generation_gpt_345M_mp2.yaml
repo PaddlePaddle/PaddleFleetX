@@ -47,7 +47,7 @@ Distributed:
 
 Quantization:
   enable: True
-  channel_wise_abs_max: True
+  channel_wise_abs_max: False
   weight_bits: 8
   activation_bits: 8
   onnx_format: True
