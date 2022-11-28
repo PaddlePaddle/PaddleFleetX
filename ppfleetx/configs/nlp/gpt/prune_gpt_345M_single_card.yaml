@@ -5,6 +5,12 @@ Global:
   local_batch_size: 8
   micro_batch_size: 8
 
+Engine:
+  save_load:
+    save_steps: 1000
+    save_epoch: 1
+    output_dir: ./output
+    ckpt_dir: ./PaddleFleetX_GPT_345M_220826
 
 Model:
   vocab_size: 50304
@@ -22,6 +28,27 @@ Model:
   no_recompute_layers:
   
 
+Data:
+  Train:
+    dataset:
+      name: GPTDataset
+      input_dir: ./large_dataset/
+      split: [949, 50, 1]
+      max_seq_len: 1024
+    sampler:
+      name: GPTBatchSampler
+      shuffle: False
+      drop_last: True
+    loader:
+      num_workers: 1
+      return_list: False
+      collate_fn: gpt_collate_fn
+  
+  Eval:
+    dataset:
+      name: GPTDataset
+      input_dir: ./large_dataset/
+
 Distributed:
   dp_degree: 1
   mp_degree: 1
@@ -35,9 +62,13 @@ Distributed:
 Engine:
   max_steps: 100000
   save_load:
-    save_steps: 2500
+    save_steps: 1000
+    save_epoch: 1
+    output_dir: ./output
+    ckpt_dir: ./PaddleFleetX_GPT_345M_220826
 
 Optimizer:
+  weight_decay: 0.0
   lr:
     decay_steps: 90000
     warmup_rate: 0.00

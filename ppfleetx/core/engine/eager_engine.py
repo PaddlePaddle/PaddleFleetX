@@ -186,10 +186,12 @@ class EagerEngine(BasicEngine):
         else:
             self._scaler = None
 
-        self._lr_scheduler_mode = configs.Optimizer.lr.pop('run_mode', 'step')
-        assert self._lr_scheduler_mode in [
-            'epoch', 'step'
-        ], 'lr.run_mode must be epoch or step'
+        if mode == 'train':
+            self._lr_scheduler_mode = configs.Optimizer.lr.pop('run_mode',
+                                                               'step')
+            assert self._lr_scheduler_mode in [
+                'epoch', 'step'
+            ], 'lr.run_mode must be epoch or step'
         self._lr_scheduler = build_lr_scheduler(
             configs.Optimizer.lr) if mode == 'train' else None
 

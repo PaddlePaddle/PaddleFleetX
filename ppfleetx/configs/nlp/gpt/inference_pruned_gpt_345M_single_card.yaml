@@ -2,15 +2,15 @@ _base_: ./generation_gpt_345M_single_card.yaml
 
 
 Inference:
-  model_dir: output/epoch_7500
+  model_dir: output
   mp_degree: 1
 
 Engine:
   save_load:
-    ckpt_dir: output/epoch_7500
+    ckpt_dir: output
 
 Prune:
-  enable: False
+  enable: True
   criterion: l1_norm
   ratio: 0.125
 
@@ -44,7 +44,7 @@ Data:
   Test:
     dataset:
       name: GPTDataset
-      input_dir: ./data/
+      input_dir: ./large_dataset/
       split: [949, 50, 1]
       max_seq_len: 1024
     sampler:
