@@ -1,6 +1,6 @@
 
 ## 推理部署
-参考[文档](../../docs/inference.md)
+参考[文档](docs/inference.md)
 
 ## Benchmark
 - 运行benchmark脚本
