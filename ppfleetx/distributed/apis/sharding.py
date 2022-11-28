@@ -52,7 +52,7 @@ def sharding_wrapper(
 
     model, optimizer, scaler = wrapper_func(
         model, optimizer, level, scaler, group, offload, sync_buffers,
-        buffer_max_size, segment_size, sync_comm, dp_group, device=device)
+        buffer_max_size, segment_size, sync_comm, dp_group)
 
     return model, optimizer, scaler
 
@@ -68,8 +68,7 @@ def unscaled_group_sharded_parallel(
         buffer_max_size=2**23,
         segment_size=2**20,
         sync_comm=False,
-        dp_group=None, 
-        device="gpu"):
+        dp_group=None):
     """
     Use unscaled_group_sharded_parallel can perform group shared configuration on the model, optimizer and GradScaler.
     """
@@ -98,6 +97,8 @@ def unscaled_group_sharded_parallel(
     logger_.info("*" * 30)
     logger_.info("Sharded level os uses sharded level os_g achieved now.")
     logger_.info("*" * 30)
+
+    device = paddle.get_device().split(":")[0]
 
     optimizer = GroupShardedOptimizerStage2(
         params=optimizer._parameter_list,
