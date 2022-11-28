@@ -25,6 +25,15 @@ Model:
   dynamic_thresholding_percentile: 0.95
   only_train_unet_number: 1 
   use_recompute: False
+  recompute_granularity: full
+
+Engine:
+  mix_precision:
+    use_pure_fp16: True
+    scale_loss: 32768.0
+    custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
+    custom_white_list: ["lookup_table", "lookup_table_v2"]
+    fp16_dtype: "bfloat16"
 
 Data:
   Train:
@@ -51,6 +60,6 @@ Distributed:
   mp_degree: 1
   pp_degree: 1
   sharding:
-    sharding_degree: 1
-    sharding_stage: 1
+    sharding_degree: 8
+    sharding_stage: 2
     sharding_offload: False
