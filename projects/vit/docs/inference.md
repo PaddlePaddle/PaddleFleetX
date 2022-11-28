@@ -2,6 +2,11 @@
 
 模型训练完成后，可使用飞桨高性能推理引擎Paddle Inference通过如下方式进行推理部署。
 
+```bash
+sh projects/vit/run_inference_base_patch16_224.sh
+```
+分解步骤如下：
+
 ## 1. 模型导出
 
 首先将模型导出为用于部署的推理模型，可通过`tools/export.py`进行模型导出，通过`-c`指定需要导出的模型的配置文件，通过`-o Engine.save_load.ckpt_dir=`指定导出模型时使用的权重。
@@ -29,5 +34,5 @@ python tools/export.py \
 模型导出后，可通过`projects/vit/inference.py`脚本进行推理部署。
 
 ```bash
-sh projects/vit/run_inference_base_patch16_224.sh
+python projects/vit/inference.py -c ppfleetx/configs/vis/vit/ViT_base_patch16_224_inference.yaml
 ```

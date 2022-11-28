@@ -77,8 +77,4 @@ python -m paddle.distributed.launch --gpus="0,1,2,3,4,5,6,7" tools/train.py -c p
 
 # 推理部署
 
-模型训练完成后，可使用飞桨高性能推理引擎Paddle Inference通过如下方式进行推理部署。
-
-## 1. 模型导出
-
 参考[这里](./docs/inference.md)
