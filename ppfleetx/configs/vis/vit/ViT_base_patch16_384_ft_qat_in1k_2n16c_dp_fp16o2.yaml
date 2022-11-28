@@ -11,7 +11,7 @@ Engine:
   accumulate_steps: 1
   logging_freq: 10
   mix_precision:
-    use_pure_fp16: False
+    use_pure_fp16: True
     scale_loss: 32768.0
     custom_black_list: ["reduce_sum", "elementwise_div"]
     custom_white_list: []
@@ -30,7 +30,7 @@ Model:
     class_num: 1000
     drop_rate: 0.1
     pretrained:
-      prefix_path: ./pretrained/vit/imagenet2012-ViT-B_16-224
+      prefix_path: ./pretrained/vit/imagenet2012-ViT-B_16-384
       finetune: True
   loss:
     train:
@@ -123,11 +123,12 @@ Data:
       use_shared_memory: True
 
 
-Quantization:
-  enable: True
-  weight_quantize_type: 'abs_max'
-  activation_quantize_type: 'moving_average_abs_max'
-  activation_preprocess_type: 'PACT'
-  weight_bits: 8
-  activation_bits: 8
-  onnx_format: True
+Compress:
+  Quantization:
+    enable: True
+    weight_quantize_type: 'abs_max'
+    activation_quantize_type: 'moving_average_abs_max'
+    activation_preprocess_type: 'PACT'
+    weight_bits: 8
+    activation_bits: 8
+    onnx_format: True
