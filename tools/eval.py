@@ -45,6 +45,8 @@ if __name__ == "__main__":
 
     engine = EagerEngine(configs=cfg, module=module, mode='eval')
 
+    engine.compress_model()
+
     valid_data_loader = build_dataloader(cfg.Data, "Eval")
 
     if cfg.Engine.save_load.ckpt_dir is not None:

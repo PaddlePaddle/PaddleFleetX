@@ -48,6 +48,8 @@ if __name__ == "__main__":
 
     engine = EagerEngine(configs=cfg, module=module, mode='inference')
 
+    engine.compress_model(infer=True)
+
     test_data_loader = build_dataloader(cfg.Data, "Test")
     for iter_id, data in enumerate(test_data_loader()):
         outs = engine.inference(data)

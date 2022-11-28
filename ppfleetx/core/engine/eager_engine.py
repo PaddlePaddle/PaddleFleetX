@@ -26,6 +26,7 @@ from paddle.optimizer.lr import LRScheduler
 from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 from paddle.profiler import SummaryView
+import paddleslim
 from paddle.distributed.fleet.meta_parallel import TensorParallel
 
 from ppfleetx.distributed.apis import env, sharding
@@ -118,6 +119,18 @@ class EagerEngine(BasicEngine):
         self._run_mode = self._configs.get('run_mode', 'step')
         assert self._run_mode in ['epoch', 'step'
                                   ], 'run_mode must be epoch or step'
+        self._compress_configs = None
+        self.prune_configs = None
+        self.quant_configs = None
+
+        if 'Compress' in configs:
+            self.mode = 'compress'
+            self._compress_configs = configs['Compress']
+            if "Prune" in self._compress_configs:
+                self.prune_configs = self._compress_configs["Prune"]
+            if "Quantization" in self._compress_configs:
+                self.quant_configs = self._compress_configs["Quantization"]
+
         self._max_steps = self._configs['max_steps']
         self._eval_freq = self._configs['eval_freq']
         self._eval_iters = self._configs['eval_iters']
@@ -247,7 +260,8 @@ class EagerEngine(BasicEngine):
 
         if self._mp_degree > 1:
             assert self._sharding_stage == 2, "only support mp + sharding stage2 hybrid parallel now."
-            self._module.model =  TensorParallel(self._module.model, self._hcg, strategy=None)
+            self._module.model = TensorParallel(
+                self._module.model, self._hcg, strategy=None)
 
         level = "p_g_os" if self._sharding_stage == 3 else "os_g"
         origin_model = self._module.model
@@ -675,6 +689,18 @@ class EagerEngine(BasicEngine):
 
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
+
+    def compress_model(self, infer=False):
+        if self._compress_configs is None: return
+        if self.prune_configs is not None and self.prune_configs.enable:
+            self._prune_model(infer=infer)
+        if self.prune_configs is not None and self.prune_configs.cal_sens:
+            self.sensitive(self._evaluate_one_epoch)
+            sys.exit()
+
+        #NOTE(minghaoBD): We haven't fully tested Prune+Quantization, so an "else if" is put here for separation.
+        elif self.quant_configs is not None and self.quant_configs.enable:
+            self._quant_model()
 
     def load(self):
         """
