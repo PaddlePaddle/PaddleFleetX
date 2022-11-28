@@ -4,8 +4,8 @@ Global:
   binary_head: True
   
   global_batch_size: 
-  local_batch_size: 1
-  micro_batch_size: 1
+  local_batch_size: 16
+  micro_batch_size: 16
 
 
 Engine:
@@ -29,7 +29,7 @@ Engine:
 
 
 Model:
-  module: "ErnieModule"
+  module: "ErnieSeqClsModule"
   name: "Ernie"
   hidden_size: 768
   num_hidden_layers: 12
@@ -51,19 +51,10 @@ Model:
 Data:
   Train:
     dataset:
-      name: ErnieDataset
-      input_dir: ./data
+      name: ErnieSeqClsDataset
+      dataset_type: chnsenticorp_v2
       tokenizer_type: ernie-1.0-base-zh-cw
-      split: [949, 50, 1]
-      mode: Train
-      max_seq_length: 512
-      masked_lm_prob: 0.15
-      short_seq_prob: 0.1
-      seed: 1024
-      share_folder: False
-      favor_longer_ngram: False
-      max_ngrams: 3
-
+      max_seq_len: 512
     sampler:
       name: GPTBatchSampler
       shuffle: False
@@ -72,35 +63,24 @@ Data:
       num_workers: 0
       return_list: False
       collate_fn: 
-        name: ErnieCollateData
-        micro_batch_size: 
+        name: DataCollatorWithPadding
   
   Eval:
     dataset:
-      name: ErnieDataset
-      input_dir: ./data
+      name: ErnieSeqClsDataset
+      dataset_type: chnsenticorp_v2
       tokenizer_type: ernie-1.0-base-zh-cw
-      split: [949, 50, 1]
-      mode: Eval
-      max_seq_length: 512
-      masked_lm_prob: 0.15
-      short_seq_prob: 0.1
-      seed: 1024
-      share_folder: False
-      favor_longer_ngram: False
-      max_ngrams: 3
-
+      max_seq_len: 512
     sampler:
       name: GPTBatchSampler
       shuffle: False
       drop_last: True
-
     loader:
-      num_workers: 1
+      num_workers: 0
       return_list: False
       collate_fn: 
-        name: ErnieCollateData
-        micro_batch_size: 1
+        name: DataCollatorWithPadding
+
 
 Optimizer:
   name: FusedAdamW
@@ -113,7 +93,7 @@ Optimizer:
     decay_steps: 990000
     warmup_rate: 0.01
     max_lr: 0.0001
-    min_lr: 0.00001
+    min_lr: 5e-05
   grad_clip:
     name: "ClipGradByGlobalNorm"
     clip_norm: 1.0
@@ -125,8 +105,3 @@ Profiler:
   scheduler: [1, 5]
   profiler_log: profiler_log
   detailed: False
-
-
-Inference:
-  model_dir: ./output
-  mp_degree: 1

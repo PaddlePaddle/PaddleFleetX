@@ -1,5 +1,3 @@
-#! /bin/bash
-
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import paddle
+import numpy as np
+from ppfleetx.ops import topp_sampling
 
-log_dir=log_hybrid
-rm -rf $log_dir
+paddle.seed(2022)
 
-# 6.7B+sharding16 run_pretrain
-python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
-    ./tools/train.py \
-    -c ./ppfleetx/configs/nlp/ernie/pretrain_ernie_base_6.7B_sharding16.yaml
+x = paddle.randn([1, 51200], dtype="float16")
+x = paddle.nn.functional.softmax(x)
+top_ps = paddle.to_tensor(np.random.uniform(0, 1, [1]).astype(np.float16))
+out = topp_sampling(x, top_ps)
+print(out)

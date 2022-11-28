@@ -18,6 +18,7 @@ import time
 import numpy as np
 import re
 import copy
+from functools import partial
 import paddle
 
 from .dataset_utils import (
@@ -29,6 +30,7 @@ from .dataset_utils import (
     make_indexed_dataset,
     get_indexed_dataset_, )
 from paddlenlp.transformers import ErnieTokenizer
+from paddlenlp.datasets.dataset import MapDataset, IterableDataset, SimpleBuilder, load_dataset
 
 
 def get_local_rank():
@@ -38,6 +40,7 @@ def get_local_rank():
 print_rank_0 = print
 
 mode_to_index = {"Train": 0, "Eval": 1, "Test": 2}
+mode_to_key = {"Train": "train", "Eval": "dev", "Test": "test"}
 
 
 class ErnieDataset(paddle.io.Dataset):
@@ -319,3 +322,158 @@ def get_train_valid_test_split_(splits, size):
     assert len(splits_index) == 4
     assert splits_index[-1] == size
     return splits_index
+
+
+class ErnieSeqClsDataset(paddle.io.Dataset):
+    def __init__(self, dataset_type, tokenizer_type, max_seq_len, mode):
+        self.dataset = dataset_type
+        self.max_seq_len = max_seq_len
+        self.mode = mode_to_key[mode]
+
+        from ppfleetx.data.tokenizers import get_ernie_tokenizer
+        self.tokenizer = get_ernie_tokenizer(tokenizer_type)
+
+        dataset_config = self.dataset.split(" ")
+        raw_datasets = load_dataset(
+            dataset_config[0],
+            None if len(dataset_config) <= 1 else dataset_config[1], )
+        self.label_list = getattr(raw_datasets['train'], "label_list", None)
+
+        # Define dataset pre-process function
+        if "clue" in self.dataset:
+            trans_fn = partial(self._clue_trans_fn)
+        else:
+            trans_fn = partial(self._seq_trans_fn)
+
+        self.seqcls_dataset = raw_datasets[self.mode].map(trans_fn)
+
+    def __getitem__(self, idx):
+        return self.seqcls_dataset.__getitem__(idx)
+
+    def __len__(self):
+        return self.seqcls_dataset.__len__()
+
+    def _seq_trans_fn(self, example):
+        return self._convert_example(
+            example,
+            tokenizer=self.tokenizer,
+            max_seq_length=self.max_seq_len, )
+
+    def _clue_trans_fn(self, example):
+        return self._convert_clue(
+            example,
+            label_list=self.label_list,
+            tokenizer=self.tokenizer,
+            max_seq_length=self.max_seq_len, )
+
+    def _convert_example(self,
+                         example,
+                         tokenizer,
+                         max_seq_length=512,
+                         is_test=False):
+        is_test = True
+        if 'label' in example.keys():
+            is_test = False
+
+        if "text_b" in example.keys():
+            text = example["text_a"]
+            text_pair = example["text_b"]
+        else:
+            text = example["text"]
+            text_pair = None
+
+        encoded_inputs = tokenizer(
+            text=text, text_pair=text_pair, max_seq_len=max_seq_length)
+        input_ids = encoded_inputs["input_ids"]
+        token_type_ids = encoded_inputs["token_type_ids"]
+
+        if is_test:
+            return {
+                "input_ids": input_ids,
+                "token_type_ids": token_type_ids,
+            }
+        else:
+            # label = np.array([example["label"]], dtype="int64")
+            label = int(example["label"])
+            return {
+                "input_ids": input_ids,
+                "token_type_ids": token_type_ids,
+                "labels": label
+            }
+
+    # Data pre-process function for clue benchmark datatset
+    def _convert_clue(self,
+                      example,
+                      label_list,
+                      tokenizer=None,
+                      max_seq_length=512,
+                      **kwargs):
+        """convert a glue example into necessary features"""
+        is_test = False
+        if 'label' not in example.keys():
+            is_test = True
+
+        if not is_test:
+            # `label_list == None` is for regression task
+            label_dtype = "int64" if label_list else "float32"
+            # Get the label
+            example['label'] = int(example[
+                "label"]) if label_dtype != "float32" else float(example[
+                    "label"])
+            label = example['label']
+        # Convert raw text to feature
+        if 'keyword' in example:  # CSL
+            sentence1 = " ".join(example['keyword'])
+            example = {
+                'sentence1': sentence1,
+                'sentence2': example['abst'],
+                'label': example['label']
+            }
+        elif 'target' in example:  # wsc
+            text, query, pronoun, query_idx, pronoun_idx = example[
+                'text'], example['target']['span1_text'], example['target'][
+                    'span2_text'], example['target']['span1_index'], example[
+                        'target']['span2_index']
+            text_list = list(text)
+            assert text[pronoun_idx:(pronoun_idx + len(
+                pronoun))] == pronoun, "pronoun: {}".format(pronoun)
+            assert text[query_idx:(query_idx + len(query)
+                                   )] == query, "query: {}".format(query)
+            if pronoun_idx > query_idx:
+                text_list.insert(query_idx, "_")
+                text_list.insert(query_idx + len(query) + 1, "_")
+                text_list.insert(pronoun_idx + 2, "[")
+                text_list.insert(pronoun_idx + len(pronoun) + 2 + 1, "]")
+            else:
+                text_list.insert(pronoun_idx, "[")
+                text_list.insert(pronoun_idx + len(pronoun) + 1, "]")
+                text_list.insert(query_idx + 2, "_")
+                text_list.insert(query_idx + len(query) + 2 + 1, "_")
+            text = "".join(text_list)
+            example['sentence'] = text
+
+        if tokenizer is None:
+            return example
+        if 'sentence' in example:
+            example = tokenizer(
+                example['sentence'], max_seq_len=max_seq_length)
+        elif 'sentence1' in example:
+            example = tokenizer(
+                example['sentence1'],
+                text_pair=example['sentence2'],
+                max_seq_len=max_seq_length)
+
+        if not is_test:
+            if "token_type_ids" in example:
+                return {
+                    "input_ids": example['input_ids'],
+                    "token_type_ids": example['token_type_ids'],
+                    "labels": label
+                }
+            else:
+                return {"input_ids": example['input_ids'], "labels": label}
+        else:
+            return {
+                "input_ids": example['input_ids'],
+                "token_type_ids": example['token_type_ids']
+            }

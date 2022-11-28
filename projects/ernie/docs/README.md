@@ -107,7 +107,7 @@ clue_corpus_small_14g_20220104_idx.npz
 cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 # 345M
-python tools/train.py -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_single_card.yaml 
+python tools/train.py -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_345M_single_card.yaml 
 ```
 
 - 混合并行
