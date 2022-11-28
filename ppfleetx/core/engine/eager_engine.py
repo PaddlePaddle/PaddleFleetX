@@ -178,18 +178,17 @@ class EagerEngine(BasicEngine):
         else:
             self._scaler = None
 
-        if mode == 'train':
-            self._lr_scheduler_mode = configs.Optimizer.lr.pop('run_mode', 'step')
-            assert self._lr_scheduler_mode in [
-                'epoch', 'step'
-            ], 'lr.run_mode must be epoch or step'
-            self._lr_scheduler = build_lr_scheduler(
-                configs.Optimizer.lr) if mode == 'train' else None
-
-            self._optimizer = build_optimizer(
-                configs.Optimizer, self._module.model,
-                self._lr_scheduler) if mode == 'train' else None
-
+        self._lr_scheduler_mode = configs.Optimizer.lr.pop('run_mode', 'step')
+        assert self._lr_scheduler_mode in [
+            'epoch', 'step'
+        ], 'lr.run_mode must be epoch or step'
+        self._lr_scheduler = build_lr_scheduler(
+            configs.Optimizer.lr) if mode == 'train' else None
+        
+        self._optimizer = build_optimizer(
+            configs.Optimizer, self._module.model,
+            self._lr_scheduler) if mode == 'train' else None
+        
         # distributed configs
         self._distributed = (dist.get_world_size() > 1)
           
@@ -360,7 +359,7 @@ class EagerEngine(BasicEngine):
                         self._module.model.train()
 
                 if self._save_steps > 0 and step % self._save_steps == 0:
-                    if self._distill_mode is False or (self._distill_mode is True \ 
+                    if self._distill_mode is False or (self._distill_mode is True  
                         and paddle.distributed.get_rank() == 1):
                         paddle.device.cuda.synchronize()
                     self.save(epoch=epoch_index, step=step)
@@ -387,7 +386,7 @@ class EagerEngine(BasicEngine):
 
         """
 
-        if self._distill_mode is False or (self._distill_mode is True \ 
+        if self._distill_mode is False or (self._distill_mode is True  
             and paddle.distributed.get_rank() == 1):
             self._module.model.train()
         else:
@@ -464,7 +463,7 @@ class EagerEngine(BasicEngine):
                 loss = self._module.model.forward_backward_pipeline(
                     batch, self._scaler)
 
-        if self._distill_mode is False or (if self._distill_mode is True \ 
+        if self._distill_mode is False or (self._distill_mode is True  
             and paddle.distributed.get_rank() == 1):
             self._optim_update_params()
 
