@@ -13,10 +13,10 @@ PaddleFleetX 集成了 PaddleSlim 中的常见的压缩方法：量化训练（Q
 - <a href=#知识蒸馏>知识蒸馏</a>：通过使用高精度的大模型（教师模型）来蒸馏低精度的小模型（学生模型）来提升小模型精度
 
 ## **模型压缩效果Benchmark与配置**
-| 模型名称| 压缩方法 | 压缩前<br/>精度(Top1 Acc %) | 压缩后<br/>精度(Top1 Acc %) | 文档介绍 |
-| ------ | ------- |---------------------- | ---------------------- | ---------------- |
-|   GPT 345M                   |         量化训练         |         44.17          |      44.94    | [../gpt/docs/quantization_aware_training.md]  |
-|   ViT-B_16                   |         量化训练         |         77.68          |      77.71    | [../vit/README.md]  |
+| 模型名称| 压缩方法 | 压缩前<br/>精度(Top1 Acc %) | 压缩后<br/>精度(Top1 Acc %) | 文档介绍 | 启动脚本 ｜
+| ------ | ------- |---------------------- | ---------------------- | ---------------- | ---------------- |
+|   GPT 345M                   |         量化训练         |         44.17          |      44.94    | [文档介绍](../gpt/docs/quantization_aware_training.md)  | [启动脚本](../gpt/qat_gpt_345M_single_card.sh) |
+|   ViT-B_16                   |         量化训练         |         77.68          |      77.71    | [文档介绍](../vit/README.md)  | [启动脚本](../vit/run_qat.sh) |
 
 
 
@@ -82,13 +82,13 @@ Compress:
 
 ## **模型压缩启动**
 * 量化训练
-  * GPT
-  * ViT
+  * [GPT](../gpt/qat_gpt_345M_single_card.sh)
+  * [ViT](../vit/run_qat.sh)
 
 
 
 ## **模型导出**
 
 * 量化训练
-  * GPT
-  * ViT
+  * [GPT](../gpt/export_qat_gpt_345M_single_card.sh)
+  * [ViT](../vit/export_qat.sh)
