@@ -20,27 +20,3 @@ def version_check():
     if version != '0.0.0':
         paddle.utils.require_version(min_version='2.3.0')
 
-
-def get_device_and_mapping():
-    """
-        Return gpu type and name-bool mapping implifying which type is supported.
-    """
-    suppoted_device_map = {
-        "gpu": paddle.is_compiled_with_cuda(),
-        "xpu": paddle.is_compiled_with_xpu(),
-        "rocm": paddle.is_compiled_with_rocm(),
-        "npu": paddle.is_compiled_with_npu(),
-        "cpu": True
-    }
-    for d, v in suppoted_device_map.items():
-        if v:
-            return d, suppoted_device_map
-
-
-def get_device():
-    """
-        Return the GPU Type, including 'gpu'(for rocm and gpu), 'npu', 'xpu', 'cpu'.
-    """
-    d, _ = get_device_and_mapping()
-    return d
-
