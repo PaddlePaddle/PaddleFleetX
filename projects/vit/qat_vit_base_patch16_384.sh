@@ -13,4 +13,7 @@
 # limitations under the License.
 
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-python -m paddle.distributed.launch --gpus="0,1,2,3,4,5,6,7" tools/train.py -c ppfleetx/configs/vis/vit/ViT_base_patch16_384_ft_qat_in1k_2n16c_dp_fp16o2.yaml
+python -m paddle.distributed.launch --gpus="0,1,2,3,4,5,6,7" tools/train.py \
+    -c ppfleetx/configs/vis/vit/ViT_base_patch16_384_ft_qat_in1k_2n16c_dp_fp16o2.yaml \
+    -o Model.model.drop_rate=0.0 \
+    -o Optimizer.lr.learning_rate=0.0004

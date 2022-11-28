@@ -58,7 +58,7 @@ tar xf GPT_345M.tar.gz
 
 ### 量化训练
 
-- [345M模型单卡训练](./qat_gpt_345M_single_card.sh)
+- [345M模型单卡训练](../gpt/qat_gpt_345M_single_card.sh)
 
 ```shell
 export CUDA_VISIBLE_DEVICES=0
@@ -79,7 +79,7 @@ python ./tools/train.py \
     
 ```
 
-- [345M模型模型并行训练](./qat_gpt_345M_mp8.sh)
+- [345M模型模型并行训练](../gpt/qat_gpt_345M_mp8.sh)
 
 ```shell
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
@@ -100,7 +100,7 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
     -o Compress.pretrained='./PaddleFleetX_GPT_345M_220826'
 ```
 
-- [6.7B模型分组切片并行训练](./qat_gpt_6.7B_sharding16.sh)
+- [6.7B模型分组切片并行训练](../gpt/qat_gpt_6.7B_sharding16.sh)
 
 ```shell
 log_dir=log_hybrid
@@ -140,6 +140,7 @@ python ./tools/export.py \
     -o Model.attention_probs_dropout_prob=0.0 \
     -o Engine.save_load.ckpt_dir='./GPT_345M_QAT_wo_analysis/'
 ```
+注意：此处导出的并非GenerationModule，而是可用于验证的GPTModule。
 
 具体步骤可参考
 [GPT量化训练敏感度分析示例](https://github.com/PaddlePaddle/PaddleSlim/blob/example/quantization_analysis/GPT/README.md)。
