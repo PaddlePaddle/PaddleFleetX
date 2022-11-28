@@ -16,14 +16,23 @@ tar -xzf ckpt/GPT_345M.tar.gz -C ckpt/
 ```
 
 通过如下方式进行推理模型导出
-
+### `GPT-3(345M)` 模型导出与推理
+导出单卡`GPT-3(345M)`模型：
 ```bash
-python tools/export.py \
-    -c ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml \
-    -o Engine.save_load.ckpt_dir=./ckpt/PaddleFleetX_GPT_345M_220826/
+sh projects/gpt/auto_export_gpt_345M_mp1.sh
 ```
 
-导出的模型默认保存在`./output`目录，可通过配置文件中`Engine.save_load.output_dir`或通过`-o Engine.save_load.output_dir=`指定
+### `GPT-3(6.7B)` 模型导出与推理
+导出单卡`GPT-3(6.7B)`模型：
+```bash
+sh projects/gpt/auto_export_gpt_6.7B_mp1.sh
+```
+
+### `GPT-3(175BB)` 模型导出与推理
+导出单卡`GPT-3(175B)`模型：
+```bash
+sh projects/gpt/auto_export_gpt_175B_mp8.sh
+```
 
 
 ## 2. 推理部署
@@ -31,5 +40,5 @@ python tools/export.py \
 模型导出后，可通过`tasks/gpt/inference.py`脚本进行推理部署。
 
 ```bash
-python tasks/gpt/inference.py -c ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml
+python projects/gpt/inference.py --mp_size $MP_SIZE --model_dir output
 ```
