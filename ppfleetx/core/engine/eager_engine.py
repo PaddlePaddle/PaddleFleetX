@@ -146,12 +146,15 @@ class EagerEngine(BasicEngine):
 
         self._compress_configs = None
         self.quant_configs = None
+        self.distill_configs = None
 
         if 'Compress' in configs:
             self.mode = 'compress'
             self._compress_configs = configs['Compress']
             if "Quantization" in self._compress_configs:
                 self.quant_configs = self._compress_configs["Quantization"]
+            if "Distillation" in self._compress_configs:
+                self.distill_configs = self._compress_configs["Distillation"]
 
         # TODO(haohongxiang): Remove there extra configs after reconstruct of Fleet API
         self._dist_configs = configs['Distributed']
@@ -170,11 +173,11 @@ class EagerEngine(BasicEngine):
         self._quant_mode = True if 'Quantization' in configs and configs[
             'Quantization']['enable'] else False
 
-        self._distill_mode = True if 'Distillation' in configs and configs[
+        self._distill_mode = True if 'Distillation' in configs['Compress'] and configs['Compress'][
             'Distillation']['enable'] else False
 
         if self._distill_mode is True and paddle.distributed.get_rank() == 0 :
-            self.teacher_ckpt_dir = self._module.configs['Distillation']['Teacher']['save_load']['ckpt_dir']
+            self.teacher_ckpt_dir = self._module.configs['Compress']['Distillation']['Teacher']['save_load']['ckpt_dir']
 
         if self._use_pure_fp16:
             if mode == 'train':
@@ -205,8 +208,10 @@ class EagerEngine(BasicEngine):
         #NOTE(penghanyuphy): In distillation mode, two cards are used to run the 
         #teacher and student network respectively. But this case is nothing about 
         #distributed training, so we set self._distributed to False  
-        if self._distill_mode:
+        if self._distill_mode is True:
+            self._ckpt_dir = self._compress_configs['pretrained']
             self._distributed = False
+            self.load()
 
         if self._distributed:
             self._hcg = env.get_hcg()
@@ -742,7 +747,6 @@ class EagerEngine(BasicEngine):
         """
         load the saved checkpoint file and update the state dicts of model and optimizer.
         """
-
         if self._distill_mode is True and paddle.distributed.get_rank() == 0:
             self._ckpt_dir = self.teacher_ckpt_dir
 

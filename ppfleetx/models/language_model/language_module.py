@@ -203,17 +203,17 @@ class GPTDistillModule(LanguageModule):
         model_setting = copy.deepcopy(self.configs.Model)
 
         if paddle.distributed.get_rank() == 0:
-            self.configs.Distillation.update({'StudentModel': self.configs.Model})
-            self.configs.Distillation.update({'Student_ckpt': self.configs.Engine.save_load.ckpt_dir})
-            self.configs.Distillation = parse_teacher_cfg(self.configs.Distillation)
+            self.configs.Compress.Distillation.update({'StudentModel': self.configs.Model})
+            self.configs.Compress.Distillation.update({'Student_ckpt': self.configs.Compress.pretrained})
+            self.configs.Compress.Distillation = parse_teacher_cfg(self.configs.Compress.Distillation)
 
-            model_setting['hidden_size'] = self.configs.Distillation['Teacher']['Model']['hidden_size']
-            model_setting['num_layers'] = self.configs.Distillation['Teacher']['Model']['num_layers']
-            model_setting['num_attention_heads'] = self.configs.Distillation['Teacher']['Model']['num_attention_heads']
+            model_setting['hidden_size'] = self.configs.Compress.Distillation['Teacher']['Model']['hidden_size']
+            model_setting['num_layers'] = self.configs.Compress.Distillation['Teacher']['Model']['num_layers']
+            model_setting['num_attention_heads'] = self.configs.Compress.Distillation['Teacher']['Model']['num_attention_heads']
             model_setting['ffn_hidden_size'] = 4 * model_setting['hidden_size']
 
         if paddle.distributed.get_rank() == 1:
-            self.distill = Distillation(self.configs.Distillation)
+            self.distill = Distillation(self.configs.Compress.Distillation)
         
 
         model_setting.pop("module")
