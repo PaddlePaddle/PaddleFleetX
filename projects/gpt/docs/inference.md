@@ -28,7 +28,7 @@ sh projects/gpt/auto_export_gpt_345M_mp1.sh
 sh projects/gpt/auto_export_gpt_6.7B_mp1.sh
 ```
 
-### `GPT-3(175BB)` 模型导出与推理
+### `GPT-3(175B)` 模型导出与推理
 导出单卡`GPT-3(175B)`模型：
 ```bash
 sh projects/gpt/auto_export_gpt_175B_mp8.sh
@@ -47,8 +47,13 @@ python projects/gpt/inference.py --mp_size $MP_SIZE --model_dir output
 - 运行benchmark脚本
 ```
 cd ppfleetx && python setup_cuda.py install && cd ..
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+# for mp=8
+python -m -m paddle.distributed.launch --devices "0,1,2,3,4,5,6,7" projects/gpt/benchmark.py --seq_len 128 --iter 10 --mp_size 8 --model_dir ./output
 
-python projects/gpt/benchmark.py --seq_len 128 --iter 10 --mp_size $MP_SIZE --model_dir ./output
+export CUDA_VISIBLE_DEVICES=0
+# for mp=1
+python -m -m paddle.distributed.launch --devices "0" projects/gpt/benchmark.py --seq_len 128 --iter 10 --mp_size 1 --model_dir ./output
 ```
 
 | 模型          | 输入长度 | 输出长度 | batch size | GPU卡数 | FP16推理时延 | INT8推理时延 |
