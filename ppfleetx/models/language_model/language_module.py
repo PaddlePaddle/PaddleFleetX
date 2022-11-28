@@ -28,8 +28,6 @@ import ppfleetx.models.language_model.gpt as gpt
 from ppfleetx.models.language_model.gpt.dygraph.sequence_parallel_utils import register_sequence_parallel_allreduce_hooks
 from ppfleetx.distributed.apis import env
 from ppfleetx.utils.log import logger
-import paddleslim
-from paddleslim.analysis import dygraph_flops as flops
 
 from .utils import process_configs
 from ppfleetx.data.tokenizers import GPTTokenizer
@@ -63,6 +61,7 @@ class LanguageModule(BasicModule):
 
     def training_step(self, batch):
         tokens, position_ids, labels, loss_mask = batch
+
         loss_mask.stop_gradient = True
         labels.stop_gradient = True
         position_ids.stop_gradient = True

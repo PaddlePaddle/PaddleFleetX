@@ -39,6 +39,7 @@ from ppfleetx.distributed.moe import MoELayer
 from ppfleetx.distributed.apis import env
 from ppfleetx.utils.log import logger
 
+
 def get_attr(layer, name):
     if getattr(layer, name, None) is not None:
         return getattr(layer, name, None)
@@ -127,6 +128,7 @@ class MultiHeadAttention(nn.Layer):
         if self.fuse_attn_qkv:
             assert self.kdim == embed_dim
             assert self.vdim == embed_dim
+
             self.qkv_proj = ColumnParallelLinear(
                 embed_dim,
                 3 * embed_dim,
@@ -172,9 +174,11 @@ class MultiHeadAttention(nn.Layer):
             input_is_parallel=True,
             fuse_matmul_bias=fused_linear)
 
-        self.reshape0 = nn.Reshape(shape=[0, 0, self.num_heads, 3 * self.head_dim])
+        self.reshape0 = nn.Reshape(
+            shape=[0, 0, self.num_heads, 3 * self.head_dim])
         self.reshape1 = nn.Reshape(shape=[0, 0, self.num_heads, self.head_dim])
-        self.reshape2 = nn.Reshape(shape=[0, 0, self.num_heads * self.head_dim])
+        self.reshape2 = nn.Reshape(
+            shape=[0, 0, self.num_heads * self.head_dim])
 
     def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
         mix_layer = self.qkv_proj(query)
@@ -802,8 +806,8 @@ class GPTModelHybrid(nn.Layer):
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
-            tgt_mask=None if self.training and paddle.is_compiled_with_cuda() else
-            attention_mask,  # use softmax_mask_fuse_upper_triangle
+            tgt_mask=None if self.training and paddle.is_compiled_with_cuda()
+            else attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
 

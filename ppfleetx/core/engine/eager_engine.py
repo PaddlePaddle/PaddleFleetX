@@ -121,6 +121,7 @@ class EagerEngine(BasicEngine):
         self.quant_configs = None
 
         if 'Compress' in configs:
+            self.mode = 'compress'
             self._compress_configs = configs['Compress']
             if "Prune" in self._compress_configs:
                 self.prune_configs = self._compress_configs["Prune"]
@@ -137,6 +138,7 @@ class EagerEngine(BasicEngine):
         self._logging_freq = self._configs['logging_freq']
         self._num_train_epochs = self._configs['num_train_epochs']
         self._accumulate_steps = self._configs['accumulate_steps']
+
         self._use_pure_fp16 = self._configs['mix_precision']['use_pure_fp16']
         if mode == 'export' and self._use_pure_fp16:
             logger.info("NOTE: disable use_pure_fp16 in export mode")
@@ -168,6 +170,7 @@ class EagerEngine(BasicEngine):
         self._broadcast_overlap = sharding_config['broadcast_overlap']
 
         self._use_recompute = configs['Model']['use_recompute']
+        self._num_attention_heads = configs['Model']['num_attention_heads']
         self._quant_mode = True if 'Quantization' in configs and configs[
             'Quantization']['enable'] else False
 
@@ -710,38 +713,36 @@ class EagerEngine(BasicEngine):
         prune_criterion = self.prune_configs.criterion
         ratio = self.prune_configs.ratio
 
-        #TODO(minghaoBD): remove hardcode
-        batch_size = 8
-        seq_len = 1024
-
         if prune_criterion == 'l1_norm':
             if infer:
                 pruner = paddleslim.dygraph.L1NormFilterPruner(
-                    model, [[batch_size, seq_len]],
-                    skip_leaves=False,
-                    prune_type='fc',
-                    input_dtype='int8')
-            else:
-                pruner = paddleslim.dygraph.L1NormFilterPruner(
-                    model, [[batch_size, seq_len], [batch_size, seq_len]],
+                    model, [[1, 1024]],
                     skip_leaves=False,
                     prune_type='fc',
                     input_dtype='int8',
-                    num_head=16)
+                    num_head=self._num_attention_heads)
+            else:
+                pruner = paddleslim.dygraph.L1NormFilterPruner(
+                    model, [[1, 1024], [1, 1024]],
+                    skip_leaves=False,
+                    prune_type='fc',
+                    input_dtype='int8',
+                    num_head=self._num_attention_heads)
         elif prune_criterion == 'l2_norm':
             if infer:
                 pruner = paddleslim.dygraph.L2NormFilterPruner(
-                    model, [[batch_size, seq_len]],
-                    skip_leaves=False,
-                    prune_type='fc',
-                    input_dtype='int8')
-            else:
-                pruner = paddleslim.dygraph.L2NormFilterPruner(
-                    model, [[batch_size, seq_len], [batch_size, seq_len]],
+                    model, [[1, 1024]],
                     skip_leaves=False,
                     prune_type='fc',
                     input_dtype='int8',
-                    num_head=16)
+                    num_head=self._num_attention_heads)
+            else:
+                pruner = paddleslim.dygraph.L2NormFilterPruner(
+                    model, [[1, 1024], [1, 1024]],
+                    skip_leaves=False,
+                    prune_type='fc',
+                    input_dtype='int8',
+                    num_head=self._num_attention_heads)
         params = self._get_pruned_params(model)
         ratios = {}
         for param in params:
@@ -757,31 +758,26 @@ class EagerEngine(BasicEngine):
     def sensitive(self, eval_func, output_file="./sen.pickle"):
         model = self._module.model
         prune_criterion = self.prune_configs.criterion
-        #TODO(minghaoBD): remove hardcode
-        batch_size = 8
-        seq_len = 1024
 
         if prune_criterion == 'l1_norm':
             pruner = paddleslim.dygraph.L1NormFilterPruner(
-                model, [[batch_size, seq_len], [batch_size, seq_len]],
+                model, [[1, 1024], [1, 1024]],
                 skip_leaves=False,
                 prune_type='fc',
                 input_dtype='int8',
-                num_head=16)
+                num_head=self._num_attention_heads)
         elif prune_criterion == 'l2_norm':
             pruner = paddleslim.dygraph.L2NormFilterPruner(
-                model, [[batch_size, seq_len], [batch_size, seq_len]],
+                model, [[1, 1024], [1, 1024]],
                 skip_leaves=False,
                 prune_type='fc',
                 input_dtype='int8',
-                num_head=16)
+                num_head=self._num_attention_heads)
 
         pruner.sensitive(eval_func=eval_func, sen_file=output_file)
 
     def compress_model(self, infer=False):
         if self._compress_configs is None: return
-        #if self._compress_configs.pretrained is not None:
-        #    self._compress_load()
         if self.prune_configs is not None and self.prune_configs.enable:
             self._prune_model(infer=infer)
         if self.prune_configs is not None and self.prune_configs.cal_sens:
@@ -821,7 +817,7 @@ class EagerEngine(BasicEngine):
                 raise ValueError("No optimizer checkpoint file found in %s." %
                                  model_path)
 
-            if False:  #self.mode == 'train':
+            if self.mode == 'train':
                 if os.path.exists(opt_path):
                     opt_dict = paddle.load(opt_path)
                     self._optimizer.set_state_dict(opt_dict)
@@ -844,21 +840,6 @@ class EagerEngine(BasicEngine):
         else:
             logger.warning("`load` requires a valid value of `ckpt_dir`.")
             raise TypeError("`load` requires a valid value of `ckpt_dir`.")
-
-    def _compress_load(self):
-        pretrained_path = self._compress_configs.pretrained + ".pdparams"
-        assert os.path.exists(
-            pretrained_path), f'{pretrained_path} is not exists!'
-        model_dict = paddle.load(pretrained_path)
-        for name, param in model.state_dict().items():
-            assert name in model_dict.keys(
-            ), "No param named `{}` was found in checkpoint file.".format(name)
-            if param.dtype != model_dict[name].dtype:
-                model_dict[name] = model_dict[name].cast(param.dtype)
-        model.set_state_dict(model_dict)
-        logger.info(
-            f'Load pretrained weight from {pretrained_path} for model compression.'
-        )
 
     def export(self):
         self._module.model.eval()

@@ -34,6 +34,7 @@ from .processor import (
 
 from ppfleetx.distributed.moe import MoELayer
 
+
 def get_attr(layer, name):
     if getattr(layer, name, None) is not None:
         return getattr(layer, name, None)
@@ -119,9 +120,11 @@ class MultiHeadAttention(nn.Layer):
             self.v_proj = Linear(
                 self.vdim, embed_dim, weight_attr, bias_attr=bias_attr)
 
-        self.reshape0 = nn.Reshape(shape=[0, 0, self.num_heads, 3 * self.head_dim])
+        self.reshape0 = nn.Reshape(
+            shape=[0, 0, self.num_heads, 3 * self.head_dim])
         self.reshape1 = nn.Reshape(shape=[0, 0, self.num_heads, self.head_dim])
-        self.reshape2 = nn.Reshape(shape=[0, 0, self.num_heads * self.head_dim])
+        self.reshape2 = nn.Reshape(
+            shape=[0, 0, self.num_heads * self.head_dim])
 
         self.out_proj = Linear(
             embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
@@ -395,8 +398,7 @@ class TransformerDecoderLayer(nn.Layer):
                  moe_configs=None,
                  use_recompute=False,
                  recompute_granularity="full",
-                 do_recompute=True,
-                 if_quant=True):
+                 do_recompute=True):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
@@ -458,10 +460,6 @@ class TransformerDecoderLayer(nn.Layer):
                 weight_attrs[2],
                 bias_attr=bias_attrs[2])
 
-
-        if not if_quant:
-            self.linear1.skip_quant = True
-            self.linear2.skip_quant = True
         self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.dropout1 = nn.Dropout(dropout, mode="upscale_in_train")
@@ -571,8 +569,7 @@ class GPTModel(nn.Layer):
                  fuse_attn_qkv=False,
                  recompute_granularity="full",
                  sequence_parallel=False,
-                 no_recompute_layers=None,
-                 use_skip_quant=False):
+                 no_recompute_layers=None):
 
         super(GPTModel, self).__init__()
 
@@ -581,7 +578,6 @@ class GPTModel(nn.Layer):
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
-        self.use_skip_quant = use_skip_quant
 
         self.embeddings = GPTEmbeddings(
             vocab_size, hidden_size, hidden_dropout_prob,
@@ -589,11 +585,6 @@ class GPTModel(nn.Layer):
 
         decoder_layers = nn.LayerList()
         for i in range(num_layers):
-            if self.use_skip_quant and i in [3,5,6,7,8]:
-                if_quant = False
-                print('================skip quant: ')
-            else:
-                if_quant = True
             decoder_layers.append(
                 TransformerDecoderLayer(
                     d_model=hidden_size,
@@ -612,8 +603,7 @@ class GPTModel(nn.Layer):
                     moe_configs=moe_configs,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
-                    do_recompute=i not in no_recompute_layers,
-                    if_quant=if_quant))
+                    do_recompute=i not in no_recompute_layers))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
@@ -667,8 +657,8 @@ class GPTModel(nn.Layer):
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
-            tgt_mask=None if self.training and paddle.is_compiled_with_cuda() else
-            attention_mask,  # use softmax_mask_fuse_upper_triangle
+            tgt_mask=None if self.training and paddle.is_compiled_with_cuda()
+            else attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
 

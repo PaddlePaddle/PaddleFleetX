@@ -21,10 +21,10 @@ Engine:
     custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
     custom_white_list: ["lookup_table", "lookup_table_v2"]
   save_load:
-    save_steps: 10000
+    save_steps: 1000
     save_epoch: 1
     output_dir: ./output
-    ckpt_dir: ./PaddleFleetX_GPT_345M_220826
+    ckpt_dir:
 
 
 Model:
@@ -39,7 +39,7 @@ Data:
   Train:
     dataset:
       name: GPTDataset
-      input_dir: ./large_dataset
+      input_dir: ./data/
       split: [949, 50, 1]
       max_seq_len: 1024
     sampler:
@@ -54,7 +54,7 @@ Data:
   Eval:
     dataset:
       name: GPTDataset
-      input_dir: ./large_dataset
+      input_dir: ./data/
       split: [949, 50, 1]
       max_seq_len: 1024
     sampler:
@@ -69,7 +69,7 @@ Data:
 
 Optimizer:
   name: FusedAdamW
-  weight_decay: 0.0
+  weight_decay: 0.01
   beta1: 0.9
   beta2: 0.999
   epsilon: 1.0e-8
