@@ -19,6 +19,8 @@ from __future__ import print_function
 import os
 import sys
 import numpy as np
+from PIL import Image
+import paddle
 
 from paddle.distributed import fleet
 import paddle.distributed as dist
@@ -33,12 +35,39 @@ from ppfleetx.data import build_dataloader, tokenizers
 from ppfleetx.models import build_module
 from ppfleetx.core import EagerEngine
 
+def preprocess(img_path):
+        """preprocess
+        Preprocess to the input.
+        Args: img_path: Image path.
+        Returns: Input data after preprocess.
+        """
+        with open(img_path, "rb") as f:
+            img = Image.open(f)
+            img = img.convert("RGB")
+        # ResizeImage
+        img = img.resize((224,224), Image.BILINEAR)
+
+        # NormalizeImage
+        scale = np.float32(1.0/255.0)
+        mean = [0.5, 0.5, 0.5]
+        std = [0.5, 0.5, 0.5]
+        shape = (1, 1, 3)
+        mean = np.array(mean).reshape(shape).astype('float32')
+        std = np.array(std).reshape(shape).astype('float32')
+        img = (img * scale - mean) / std
+
+        # ToNCHW
+        img = img.transpose((2, 0, 1))
+        img = np.expand_dims(img, axis=0)
+        return img
+
 if __name__ == "__main__":
     args = config.parse_args()
     cfg = config.get_config(args.config, overrides=args.override, show=False)
     env.set_seed(cfg.Global.seed)
     np.random.seed(1)
-    img = np.random.randn(1, 3, 224, 224).astype(np.float32)
+    img_path = 'projects/vit/images/demo.jpg'
+    img = preprocess(img_path)
     
     if(os.path.exists('shape.pbtxt')==False):
         cfg.Inference.TensorRT.collect_shape = True
