@@ -143,7 +143,7 @@ python ./tools/export.py \
 注意：此处导出的并非GenerationModule，而是可用于验证的GPTModule。
 
 具体步骤可参考
-[GPT量化训练敏感度分析示例](https://github.com/PaddlePaddle/PaddleSlim/blob/example/quantization_analysis/GPT/README.md)。
+[GPT量化训练敏感度分析示例](https://github.com/PaddlePaddle/PaddleSlim/blob/develop/example/quantization_analysis/GPT/README.md)。
 
 
 
