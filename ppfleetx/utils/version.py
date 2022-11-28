@@ -14,6 +14,7 @@
 
 import paddle
 
+
 def version_check():
     version = paddle.version.full_version
     if version != '0.0.0':

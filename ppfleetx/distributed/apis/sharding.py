@@ -38,8 +38,7 @@ def sharding_wrapper(
         buffer_max_size=2**23,
         segment_size=2**20,
         sync_comm=False,
-        dp_group=None, 
-        device="gpu"):
+        dp_group=None, ):
 
     assert level in [
         'os',
@@ -68,7 +67,7 @@ def unscaled_group_sharded_parallel(
         buffer_max_size=2**23,
         segment_size=2**20,
         sync_comm=False,
-        dp_group=None):
+        dp_group=None, ):
     """
     Use unscaled_group_sharded_parallel can perform group shared configuration on the model, optimizer and GradScaler.
     """
