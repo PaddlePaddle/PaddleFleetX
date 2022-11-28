@@ -19,7 +19,7 @@
 
 目前**PaddleFleetX**依赖**PaddlePaddle** 版本 `>=2.4`，请参考[PaddlePaddle安装文档](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/docker/linux-docker.html)安装PaddlePaddle 2.4版本或[每日版本](https://www.paddlepaddle.org.cn/documentation/docs/zh/install/Tables.html#whl-develop)
 
-建议使用飞桨官方Docker镜像运行PaddleFleetX，可参考[快速开始](./quick_start.md)文档配置和使用Docker
+建议使用飞桨官方Docker镜像运行PaddleFleetX，可参考[快速开始](../../docs/quick_start.md)文档配置和使用Docker
 
 ### 1.2 安装PaddleFleetX
 
@@ -84,4 +84,4 @@ python tasks/gpt/inference.py -c ppfleetx/configs/nlp/gpt/inference_gpt_345M_sin
 
 ### 4.2 Benchmark文档
 
-模型推理Benchmark见[Benchmark文档](./inference_benchmark.md)
+模型推理Benchmark见[Benchmark文档](./benchmark/README.md)
