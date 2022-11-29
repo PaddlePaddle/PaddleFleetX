@@ -16,14 +16,10 @@
 # limitations under the License.
 
 
-export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+export CUDA_VISIBLE_DEVICES=0
 
-log_dir=log_hybrid
-rm -rf $log_dir
-
-python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
-    ./tools/train.py \
-    -c ./ppfleetx/configs/nlp/gpt/qat_gpt_345M_mp8.yaml \
+python ./tools/train.py \
+    -c ./ppfleetx/configs/nlp/gpt/qat_gpt_345M_single_card.yaml \
     -o Engine.max_steps=100000 \
     -o Model.hidden_dropout_prob=0.0 \
     -o Model.attention_probs_dropout_prob=0.0 \
