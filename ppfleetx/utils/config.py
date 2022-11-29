@@ -318,8 +318,10 @@ def check_config(config):
     if device in ['gpu', 'xpu', 'rocm', 'npu', "cpu"]:
         check.check_device(device)
     else:
-        raise ValueError(f"device({device}) is not in ['gpu', 'xpu', 'rocm', 'npu', 'cpu'],\n"
-                "Please ensure the config option Global.device is one of these devices")
+        raise ValueError(
+            f"device({device}) is not in ['gpu', 'xpu', 'rocm', 'npu', 'cpu'],\n"
+            "Please ensure the config option Global.device is one of these devices"
+        )
 
 
 def override(dl, ks, v):
@@ -542,6 +544,15 @@ def process_auto_strategy(config):
     gradient_merge = strategy.gradient_merge
     gradient_merge.enable = config.Engine.get('accumulate_steps') > 1
     gradient_merge.k_steps = config.Engine.get('accumulate_steps', 1)
+
+    # quantization config
+    qat_cfg = config.get('Quantization', {})
+    qat = strategy.qat
+    qat.enable = qat_cfg.get('enable', False)
+    qat.channel_wise_abs_max = qat_cfg.get('channel_wise_abs_max', True)
+    qat.weight_bits = qat_cfg.get('weight_bits', 8)
+    qat.activation_bits = qat_cfg.get('activation_bits', 8)
+    qat.onnx_format = qat_cfg.get('onnx_format', True)
 
     configs['strategy'] = strategy
 

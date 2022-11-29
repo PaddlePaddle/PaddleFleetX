@@ -112,11 +112,11 @@ def process_model_configs(config):
     """
     process model configs for auto parallel
     """
-    configs = config['Model']
+    cfg_model = config['Model']
     mesh = process_mesh_config(config['Distributed'])
-    configs.update({'mesh': mesh})
-    if configs['ffn_hidden_size'] is None:
-        configs['ffn_hidden_size'] = 4 * configs['hidden_size']
+    cfg_model.update({'mesh': mesh})
+    if cfg_model['ffn_hidden_size'] is None:
+        cfg_model['ffn_hidden_size'] = 4 * cfg_model['hidden_size']
 
 
 def process_data_configs(config):
