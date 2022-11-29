@@ -1,5 +1,3 @@
-#! /bin/bash
-
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-log_dir=log_mp1
-rm -rf $log_dir
+# for mp=8(GPT 175b)
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+python -m paddle.distributed.launch --devices "0,1,2,3,4,5,6,7" projects/gpt/benchmark.py --seq_len 128 --iter 10 --mp_degree 8 --model_dir ./output
 
-python projects/gpt/inference.py --mp_degree 1 --model_dir output
+# for mp=1(GPT 6.7B & GPT 345M)
+export CUDA_VISIBLE_DEVICES=0
+python -m paddle.distributed.launch --devices "0" projects/gpt/benchmark.py --seq_len 128 --iter 10 --mp_degree 1 --model_dir ./output
