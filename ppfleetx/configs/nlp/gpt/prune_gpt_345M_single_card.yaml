@@ -5,14 +5,8 @@ Global:
   local_batch_size: 8
   micro_batch_size: 8
 
-Engine:
-  save_load:
-    save_steps: 1000
-    save_epoch: 1
-    output_dir: ./output
-    ckpt_dir: ./PaddleFleetX_GPT_345M_220826
 
-Model:
+  Model:
   vocab_size: 50304
   hidden_size: 1024
   num_layers: 24
@@ -32,7 +26,7 @@ Data:
   Train:
     dataset:
       name: GPTDataset
-      input_dir: ./large_dataset/
+      input_dir: ./data/
       split: [949, 50, 1]
       max_seq_len: 1024
     sampler:
@@ -47,7 +41,7 @@ Data:
   Eval:
     dataset:
       name: GPTDataset
-      input_dir: ./large_dataset/
+      input_dir: ./data/
 
 Distributed:
   dp_degree: 1
