@@ -1,4 +1,4 @@
-_base_: ./pretrain_ernie_base_345M_single_card.yaml
+_base_: ./finetune_ernie_345M_single_card.yaml
 
 
 Inference:
