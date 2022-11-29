@@ -67,8 +67,6 @@ if __name__ == "__main__":
     if cfg.Engine.save_load.ckpt_dir is not None:
         engine.load()
 
-    engine.compress_model()
-
     engine.fit(train_data_loader=train_data_loader,
                valid_data_loader=eval_data_loader,
                epoch=cfg.Engine.num_train_epochs)

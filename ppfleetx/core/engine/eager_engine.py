@@ -41,6 +41,7 @@ from ppfleetx.utils.version import version_check
 from ppfleetx.utils.export import export_inference_model
 from paddle.incubate.distributed.utils.io import save_for_auto_inference
 from ppfleetx.utils.device import synchronize as device_synchronize
+from ppfleetx.utils.compression_helper import prune_model, quant_model
 
 
 class EagerEngine(BasicEngine):
@@ -158,7 +159,10 @@ class EagerEngine(BasicEngine):
         self._output_dir = self._configs['save_load']['output_dir']
         self._ckpt_dir = self._configs['save_load']['ckpt_dir']
 
+        if 'num_attention_heads' in configs['Model']:
+            self._num_attention_heads = configs['Model']['num_attention_heads']
         self._compress_configs = None
+        self.prune_configs = None
         self.quant_configs = None
         self._quant_mode = False
         if 'Compress' in configs:
@@ -214,7 +218,6 @@ class EagerEngine(BasicEngine):
 
         # distributed configs
         self._distributed = (dist.get_world_size() > 1)
-
         if self._distributed:
             self._hcg = env.get_hcg()
             self._dp_group = self._hcg.get_data_parallel_group()
@@ -706,72 +709,9 @@ class EagerEngine(BasicEngine):
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
 
-    def _get_pruned_params(self, model):
-        params = []
-        for sublayer in model.sublayers():
-            for param in sublayer.parameters(include_sublayers=False):
-                if isinstance(
-                        sublayer, paddle.nn.layer.common.Linear) or isinstance(
-                            sublayer, paddle.distributed.fleet.layers.mpu.
-                            mp_layers.ColumnParallelLinear) or isinstance(
-                                sublayer, paddle.distributed.fleet.layers.mpu.
-                                mp_layers.RowParallelLinear):
-                    if len(param.shape) != 2: continue
-                    if param.shape[1] == 3 * param.shape[0] or param.shape[
-                            1] == 4 * param.shape[0]:
-                        params.append(param.name)
-
-        return params
-
-    def _prune_model(self, infer=False):
-        model = self._module.model
-        prune_criterion = self.prune_configs.criterion
-        ratio = self.prune_configs.ratio
-
-        if prune_criterion == 'l1_norm':
-            if infer:
-                pruner = paddleslim.dygraph.L1NormFilterPruner(
-                    model, [[1, 1024]],
-                    skip_leaves=False,
-                    prune_type='fc',
-                    input_dtype='int8',
-                    num_head=self._num_attention_heads)
-            else:
-                pruner = paddleslim.dygraph.L1NormFilterPruner(
-                    model, [[1, 1024], [1, 1024]],
-                    skip_leaves=False,
-                    prune_type='fc',
-                    input_dtype='int8',
-                    num_head=self._num_attention_heads)
-        elif prune_criterion == 'l2_norm':
-            if infer:
-                pruner = paddleslim.dygraph.L2NormFilterPruner(
-                    model, [[1, 1024]],
-                    skip_leaves=False,
-                    prune_type='fc',
-                    input_dtype='int8',
-                    num_head=self._num_attention_heads)
-            else:
-                pruner = paddleslim.dygraph.L2NormFilterPruner(
-                    model, [[1, 1024], [1, 1024]],
-                    skip_leaves=False,
-                    prune_type='fc',
-                    input_dtype='int8',
-                    num_head=self._num_attention_heads)
-        params = self._get_pruned_params(model)
-        ratios = {}
-        for param in params:
-            ratios[param] = ratio
-        #NOTE(minghaoBD): hidden size in Layernorm must be 768/1024/2048/4096 for best inference performace, and when axis=0, the hidden size in layernorm will be changed accordingly. So axis=1 is required.
-        plan = pruner.prune_vars(ratios, [1])
-
-    def _quant_model(self):
-        self.quanter = paddleslim.dygraph.quant.QAT(config=self.quant_configs)
-        self._module.model = self.quanter.quantize(self._module.model)
-
     def compress_model(self, infer=False):
         if self._compress_configs is None: return
-        
+        self._distributed = (dist.get_world_size() > 1)
         # Load pretrained model before compression
         if 'pretrained' in self._compress_configs and self._compress_configs[
                 'pretrained'] is not None:
@@ -779,13 +719,17 @@ class EagerEngine(BasicEngine):
             self.load()
             # Avoid loading again
             self._configs['save_load']['ckpt_dir'] = None
-            
+
         if self.prune_configs is not None and self.prune_configs.enable:
-            self._num_attention_heads = configs['Model']['num_attention_heads']
-            self._prune_model(infer=infer)
+            prune_model(
+                self._module.model,
+                self.prune_configs,
+                self._num_attention_heads,
+                infer=infer)
         #NOTE(minghaoBD): We haven't fully tested Prune+Quantization, so an "else if" is put here for separation.
         elif self.quant_configs is not None and self.quant_configs.enable:
-            self._quant_model()
+            self._module.model, self.quanter = quant_model(self._module.model,
+                                                           self.quant_configs)
 
     def load(self):
         """
