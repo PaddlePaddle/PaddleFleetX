@@ -57,8 +57,10 @@ def process_dist_config(configs):
     dp_degree = config.setdefault("dp_degree", nranks // other_degree)
     assert nranks % dp_degree == 0, "unreasonable config of dist_strategy."
 
-    distill_mode = True if 'Distillation' in configs['Compress'] and configs['Compress'][
-            'Distillation']['enable'] else False
+    distill_mode = False
+    if 'Compress' in configs:
+        distill_mode = True if 'Distillation' in configs['Compress'] and configs['Compress'][
+                'Distillation']['enable']
 
     if distill_mode is True:
         os.environ["DISTILL_MODE"] = '1'
