@@ -35,9 +35,9 @@ Data:
   Train:
     dataset:
       name: ImagenDataset
-      input_path: ./data/cc12m_base64.lst
+      input_path: ./projects/imagen/filelist/cc12m_base64.lst
       shuffle: True
-      input_resolusion: 64 
+      input_resolution: 64 
       max_seq_len: 128 
     loader:
       num_workers: 8
