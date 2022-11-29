@@ -26,8 +26,6 @@ from paddle.optimizer.lr import LRScheduler
 from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 from paddle.profiler import SummaryView
-import paddleslim
-from paddleslim.analysis import dygraph_flops as flops
 from paddle.distributed.fleet.meta_parallel import TensorParallel
 
 import paddleslim
@@ -119,17 +117,6 @@ class EagerEngine(BasicEngine):
 
         # engine configs
         self._configs = configs['Engine']
-        self._compress_configs = None
-        self.prune_configs = None
-        self.quant_configs = None
-
-        if 'Compress' in configs:
-            self.mode = 'compress'
-            self._compress_configs = configs['Compress']
-            if "Prune" in self._compress_configs:
-                self.prune_configs = self._compress_configs["Prune"]
-            if "Quantization" in self._compress_configs:
-                self.quant_configs = self._compress_configs["Quantization"]
 
         self._run_mode = self._configs.get('run_mode', 'step')
         assert self._run_mode in ['epoch', 'step'
@@ -218,6 +205,7 @@ class EagerEngine(BasicEngine):
 
         # distributed configs
         self._distributed = (dist.get_world_size() > 1)
+
         if self._distributed:
             self._hcg = env.get_hcg()
             self._dp_group = self._hcg.get_data_parallel_group()
