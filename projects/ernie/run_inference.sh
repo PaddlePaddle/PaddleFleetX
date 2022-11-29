@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import paddle
+unset CUDA_VISIBLE_DEVICES
 
-
-def version_check():
-    version = paddle.version.full_version
-    if version != '0.0.0':
-        paddle.utils.require_version(min_version='2.3.0')
-
+python -u -m paddle.distributed.fleet.launch \
+    --gpus "0" \
+    --log_dir "log" \
+    projects/deploy/ernie/inference.py --model_dir "./output" --mp_degree 1

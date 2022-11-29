@@ -97,20 +97,23 @@ def unscaled_group_sharded_parallel(
     logger_.info("Sharded level os uses sharded level os_g achieved now.")
     logger_.info("*" * 30)
 
+    device = paddle.get_device().split(":")[0]
+
     optimizer = GroupShardedOptimizerStage2(
         params=optimizer._parameter_list,
         optim=optimizer,
         group=group,
         offload=offload,
-        dp_group=dp_group, )
-
+        dp_group=dp_group,
+        device=device)
     model = UnscaledGroupShardedStage2(
         model,
         optimizer,
         group=group,
         sync_buffers=sync_buffers,
         buffer_max_size=buffer_max_size,
-        dp_group=dp_group, )
+        dp_group=dp_group,
+        device=device)
 
     if isinstance(scaler, paddle.amp.GradScaler):
         scaler = GroupShardedScaler(scaler)
