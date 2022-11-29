@@ -14,6 +14,8 @@
 
 import sys
 import copy
+import yaml
+import codecs
 from collections.abc import Mapping
 
 import paddle
@@ -74,6 +76,45 @@ def process_model_configs(config):
     cfg_model = config['Model']
     hidden_size = cfg_model['hidden_size']
     cfg_model.setdefault("intermediate_size", hidden_size * 4)
+
+
+def process_finetune_configs(task, config):
+    cfg_data = config['Data']
+    cfg_dist = config['Distributed']
+    cfg_optim = config['Optimizer']
+    cfg_global = config['Global']
+    cfg_engine = config['Engine']
+
+    path = "./ppfleetx/models/language_model/ernie/finetune_configs.yaml"
+    with codecs.open(path, 'r', 'utf-8') as file:
+        dic = yaml.load(file, Loader=yaml.FullLoader)
+
+    dataset_type = cfg_data.Train.dataset.dataset_type
+    assert dataset_type in dic[task].keys(
+    ), "{} is an invalid dataset type ! Only support the types of dataset shown in {}".format(
+        dataset_type, path)
+
+    num_train_epochs = dic[task][dataset_type].get('num_train_epochs', None)
+    if num_train_epochs is not None:
+        cfg_engine['num_train_epochs'] = num_train_epochs
+
+    learning_rate = dic[task][dataset_type].get("learning_rate", None)
+    if learning_rate is not None:
+        cfg_optim['lr']['max_lr'] = learning_rate
+
+    max_seq_length = dic[task][dataset_type].get("max_seq_length", None)
+    if max_seq_length is not None:
+        for mode in ("Train", "Eval", "Test"):
+            if mode in cfg_data.keys():
+                cfg_data[mode]['dataset']['max_seq_len'] = max_seq_length
+
+    batch_size = dic[task][dataset_type].get("batch_size", None)
+    if batch_size is not None:
+        assert batch_size % cfg_global['micro_batch_size'] == 0
+
+        cfg_global['local_batch_size'] = batch_size
+        cfg_global['global_batch_size'] = batch_size * cfg_dist[
+            'dp_degree'] * cfg_dist['pp_degree']
 
 
 class ErnieModule(BasicModule):
@@ -197,6 +238,7 @@ class ErnieSeqClsModule(BasicModule):
 
     def process_configs(self, configs):
         process_model_configs(configs)
+        process_finetune_configs("SequenceClassification", configs)
 
         cfg_global = configs['Global']
         cfg_data = configs['Data']
