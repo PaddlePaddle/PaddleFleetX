@@ -15,4 +15,4 @@
 # limitations under the License.
 
 export CUDA_VISIBLE_DEVICES=0
-python3 tools/train.py -c ppfleetx/configs/multimodal/imagen/imagen_super_resolusion_1024.yaml -o Data.Train.loader.num_workers=0
+python3 tools/train.py -c ppfleetx/configs/multimodal/imagen/imagen_super_resolution_1024.yaml -o Data.Train.loader.num_workers=0
