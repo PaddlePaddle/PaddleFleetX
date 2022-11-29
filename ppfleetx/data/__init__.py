@@ -39,9 +39,15 @@ def build_auto_dataset(config, mode):
 
     collate_fn = None
     if 'collate_fn' in config[mode].keys():
-        collate_fn_name = config[mode].pop('collate_fn', None)
-        collate_fn = getattr(
-            utils, collate_fn_name) if collate_fn_name is not None else None
+        collate_fn_cfg = config[mode].pop('collate_fn', None)
+        if isinstance(collate_fn_cfg, str):
+            collate_fn = getattr(
+                utils, collate_fn_cfg) if collate_fn_cfg is not None else None
+        elif isinstance(collate_fn_cfg, dict):
+            collate_fn_class_name = collate_fn_cfg.pop("name")
+            collate_fn = eval("utils.{}".format(collate_fn_class_name))(
+                **collate_fn_cfg)
+            logger.debug("build collate_fn({}) success...".format(collate_fn))
 
     dataset.collate_fn = collate_fn
     dataset.sample_split = config[mode].pop('sample_split', None)
