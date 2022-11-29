@@ -65,12 +65,6 @@ function _train(){
     fi
     mkdir $OUTPUT_PATH
 
-    # if [ ${model_item} = "gpt3_moe" ];then
-    #     static_scripts="../examples/language_model/gpt-moe/dygraph/"
-    # else
-    #     echo "not supported model item: ${model_item}"; exit 1;
-    # fi
-
     echo "current CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}, model_name=${model_name}, device_num=${device_num}, is profiling=${profiling}"
 
     if [ ${profiling} = "true" ];then
@@ -80,13 +74,6 @@ function _train(){
         add_options=""
         log_file=${train_log_file}
     fi
-
-    if [ $fp_item = "fp16" ]; then
-        use_fp16_cmd="--use_amp true"
-    fi
-
-    # data_path="./data/"
-
 
     local_batch_size=`expr ${global_batch_size} / ${dp_degree} / ${sharding_degree}`
     num_attention_heads=16 #"gpt2-medium-en"
@@ -117,24 +104,29 @@ function _train(){
                -o Optimizer.lr.max_lr=1e-4 \
                -o Optimizer.lr.min_lr=1e-5 "
 
-
+    if [ ${PADDLE_TRAINER_ID} ]
+    then
+        PADDLE_RANK_OPTION=" --rank ${PADDLE_TRAINER_ID}"
+    else
+        PADDLE_RANK_OPTION=""
+    fi
     # 以下为通用执行命令，无特殊可不用修改
     # hybrid_parallelism case
     case ${run_mode} in
     DP1-MP1-PP1) echo "run run_mode: ${run_mode}"
-        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0 \
+        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0 ${PADDLE_RANK_OPTION} \
             tools/train.py -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_3D.yaml \
             ${train_cmd}"
         workerlog_id=0
         ;;
     DP2-MP1-PP1) echo "run run_mode: ${run_mode}"
-        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1 \
+        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1 ${PADDLE_RANK_OPTION}\
             tools/train.py -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_3D.yaml \
             ${train_cmd}"
         workerlog_id=0
         ;;
     DP2-MP2-PP2|DP2-MP8-PP2|DP4-MP8-PP1|DP1-MP8-PP4) echo "run run_mode: ${run_mode}"
-        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 \
+        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 ${PADDLE_RANK_OPTION}\
             tools/train.py -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_3D.yaml \
             ${train_cmd}"
         workerlog_id=0
@@ -144,7 +136,7 @@ function _train(){
     cd ../
     echo "train_cmd: ${train_cmd}  log_file: ${log_file}"
     if [[ ${model_item} =~ "CE" ]];then # CE精度-不限制执行时间
-        ${train_cmd} > ${log_file} 2>&1
+        timeout 240m ${train_cmd} > ${log_file} 2>&1
     else
         timeout 15m ${train_cmd} > ${log_file} 2>&1
     fi
