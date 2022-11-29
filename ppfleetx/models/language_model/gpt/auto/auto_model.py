@@ -556,8 +556,7 @@ class GPTModelAuto(nn.Layer):
                 dtype=input_ids.dtype)
             position_ids = position_ids.unsqueeze(0)
             # .expand_as(input_ids)
-            position_ids = paddle.expand_as(position_ids,
-                                                         input_ids)
+            position_ids = paddle.expand_as(position_ids, input_ids)
 
         input_ids.stop_gradient = True
         position_ids.stop_gradient = True
@@ -1018,10 +1017,11 @@ class GPTForGenerationAuto(nn.Layer):
             w_dims_mapping = [self.gpt.mesh.mp, None]
             matmul = auto.shard_op(paddle.matmul, self.gpt.mesh[-1],
                                    [x_dims_mapping, w_dims_mapping, None])
-            logits = matmul(
-                logits,
-                self.gpt.embeddings.word_embeddings.weight,
-                transpose_y=True)
+            with paddle.fluid.name_scope('skip_quant'):
+                logits = matmul(
+                    logits,
+                    self.gpt.embeddings.word_embeddings.weight,
+                    transpose_y=True)
 
             # [batch_size, vocab_size]
             logits = logits[:, -1, :]
