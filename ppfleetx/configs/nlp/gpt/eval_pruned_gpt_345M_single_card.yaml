@@ -15,7 +15,6 @@ Model:
 Compress:
   Prune:
     enable: True
-    cal_sens: False
     criterion: l1_norm
     ratio: 0.125
 

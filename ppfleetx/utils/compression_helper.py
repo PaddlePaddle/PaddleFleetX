@@ -44,11 +44,11 @@ def prune_model(model, configs, num_attention_heads, infer=False):
                 model, [[1, 1024]],
                 skip_leaves=False,
                 prune_type='fc',
-                input_dtype='int8',
+                input_dtype='float32',
                 num_head=num_attention_heads)
         else:
             pruner = paddleslim.dygraph.L1NormFilterPruner(
-                model, [[1, 1024], [1, 1024]],
+                model, [[1, 1024]],
                 skip_leaves=False,
                 prune_type='fc',
                 input_dtype='int8',
@@ -59,11 +59,11 @@ def prune_model(model, configs, num_attention_heads, infer=False):
                 model, [[1, 1024]],
                 skip_leaves=False,
                 prune_type='fc',
-                input_dtype='int8',
+                input_dtype='float32',
                 num_head=num_attention_heads)
         else:
             pruner = paddleslim.dygraph.L2NormFilterPruner(
-                model, [[1, 1024], [1, 1024]],
+                model, [[1, 1024]],
                 skip_leaves=False,
                 prune_type='fc',
                 input_dtype='int8',

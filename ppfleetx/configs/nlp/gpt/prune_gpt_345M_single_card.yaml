@@ -28,27 +28,6 @@ Model:
   no_recompute_layers:
   
 
-Data:
-  Train:
-    dataset:
-      name: GPTDataset
-      input_dir: ./large_dataset/
-      split: [949, 50, 1]
-      max_seq_len: 1024
-    sampler:
-      name: GPTBatchSampler
-      shuffle: False
-      drop_last: True
-    loader:
-      num_workers: 1
-      return_list: False
-      collate_fn: gpt_collate_fn
-  
-  Eval:
-    dataset:
-      name: GPTDataset
-      input_dir: ./large_dataset/
-
 Distributed:
   dp_degree: 1
   mp_degree: 1
@@ -79,6 +58,5 @@ Compress:
   pretrained: ./PaddleFleetX_GPT_345M_220826
   Prune:
     enable: True
-    cal_sens: False
     criterion: l1_norm
     ratio: 0.125
