@@ -59,14 +59,14 @@ bash projects/gpt/run_benchmark.sh
 | GPT-3(345M)   |    128   |    8     |     8      |    1    |   24.06ms    |   23.90ms    |
 | GPT-3(345M)   |    128   |    8     |    16      |    1    |   29.32ms    |   27.95ms    |
 | GPT-3(6.7B)   |    128   |    8     |     1      |    1    |   84.93ms    |   63.96ms    |
-| GPT-3(6.7B)   |    128   |    8     |     2      |    1    |   92.90ms    |   67.25ms    |
-| GPT-3(6.7B)   |    128   |    8     |     4      |    1    |   107.27ms   |   78.98ms    |
-| GPT-3(6.7B)   |    128   |    8     |     8      |    1    |   141.27ms   |   99.54ms    |
-| GPT-3(6.7B)   |    128   |    8     |    16      |    1    |   209.64ms   |   140.97ms   |
+| GPT-3(6.7B)   |    128   |    8     |     2      |    1    |   91.93ms    |   67.25ms    |
+| GPT-3(6.7B)   |    128   |    8     |     4      |    1    |   105.50ms   |   78.98ms    |
+| GPT-3(6.7B)   |    128   |    8     |     8      |    1    |   138.56ms   |   99.54ms    |
+| GPT-3(6.7B)   |    128   |    8     |    16      |    1    |   204.33ms   |   140.97ms   |
 | GPT-3(175B)   |    128   |    8     |     1      |    8    |   327.26ms   |   230.11ms   |
 | GPT-3(175B)   |    128   |    8     |     2      |    8    |   358.61ms   |   244.23ms   |
 | GPT-3(175B)   |    128   |    8     |     4      |    8    |   428.93ms   |   278.63ms   |
-| GPT-3(175B)   |    128   |    8     |     8      |    8    |   572.49ms   |   344.00ms   |
-| GPT-3(175B)   |    128   |    8     |    16      |    8    |   811.83ms   |   475.19ms   |
+| GPT-3(175B)   |    128   |    8     |     8      |    8    |   554.28ms   |   344.00ms   |
+| GPT-3(175B)   |    128   |    8     |    16      |    8    |   785.92ms   |   475.19ms   |
 
-以上性能数据基于PaddlePaddle[每日版本](https://www.paddlepaddle.org.cn/documentation/docs/zh/install/Tables.html#whl-develop)
+以上性能数据基于PaddlePaddle[每日版本](https://www.paddlepaddle.org.cn/documentation/docs/zh/install/Tables.html#whl-develop) ，依赖CUDA 11.6测试环境。
