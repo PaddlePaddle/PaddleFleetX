@@ -65,3 +65,43 @@ Compress:
 
 更详细的量化训练参数介绍可参考[PaddleSlim动态图量化训练接口介绍](https://github.com/PaddlePaddle/PaddleSlim/blob/develop/docs/zh_cn/api_cn/dygraph/quanter/qat.rst)。
 
+### **知识蒸馏参数**
+
+```yaml
+Compress:
+  pretrained:
+  Distillation:
+    enable: True
+    distill_loss_ratio: 0.1 
+    distillation_loss_type: 'kl_div'
+    T: 1.5
+    Teacher:
+      save_load:
+        ckpt_dir: 
+      Model:
+        hidden_size: 2048
+        vocab_size: 50304
+        num_layers: 24
+        num_attention_heads: 16 
+        ffn_hidden_size: 8196
+        hidden_dropout_prob: 0.1
+        attention_probs_dropout_prob: 0.1
+        max_position_embeddings: 1024
+        type_vocab_size: 16
+        initializer_range: 0.02
+        use_recompute: False 
+        recompute_granularity:
+        no_recompute_layers:
+```
+
+其中参数对应的释义如下：
+
+| **参数名**             | **参数释义**                                                |
+| ---------------------- | ----------------------------------------------------------- |
+| enable                 | 是否开启蒸馏                                                |
+| distill_loss_ratio     | 蒸馏损失函数的权重                                          |
+| distillation_loss_type | 蒸馏损失函数的类型，支持mse, kl_div和token_wise_contrastive |
+| ckpt_dir               | 教师网络 checkpoint的加载目录                               |
+| T                      | 学生网络除的温度                                            |
+
+Model部分的参数意义和部分相同，如果不指定Model部分内容，则默认用学生网络用作教师网络。
