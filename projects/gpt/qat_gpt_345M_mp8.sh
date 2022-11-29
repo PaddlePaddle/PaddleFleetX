@@ -31,4 +31,4 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
     -o Optimizer.weight_decay=0.02 \
     -o Optimizer.lr.max_lr=5.0e-6 \
     -o Optimizer.lr.min_lr=1.0e-6 \
-    -o Compress.pretrained='./'
+    -o Compress.pretrained='./PaddleFleetX_GPT_345M_220826'
