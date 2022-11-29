@@ -625,7 +625,7 @@ class GPTModel(nn.Layer):
                 dtype=input_ids.dtype)
             position_ids = position_ids.unsqueeze(0)
             # .expand_as(input_ids)
-            position_ids = paddle.fluid.layers.expand_as(position_ids,
+            position_ids = paddle.expand_as(position_ids,
                                                          input_ids)
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
@@ -801,6 +801,8 @@ class GPTForGeneration(nn.Layer):
         self.temperature = self.configs.get('temperature', 1.0)
         self.top_k = self.configs.get('top_k', 0)
         self.top_p = self.configs.get('top_p', 1.0)
+        self.use_topp_sampling = self.configs.get('use_topp_sampling', False)
+        self.inference = self.configs.get('inference', False)
         self.repetition_penalty = self.configs.get('repetition_penalty', 1.0)
         self.num_beams = self.configs.get('num_beams', 1)
         self.num_beam_groups = self.configs.get('num_beam_groups', 1)
@@ -944,10 +946,6 @@ class GPTForGeneration(nn.Layer):
             if "int" in paddle.common_ops_import.convert_dtype(
                     attention_mask.dtype):
                 attention_mask = (1.0 - attention_mask) * -1e4
-        if cache is not None:
-            input_ids = input_ids[:, -1].unsqueeze(-1)
-            if position_ids is not None:
-                position_ids = position_ids[:, -1].unsqueeze(-1)
         return {
             "input_ids": input_ids,
             "position_ids": position_ids,
@@ -956,6 +954,7 @@ class GPTForGeneration(nn.Layer):
         }
 
     def update_model_kwargs_for_generation(self,
+                                           next_tokens,
                                            outputs,
                                            model_kwargs,
                                            is_encoder_decoder=False):
@@ -980,8 +979,7 @@ class GPTForGeneration(nn.Layer):
         if "position_ids" in model_kwargs and model_kwargs[
                 "position_ids"] is not None:
             position_ids = model_kwargs["position_ids"]
-            model_kwargs["position_ids"] = paddle.concat(
-                [position_ids, position_ids[:, -1:] + 1], axis=-1)
+            model_kwargs["position_ids"] = position_ids[:, -1:] + 1
 
         # update attention_mask
         if not is_encoder_decoder and "attention_mask" in model_kwargs:
@@ -1017,6 +1015,9 @@ class GPTForGeneration(nn.Layer):
             role_ids = model_kwargs["role_ids"]
             model_kwargs["role_ids"] = paddle.concat(
                 [role_ids, role_ids[:, -1:]], axis=-1)
+
+        model_kwargs['res'] = paddle.concat(
+            [model_kwargs['res'], next_tokens], axis=1)
 
         return model_kwargs
 
@@ -1069,10 +1070,19 @@ class GPTForGeneration(nn.Layer):
             return probs
 
         batch_size, cur_len = input_ids.shape
+        # used for compute on gpu, avoid memcpy D2H
+        cur_len_gpu = paddle.full([1], cur_len, dtype='int64')
+
         origin_len = input_ids.shape[1]
+        # used for compute on gpu, avoid memcpy D2H
+        origin_len_gpu = paddle.full([1], origin_len, dtype='int64')
+
         unfinished_flag = paddle.full([batch_size, 1], True, dtype='bool')
         scores = paddle.full(
             [batch_size, 1], 0.0, dtype=paddle.get_default_dtype())
+
+        res = paddle.assign(input_ids)
+        model_kwargs['res'] = res
 
         # use_cache is immutable, we split it off other mutable kwargs.
         assert 'use_cache' in model_kwargs
@@ -1102,15 +1112,33 @@ class GPTForGeneration(nn.Layer):
 
             # sample
             origin_probs = F.softmax(logits)
-            origin_probs = paddle.log(origin_probs)
-            if temperature is not None and temperature != 1.0:
+            if temperature is None or temperature == 1.0:
+                probs = paddle.assign(origin_probs)
+                origin_probs = paddle.log(origin_probs)
+            else:
+                origin_probs = paddle.log(origin_probs)
                 logits = logits / temperature
-            probs = F.softmax(logits)
+                probs = F.softmax(logits)
             if top_k is not None and top_k != 0:
                 probs = TopKProcess(probs, top_k, min_tokens_to_keep)
             if top_p is not None and top_p < 1.0:
-                probs = TopPProcess(probs, top_p, min_tokens_to_keep)
-            next_tokens = paddle.multinomial(probs)
+                if self.use_topp_sampling:
+                    try:
+                        from ppfleetx_ops import topp_sampling
+                    except ImportError:
+                        raise ImportError(
+                            "please install ppfleetx_ops by 'cd ppfleetx/ops && python setup_cuda.py install'!"
+                        )
+                    top_ps_tensor = paddle.full(
+                        shape=[paddle.shape(probs)[0]],
+                        fill_value=top_p,
+                        dtype=probs.dtype)
+                    next_tokens = topp_sampling(probs, top_ps_tensor)
+                else:
+                    probs = TopPProcess(probs, top_p, min_tokens_to_keep)
+
+            if not self.use_topp_sampling:
+                next_tokens = paddle.multinomial(probs)
 
             next_scores = paddle.index_sample(origin_probs, next_tokens)
 
@@ -1122,13 +1150,14 @@ class GPTForGeneration(nn.Layer):
             scores = self.update_scores_for_generation(
                 scores, next_scores, cur_len - origin_len, unfinished_flag)
 
-            input_ids = paddle.concat([input_ids, next_tokens], axis=1)
+            input_ids = next_tokens
 
             if eos_token_id is not None:
                 unfinished_flag = paddle.logical_and(
                     unfinished_flag, next_tokens != eos_token_id)
 
             model_kwargs = self.update_model_kwargs_for_generation(
+                next_tokens,
                 outputs,
                 model_kwargs,
                 is_encoder_decoder=self.is_encoder_decoder)
@@ -1140,9 +1169,14 @@ class GPTForGeneration(nn.Layer):
         outputs = _forward_(**model_kwargs)
 
         input_ids, scores, unfinished_flag, model_kwargs = _post_process_(
-            outputs, input_ids, cur_len, origin_len, scores, unfinished_flag,
-            model_kwargs)
-        cur_len += 1
+            outputs, input_ids, cur_len_gpu, origin_len_gpu, scores,
+            unfinished_flag, model_kwargs)
+        if not self.inference:
+            cur_len += 1
+        else:
+            # Note(ZhenyuLi): Avoid the synchronization caused by scale in dy2static
+            paddle.increment(cur_len)
+        paddle.increment(cur_len_gpu)
 
         attn_mask = model_kwargs['attention_mask']
         # make the shape of attention_mask = (-1, -1, -1, -1) in dy2static.
@@ -1155,14 +1189,19 @@ class GPTForGeneration(nn.Layer):
             # and change it to pass directly to _post_process_ to avoid 
             # closed-loop problem of dynamic-to-static model
             input_ids, scores, unfinished_flag, model_kwargs = _post_process_(
-                _forward_(**model_kwargs), input_ids, cur_len, origin_len,
-                scores, unfinished_flag, model_kwargs)
-            cur_len += 1
+                _forward_(**model_kwargs), input_ids, cur_len_gpu,
+                origin_len_gpu, scores, unfinished_flag, model_kwargs)
+            if not self.inference:
+                cur_len += 1
+            else:
+                # Note(ZhenyuLi): Avoid the synchronization caused by scale in dy2static
+                paddle.increment(cur_len)
+            paddle.increment(cur_len_gpu)
 
             if not paddle.any(unfinished_flag):
                 break
 
-        return input_ids[:, origin_len:], scores
+        return model_kwargs['res'][:, origin_len:], scores
 
     def forward(self, input_ids=None, **model_kwargs):
 
@@ -1216,16 +1255,31 @@ class GPTForGeneration(nn.Layer):
             model_kwargs[
                 "attention_mask"] = self.prepare_attention_mask_for_generation(
                     input_ids, pad_token_id, eos_token_id)
+
+        if model_kwargs.get("position_ids", None) is None:
+            model_kwargs['position_ids'] = paddle.arange(
+                0,
+                paddle.shape(model_kwargs['attention_mask'])[-1],
+                dtype=input_ids.dtype).unsqueeze(0)
+
         self.is_encoder_decoder = False
 
         model_kwargs["use_cache"] = use_cache
 
-        max_length += input_ids.shape[-1]
-        min_length += input_ids.shape[-1]
+        if self.inference:
+            # Note(ZhenyuLi): Avoid the synchronization caused by scale in dy2static
+            min_len = input_ids.shape[-1]
+            max_len = input_ids.shape[-1]
+            paddle.increment(min_len, min_length)
+            paddle.increment(max_len, max_length)
+        else:
+            input_len = input_ids.shape[-1]
+            max_len = max_length + input_len
+            min_len = min_length + input_len
 
         logits_processors = self.get_logits_processor(
-            min_length=min_length,
-            max_length=max_length,
+            min_length=min_len,
+            max_length=max_len,
             eos_token_id=eos_token_id,
             forced_bos_token_id=forced_bos_token_id,
             forced_eos_token_id=forced_eos_token_id,
@@ -1241,7 +1295,7 @@ class GPTForGeneration(nn.Layer):
                     expand_size=num_return_sequences,
                     **model_kwargs)
 
-            ret = self.sample(input_ids, logits_processors, max_length,
+            ret = self.sample(input_ids, logits_processors, max_len,
                               pad_token_id, eos_token_id, top_k, top_p,
                               temperature, **model_kwargs)
         else:
