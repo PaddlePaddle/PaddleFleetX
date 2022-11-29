@@ -26,6 +26,8 @@ from paddle.optimizer.lr import LRScheduler
 from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 from paddle.profiler import SummaryView
+import paddleslim
+from paddleslim.analysis import dygraph_flops as flops
 from paddle.distributed.fleet.meta_parallel import TensorParallel
 
 from ppfleetx.distributed.apis import env, sharding
@@ -115,6 +117,17 @@ class EagerEngine(BasicEngine):
 
         # engine configs
         self._configs = configs['Engine']
+        self._compress_configs = None
+        self.prune_configs = None
+        self.quant_configs = None
+
+        if 'Compress' in configs:
+            self.mode = 'compress'
+            self._compress_configs = configs['Compress']
+            if "Prune" in self._compress_configs:
+                self.prune_configs = self._compress_configs["Prune"]
+            if "Quantization" in self._compress_configs:
+                self.quant_configs = self._compress_configs["Quantization"]
 
         self._run_mode = self._configs.get('run_mode', 'step')
         assert self._run_mode in ['epoch', 'step'
@@ -158,6 +171,7 @@ class EagerEngine(BasicEngine):
         self._broadcast_overlap = sharding_config['broadcast_overlap']
 
         self._use_recompute = configs['Model']['use_recompute']
+        self._num_attention_heads = configs['Model']['num_attention_heads']
         self._quant_mode = True if 'Quantization' in configs and configs[
             'Quantization']['enable'] else False
 
@@ -173,10 +187,12 @@ class EagerEngine(BasicEngine):
         else:
             self._scaler = None
 
-        self._lr_scheduler_mode = configs.Optimizer.lr.pop('run_mode', 'step')
-        assert self._lr_scheduler_mode in [
-            'epoch', 'step'
-        ], 'lr.run_mode must be epoch or step'
+        if mode == 'train':
+            self._lr_scheduler_mode = configs.Optimizer.lr.pop('run_mode',
+                                                               'step')
+            assert self._lr_scheduler_mode in [
+                'epoch', 'step'
+            ], 'lr.run_mode must be epoch or step'
         self._lr_scheduler = build_lr_scheduler(
             configs.Optimizer.lr) if mode == 'train' else None
 
@@ -248,7 +264,8 @@ class EagerEngine(BasicEngine):
 
         if self._mp_degree > 1:
             assert self._sharding_stage == 2, "only support mp + sharding stage2 hybrid parallel now."
-            self._module.model =  TensorParallel(self._module.model, self._hcg, strategy=None)
+            self._module.model = TensorParallel(
+                self._module.model, self._hcg, strategy=None)
 
         level = "p_g_os" if self._sharding_stage == 3 else "os_g"
         origin_model = self._module.model
@@ -676,6 +693,103 @@ class EagerEngine(BasicEngine):
 
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
+
+    def _get_pruned_params(self, model):
+        params = []
+        for sublayer in model.sublayers():
+            for param in sublayer.parameters(include_sublayers=False):
+                if isinstance(
+                        sublayer, paddle.nn.layer.common.Linear) or isinstance(
+                            sublayer, paddle.distributed.fleet.layers.mpu.
+                            mp_layers.ColumnParallelLinear) or isinstance(
+                                sublayer, paddle.distributed.fleet.layers.mpu.
+                                mp_layers.RowParallelLinear):
+                    if len(param.shape) != 2: continue
+                    if param.shape[1] == 3 * param.shape[0] or param.shape[
+                            1] == 4 * param.shape[0]:
+                        params.append(param.name)
+
+        return params
+
+    def _prune_model(self, infer=False):
+        model = self._module.model
+        prune_criterion = self.prune_configs.criterion
+        ratio = self.prune_configs.ratio
+
+        if prune_criterion == 'l1_norm':
+            if infer:
+                pruner = paddleslim.dygraph.L1NormFilterPruner(
+                    model, [[1, 1024]],
+                    skip_leaves=False,
+                    prune_type='fc',
+                    input_dtype='int8',
+                    num_head=self._num_attention_heads)
+            else:
+                pruner = paddleslim.dygraph.L1NormFilterPruner(
+                    model, [[1, 1024], [1, 1024]],
+                    skip_leaves=False,
+                    prune_type='fc',
+                    input_dtype='int8',
+                    num_head=self._num_attention_heads)
+        elif prune_criterion == 'l2_norm':
+            if infer:
+                pruner = paddleslim.dygraph.L2NormFilterPruner(
+                    model, [[1, 1024]],
+                    skip_leaves=False,
+                    prune_type='fc',
+                    input_dtype='int8',
+                    num_head=self._num_attention_heads)
+            else:
+                pruner = paddleslim.dygraph.L2NormFilterPruner(
+                    model, [[1, 1024], [1, 1024]],
+                    skip_leaves=False,
+                    prune_type='fc',
+                    input_dtype='int8',
+                    num_head=self._num_attention_heads)
+        params = self._get_pruned_params(model)
+        ratios = {}
+        for param in params:
+            ratios[param] = ratio
+        #NOTE(minghaoBD): hidden size in Layernorm must be 768/1024/2048/4096 for best inference performace, and when axis=0, the hidden size in layernorm will be changed accordingly. So axis=1 is required.
+        plan = pruner.prune_vars(ratios, [1])
+
+    def _quant_model(self):
+        model = self._module.model
+        quanter = paddleslim.dygraph.quant.QAT(config=self.quant_configs)
+        quanter.quantize(model)
+
+    def sensitive(self, eval_func, output_file="./sen.pickle"):
+        model = self._module.model
+        prune_criterion = self.prune_configs.criterion
+
+        if prune_criterion == 'l1_norm':
+            pruner = paddleslim.dygraph.L1NormFilterPruner(
+                model, [[1, 1024], [1, 1024]],
+                skip_leaves=False,
+                prune_type='fc',
+                input_dtype='int8',
+                num_head=self._num_attention_heads)
+        elif prune_criterion == 'l2_norm':
+            pruner = paddleslim.dygraph.L2NormFilterPruner(
+                model, [[1, 1024], [1, 1024]],
+                skip_leaves=False,
+                prune_type='fc',
+                input_dtype='int8',
+                num_head=self._num_attention_heads)
+
+        pruner.sensitive(eval_func=eval_func, sen_file=output_file)
+
+    def compress_model(self, infer=False):
+        if self._compress_configs is None: return
+        if self.prune_configs is not None and self.prune_configs.enable:
+            self._prune_model(infer=infer)
+        if self.prune_configs is not None and self.prune_configs.cal_sens:
+            self.sensitive(self._evaluate_one_epoch)
+            sys.exit()
+
+        #NOTE(minghaoBD): We haven't fully tested Prune+Quantization, so an "else if" is put here for separation.
+        elif self.quant_configs is not None and self.quant_configs.enable:
+            self._quant_model()
 
     def load(self):
         """

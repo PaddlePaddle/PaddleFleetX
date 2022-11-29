@@ -44,6 +44,8 @@ if __name__ == "__main__":
     config.print_config(cfg)
 
     engine = EagerEngine(configs=cfg, module=module, mode='eval')
+    
+    engine.compress_model()
 
     valid_data_loader = build_dataloader(cfg.Data, "Eval")
 

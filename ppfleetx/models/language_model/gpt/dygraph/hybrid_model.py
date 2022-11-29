@@ -39,6 +39,7 @@ from ppfleetx.distributed.moe import MoELayer
 from ppfleetx.distributed.apis import env
 from ppfleetx.utils.log import logger
 
+
 def get_attr(layer, name):
     if getattr(layer, name, None) is not None:
         return getattr(layer, name, None)
@@ -175,8 +176,7 @@ class MultiHeadAttention(nn.Layer):
 
     def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
         mix_layer = self.qkv_proj(query)
-        mix_layer = paddle.reshape_(mix_layer,
-                                    [0, 0, self.num_heads, 3 * self.head_dim])
+        mix_layer = paddle.reshape_(mix_layer, [0, 0, -1, 3 * self.head_dim])
         if self.sequence_parallel:
             mix_layer = paddle.transpose(mix_layer, [1, 2, 0, 3])
         else:
@@ -204,7 +204,7 @@ class MultiHeadAttention(nn.Layer):
 
         """
         q = self.q_proj(query)
-        q = tensor.reshape(x=q, shape=[0, 0, self.num_heads, self.head_dim])
+        q = tensor.reshape(x=q, shape=[0, 0, -1, self.head_dim])
         if self.sequence_parallel:
             q = tensor.transpose(x=q, perm=[1, 2, 0, 3])
         else:
@@ -239,12 +239,12 @@ class MultiHeadAttention(nn.Layer):
         """
         k = self.k_proj(key)
         v = self.v_proj(value)
-        k = tensor.reshape(x=k, shape=[0, 0, self.num_heads, self.head_dim])
+        k = tensor.reshape(x=k, shape=[0, 0, -1, self.head_dim])
         if self.sequence_parallel:
             k = tensor.transpose(x=k, perm=[1, 2, 0, 3])
         else:
             k = tensor.transpose(x=k, perm=[0, 2, 1, 3])
-        v = tensor.reshape(x=v, shape=[0, 0, self.num_heads, self.head_dim])
+        v = tensor.reshape(x=v, shape=[0, 0, -1, self.head_dim])
         if self.sequence_parallel:
             v = tensor.transpose(x=v, perm=[1, 2, 0, 3])
         else:
@@ -304,7 +304,7 @@ class MultiHeadAttention(nn.Layer):
             out = tensor.transpose(out, perm=[0, 2, 1, 3])
         # If sequence_parallel is true, out shape is [s, b, h] after reshape
         # else out shape is [b, s, h]
-        out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
+        out = tensor.reshape(x=out, shape=[0, 0, -1])
 
         return out, weights
 
@@ -800,8 +800,8 @@ class GPTModelHybrid(nn.Layer):
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
-            tgt_mask=None if self.training and paddle.is_compiled_with_cuda() else
-            attention_mask,  # use softmax_mask_fuse_upper_triangle
+            tgt_mask=None if self.training and paddle.is_compiled_with_cuda()
+            else attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
 
