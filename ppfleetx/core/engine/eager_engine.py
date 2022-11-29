@@ -37,6 +37,7 @@ from ppfleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from ppfleetx.utils.version import version_check
 from ppfleetx.utils.export import export_inference_model
 from paddle.incubate.distributed.utils.io import save_for_auto_inference
+from ppfleetx.utils.device import synchronize as device_synchronize
 
 
 class EagerEngine(BasicEngine):
@@ -344,7 +345,7 @@ class EagerEngine(BasicEngine):
                     self._module.validation_step_end(log_dict)
 
                 if self._save_steps > 0 and step % self._save_steps == 0:
-                    paddle.device.cuda.synchronize()
+                    device_synchronize()
                     self.save(epoch=epoch_index, step=step)
             else:
                 skip_first = False
