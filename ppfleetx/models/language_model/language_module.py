@@ -28,7 +28,6 @@ import ppfleetx.models.language_model.gpt as gpt
 from ppfleetx.models.language_model.gpt.dygraph.sequence_parallel_utils import register_sequence_parallel_allreduce_hooks
 from ppfleetx.distributed.apis import env
 from ppfleetx.utils.log import logger
-
 from .utils import process_configs
 from ppfleetx.data.tokenizers import GPTTokenizer
 from .metrics import *

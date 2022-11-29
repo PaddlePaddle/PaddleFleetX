@@ -30,6 +30,7 @@ import paddleslim
 from paddleslim.analysis import dygraph_flops as flops
 from paddle.distributed.fleet.meta_parallel import TensorParallel
 
+import paddleslim
 from ppfleetx.distributed.apis import env, sharding
 from ppfleetx.optims import build_lr_scheduler, build_optimizer
 from ppfleetx.utils.log import logger, get_timestamp, convert_timestamp_to_data
@@ -157,6 +158,20 @@ class EagerEngine(BasicEngine):
         self._output_dir = self._configs['save_load']['output_dir']
         self._ckpt_dir = self._configs['save_load']['ckpt_dir']
 
+        self._compress_configs = None
+        self.quant_configs = None
+        self._quant_mode = False
+        if 'Compress' in configs:
+            infer = False if self.mode != 'inference' else True
+            self.mode = 'compress'
+            self._compress_configs = configs['Compress']
+            if "Prune" in self._compress_configs:
+                self.prune_configs = self._compress_configs["Prune"]
+            if "Quantization" in self._compress_configs:
+                self.quant_configs = self._compress_configs["Quantization"]
+                self._quant_mode = True
+            self.compress_model(infer=infer)
+
         # TODO(haohongxiang): Remove there extra configs after reconstruct of Fleet API
         self._dist_configs = configs['Distributed']
         self._dp_degree = self._dist_configs['dp_degree']
@@ -171,9 +186,6 @@ class EagerEngine(BasicEngine):
         self._broadcast_overlap = sharding_config['broadcast_overlap']
 
         self._use_recompute = configs['Model']['use_recompute']
-        self._num_attention_heads = configs['Model']['num_attention_heads']
-        self._quant_mode = True if 'Quantization' in configs and configs[
-            'Quantization']['enable'] else False
 
         if self._use_pure_fp16:
             if mode == 'train':
@@ -754,39 +766,23 @@ class EagerEngine(BasicEngine):
         plan = pruner.prune_vars(ratios, [1])
 
     def _quant_model(self):
-        model = self._module.model
-        quanter = paddleslim.dygraph.quant.QAT(config=self.quant_configs)
-        quanter.quantize(model)
-
-    def sensitive(self, eval_func, output_file="./sen.pickle"):
-        model = self._module.model
-        prune_criterion = self.prune_configs.criterion
-
-        if prune_criterion == 'l1_norm':
-            pruner = paddleslim.dygraph.L1NormFilterPruner(
-                model, [[1, 1024], [1, 1024]],
-                skip_leaves=False,
-                prune_type='fc',
-                input_dtype='int8',
-                num_head=self._num_attention_heads)
-        elif prune_criterion == 'l2_norm':
-            pruner = paddleslim.dygraph.L2NormFilterPruner(
-                model, [[1, 1024], [1, 1024]],
-                skip_leaves=False,
-                prune_type='fc',
-                input_dtype='int8',
-                num_head=self._num_attention_heads)
-
-        pruner.sensitive(eval_func=eval_func, sen_file=output_file)
+        self.quanter = paddleslim.dygraph.quant.QAT(config=self.quant_configs)
+        self._module.model = self.quanter.quantize(self._module.model)
 
     def compress_model(self, infer=False):
         if self._compress_configs is None: return
+        
+        # Load pretrained model before compression
+        if 'pretrained' in self._compress_configs and self._compress_configs[
+                'pretrained'] is not None:
+            self._ckpt_dir = self._compress_configs['pretrained']
+            self.load()
+            # Avoid loading again
+            self._configs['save_load']['ckpt_dir'] = None
+            
         if self.prune_configs is not None and self.prune_configs.enable:
+            self._num_attention_heads = configs['Model']['num_attention_heads']
             self._prune_model(infer=infer)
-        if self.prune_configs is not None and self.prune_configs.cal_sens:
-            self.sensitive(self._evaluate_one_epoch)
-            sys.exit()
-
         #NOTE(minghaoBD): We haven't fully tested Prune+Quantization, so an "else if" is put here for separation.
         elif self.quant_configs is not None and self.quant_configs.enable:
             self._quant_model()
@@ -862,7 +858,7 @@ class EagerEngine(BasicEngine):
                 save_dir,
                 'model',
                 export_quant_model=True,
-                quanter=self._module.quanter)
+                quanter=self.quanter)
 
     def inference(self, data):
         if self._inference_engine is None:

@@ -1,4 +1,3 @@
-
 #! /bin/bash
 
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
@@ -16,19 +15,10 @@
 # limitations under the License.
 
 
-export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-
-log_dir=log_hybrid
+log_dir=log_auto
 rm -rf $log_dir
 
-python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
-    ./tools/train.py \
-    -c ./ppfleetx/configs/nlp/gpt/qat_gpt_345M_mp8.yaml \
-    -o Engine.max_steps=100000 \
-    -o Model.hidden_dropout_prob=0.0 \
-    -o Model.attention_probs_dropout_prob=0.0 \
-    -o Optimizer.lr.decay_steps=72000 \
-    -o Optimizer.weight_decay=0.02 \
-    -o Optimizer.lr.max_lr=5.0e-6 \
-    -o Optimizer.lr.min_lr=1.0e-6 \
-    -o Compress.pretrained='./PaddleFleetX_GPT_345M_220826'
+python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1" \
+    ./tools/auto_export.py \
+    -c ./ppfleetx/configs/nlp/gpt/auto/qat_generation_gpt_345M_mp2.yaml \
+    -o Engine.save_load.output_dir="./mp2_qat_model" \
