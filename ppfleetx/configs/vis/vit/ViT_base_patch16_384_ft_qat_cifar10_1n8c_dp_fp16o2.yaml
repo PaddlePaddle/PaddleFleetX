@@ -114,7 +114,7 @@ Data:
     loader:
       num_workers: 8
       use_shared_memory: True
-  
+
 Compress:
   Quantization:
     enable: True

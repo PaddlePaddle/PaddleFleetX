@@ -10,6 +10,7 @@ Compress:
     enable: True
     weight_quantize_type: 'abs_max'
     activation_quantize_type: 'moving_average_abs_max'
+    activation_preprocess_type: 'PACT'
     weight_bits: 8
     activation_bits: 8
     quantizable_layer_type: ['Linear', 'ColumnParallelLinear', 'RowParallelLinear']

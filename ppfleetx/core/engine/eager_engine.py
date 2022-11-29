@@ -146,12 +146,15 @@ class EagerEngine(BasicEngine):
 
         self._compress_configs = None
         self.quant_configs = None
-
+        self._quant_mode = False
         if 'Compress' in configs:
+            infer = False if self.mode != 'inference' else True
             self.mode = 'compress'
             self._compress_configs = configs['Compress']
             if "Quantization" in self._compress_configs:
                 self.quant_configs = self._compress_configs["Quantization"]
+                self._quant_mode = True
+            self.compress_model(infer=infer)
 
         # TODO(haohongxiang): Remove there extra configs after reconstruct of Fleet API
         self._dist_configs = configs['Distributed']
@@ -167,8 +170,6 @@ class EagerEngine(BasicEngine):
         self._broadcast_overlap = sharding_config['broadcast_overlap']
 
         self._use_recompute = configs['Model']['use_recompute']
-        self._quant_mode = True if 'Quantization' in configs and configs[
-            'Quantization']['enable'] else False
 
         if self._use_pure_fp16:
             if mode == 'train':
@@ -696,9 +697,8 @@ class EagerEngine(BasicEngine):
             # Avoid load again
             self._configs['save_load']['ckpt_dir'] = None
 
-        model = self._module.model
-        quanter = paddleslim.dygraph.quant.QAT(config=self.quant_configs)
-        quanter.quantize(model)
+        self.quanter = paddleslim.dygraph.quant.QAT(config=self.quant_configs)
+        self._module.model = self.quanter.quantize(self._module.model)
 
     def compress_model(self, infer=False):
         if self._compress_configs is None: return
@@ -776,7 +776,7 @@ class EagerEngine(BasicEngine):
                 save_dir,
                 'model',
                 export_quant_model=True,
-                quanter=self._module.quanter)
+                quanter=self.quanter)
 
     def inference(self, data):
         if self._inference_engine is None:
