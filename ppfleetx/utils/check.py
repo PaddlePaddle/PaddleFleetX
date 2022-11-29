@@ -22,7 +22,7 @@ import sys
 import paddle
 from paddle import is_compiled_with_cuda
 from .log import logger
-from .version import get_device_and_mapping
+from .device import get_device_and_mapping
 
 def check_version():
     """
