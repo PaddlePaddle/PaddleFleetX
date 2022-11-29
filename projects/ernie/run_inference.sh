@@ -17,4 +17,4 @@ unset CUDA_VISIBLE_DEVICES
 python -u -m paddle.distributed.fleet.launch \
     --gpus "0" \
     --log_dir "log" \
-    projects/deploy/ernie/inference.py --model_dir "./output" --mp_degree 1
+    projects/ernie/inference.py --model_dir "./output" --mp_degree 1
