@@ -63,7 +63,7 @@ Note: CIFAR10 dataset is automatically downloaded and cached.
 python -m paddle.distributed.launch --gpus="0,1,2,3,4,5,6,7" tools/train.py -c ppfleetx/configs/vis/vit/ViT_base_patch16_384_ft_cifar10_1n8c_dp_fp16o2.yaml
 ```
 
-### Quantization Aware Training on imagenet2012
+### Quantization Aware Training on ImageNet2012
 
 
 ```shell
@@ -74,6 +74,8 @@ python -m paddle.distributed.launch --gpus="0,1,2,3,4,5,6,7" tools/train.py \
     -o Optimizer.lr.learning_rate=5e-05 \
     -o Optimizer.weight_decay=0.0002 
 ```
+量化训练的参数详细介绍见[模型压缩介绍](../../../docs/compression.md)。
+
 
 ## Model
 

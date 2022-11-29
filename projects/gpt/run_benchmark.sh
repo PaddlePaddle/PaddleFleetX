@@ -1,6 +1,3 @@
-
-#! /bin/bash
-
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,20 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+# for mp=8(GPT 175b)
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+python -m paddle.distributed.launch --devices "0,1,2,3,4,5,6,7" projects/gpt/benchmark.py --seq_len 128 --iter 10 --mp_degree 8 --model_dir ./output
 
-log_dir=log_hybrid
-rm -rf $log_dir
-
-python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
-    ./tools/train.py \
-    -c ./ppfleetx/configs/nlp/gpt/qat_gpt_345M_mp8.yaml \
-    -o Engine.max_steps=100000 \
-    -o Model.hidden_dropout_prob=0.0 \
-    -o Model.attention_probs_dropout_prob=0.0 \
-    -o Optimizer.lr.decay_steps=72000 \
-    -o Optimizer.weight_decay=0.02 \
-    -o Optimizer.lr.max_lr=5.0e-6 \
-    -o Optimizer.lr.min_lr=1.0e-6 \
-    -o Compress.pretrained='./PaddleFleetX_GPT_345M_220826'
+# for mp=1(GPT 6.7B & GPT 345M)
+export CUDA_VISIBLE_DEVICES=0
+python -m paddle.distributed.launch --devices "0" projects/gpt/benchmark.py --seq_len 128 --iter 10 --mp_degree 1 --model_dir ./output

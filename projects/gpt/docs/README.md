@@ -23,13 +23,15 @@ GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupe
 ├── finetune_gpt_345M_single_card.sh       # 单卡345M模型finetune训练入口
 ├── inference_gpt_345M_single_card.sh      # 单卡345M模型推理入口
 ├── pretrain_gpt_345M_single_card.sh       # 单卡345M模型预训练入口
-├── qat_gpt_345M_mp8.sh                    # 8卡345M模型模型并行量化训练入口
 ├── pretrain_gpt_1.3B_single_card.sh       # 单卡1.3B模型预训练入口
 ├── pretrain_gpt_1.3B_dp8.sh               # 8卡1.3B模型数据并行预训练入口
 ├── pretrain_gpt_6.7B_sharding16.sh        # 16卡6.7B模型分组切片并行预训练入口
-├── qat_gpt_6.7B_sharding16.sh             # 16卡6.7B模型分组切片并行量化训练入口
 ├── pretrain_gpt_175B_mp8_pp16.sh          # 128卡175B模型混合并行预训练入口
-
+├── qat_gpt_345M_single_card.sh            # 单卡345M模型量化训练入口
+├── qat_gpt_345M_mp8.sh                    # 8卡345M模型模型并行量化训练入口
+├── qat_gpt_6.7B_sharding16.sh             # 16卡6.7B模型分组切片并行量化训练入口
+├── eval_qat_gpt_345M_single_card.sh       # 单卡345M量化模型验证入口
+├── export_qat_gpt_345M_single_card.sh     # 单卡345M量化模型导出入口
 ```
 
 ## 快速开始
@@ -283,72 +285,12 @@ GPT训练默认使用AdamW优化器以及cosine学习率衰减，这里通过配
 另外，[Profiler](./hybrid_profiler.md)中还介绍了在 GPT 中开启 Profiler 并分析调试分析结果的方法及相关的参数解释。
 
 
-### 量化训练
-
-```yaml
-Quantization:
-  enable: True
-  pretrained: 
-  weight_quantize_type: 'abs_max'
-  activation_quantize_type: 'moving_average_abs_max'
-  weight_preprocess_type: None
-  activation_preprocess_type: None
-  weight_bits: 8
-  activation_bits: 8
-  quantizable_layer_type: ['Conv2D', 'Linear', 'Conv2DTranspose', 'ColumnParallelLinear', 'RowParallelLinear']
-  onnx_format: True
-```
-
-其中参数说明：
-
-| **参数名**                   | **参数释义**                              |
-|-----------------------------|-----------------------------------------|
-| enable                      | 是否开启量化训练                           |
-| pretrained                  | 预训练模型路径前缀，去掉 ".pdparams"        |
-| weight_quantize_type        | weight量化方法, 默认为`channel_wise_abs_max`, 此外还支持`abs_max` |
-| activation_quantize_type    | activation量化方法, 默认为`moving_average_abs_max`               |
-| weight_preprocess_type      | weight预处理方法，默认为None，代表不进行预处理；当需要使用`PACT`方法时设置为`PACT` |
-| activation_preprocess_type  | activation预处理方法，默认为None，代表不进行预处理                   |
-| weight_bits                 | weight量化比特数, 默认为 8                                        |
-| activation_bits             | activation量化比特数, 默认为 8                                    |
-| quantizable_layer_type      | 需要量化的算子类型                                                |
-
-更详细的量化训练参数介绍可参考[PaddleSlim动态图量化训练接口介绍](https://github.com/PaddlePaddle/PaddleSlim/blob/develop/docs/zh_cn/api_cn/dygraph/quanter/qat.rst)。
-
-# 推理部署
-
-模型训练完成后，可使用飞桨高性能推理引擎Paddle Inference通过如下方式进行推理部署。
-
-## 1. 模型导出
-
-首先将模型导出为用于部署的推理模型，可通过`tools/export.py`进行模型导出，通过`-c`指定需要导出的模型的配置文件，通过`-o Engine.save_load.ckpt_dir=`指定导出模型时使用的权重。
-
-以`GPT-3(345M)`模型为例，通过如下方式下载PaddleFleetX发布的训练好的权重。若你已下载或使用训练过程中的权重，可跳过此步。
-
-```bash
-mkdir -p ckpt
-wget -O ckpt/GPT_345M.tar.gz https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz
-tar -xzf ckpt/GPT_345M.tar.gz -C ckpt/
-```
-
-通过如下方式进行推理模型导出
-
-```bash
-python tools/export.py \
-    -c ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml \
-    -o Engine.save_load.ckpt_dir=./ckpt/PaddleFleetX_GPT_345M_220826/
-```
-
-导出的模型默认保存在`./output`目录，可通过配置文件中`Engine.save_load.output_dir`或通过`-o Engine.save_load.output_dir=`指定
-
+### 模型压缩
+PaddleFleetX 集成了 PaddleSlim 中的常见的压缩方法：量化训练（Qutization Aware Training，QAT）、结构化稀疏（Structured Pruning，SP）和知识蒸馏（Knowledge Distillation，KD）。详细参数介绍见[模型压缩介绍](../../../docs/compression.md)。
 
 ## 2. 推理部署
 
-模型导出后，可通过`tasks/gpt/inference.py`脚本进行推理部署。
-
-```bash
-python tasks/gpt/inference.py -c ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml
-```
+[推理部署](inference.md)
 
 
 ## 参考文献

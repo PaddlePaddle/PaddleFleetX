@@ -21,31 +21,9 @@
 ```
 
 
-### 环境依赖
+### 环境依赖和数据准备
+环境依赖和数据准备请参考[GPT训练文档](./README.md)。
 
-请确保已根据根目录 requirements.txt 安装所需依赖，或者通过以下命令快速安装
-
-```shell
-python -m pip install -r https://raw.githubusercontent.com/PaddlePaddle/PaddleFleetX/develop/requirements.txt -i https://mirror.baidu.com/pypi/simple
-```
-
-### 数据准备
-
-数据获取和制作详见[GPT 模型预训练数据准备流程](https://github.com/PaddlePaddle/PaddleFleetX/tree/develop/ppfleetx/data/data_tools/gpt)
-
-为了方便用户运行测试本模型，此处提供处理好的300M的训练样本，在单卡训练或混合并行训练前都需要通过以下命令获取数据。
-
-**数据下载命令**
-```shell
-cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
-
-# 下载样例数据
-mkdir data && cd data
-wget -O gpt_en_dataset_300m_ids.npy https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_ids.npy
-wget -O gpt_en_dataset_300m_idx.npz https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_idx.npz
-
-cd .. # 回到 PaddleFleetX 根目录下
-```
 
 ### 预训练模型准备
 量化训练需加载[GPT-345M](https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz) 的预训练模型。
@@ -60,6 +38,12 @@ tar xf GPT_345M.tar.gz
 
 - [345M模型单卡训练](../gpt/qat_gpt_345M_single_card.sh)
 
+快速启动：
+```shell
+bash ./projects/gpt/qat_gpt_345M_single_card.sh
+```
+
+或如下启动：
 ```shell
 export CUDA_VISIBLE_DEVICES=0
 
@@ -81,6 +65,12 @@ python ./tools/train.py \
 
 - [345M模型模型并行训练](../gpt/qat_gpt_345M_mp8.sh)
 
+快速启动：
+```shell
+bash ./projects/gpt/qat_gpt_345M_mp8.sh
+```
+
+或如下启动：
 ```shell
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 
@@ -102,6 +92,12 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
 
 - [6.7B模型分组切片并行训练](../gpt/qat_gpt_6.7B_sharding16.sh)
 
+快速启动：
+```shell
+bash ./projects/gpt/qat_gpt_6.7B_sharding16.sh
+```
+
+或如下启动：
 ```shell
 log_dir=log_hybrid
 rm -rf $log_dir
@@ -116,7 +112,7 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
     -o Optimizer.weight_decay=0.02 \
     -o Optimizer.lr.max_lr=5.0e-6 \
     -o Optimizer.lr.min_lr=1.0e-6 \
-    -o Compress.pretrained='./'
+    -o Compress.pretrained='./PaddleFleetX_GPT_6.7B'
 
 ```
 Tips：尽管设置的最大训练轮数为100000轮，但实验经验4000轮即可达到最优效果。
@@ -135,7 +131,7 @@ tar xf GPT_345M_QAT_wo_analysis.tar
 export CUDA_VISIBLE_DEVICES=0
 
 python ./tools/export.py \
-    -c ./ppfleetx/configs/nlp/gpt/export_quantized_gpt_345M_single_card.yaml \
+    -c ./ppfleetx/configs/nlp/gpt/export_qat_gpt_345M_single_card.yaml \
     -o Model.hidden_dropout_prob=0.0 \
     -o Model.attention_probs_dropout_prob=0.0 \
     -o Engine.save_load.ckpt_dir='./GPT_345M_QAT_wo_analysis/'
@@ -158,7 +154,7 @@ tar xf GPT_345M_QAT_w_analysis.tar
 
 export CUDA_VISIBLE_DEVICES=0
 python ./tools/eval.py \
-    -c ./ppfleetx/configs/nlp/gpt/eval_quantized_gpt_345M_single_card.yaml \
+    -c ./ppfleetx/configs/nlp/gpt/eval_qat_gpt_345M_single_card.yaml \
     -o Model.hidden_dropout_prob=0.0 \
     -o Model.attention_probs_dropout_prob=0.0 \
     -o Engine.save_load.ckpt_dir='./GPT_345M_QAT_w_analysis'
@@ -174,7 +170,7 @@ tar xf GPT_345M_QAT_w_analysis.tar
 
 export CUDA_VISIBLE_DEVICES=0
 python ./tools/export.py \
-    -c ./ppfleetx/configs/nlp/gpt/export_quantized_gpt_345M_single_card.yaml \
+    -c ./ppfleetx/configs/nlp/gpt/generation_qat_gpt_345M_single_card.yaml \
     -o Model.hidden_dropout_prob=0.0 \
     -o Model.attention_probs_dropout_prob=0.0 \
     -o Engine.save_load.ckpt_dir='./GPT_345M_QAT_w_analysis/'
