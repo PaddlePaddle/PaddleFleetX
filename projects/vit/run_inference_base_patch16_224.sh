@@ -7,5 +7,5 @@ python tools/export.py \
     -c ppfleetx/configs/vis/vit/ViT_base_patch16_224_inference.yaml \
     -o Engine.save_load.ckpt_dir=./ckpt/
 
-echo "step 3: run GPT inference"
+echo "step 3: run VIT inference"
 python projects/vit/inference.py -c ppfleetx/configs/vis/vit/ViT_base_patch16_224_inference.yaml
