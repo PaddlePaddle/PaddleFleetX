@@ -29,7 +29,7 @@ import custom_setup_ops
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mp_size", default=1, type=int,  help="")
+    parser.add_argument("--mp_degree", default=1, type=int,  help="")
     parser.add_argument("--model_dir", default="output", type=str,  help="model directory")
 
     args = parser.parse_args()

@@ -26,7 +26,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--seq_len", default=128, type=int, required=False, help="seq length of inputs")
     parser.add_argument("--iter", default=100, type=int,  help="run iterations for timing")
-    parser.add_argument("--mp_size", default=1, type=int,  help="")
+    parser.add_argument("--mp_degree", default=1, type=int,  help="")
     parser.add_argument("--model_dir", default="output", type=str,  help="model directory")
 
     args = parser.parse_args()

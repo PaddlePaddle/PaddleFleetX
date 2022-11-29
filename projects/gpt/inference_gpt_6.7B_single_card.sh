@@ -17,4 +17,4 @@
 log_dir=log_mp1
 rm -rf $log_dir
 
-python projects/gpt/inference.py --mp_size 1 --model_dir output
+python projects/gpt/inference.py --mp_degree 1 --model_dir output
