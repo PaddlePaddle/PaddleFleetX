@@ -12,19 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-model_item=ernie
-dp_degree=1
-mp_degree=1
-pp_degree=1
-bs_item=16
-fp_item=fp32
-run_mode=DP1-MP1-PP1
-device_num=N1C1
+# for mp=8(GPT 175b)
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+python -m paddle.distributed.launch --devices "0,1,2,3,4,5,6,7" projects/gpt/benchmark.py --seq_len 128 --iter 10 --mp_degree 8 --model_dir ./output
 
-model=ernie
-micro_bs=${bs_item}
-
-cd ./benchmarks
-bash ./test_tipc/gpt/dygraph/hybrid_parallel/benchmark_common/prepare.sh
-# run
-bash ./test_tipc/gpt/dygraph/hybrid_parallel/benchmark_common/run_benchmark.sh ${model_item} ${fp_item} ${dp_degree} ${mp_degree} ${pp_degree} ${micro_bs} ${bs_item} ${run_mode} ${device_num} 2>&1;
+# for mp=1(GPT 6.7B & GPT 345M)
+export CUDA_VISIBLE_DEVICES=0
+python -m paddle.distributed.launch --devices "0" projects/gpt/benchmark.py --seq_len 128 --iter 10 --mp_degree 1 --model_dir ./output
