@@ -48,7 +48,7 @@
 
 | 模型规模 | 训练策略                 | yaml文件                   |
 |----------|---------------------------|------------------------------|
-| 345M     | fp16+mp8+qat              | pretrain_gpt_345M_mp8_qat.yaml |
+| 345M     | fp16+mp8+qat              | qat_gpt_345M_mp8.yaml    |
 | 1.3B     | fp16+dp8+recompute        | pretrain_gpt_1.3B_dp8.yaml   |
 | 6.7B     | fp16+sharding16+recompute | pretrain_gpt_6.7B_sharding16.yaml  |
 | 175B     | fp16+mp8+pp16+recompute   | pretrain_gpt_175B_mp8_pp16.yaml   |
