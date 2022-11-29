@@ -174,9 +174,7 @@ class EagerEngine(BasicEngine):
 
         self._distill_mode = True if 'Distillation' in configs['Compress'] and configs['Compress'][
             'Distillation']['enable'] else False
-
-        if self._distill_mode is True and paddle.distributed.get_rank() == 0 :
-            self.teacher_ckpt_dir = self._module.configs['Compress']['Distillation']['Teacher']['save_load']['ckpt_dir']
+        self._distill_student_update = self._distill_mode is False or (self._distill_mode is True and paddle.distributed.get_rank() == 1)
 
         if self._use_pure_fp16:
             if mode == 'train':
@@ -209,6 +207,7 @@ class EagerEngine(BasicEngine):
         #teacher and student network respectively. But this case is nothing about 
         #distributed training, so we set self._distributed to False  
         if self._distill_mode is True:
+            self.teacher_ckpt_dir = self._module.configs['Compress']['Distillation']['Teacher']['save_load']['ckpt_dir']
             self._ckpt_dir = self._compress_configs['pretrained']
             self._distributed = False
             self.load()
@@ -371,12 +370,11 @@ class EagerEngine(BasicEngine):
                     }
                     self._module.validation_step_end(log_dict)
                     
-                    if self._distill_mode and paddle.distributed.get_rank() == 1:
+                    if self._distill_student_update:
                         self._module.model.train()
 
                 if self._save_steps > 0 and step % self._save_steps == 0:
-                    if self._distill_mode is False or (self._distill_mode is True  
-                        and paddle.distributed.get_rank() == 1):
+                    if  self._distill_student_update:
                         device_synchronize()
 
                     self.save(epoch=epoch_index, step=step)
@@ -403,8 +401,7 @@ class EagerEngine(BasicEngine):
 
         """
 
-        if self._distill_mode is False or (self._distill_mode is True  
-            and paddle.distributed.get_rank() == 1):
+        if self._distill_student_update:
             self._module.model.train()
         else:
             self._module.model.eval()
@@ -480,8 +477,7 @@ class EagerEngine(BasicEngine):
                 loss = self._module.model.forward_backward_pipeline(
                     batch, self._scaler)
 
-        if self._distill_mode is False or (self._distill_mode is True  
-            and paddle.distributed.get_rank() == 1):
+        if self._distill_student_update:
             self._optim_update_params()
 
         return loss
@@ -506,7 +502,7 @@ class EagerEngine(BasicEngine):
                     level='O2'):
                 loss = self._module.training_step(micro_batch)
 
-            if self._distill_mode is False or (self._distill_mode is True and paddle.distributed.get_rank() == 1):
+            if self._distill_student_update:
                 loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
             
             if self._accumulate_steps > 1:
@@ -519,7 +515,7 @@ class EagerEngine(BasicEngine):
             if self._distributed and self._sharding_stage == 2:
                 self._module.backward(loss_bw / self._sharding_group.nranks)
             else:
-                if self._distill_mode is False or (self._distill_mode is True and paddle.distributed.get_rank() == 1):
+                if self._distill_student_update:
                     self._module.backward(loss_bw)
 
             detach_loss = loss.detach()
@@ -689,7 +685,6 @@ class EagerEngine(BasicEngine):
             logger.info("DP_Rank %d doesn't save model" % self._dp_rank)
             return
         
-        
         if self._distill_mode is True and paddle.distributed.get_rank() == 0:
             return
 
@@ -757,10 +752,8 @@ class EagerEngine(BasicEngine):
                 self._ckpt_dir, self._mp_rank, self._sharding_rank,
                 self._pp_rank) if self._distributed else self._ckpt_dir
             model_path = os.path.join(load_dir, "model.pdparams")
-            
-            if self._distill_mode is False:
-                opt_path = os.path.join(load_dir, "model_state.pdopt")
-                meta_path = os.path.join(load_dir, "meta_state.pdopt")
+            opt_path = os.path.join(load_dir, "model_state.pdopt")
+            meta_path = os.path.join(load_dir, "meta_state.pdopt")
 
             if os.path.exists(model_path):
                 model_dict = paddle.load(model_path)
