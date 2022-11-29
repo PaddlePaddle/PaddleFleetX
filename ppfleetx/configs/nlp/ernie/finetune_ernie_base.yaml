@@ -92,8 +92,8 @@ Optimizer:
     name: CosineAnnealingWithWarmupDecay
     decay_steps: 990000
     warmup_rate: 0.01
-    max_lr: 0.0001
-    min_lr: 5e-05
+    max_lr: 5e-05
+    min_lr: 1e-05
   grad_clip:
     name: "ClipGradByGlobalNorm"
     clip_norm: 1.0
