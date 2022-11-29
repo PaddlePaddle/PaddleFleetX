@@ -1,3 +1,6 @@
+
+#! /bin/bash
+
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,11 +15,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import paddle
-
-
-def version_check():
-    version = paddle.version.full_version
-    if version != '0.0.0':
-        paddle.utils.require_version(min_version='2.3.0')
-
+export CUDA_VISIBLE_DEVICES=0
+python tools/train.py -c ppfleetx/configs/nlp/ernie/finetune_ernie_345M_single_card.yaml
