@@ -59,8 +59,8 @@ def process_dist_config(configs):
 
     distill_mode = False
     if 'Compress' in configs:
-        distill_mode = True if 'Distillation' in configs['Compress'] and configs['Compress'][
-                'Distillation']['enable']
+        if 'Distillation' in configs['Compress'] and configs['Compress']['Distillation']['enable']:
+            distill_mode = True
 
     if distill_mode is True:
         os.environ["DISTILL_MODE"] = '1'
