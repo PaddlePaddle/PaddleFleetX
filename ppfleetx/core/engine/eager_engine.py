@@ -27,6 +27,7 @@ from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 from paddle.profiler import SummaryView
 
+import paddleslim
 from ppfleetx.distributed.apis import env, sharding
 from ppfleetx.optims import build_lr_scheduler, build_optimizer
 from ppfleetx.utils.log import logger, get_timestamp, convert_timestamp_to_data
@@ -141,6 +142,18 @@ class EagerEngine(BasicEngine):
         self._output_dir = self._configs['save_load']['output_dir']
         self._ckpt_dir = self._configs['save_load']['ckpt_dir']
 
+        self._compress_configs = None
+        self.quant_configs = None
+        self._quant_mode = False
+        if 'Compress' in configs:
+            infer = False if self.mode != 'inference' else True
+            self.mode = 'compress'
+            self._compress_configs = configs['Compress']
+            if "Quantization" in self._compress_configs:
+                self.quant_configs = self._compress_configs["Quantization"]
+                self._quant_mode = True
+            self.compress_model(infer=infer)
+
         # TODO(haohongxiang): Remove there extra configs after reconstruct of Fleet API
         self._dist_configs = configs['Distributed']
         self._dp_degree = self._dist_configs['dp_degree']
@@ -155,8 +168,6 @@ class EagerEngine(BasicEngine):
         self._broadcast_overlap = sharding_config['broadcast_overlap']
 
         self._use_recompute = configs['Model']['use_recompute']
-        self._quant_mode = True if 'Quantization' in configs and configs[
-            'Quantization']['enable'] else False
 
         if self._use_pure_fp16:
             if mode == 'train':
@@ -242,6 +253,11 @@ class EagerEngine(BasicEngine):
                 self._module.model,
                 comm_group=self._dp_group,
                 src_rank=self._dp_group.ranks[0])
+
+        if self._mp_degree > 1:
+            assert self._sharding_stage == 2, "only support mp + sharding stage2 hybrid parallel now."
+            self._module.model = TensorParallel(
+                self._module.model, self._hcg, strategy=None)
 
         level = "p_g_os" if self._sharding_stage == 3 else "os_g"
         origin_model = self._module.model
@@ -665,6 +681,23 @@ class EagerEngine(BasicEngine):
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
 
+    def _quant_model(self):
+        # Load pretrained model before quantized
+        if 'pretrained' in self._compress_configs and self._compress_configs[
+                'pretrained'] is not None:
+            self._ckpt_dir = self._compress_configs['pretrained']
+            self.load()
+            # Avoid load again
+            self._configs['save_load']['ckpt_dir'] = None
+
+        self.quanter = paddleslim.dygraph.quant.QAT(config=self.quant_configs)
+        self._module.model = self.quanter.quantize(self._module.model)
+
+    def compress_model(self, infer=False):
+        if self._compress_configs is None: return
+        if self.quant_configs is not None and self.quant_configs.enable:
+            self._quant_model()
+
     def load(self):
         """
         load the saved checkpoint file and update the state dicts of model and optimizer.
@@ -736,7 +769,7 @@ class EagerEngine(BasicEngine):
                 save_dir,
                 'model',
                 export_quant_model=True,
-                quanter=self._module.quanter)
+                quanter=self.quanter)
 
     def inference(self, data):
         if self._inference_engine is None:
