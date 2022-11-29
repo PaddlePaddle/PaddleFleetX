@@ -32,7 +32,7 @@ Data:
       name: ImagenDataset
       input_path: ./data/cc12m_base64.lst
       shuffle: True
-      input_resolusion: 256 
+      input_resolution: 256 
       max_seq_len: 128 
     loader:
       num_workers: 8
