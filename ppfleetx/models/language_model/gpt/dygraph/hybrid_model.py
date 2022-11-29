@@ -174,15 +174,9 @@ class MultiHeadAttention(nn.Layer):
             input_is_parallel=True,
             fuse_matmul_bias=fused_linear)
 
-        self.reshape0 = nn.Reshape(
-            shape=[0, 0, self.num_heads, 3 * self.head_dim])
-        self.reshape1 = nn.Reshape(shape=[0, 0, self.num_heads, self.head_dim])
-        self.reshape2 = nn.Reshape(
-            shape=[0, 0, self.num_heads * self.head_dim])
-
     def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
         mix_layer = self.qkv_proj(query)
-        mix_layer = self.reshape0(mix_layer)
+        mix_layer = paddle.reshape_(mix_layer, [0, 0, -1, 3 * self.head_dim])
         if self.sequence_parallel:
             mix_layer = paddle.transpose(mix_layer, [1, 2, 0, 3])
         else:
@@ -210,7 +204,7 @@ class MultiHeadAttention(nn.Layer):
 
         """
         q = self.q_proj(query)
-        q = self.reshape1(q)
+        q = tensor.reshape(x=q, shape=[0, 0, -1, self.head_dim])
         if self.sequence_parallel:
             q = tensor.transpose(x=q, perm=[1, 2, 0, 3])
         else:
@@ -245,12 +239,12 @@ class MultiHeadAttention(nn.Layer):
         """
         k = self.k_proj(key)
         v = self.v_proj(value)
-        k = self.reshape1(k)
+        k = tensor.reshape(x=k, shape=[0, 0, -1, self.head_dim])
         if self.sequence_parallel:
             k = tensor.transpose(x=k, perm=[1, 2, 0, 3])
         else:
             k = tensor.transpose(x=k, perm=[0, 2, 1, 3])
-        v = self.reshape1(v)
+        v = tensor.reshape(x=v, shape=[0, 0, -1, self.head_dim])
         if self.sequence_parallel:
             v = tensor.transpose(x=v, perm=[1, 2, 0, 3])
         else:
@@ -310,7 +304,7 @@ class MultiHeadAttention(nn.Layer):
             out = tensor.transpose(out, perm=[0, 2, 1, 3])
         # If sequence_parallel is true, out shape is [s, b, h] after reshape
         # else out shape is [b, s, h]
-        out = self.reshape2(out)
+        out = tensor.reshape(x=out, shape=[0, 0, -1])
 
         return out, weights
 
