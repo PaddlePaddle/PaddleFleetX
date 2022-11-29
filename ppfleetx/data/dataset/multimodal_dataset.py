@@ -98,7 +98,7 @@ class ImagenDataset(Dataset):
                  input_path,
                  input_format='embed_base64_cc12m',
                  shuffle=False,
-                 input_resolusion=64,
+                 input_resolution=64,
                  second_size=256,
                  max_seq_len=128,
                  filter_image_resolution=128,
@@ -109,7 +109,7 @@ class ImagenDataset(Dataset):
         self.filename = get_files(
             input_path, gpu_num=device_world_size, shuffle=shuffle)
         self.filter_image_resolution = filter_image_resolution
-        self.input_resolusion = input_resolusion
+        self.input_resolution = input_resolution
         self.max_seq_len = max_seq_len
         self.split = split
         if not isinstance(self.filename, list):
@@ -170,7 +170,7 @@ class ImagenDataset(Dataset):
         text_embed = self.load_file(data_dir, data[1])
         attn_mask = self.load_file(data_dir, data[2])
         image = self.base64_to_image(data[3])
-        image = data_augmentation_for_imagen(image, self.input_resolusion)
+        image = data_augmentation_for_imagen(image, self.input_resolution)
 
         return image, paddle.to_tensor(
             text_embed, dtype='float32'), paddle.to_tensor(
