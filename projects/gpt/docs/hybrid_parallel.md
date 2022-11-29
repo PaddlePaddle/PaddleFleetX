@@ -10,39 +10,6 @@
 
 - [分组切片并行](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/guides/06_distributed_training/group_sharded_parallel_cn.html)
 
-
-## 参数释义
-
-### 并行维度
-
-当前GPT模型已适配3D混合并行，并能够在训练超大模型，用户可以通过配置文件选择并行的维度。
-
-```yaml
-  Distributed:
-    dp_degree: 2
-    mp_degree: 2
-    pp_degree: 2
-    sharding:
-      sharding_degree: 1
-      sharding_stage: 1
-      sharding_offload: False
-      reduce_overlap: False
-      broadcast_overlap: False
-```
-
-其中参数说明：
-
-| **参数名**          | **参数释义**                             |
-|------------------|--------------------------------------|
-| dp_degree        | 数据并行维度                               |
-| mp_degree        | 张量模型并行维度                             |
-| pp_degree        | 流水线并行维度                              |
-| sharding_degree  | 分组切分并行维度                             |
-| sharding_stage   | 切分策略；1表示仅切分优化器状态，2表示再切分梯度，3表示再切分前向参数 |
-| sharding_offload | CPU offload策略                        |
-|reduce_overlap| 是否在sharding stage 2的模式下进行reduce通讯与反向计算的overlap，该策略暂时不支持sharding_offload|
-|broadcast_overlap| 是否在sharding stage 2的模式下进行broadcast通讯与下一个batch的 前向计算的overlap，该策略暂时不支持sharding_offload。若使用该模型，在evaluation与save之前，必须调用 `paddle.device.cuda.synchronize()` 方法|
-
 ## 运行方式
 本目录中按照345M、1.3B、6.7B和175B规模大小，给出32G V100环境下GPT模型混合并行训练的策略配置如下：
 
@@ -265,66 +232,4 @@ I think that we are going to become a very important player in the logistics ind
 
     print(f'Prompt: {input_text}')
     print(f'Generation: {result[0]}')
-```
-
-### 模型导出与预测部署
-
-#### 模型导出
-
-如果需要进行模型预测部署，需要先导出用于线上部署的预测模型，可通过如下命令进行模型导出：
-
-1. 下载预训练模型权重，如你已下载，可跳过此步
-
-```shell
-cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
-
-mkdir -p ckpt
-wget -O ckpt/GPT_345M.tar.gz https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz
-tar -xzf ckpt/GPT_345M.tar.gz -C ckpt/
-```
-
-2. 导出预测模型
-
-```bash
-python -m paddle.distributed.launch --devices "0" tools/export.py \
-    -c ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml \
-    -o Engine.save_load.ckpt_dir=./ckpt/PaddleFleetX_GPT_345M_220826/
-```
-
-导出的模型默认保存在`./output`目录，可通过配置文件中`Engine.save_load.output_dir`或通过`-o Engine.save_load.output_dir=`指定
-
-导出脚本输出如下：
-
-```bash
-[2022-09-21 05:25:28,662] [    INFO] - disable use_pure_fp16 in export mode
-[2022-09-21 05:25:28,662] [    INFO] - export inference model saved in ./output/rank_0
-```
-
-#### 预测部署
-
-模型导出后，可以使用Paddle Inference高性能推理引擎完成模型的预测部署，可通过如下脚本和命令进行模型预测：
-
-```bash
-python -m paddle.distributed.launch --devices "0" \
-    tasks/gpt/inference.py \
-    -c ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml
-```
-
-`tasks/gpt/inference.py`模型从配置文件中`Inference.model_dir`中读取导出的预测模型，可通过`-o Inference.model_dir=`指定预测模型所在目录，默认为`./output`
-
-预测脚本输出如下：
-
-```bash
-Prompt: Hi, GPT2. Tell me who Jack Ma is.
-Generation: Hi, GPT2. Tell me who Jack Ma is. I don’t want to hear that.”
-
-For now, the only question the crowd is asking is whether or not Jack Ma will step down from the board of directors of Alibaba.
-
-Jack Ma on why he never wanted to run for President in 2016:
-
-There were two reasons. One is that I wanted to spend more time with my family. I thought it was better to spend more time with my family and spend more time with my children. So it was a very personal reason. But the second reason was that I thought it would be difficult to get elected, because there are a lot of political interests in this country. So I thought it was better to spend more time with my family.
-
-On how Alibaba will evolve into a new player in China’s transportation and logistics sector:
-
-I think that we are going to become a very important player in the logistics industry. So our strategy is to make it easy for people to travel.
 ```
