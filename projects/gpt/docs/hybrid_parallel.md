@@ -10,6 +10,39 @@
 
 - [分组切片并行](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/guides/06_distributed_training/group_sharded_parallel_cn.html)
 
+
+## 参数释义
+
+### 并行维度
+
+当前GPT模型已适配3D混合并行，并能够在训练超大模型，用户可以通过配置文件选择并行的维度。
+
+```yaml
+  Distributed:
+    dp_degree: 2
+    mp_degree: 2
+    pp_degree: 2
+    sharding:
+      sharding_degree: 1
+      sharding_stage: 1
+      sharding_offload: False
+      reduce_overlap: False
+      broadcast_overlap: False
+```
+
+其中参数说明：
+
+| **参数名**          | **参数释义**                             |
+|------------------|--------------------------------------|
+| dp_degree        | 数据并行维度                               |
+| mp_degree        | 张量模型并行维度                             |
+| pp_degree        | 流水线并行维度                              |
+| sharding_degree  | 分组切分并行维度                             |
+| sharding_stage   | 切分策略；1表示仅切分优化器状态，2表示再切分梯度，3表示再切分前向参数 |
+| sharding_offload | CPU offload策略                        |
+|reduce_overlap| 是否在sharding stage 2的模式下进行reduce通讯与反向计算的overlap，该策略暂时不支持sharding_offload|
+|broadcast_overlap| 是否在sharding stage 2的模式下进行broadcast通讯与下一个batch的 前向计算的overlap，该策略暂时不支持sharding_offload。若使用该模型，在evaluation与save之前，必须调用 `paddle.device.cuda.synchronize()` 方法|
+
 ## 运行方式
 本目录中按照345M、1.3B、6.7B和175B规模大小，给出32G V100环境下GPT模型混合并行训练的策略配置如下：
 
