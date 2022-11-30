@@ -56,7 +56,6 @@ def export_inference_model(
                                           static_model.forward.main_program,
                                           static_model.forward.outputs)
 
-    print(pruned_input_spec)
     if export_quant_model:
         quanter.save_quantized_model(
             model,
