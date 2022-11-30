@@ -89,7 +89,8 @@ class MultiHeadAttention(nn.Layer):
                  fused_linear=False,
                  use_recompute=False,
                  recompute_granularity="full",
-                 do_recompute=True):
+                 do_recompute=True,
+                 skip_quant_tensors=[]):
         super(MultiHeadAttention, self).__init__()
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
@@ -112,6 +113,8 @@ class MultiHeadAttention(nn.Layer):
             assert self.vdim == embed_dim
             self.qkv_proj = Linear(
                 embed_dim, 3 * embed_dim, weight_attr, bias_attr=bias_attr)
+            if 'qkv_proj' in skip_quant_tensors:
+                self.qkv_proj.skip_quant = True
         else:
             self.q_proj = Linear(
                 embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
@@ -119,8 +122,17 @@ class MultiHeadAttention(nn.Layer):
                 self.kdim, embed_dim, weight_attr, bias_attr=bias_attr)
             self.v_proj = Linear(
                 self.vdim, embed_dim, weight_attr, bias_attr=bias_attr)
+            if 'q_proj' in skip_quant_tensors:
+                self.q_proj.skip_quant = True
+            if 'k_proj' in skip_quant_tensors:
+                self.k_proj.skip_quant = True
+            if 'v_proj' in skip_quant_tensors:
+                self.v_proj.skip_quant = True
+
         self.out_proj = Linear(
             embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
+        if 'out_proj' in skip_quant_tensors:
+            self.out_proj.skip_quant = True
 
     def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
         mix_layer = self.qkv_proj(query)
@@ -392,7 +404,8 @@ class TransformerDecoderLayer(nn.Layer):
                  moe_configs=None,
                  use_recompute=False,
                  recompute_granularity="full",
-                 do_recompute=True):
+                 do_recompute=True,
+                 skip_quant_tensors=[]):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
@@ -428,7 +441,8 @@ class TransformerDecoderLayer(nn.Layer):
             fuse_attn_qkv=fuse_attn_qkv,
             use_recompute=use_recompute,
             recompute_granularity=recompute_granularity,
-            do_recompute=do_recompute)
+            do_recompute=do_recompute,
+            skip_quant_tensors=skip_quant_tensors)
 
         if self.expert_mode:
             experts_list = nn.LayerList([
@@ -453,6 +467,12 @@ class TransformerDecoderLayer(nn.Layer):
                 d_model,
                 weight_attrs[2],
                 bias_attr=bias_attrs[2])
+
+            if 'linear1' in skip_quant_tensors:
+                self.linear1.skip_quant = True
+
+            if 'linear2' in skip_quant_tensors:
+                self.linear2.skip_quant = True
 
         self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
@@ -563,7 +583,8 @@ class GPTModel(nn.Layer):
                  fuse_attn_qkv=False,
                  recompute_granularity="full",
                  sequence_parallel=False,
-                 no_recompute_layers=None):
+                 no_recompute_layers=None,
+                 skip_tensor_map=[]):
 
         super(GPTModel, self).__init__()
 
@@ -597,7 +618,9 @@ class GPTModel(nn.Layer):
                     moe_configs=moe_configs,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
-                    do_recompute=i not in no_recompute_layers))
+                    do_recompute=i not in no_recompute_layers,
+                    skip_quant_tensors=skip_tensor_map.get('block_{}'.format(
+                        i), [])))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
@@ -625,8 +648,7 @@ class GPTModel(nn.Layer):
                 dtype=input_ids.dtype)
             position_ids = position_ids.unsqueeze(0)
             # .expand_as(input_ids)
-            position_ids = paddle.expand_as(position_ids,
-                                                         input_ids)
+            position_ids = paddle.expand_as(position_ids, input_ids)
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
 

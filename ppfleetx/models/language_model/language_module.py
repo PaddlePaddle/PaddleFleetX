@@ -129,6 +129,10 @@ class GPTModule(LanguageModule):
 
     def get_model(self):
         model_setting = copy.deepcopy(self.configs.Model)
+        if 'Compress' in self.configs and 'Quantization' in self.configs.Compress:
+            quant_setting = copy.deepcopy(self.configs.Compress.Quantization)
+            skip_tensor_map = quant_setting.get('skip_tensor_map', [])
+            model_setting['skip_tensor_map'] = skip_tensor_map
         model_setting.pop("module")
 
         l = model_setting['num_layers']
