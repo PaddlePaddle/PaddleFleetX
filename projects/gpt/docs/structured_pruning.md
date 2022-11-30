@@ -65,7 +65,7 @@ python ./tools/eval.py \
     -c ./ppfleetx/configs/nlp/gpt/eval_pruned_gpt_345M_single_card.yaml \
     -o Model.hidden_dropout_prob=0.0 \
     -o Model.attention_probs_dropout_prob=0.0 \
-    -o Engine.save_load.ckpt_dir='./output'
+    -o Engine.save_load.ckpt_dir='./output' \
     -o Offline_Eval.eval_path=./lambada_test.jsonl \
     -o Offline_Eval.cloze_eval=True
 ```
