@@ -26,6 +26,8 @@ Learnt by ERNIE：[mask] [mask] [mask] 是黑龙江的省会，国际 [mask] [ma
 ├── docs
 │   └── inference.md
 │   └── README.md
+├── auto_export_ernie_345M_mp1.sh           # 345M ernie-base模型，自动切分单卡导出
+├── auto_export_ernie_345M_mp2.sh           # 345M ernie-base模型，自动切分多卡导出
 ├── export_ernie_345M_single_card.sh        # 345M ernie-base模型，单卡导出
 ├── finetune_ernie_345M_single_card.sh      # 345M ernie-base模型，单卡finetune训练
 ├── inference.py                            # ernie推理代码

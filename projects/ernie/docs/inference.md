@@ -9,7 +9,12 @@
 
 导出单卡`ERNIE(345M)`模型：
 ```bash
-sh projects/ernie/export_ernie_345M_single_card.sh
+sh projects/ernie/auto_export_ernie_345M_mp1.sh
+```
+
+导出多卡`ERNIE(345M)`模型：
+```bash
+sh projects/ernie/auto_export_ernie_345M_mp2.sh
 ```
 
 ## 2. 推理部署
