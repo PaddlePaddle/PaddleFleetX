@@ -22,7 +22,7 @@
 
 
 ### 环境依赖和数据准备
-环境依赖和数据准备请参考[GPT训练文档](./README.md)。
+环境依赖和数据准备请参考[GPT文档](./README.md)。
 
 
 ### 预训练模型准备
@@ -36,7 +36,7 @@ tar xf GPT_345M.tar.gz
 
 ### 量化训练
 
-- [345M模型单卡训练](../gpt/qat_gpt_345M_single_card.sh)
+- [345M模型单卡训练](../qat_gpt_345M_single_card.sh)
 
 快速启动：
 ```shell
@@ -63,7 +63,7 @@ python ./tools/train.py \
     
 ```
 
-- [345M模型模型并行训练](../gpt/qat_gpt_345M_mp8.sh)
+- [345M模型模型并行训练](../qat_gpt_345M_mp8.sh)
 
 快速启动：
 ```shell
@@ -90,7 +90,7 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
     -o Compress.pretrained='./PaddleFleetX_GPT_345M_220826'
 ```
 
-- [6.7B模型分组切片并行训练](../gpt/qat_gpt_6.7B_sharding16.sh)
+- [6.7B模型分组切片并行训练](../qat_gpt_6.7B_sharding16.sh)
 
 快速启动：
 ```shell
