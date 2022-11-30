@@ -45,6 +45,7 @@ Compress:
     activation_bits: 8
     quantizable_layer_type: ['Linear', 'ColumnParallelLinear', 'RowParallelLinear']
     onnx_format: True
+    freeze_embedding: True
     skip_tensor_map: 
       block_3: ['linear2']
       block_5: ['linear1']
