@@ -73,12 +73,20 @@ cd .. # 回到 PaddleFleetX 根目录下
 
 - [自动并行训练](./auto_parallel.md)
 
-### 文本生成
+### 文本生成体验
 
 - [单卡预训练模型文本生成](./single_card.md#GPT-Zero-shot-文本生成)
 
 - [混合并行预训练模型文本生成](./hybrid_parallel.md#GPT-Zero-shot-文本生成)
 
+
+### 模型压缩
+
+- [量化训练](./quantization_aware_training.md)
+
+### 推理部署
+
+- [推理部署](inference.md)
 ### GLUE 下游任务微调
 
 - [单卡微调](./single_finetune.md)
@@ -284,13 +292,8 @@ GPT训练默认使用AdamW优化器以及cosine学习率衰减，这里通过配
 
 另外，[Profiler](./hybrid_profiler.md)中还介绍了在 GPT 中开启 Profiler 并分析调试分析结果的方法及相关的参数解释。
 
-
 ### 模型压缩
 PaddleFleetX 集成了 PaddleSlim 中的常见的压缩方法：量化训练（Qutization Aware Training，QAT）、结构化稀疏（Structured Pruning，SP）和知识蒸馏（Knowledge Distillation，KD）。详细参数介绍见[模型压缩介绍](../../../docs/compression.md)。
-
-## 2. 推理部署
-
-[推理部署](inference.md)
 
 
 ## 参考文献
