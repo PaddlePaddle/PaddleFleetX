@@ -1,8 +1,8 @@
 _base_: ./pretrain_gpt_base.yaml
 
 Global:
-  global_batch_size: 4
-  local_batch_size: 4
+  global_batch_size: 8
+  local_batch_size: 8
   micro_batch_size: 1
 
 
@@ -24,7 +24,7 @@ Model:
 
 Distributed:
   dp_degree:
-  mp_degree: 4
+  mp_degree: 8
   pp_degree: 1
   sharding:
     sharding_degree: 1
