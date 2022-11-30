@@ -65,12 +65,6 @@ function _train(){
     fi
     mkdir $OUTPUT_PATH
 
-    # if [ ${model_item} = "gpt3_moe" ];then
-    #     static_scripts="../examples/language_model/gpt-moe/dygraph/"
-    # else
-    #     echo "not supported model item: ${model_item}"; exit 1;
-    # fi
-
     echo "current CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}, model_name=${model_name}, device_num=${device_num}, is profiling=${profiling}"
 
     if [ ${profiling} = "true" ];then
@@ -81,19 +75,12 @@ function _train(){
         log_file=${train_log_file}
     fi
 
-    if [ $fp_item = "fp16" ]; then
-        use_fp16_cmd="--use_amp true"
-    fi
-
-    # data_path="./data/"
-
-    use_pure_fp16=False
-
     local_batch_size=`expr ${global_batch_size} / ${dp_degree} / ${sharding_degree}`
     num_attention_heads=16 #"gpt2-medium-en"
     if [ ${mp_degree} -lt 8 -a ${pp_degree} -lt 8 ]; then num_attention_heads=4; fi #"gpt2-small-en"
     num_layers=24 #"gpt2-medium-en"
     if [ ${mp_degree} -lt 8 -a ${pp_degree} -lt 8 ]; then num_layers=4; fi #"gpt2-small-en"
+    use_pure_fp16=False
     if [ "fp16" = ${fp_item} ]; then use_pure_fp16=True; fi
     train_cmd="-o Engine.max_steps=${max_iter} \
                -o Engine.eval_iters=${eval_freq} \
@@ -107,12 +94,17 @@ function _train(){
                -o Distributed.sharding.broadcast_overlap=False \
                -o Optimizer.tensor_fusion=False "
 
-
+    if [ ${PADDLE_TRAINER_ID} ]
+    then
+        PADDLE_RANK_OPTION=" --rank ${PADDLE_TRAINER_ID}"
+    else
+        PADDLE_RANK_OPTION=""
+    fi
     # 以下为通用执行命令，无特殊可不用修改
     if [ "N1C2" = ${device_num} ]; then
         # sharding case
         echo "run run_mode: DP1-MP1-PP1 device_num: N1C2"
-        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1 \
+        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1 ${PADDLE_RANK_OPTION}\
               tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
               ${train_cmd}" 
         workerlog_id=0
@@ -120,19 +112,19 @@ function _train(){
         # hybrid_parallelism case
         case ${run_mode} in
         DP1-MP1-PP1) echo "run run_mode: DP1-MP1-PP1"
-            train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0 \
+            train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0 ${PADDLE_RANK_OPTION}\
                 tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
                 ${train_cmd}"
             workerlog_id=0
             ;;
         DP1-MP8-PP1) echo "run run_mode: ${run_mode}"
-            train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 \
+            train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 ${PADDLE_RANK_OPTION}\
                 tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
                 ${train_cmd}"
             workerlog_id=0
             ;;
         DP2-MP8-PP2) echo "run run_mode: ${run_mode}"
-            train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 \
+            train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 ${PADDLE_RANK_OPTION}\
                 tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_6.7B_sharding16.yaml \
                 ${train_cmd}"
             workerlog_id=0
