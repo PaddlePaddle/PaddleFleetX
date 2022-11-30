@@ -17,4 +17,6 @@
 log_dir=log_mp1
 rm -rf $log_dir
 
-python -m paddle.distributed.launch --log_dir=$log_dir  projects/gpt/inference.py --mp_degree 1 --model_dir output
+python -m paddle.distributed.launch --log_dir $log_dir --devices "0" \
+    ./tools/auto_export.py \
+    -c ./ppfleetx/configs/nlp/gpt/auto/generation_gpt_6.7B_mp1.yaml
