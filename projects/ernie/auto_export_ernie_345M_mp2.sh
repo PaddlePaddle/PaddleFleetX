@@ -1,3 +1,4 @@
+
 #! /bin/bash
 
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
@@ -14,5 +15,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-export CUDA_VISIBLE_DEVICES=0
-python3 tools/train.py -c ppfleetx/configs/multimodal/imagen/imagen_super_resolusion_1024.yaml -o Data.Train.loader.num_workers=0
+
+log_dir=log_auto
+rm -rf $log_dir
+
+# 345M mp2 export
+python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1" \
+    ./tools/auto_export.py \
+    -c ./ppfleetx/configs/nlp/ernie/auto/finetune_ernie_345M_single_card.yaml \
+    -o Distributed.mp_degree=2 \

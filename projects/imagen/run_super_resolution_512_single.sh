@@ -1,3 +1,5 @@
+#! /bin/bash
+
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,9 +14,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-unset CUDA_VISIBLE_DEVICES
-
-python -u -m paddle.distributed.fleet.launch \
-    --gpus "0" \
-    --log_dir "log" \
-    projects/ernie/inference.py --model_dir "./output" --mp_degree 1
+export CUDA_VISIBLE_DEVICES=0
+python3 tools/train.py -c ppfleetx/configs/multimodal/imagen/imagen_super_resolution_512.yaml -o Data.Train.loader.num_workers=8
