@@ -7,7 +7,7 @@ Global:
 
 
 Model:
-  name: imagen_SR1024
+  name: imagen_SR512
   text_encoder_name: t5/t5-11b
   text_embed_dim: 1024 
   timesteps: 1000 
@@ -32,7 +32,7 @@ Data:
       name: ImagenDataset
       input_path: ./data/cc12m_base64.lst
       shuffle: True
-      input_resolusion: 1024 
+      input_resolution: 512 
       max_seq_len: 128 
     loader:
       num_workers: 8
