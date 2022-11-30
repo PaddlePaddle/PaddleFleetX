@@ -35,6 +35,10 @@ from ppfleetx.data import build_dataloader, tokenizers
 from ppfleetx.models import build_module
 from ppfleetx.core import EagerEngine
 
+def softmax(x):
+    exp_x = np.exp(x)
+    return exp_x/np.sum(exp_x)
+
 def preprocess(img_path):
         """preprocess
         Preprocess to the input.
@@ -80,6 +84,9 @@ if __name__ == "__main__":
     config.print_config(cfg)
     engine = EagerEngine(configs=cfg,module=module, mode='inference')
     outs = engine.inference([img])
-    print(outs['linear_99.tmp_1'])
+    res = softmax(outs['linear_99.tmp_1'])
+    max_index = np.argmax(res, axis=-1)
+    print("类型: ", max_index[0],)
+    print("概率: ", res[0][max_index[0]])
 
     
