@@ -18,7 +18,7 @@ sh projects/ernie/export_ernie_345M_single_card.sh
 
 `ERNIE(345M)` 推理
 ```bash
-bash run_inference.sh
+bash projects/ernie/run_inference.sh
 ```
 
 ## 3. Benchmark
