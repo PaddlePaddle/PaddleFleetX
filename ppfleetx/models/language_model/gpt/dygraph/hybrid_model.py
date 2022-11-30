@@ -39,6 +39,7 @@ from ppfleetx.distributed.moe import MoELayer
 from ppfleetx.distributed.apis import env
 from ppfleetx.utils.log import logger
 
+
 def get_attr(layer, name):
     if getattr(layer, name, None) is not None:
         return getattr(layer, name, None)
@@ -478,7 +479,8 @@ class TransformerDecoderLayer(nn.Layer):
                  use_recompute=False,
                  recompute_granularity="full",
                  sequence_parallel=False,
-                 do_recompute=True):
+                 do_recompute=True,
+                 skip_quant_tensors=[]):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
@@ -561,6 +563,12 @@ class TransformerDecoderLayer(nn.Layer):
                 has_bias=True,
                 fuse_matmul_bias=fused_linear)
 
+            if 'linear1' in skip_quant_tensors:
+                self.linear1.skip_quant = True
+
+            if 'linear2' in skip_quant_tensors:
+                self.linear2.skip_quant = True
+
         self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
         if self.sequence_parallel:
@@ -637,7 +645,8 @@ class GPTEmbeddings(nn.Layer):
                  max_position_embeddings=512,
                  type_vocab_size=16,
                  initializer_range=0.02,
-                 sequence_parallel=False):
+                 sequence_parallel=False,
+                 freeze_embedding=False):
         super(GPTEmbeddings, self).__init__()
 
         self.sequence_parallel = sequence_parallel
@@ -653,6 +662,10 @@ class GPTEmbeddings(nn.Layer):
             hidden_size,
             weight_attr=paddle.ParamAttr(initializer=nn.initializer.Normal(
                 mean=0.0, std=initializer_range)))
+
+        if freeze_embedding:
+            self.word_embeddings.weight.learning_rate = 0.0
+            self.position_embeddings.weight.learning_rate = 0.0
 
         self.dropout = nn.Dropout(hidden_dropout_prob)
 
@@ -696,7 +709,9 @@ class GPTModelHybrid(nn.Layer):
                  fuse_attn_qkv=False,
                  recompute_granularity="full",
                  sequence_parallel=False,
-                 no_recompute_layers=None):
+                 no_recompute_layers=None,
+                 skip_tensor_map={},
+                 freeze_embedding=False):
 
         super(GPTModelHybrid, self).__init__()
 
@@ -717,7 +732,7 @@ class GPTModelHybrid(nn.Layer):
         self.embeddings = GPTEmbeddings(
             vocab_size, hidden_size, hidden_dropout_prob,
             max_position_embeddings, type_vocab_size, self.initializer_range,
-            sequence_parallel)
+            sequence_parallel, freeze_embedding)
         self.sequence_parallel = sequence_parallel
 
         decoder_layers = nn.LayerList()
@@ -742,7 +757,9 @@ class GPTModelHybrid(nn.Layer):
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
                     sequence_parallel=sequence_parallel,
-                    do_recompute=i not in no_recompute_layers))
+                    do_recompute=i not in no_recompute_layers,
+                    skip_quant_tensors=skip_tensor_map.get('block_{}'.format(
+                        i), [])))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
@@ -771,8 +788,7 @@ class GPTModelHybrid(nn.Layer):
                 dtype=input_ids.dtype)
             position_ids = position_ids.unsqueeze(0)
             # .expand_as(input_ids)
-            position_ids = paddle.expand_as(position_ids,
-                                                         input_ids)
+            position_ids = paddle.expand_as(position_ids, input_ids)
         # if sequence_parallel is true, embedding_output shape is [s/n, b, h]
         # else its shape is [b, s, h], n is mp parallelism
         embedding_output = self.embeddings(
@@ -800,8 +816,8 @@ class GPTModelHybrid(nn.Layer):
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
-            tgt_mask=None if self.training and paddle.is_compiled_with_cuda() else
-            attention_mask,  # use softmax_mask_fuse_upper_triangle
+            tgt_mask=None if self.training and paddle.is_compiled_with_cuda()
+            else attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
 
