@@ -157,6 +157,6 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
 ```
 </details>
 
-## 2. 推理部署
+## 3. 推理部署
 
 [推理部署](inference.md)
