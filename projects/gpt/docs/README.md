@@ -292,36 +292,6 @@ GPT训练默认使用AdamW优化器以及cosine学习率衰减，这里通过配
 
 另外，[Profiler](./hybrid_profiler.md)中还介绍了在 GPT 中开启 Profiler 并分析调试分析结果的方法及相关的参数解释。
 
-### 并行维度
-
-当前GPT模型已适配3D混合并行，并能够在训练超大模型，用户可以通过配置文件选择并行的维度。
-
-```yaml
-  Distributed:
-    dp_degree: 2
-    mp_degree: 2
-    pp_degree: 2
-    sharding:
-      sharding_degree: 1
-      sharding_stage: 1
-      sharding_offload: False
-      reduce_overlap: False
-      broadcast_overlap: False
-```
-
-其中参数说明：
-
-| **参数名**          | **参数释义**                             |
-|------------------|--------------------------------------|
-| dp_degree        | 数据并行维度                               |
-| mp_degree        | 张量模型并行维度                             |
-| pp_degree        | 流水线并行维度                              |
-| sharding_degree  | 分组切分并行维度                             |
-| sharding_stage   | 切分策略；1表示仅切分优化器状态，2表示再切分梯度，3表示再切分前向参数 |
-| sharding_offload | CPU offload策略                        |
-|reduce_overlap| 是否在sharding stage 2的模式下进行reduce通讯与反向计算的overlap，该策略暂时不支持sharding_offload|
-|broadcast_overlap| 是否在sharding stage 2的模式下进行broadcast通讯与下一个batch的 前向计算的overlap，该策略暂时不支持sharding_offload。若使用该模型，在evaluation与save之前，必须调用 `paddle.device.cuda.synchronize()` 方法|
-
 ### 模型压缩
 PaddleFleetX 集成了 PaddleSlim 中的常见的压缩方法：量化训练（Qutization Aware Training，QAT）、结构化稀疏（Structured Pruning，SP）和知识蒸馏（Knowledge Distillation，KD）。详细参数介绍见[模型压缩介绍](../../../docs/compression.md)。
 
