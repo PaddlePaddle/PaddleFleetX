@@ -89,8 +89,7 @@ class MultiHeadAttention(nn.Layer):
                  fused_linear=False,
                  use_recompute=False,
                  recompute_granularity="full",
-                 do_recompute=True,
-                 skip_quant_tensors=[]):
+                 do_recompute=True):
         super(MultiHeadAttention, self).__init__()
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
@@ -113,8 +112,6 @@ class MultiHeadAttention(nn.Layer):
             assert self.vdim == embed_dim
             self.qkv_proj = Linear(
                 embed_dim, 3 * embed_dim, weight_attr, bias_attr=bias_attr)
-            if 'qkv_proj' in skip_quant_tensors:
-                self.qkv_proj.skip_quant = True
         else:
             self.q_proj = Linear(
                 embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
@@ -122,17 +119,9 @@ class MultiHeadAttention(nn.Layer):
                 self.kdim, embed_dim, weight_attr, bias_attr=bias_attr)
             self.v_proj = Linear(
                 self.vdim, embed_dim, weight_attr, bias_attr=bias_attr)
-            if 'q_proj' in skip_quant_tensors:
-                self.q_proj.skip_quant = True
-            if 'k_proj' in skip_quant_tensors:
-                self.k_proj.skip_quant = True
-            if 'v_proj' in skip_quant_tensors:
-                self.v_proj.skip_quant = True
 
         self.out_proj = Linear(
             embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
-        if 'out_proj' in skip_quant_tensors:
-            self.out_proj.skip_quant = True
 
     def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
         mix_layer = self.qkv_proj(query)
@@ -441,8 +430,7 @@ class TransformerDecoderLayer(nn.Layer):
             fuse_attn_qkv=fuse_attn_qkv,
             use_recompute=use_recompute,
             recompute_granularity=recompute_granularity,
-            do_recompute=do_recompute,
-            skip_quant_tensors=skip_quant_tensors)
+            do_recompute=do_recompute)
 
         if self.expert_mode:
             experts_list = nn.LayerList([
