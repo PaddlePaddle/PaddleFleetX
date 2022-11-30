@@ -15,7 +15,4 @@
 export CUDA_VISIBLE_DEVICES=0
 
 python ./tools/export.py \
-    -c ./ppfleetx/configs/nlp/gpt/generation_pruned_gpt_345M_single_card.yaml \
-    -o Model.hidden_dropout_prob=0.0 \
-    -o Model.attention_probs_dropout_prob=0.0 \
-    -o Engine.save_load.ckpt_dir='output/epoch_0_step_1000/'
+    -c ./ppfleetx/configs/nlp/gpt/generation_pruned_gpt_345M_single_card.yaml

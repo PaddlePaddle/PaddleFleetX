@@ -12,12 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-export CUDA_VISIBLE_DEVICES=7
+export CUDA_VISIBLE_DEVICES=0
 
 python ./tools/eval.py \
-    -c ./ppfleetx/configs/nlp/gpt/eval_pruned_gpt_345M_single_card.yaml \
-    -o Model.hidden_dropout_prob=0.0 \
-    -o Model.attention_probs_dropout_prob=0.0 \
-    -o Engine.save_load.ckpt_dir='output/epoch_0_step_1000/' \
-    -o Offline_Eval.eval_path=./lambada_test.jsonl \
-    -o Offline_Eval.cloze_eval=True
+    -c ./ppfleetx/configs/nlp/gpt/eval_pruned_gpt_345M_single_card.yaml

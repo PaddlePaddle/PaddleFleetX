@@ -27,6 +27,11 @@ def get_pruned_params(model):
                                   sublayer, paddle.distributed.fleet.layers.
                                   mpu.mp_layers.RowParallelLinear):
                 if len(param.shape) != 2: continue
+
+                # NOTE(minghaoBD):
+                # 1. param.shape[1] == 3 * param.shape[0]： prune fused-qkv's weight and its next weight: out-linear's weight
+                # 2. param.shape[1] == 4 * param.shape[0]： prune ffn1's weight and its next weight: ffn2's weight
+                # If your model has a different architecture, like your qkv's weights are not fused or ffn1_weight.shape[1] != 4*ffn1_weight.shape[0], you may need to customize this function to suit your model.
                 if param.shape[1] == 3 * param.shape[0] or param.shape[
                         1] == 4 * param.shape[0]:
                     params.append(param.name)
@@ -34,40 +39,33 @@ def get_pruned_params(model):
     return params
 
 
-def prune_model(model, configs, num_attention_heads, infer=False):
+def prune_model(model, configs, inputs_desc=[]):
     prune_criterion = configs.criterion
     ratio = configs.ratio
+    shapes, dtypes = [], []
+    for input_desc in inputs_desc:
+        dtypes.append(input_desc.dtype)
+        new_shape = [10 if item == -1 else item for item in input_desc.shape]
+        shapes.append(new_shape)
+    #TODO(minghaoBD): support ViT and other model architectures in the future
+    num_attention_heads = model.gpt.decoder.layers[0].self_attn.num_heads
 
     if prune_criterion == 'l1_norm':
-        if infer:
-            pruner = paddleslim.dygraph.L1NormFilterPruner(
-                model, [[1, 1024]],
-                skip_leaves=False,
-                prune_type='fc',
-                input_dtype='float32',
-                num_head=num_attention_heads)
-        else:
-            pruner = paddleslim.dygraph.L1NormFilterPruner(
-                model, [[1, 1024]],
-                skip_leaves=False,
-                prune_type='fc',
-                input_dtype='int8',
-                num_head=num_attention_heads)
+        pruner = paddleslim.L1NormFilterPruner(
+            model,
+            shapes,
+            skip_leaves=False,
+            prune_type='fc',
+            input_dtype=dtypes[0],
+            num_head=num_attention_heads)
     elif prune_criterion == 'l2_norm':
-        if infer:
-            pruner = paddleslim.dygraph.L2NormFilterPruner(
-                model, [[1, 1024]],
-                skip_leaves=False,
-                prune_type='fc',
-                input_dtype='float32',
-                num_head=num_attention_heads)
-        else:
-            pruner = paddleslim.dygraph.L2NormFilterPruner(
-                model, [[1, 1024]],
-                skip_leaves=False,
-                prune_type='fc',
-                input_dtype='int8',
-                num_head=num_attention_heads)
+        pruner = paddleslim.L2NormFilterPruner(
+            model,
+            shapes,
+            skip_leaves=False,
+            prune_type='fc',
+            input_dtype=dtypes[0],
+            num_head=num_attention_heads)
     params = get_pruned_params(model)
     ratios = {}
     for param in params:

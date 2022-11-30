@@ -10,7 +10,7 @@ Engine:
     save_steps: 1000
     save_epoch: 1
     output_dir: ./output
-    ckpt_dir: ./PaddleFleetX_GPT_345M_220826
+    ckpt_dir:
 
 Model:
   vocab_size: 50304
@@ -38,13 +38,6 @@ Distributed:
     sharding_offload: False
     comm_overlap: False
 
-Engine:
-  max_steps: 100000
-  save_load:
-    save_steps: 1000
-    save_epoch: 1
-    output_dir: ./output
-    ckpt_dir: ./PaddleFleetX_GPT_345M_220826
 
 Optimizer:
   weight_decay: 0.0
@@ -54,8 +47,9 @@ Optimizer:
     max_lr: 2.5e-5
     min_lr: 5.0e-6
     
+
 Compress:
-  pretrained: ./PaddleFleetX_GPT_345M_220826
+  pretrained:
   Prune:
     enable: True
     criterion: l1_norm

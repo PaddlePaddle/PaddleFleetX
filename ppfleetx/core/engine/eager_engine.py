@@ -146,14 +146,11 @@ class EagerEngine(BasicEngine):
         self._output_dir = self._configs['save_load']['output_dir']
         self._ckpt_dir = self._configs['save_load']['ckpt_dir']
 
-        if 'num_attention_heads' in configs['Model']:
-            self._num_attention_heads = configs['Model']['num_attention_heads']
         self._compress_configs = None
         self.prune_configs = None
         self.quant_configs = None
         self._quant_mode = False
         if 'Compress' in configs:
-            infer = False if self.mode != 'inference' else True
             self.mode = 'compress'
             self._compress_configs = configs['Compress']
             if "Prune" in self._compress_configs:
@@ -161,7 +158,7 @@ class EagerEngine(BasicEngine):
             if "Quantization" in self._compress_configs:
                 self.quant_configs = self._compress_configs["Quantization"]
                 self._quant_mode = True
-            self.compress_model(infer=infer)
+            self.compress_model()
 
         # TODO(haohongxiang): Remove there extra configs after reconstruct of Fleet API
         self._dist_configs = configs['Distributed']
@@ -697,7 +694,7 @@ class EagerEngine(BasicEngine):
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
 
-    def compress_model(self, infer=False):
+    def compress_model(self):
         if self._compress_configs is None: return
         self._distributed = (dist.get_world_size() > 1)
         # Load pretrained model before compression
@@ -709,11 +706,8 @@ class EagerEngine(BasicEngine):
             self._configs['save_load']['ckpt_dir'] = None
 
         if self.prune_configs is not None and self.prune_configs.enable:
-            prune_model(
-                self._module.model,
-                self.prune_configs,
-                self._num_attention_heads,
-                infer=infer)
+            prune_model(self._module.model, self.prune_configs,
+                        self._module.input_spec())
         #NOTE(minghaoBD): We haven't fully tested Prune+Quantization, so an "else if" is put here for separation.
         elif self.quant_configs is not None and self.quant_configs.enable:
             self._module.model, self.quanter = quant_model(self._module.model,
