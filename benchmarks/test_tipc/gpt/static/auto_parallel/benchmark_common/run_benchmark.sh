@@ -65,12 +65,6 @@ function _train(){
     fi
     mkdir $OUTPUT_PATH
 
-    # if [ ${model_item} = "gpt3_moe" ];then
-    #     static_scripts="../examples/language_model/gpt-moe/dygraph/"
-    # else
-    #     echo "not supported model item: ${model_item}"; exit 1;
-    # fi
-
     echo "current CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}, model_name=${model_name}, device_num=${device_num}, is profiling=${profiling}"
 
     if [ ${profiling} = "true" ];then
@@ -81,15 +75,12 @@ function _train(){
         log_file=${train_log_file}
     fi
 
-    # data_path="./data/"
-
-    use_pure_fp16="" # fp32
-
     local_batch_size=`expr ${global_batch_size} / ${dp_degree} / ${sharding_degree}`
     num_attention_heads=16 #"gpt2-medium-en"
     if [ ${mp_degree} -lt 8 -a ${pp_degree} -lt 8 ]; then num_attention_heads=4; fi #"gpt2-small-en"
     num_layers=24 #"gpt2-medium-en"
     if [ ${mp_degree} -lt 8 -a ${pp_degree} -lt 8 ]; then num_layers=4; fi #"gpt2-small-en"
+    use_pure_fp16="" # fp32
     if [ "fp16" = ${fp_item} ]; then use_pure_fp16="o2"; fi
     train_cmd="-o Global.seed=1234 \
                -o Global.local_batch_size=${local_batch_size} \
@@ -113,17 +104,22 @@ function _train(){
                -o Engine.verbose=${verbose} \
                -o Engine.logging_freq=${logging_freq} "
 
-
+    if [ ${PADDLE_TRAINER_ID} ]
+    then
+        PADDLE_RANK_OPTION=" --rank ${PADDLE_TRAINER_ID}"
+    else
+        PADDLE_RANK_OPTION=""
+    fi
     # 以下为通用执行命令，无特殊可不用修改
     case ${run_mode} in
     DP1-MP1-PP1) echo "run run_mode: DP1-MP1-PP1"
-        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0 \
+        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0 ${PADDLE_RANK_OPTION}\
             tools/auto.py -c ppfleetx/configs/nlp/gpt/auto/pretrain_gpt_1.3B_dp8.yaml \
             ${train_cmd}"
         workerlog_id=0
         ;;
     DP2-MP2-PP2) echo "run run_mode: ${run_mode}"
-        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 \
+        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 ${PADDLE_RANK_OPTION}\
             tools/auto.py -c ppfleetx/configs/nlp/gpt/auto/pretrain_gpt_1.3B_dp8.yaml \
             ${train_cmd}"
         workerlog_id_1=4

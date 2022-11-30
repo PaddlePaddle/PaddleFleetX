@@ -20,7 +20,7 @@ import numpy as np
 import paddle
 import paddle.distributed.fleet as fleet
 from ppfleetx.core.engine.inference_engine import InferenceEngine
-import custom_setup_ops
+import ppfleetx_ops
 
 
 def parse_args():

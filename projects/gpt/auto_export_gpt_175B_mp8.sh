@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-log_dir=log_mp1
+log_dir=log_mp8
 rm -rf $log_dir
 
-python -m paddle.distributed.launch --log_dir=$log_dir  projects/gpt/inference.py --mp_degree 1 --model_dir output
+python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
+    ./tools/auto_export.py \
+    -c ./ppfleetx/configs/nlp/gpt/auto/generation_gpt_175B_mp8.yaml

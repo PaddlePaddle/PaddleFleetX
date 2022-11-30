@@ -25,7 +25,7 @@ import paddle
 import paddle.distributed.fleet as fleet
 from ppfleetx.data import build_dataloader, tokenizers
 from ppfleetx.core.engine.inference_engine import InferenceEngine
-import custom_setup_ops
+import ppfleetx_ops
 
 
 def parse_args():
@@ -43,7 +43,7 @@ def main():
     args = parse_args()
 
     fleet.init(is_collective=True)
-    infer_engine = InferenceEngine(args.model_dir, args.mp_size)
+    infer_engine = InferenceEngine(args.model_dir, args.mp_degree)
 
     tokenizer = tokenizers.GPTTokenizer.from_pretrained("gpt2")
     input_text = 'Hi, GPT2. Tell me where is Beijing?'
@@ -51,7 +51,7 @@ def main():
 
     # run test
 
-    outs = infer_engine.inference([input_ids])
+    outs = infer_engine.predict([ids])
 
     ids = list(outs.values())[0]
     out_ids = [int(x) for x in ids[0]]
