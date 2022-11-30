@@ -14,5 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-export CUDA_VISIBLE_DEVICES=0
-python3 tools/train.py -c ppfleetx/configs/multimodal/imagen/imagen_super_resolusion_512.yaml -o Data.Train.loader.num_workers=8
+
+log_dir=log_auto
+rm -rf $log_dir
+
+python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1" \
+    ./tools/auto_export.py \
+    -c ./ppfleetx/configs/nlp/gpt/auto/qat_generation_gpt_345M_mp2.yaml \
+    -o Engine.save_load.output_dir="./mp2_qat_model" \
