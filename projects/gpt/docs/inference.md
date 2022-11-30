@@ -17,7 +17,7 @@ tar -xzf ckpt/GPT_345M.tar.gz -C ckpt/
 `GPT-3(345M)` 模型导出与推理
 导出单卡`GPT-3(345M)`模型：
 ```bash
-sh projects/gpt/auto_export_gpt_345M_mp1.sh
+sh projects/gpt/auto_export_gpt_345M_single_card.sh
 ```
 
 `GPT-3(6.7B)` 模型导出与推理
@@ -47,7 +47,7 @@ bash projects/gpt/inference_gpt_6.7B_single_card.sh
 ## 3. Benchmark
 - 运行benchmark脚本
 ```
-cd ppfleetx && python setup_cuda.py install && cd ..
+cd ppfleetx/ops && python setup_cuda.py install && cd ../..
 bash projects/gpt/run_benchmark.sh
 ```
 
