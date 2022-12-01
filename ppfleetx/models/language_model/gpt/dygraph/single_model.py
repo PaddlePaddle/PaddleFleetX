@@ -119,6 +119,7 @@ class MultiHeadAttention(nn.Layer):
                 self.kdim, embed_dim, weight_attr, bias_attr=bias_attr)
             self.v_proj = Linear(
                 self.vdim, embed_dim, weight_attr, bias_attr=bias_attr)
+
         self.out_proj = Linear(
             embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
 
@@ -392,7 +393,8 @@ class TransformerDecoderLayer(nn.Layer):
                  moe_configs=None,
                  use_recompute=False,
                  recompute_granularity="full",
-                 do_recompute=True):
+                 do_recompute=True,
+                 skip_quant_tensors=[]):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
@@ -453,6 +455,12 @@ class TransformerDecoderLayer(nn.Layer):
                 d_model,
                 weight_attrs[2],
                 bias_attr=bias_attrs[2])
+
+            if 'linear1' in skip_quant_tensors:
+                self.linear1.skip_quant = True
+
+            if 'linear2' in skip_quant_tensors:
+                self.linear2.skip_quant = True
 
         self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
@@ -516,7 +524,8 @@ class GPTEmbeddings(nn.Layer):
                  hidden_dropout_prob=0.1,
                  max_position_embeddings=512,
                  type_vocab_size=16,
-                 initializer_range=0.02):
+                 initializer_range=0.02,
+                 freeze_embedding=False):
         super(GPTEmbeddings, self).__init__()
         self.word_embeddings = nn.Embedding(
             vocab_size,
@@ -529,6 +538,10 @@ class GPTEmbeddings(nn.Layer):
             hidden_size,
             weight_attr=paddle.ParamAttr(initializer=nn.initializer.Normal(
                 mean=0.0, std=initializer_range)))
+
+        if freeze_embedding:
+            self.word_embeddings.weight.learning_rate = 0.0
+            self.position_embeddings.weight.learning_rate = 0.0
 
         self.dropout = nn.Dropout(hidden_dropout_prob)
 
@@ -563,7 +576,9 @@ class GPTModel(nn.Layer):
                  fuse_attn_qkv=False,
                  recompute_granularity="full",
                  sequence_parallel=False,
-                 no_recompute_layers=None):
+                 no_recompute_layers=None,
+                 skip_tensor_map={},
+                 freeze_embedding=False):
 
         super(GPTModel, self).__init__()
 
@@ -575,7 +590,8 @@ class GPTModel(nn.Layer):
 
         self.embeddings = GPTEmbeddings(
             vocab_size, hidden_size, hidden_dropout_prob,
-            max_position_embeddings, type_vocab_size, self.initializer_range)
+            max_position_embeddings, type_vocab_size, self.initializer_range,
+            freeze_embedding)
 
         decoder_layers = nn.LayerList()
         for i in range(num_layers):
@@ -597,7 +613,9 @@ class GPTModel(nn.Layer):
                     moe_configs=moe_configs,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
-                    do_recompute=i not in no_recompute_layers))
+                    do_recompute=i not in no_recompute_layers,
+                    skip_quant_tensors=skip_tensor_map.get('block_{}'.format(
+                        i), [])))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
@@ -625,8 +643,7 @@ class GPTModel(nn.Layer):
                 dtype=input_ids.dtype)
             position_ids = position_ids.unsqueeze(0)
             # .expand_as(input_ids)
-            position_ids = paddle.expand_as(position_ids,
-                                                         input_ids)
+            position_ids = paddle.expand_as(position_ids, input_ids)
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
 
