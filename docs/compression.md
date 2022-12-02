@@ -64,3 +64,23 @@ Compress:
 | onnx_format                 | 是否使用新量化格式，默认为False                                     |
 
 更详细的量化训练参数介绍可参考[PaddleSlim动态图量化训练接口介绍](https://github.com/PaddlePaddle/PaddleSlim/blob/develop/docs/zh_cn/api_cn/dygraph/quanter/qat.rst)。
+
+### **结构化稀疏参数**
+
+```yaml
+Compress:
+  pretrained:
+  Prune:
+    enable: True
+    criterion: l1_norm
+    ratio: 0.125
+```
+
+其中参数说明：
+
+| **参数名**                   | **参数释义**                              |
+|-----------------------------|-----------------------------------------|
+| pretrained                  | 预训练模型的加载目录       |
+| enable                      | 是否开启结构化稀疏训练                           |
+| criterion    | 权重的重要性指标，目前支持l1_norm 和 l2_norm|
+| ratio      | 权重稀疏的比例。例如，0.125的意思是12.5%的权重会被稀疏掉 |
