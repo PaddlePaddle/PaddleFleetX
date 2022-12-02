@@ -686,6 +686,13 @@ class GPTEvalModule(LanguageModule):
 
         logger.info(string)
 
+    def input_spec(self):
+        return [
+            InputSpec(
+                shape=[None, None], name="tokens", dtype='int64'), InputSpec(
+                    shape=[None, None], name="ids", dtype='int64')
+        ]
+
 
 class MoEModule(LanguageModule):
     def __init__(self, configs):
