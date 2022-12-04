@@ -16,12 +16,14 @@ CUDA_MAJOR = $(shell echo $(CUDA_VERSION) | cut -d "." -f 1)
 CUDA_MINOR = $(shell echo $(CUDA_VERSION) | cut -d "." -f 2)
 
 CUDA11_EXCLUDE_GENCODE = -gencode=arch=compute_30,code=sm_30
-CUDA8_GENCODE = -gencode=arch=compute_35,code=sm_35 \
-                -gencode=arch=compute_50,code=sm_50 \
+CUDA12_EXCLUDE_GENCODE = -gencode=arch=compute_35,code=sm_35
+CUDA8_GENCODE = -gencode=arch=compute_50,code=sm_50 \
                 -gencode=arch=compute_52,code=sm_52 \
                 -gencode=arch=compute_60,code=sm_60 \
                 -gencode=arch=compute_61,code=sm_61
 CUDA9_GENCODE = -gencode=arch=compute_70,code=sm_70
+
+CUDA11_8_GENCODE = -gencode=arch=compute_90,code=sm_90
 
 CUDA8_PTX     = -gencode=arch=compute_61,code=compute_61
 CUDA9_PTX     = -gencode=arch=compute_70,code=compute_70
@@ -29,14 +31,18 @@ CUDA10_PTX     = -gencode=arch=compute_75,code=compute_75
 CUDA11_PTX     = -gencode=arch=compute_80,code=compute_80
 
 # Include Volta support if we're using CUDA9 or above
-ifeq ($(shell test "$(CUDA_MAJOR)" -ge 11; echo $$?),0)
-  NVCC_GENCODE ?= $(CUDA8_GENCODE) $(CUDA9_GENCODE) $(CUDA9_PTX) $(CUDA10_PTX) $(CUDA11_PTX)
+ifeq ($(shell test "$(CUDA_MAJOR)" -ge 12; echo $$?)_$(shell test "$(CUDA_MINOR)" -ge 0; echo $$?),0_0)
+  NVCC_GENCODE ?= $(CUDA8_GENCODE) $(CUDA9_GENCODE) $(CUDA11_8_GENCODE) $(CUDA9_PTX) $(CUDA10_PTX) $(CUDA11_PTX)
+else ifeq ($(shell test "$(CUDA_MAJOR)" -ge 11; echo $$?)_$(shell test "$(CUDA_MINOR)" -ge 8; echo $$?),0_0)
+  NVCC_GENCODE ?= $(CUDA8_GENCODE) $(CUDA9_GENCODE) $(CUDA11_8_GENCODE) $(CUDA12_EXCLUDE_GENCODE) $(CUDA9_PTX) $(CUDA10_PTX) $(CUDA11_PTX)
+else ifeq ($(shell test "$(CUDA_MAJOR)" -ge 11; echo $$?),0)
+  NVCC_GENCODE ?= $(CUDA8_GENCODE) $(CUDA9_GENCODE) $(CUDA12_EXCLUDE_GENCODE) $(CUDA9_PTX) $(CUDA10_PTX) $(CUDA11_PTX) 
 else ifeq ($(shell test "$(CUDA_MAJOR)" -ge 10; echo $$?)_$(shell test "$(CUDA_MAJOR)" -lt 11; echo $$?),0_0)
-  NVCC_GENCODE ?= $(CUDA8_GENCODE) $(CUDA11_EXCLUDE_GENCODE) $(CUDA8_PTX) $(CUDA9_PTX) $(CUDA10_PTX)
+  NVCC_GENCODE ?= $(CUDA8_GENCODE) $(CUDA11_EXCLUDE_GENCODE) $(CUDA12_EXCLUDE_GENCODE)  $(CUDA8_PTX) $(CUDA9_PTX) $(CUDA10_PTX)
 else ifeq ($(shell test "$(CUDA_MAJOR)" -ge 9; echo $$?)_$(shell test "$(CUDA_MAJOR)" -lt 10; echo $$?),0_0)
-  NVCC_GENCODE ?= $(CUDA8_GENCODE) $(CUDA11_EXCLUDE_GENCODE) $(CUDA8_PTX) $(CUDA9_PTX)
+  NVCC_GENCODE ?= $(CUDA8_GENCODE) $(CUDA11_EXCLUDE_GENCODE) $(CUDA12_EXCLUDE_GENCODE) $(CUDA8_PTX) $(CUDA9_PTX)
 else ifeq ($(shell test "$(CUDA_MAJOR)" -lt 9; echo $$?),0)
-  NVCC_GENCODE ?= $(CUDA8_GENCODE) $(CUDA11_EXCLUDE_GENCODE) $(CUDA9_GENCODE) 
+  NVCC_GENCODE ?= $(CUDA8_GENCODE) $(CUDA11_EXCLUDE_GENCODE) $(CUDA9_GENCODE) $(CUDA12_EXCLUDE_GENCODE)
 endif
 
 NVCUFLAGS := -ccbin $(CC) $(NVCC_GENCODE) $(INCLUDEFLAGS) -std=c++11 --compiler-options '-fPIC -fvisibility=hidden'
