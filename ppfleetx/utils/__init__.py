@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .patches_for_multi_device import rocm_matmul
+from .patches_for_multi_device import *
