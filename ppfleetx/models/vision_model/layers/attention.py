@@ -54,7 +54,7 @@ class ViTAttention(nn.Layer):
         attn = nn.functional.softmax(attn, axis=-1)
         attn = self.attn_drop(attn)
 
-        x = (attn.matmul(v)).transpose((0, 2, 1, 3)).reshape((-1, N, C))
+        x = (paddle.matmul(attn, v)).transpose((0, 2, 1, 3)).reshape((-1, N, C))
         x = self.proj(x)
         x = self.proj_drop(x)
         return x
