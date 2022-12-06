@@ -295,7 +295,7 @@ class MultiHeadAttention(nn.Layer):
                     training=self.training,
                     mode="upscale_in_train")
 
-        out = tensor.matmul(weights, v)
+        out = paddle.matmul(weights, v)
 
         # combine heads
         if self.sequence_parallel:
