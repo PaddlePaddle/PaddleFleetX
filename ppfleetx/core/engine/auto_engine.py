@@ -143,6 +143,12 @@ class AutoEngine(BasicEngine):
         self._auto_engine.prepare(self._module.input_spec(), mode="predict")
         self.save(training=False)
 
+    def tune(self, tune_dataset=None):
+        self._auto_engine._tune(
+            tune_dataset,
+            tune_sample_split=tune_dataset.sample_split,
+            batch_size=self.batch_size)
+
     def save(self, training=True):
         if self._output_dir and isinstance(self._output_dir, str):
             path = os.path.join(self._output_dir, "auto")
