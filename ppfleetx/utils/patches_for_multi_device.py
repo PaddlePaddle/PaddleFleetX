@@ -7,7 +7,7 @@ if paddle.is_compiled_with_rocm():
     # TODO: fix the bug in matmul kernel
     def rocm_matmul(x, y, *args, **kwargs):
         if  (x.dtype != paddle.float16 and y.dtype != paddle.float16) or \
-            len(x.shape) < 3 or \
+            len(x.shape) < 3 or len(y.shape) < 3 or \
             np.prod(x.shape[:-2]) == 1:
             return _matmul(x, y, *args, **kwargs)
 
