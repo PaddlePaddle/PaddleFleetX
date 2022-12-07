@@ -434,7 +434,7 @@ class MultiHeadAttention(Layer):
                 training=self.training,
                 mode="upscale_in_train")
 
-        out = tensor.matmul(weights, v)
+        out = paddle.matmul(weights, v)
 
         # combine heads
         out = tensor.transpose(out, perm=[0, 2, 1, 3])
