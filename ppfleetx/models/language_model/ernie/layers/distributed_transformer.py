@@ -440,9 +440,8 @@ class MultiHeadAttention(Layer):
             q, k, v, cache = self._prepare_qkv(query, key, value, cache)
 
         # scale dot product attention
-        tmp_x = q * (self.head_dim**-0.5)
         product = paddle.matmul(
-            x= tmp_x, y=k, transpose_y=True)
+            x=q * (self.head_dim**-0.5), y=k, transpose_y=True)
 
         if attn_mask is not None:
             # Support bool or int mask
