@@ -278,8 +278,8 @@ class MultiHeadAttention(nn.Layer):
 
     def core_attn(self, q, k, v, attn_mask=None):
         # scale dot product attention
-        product = layers.matmul(
-            x=q, y=k, transpose_y=True, alpha=self.head_dim**-0.5)
+        product = paddle.matmul(
+            x=q, y=k, transpose_y=True) * self.head_dim**-0.5
 
         if attn_mask is not None:
             product = product + attn_mask

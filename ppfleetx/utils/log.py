@@ -27,7 +27,6 @@ import colorlog
 from colorama import Fore
 
 import paddle
-from .device import get_device, synchronize
 
 loggers = {}
 
@@ -178,7 +177,7 @@ def advertise():
         "=={}==".format(website.center(AD_LEN)),
         "=" * (AD_LEN + 4), ))
 
-
+from .device import synchronize
 def get_timestamp():
     if synchronize():
         return time.time()
