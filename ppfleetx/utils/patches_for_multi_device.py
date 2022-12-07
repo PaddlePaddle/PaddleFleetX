@@ -20,10 +20,11 @@ if paddle.is_compiled_with_rocm():
         out_ = paddle.reshape(out_, x.shape[:-2]+out_.shape[-2:])
         return out_
 
-        if not paddle.matmul == rocm_matmul:
-            _matmul = paddle.matmul
-        setattr(paddle, "matmul", rocm_matmul)
-        __all__ += [ "rocm_matmul" ]
+    if not paddle.matmul == rocm_matmul:
+        _matmul = paddle.matmul
+    setattr(paddle, "matmul", rocm_matmul)
+    __all__ += [ "rocm_matmul" ]
+
 
 if paddle.is_compiled_with_xpu():
     pass
