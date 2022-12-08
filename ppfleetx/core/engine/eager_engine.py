@@ -39,6 +39,7 @@ from ppfleetx.utils.version import version_check
 from ppfleetx.utils.export import export_inference_model
 from paddle.incubate.distributed.utils.io import save_for_auto_inference
 from ppfleetx.utils.device import synchronize as device_synchronize
+from ppfleetx.utils.compression_helper import prune_model, quant_model
 
 
 class EagerEngine(BasicEngine):
@@ -146,16 +147,18 @@ class EagerEngine(BasicEngine):
         self._ckpt_dir = self._configs['save_load']['ckpt_dir']
 
         self._compress_configs = None
+        self.prune_configs = None
         self.quant_configs = None
         self._quant_mode = False
         if 'Compress' in configs:
-            infer = False if self.mode != 'inference' else True
             self.mode = 'compress'
             self._compress_configs = configs['Compress']
+            if "Prune" in self._compress_configs:
+                self.prune_configs = self._compress_configs["Prune"]
             if "Quantization" in self._compress_configs:
                 self.quant_configs = self._compress_configs["Quantization"]
                 self._quant_mode = True
-            self.compress_model(infer=infer)
+            self.compress_model()
 
         # TODO(haohongxiang): Remove there extra configs after reconstruct of Fleet API
         self._dist_configs = configs['Distributed']
@@ -184,10 +187,12 @@ class EagerEngine(BasicEngine):
         else:
             self._scaler = None
 
-        self._lr_scheduler_mode = configs.Optimizer.lr.pop('run_mode', 'step')
-        assert self._lr_scheduler_mode in [
-            'epoch', 'step'
-        ], 'lr.run_mode must be epoch or step'
+        if mode == 'train':
+            self._lr_scheduler_mode = configs.Optimizer.lr.pop('run_mode',
+                                                               'step')
+            assert self._lr_scheduler_mode in [
+                'epoch', 'step'
+            ], 'lr.run_mode must be epoch or step'
         self._lr_scheduler = build_lr_scheduler(
             configs.Optimizer.lr) if mode == 'train' else None
 
@@ -689,22 +694,24 @@ class EagerEngine(BasicEngine):
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
 
-    def _quant_model(self):
-        # Load pretrained model before quantized
+    def compress_model(self):
+        if self._compress_configs is None: return
+        self._distributed = (dist.get_world_size() > 1)
+        # Load pretrained model before compression
         if 'pretrained' in self._compress_configs and self._compress_configs[
                 'pretrained'] is not None:
             self._ckpt_dir = self._compress_configs['pretrained']
             self.load()
-            # Avoid load again
+            # Avoid loading again
             self._configs['save_load']['ckpt_dir'] = None
 
-        self.quanter = paddleslim.dygraph.quant.QAT(config=self.quant_configs)
-        self._module.model = self.quanter.quantize(self._module.model)
-
-    def compress_model(self, infer=False):
-        if self._compress_configs is None: return
-        if self.quant_configs is not None and self.quant_configs.enable:
-            self._quant_model()
+        if self.prune_configs is not None and self.prune_configs.enable:
+            prune_model(self._module.model, self.prune_configs,
+                        self._module.input_spec())
+        #NOTE(minghaoBD): We haven't fully tested Prune+Quantization, so an "else if" is put here for separation.
+        elif self.quant_configs is not None and self.quant_configs.enable:
+            self._module.model, self.quanter = quant_model(self._module.model,
+                                                           self.quant_configs)
 
     def load(self):
         """

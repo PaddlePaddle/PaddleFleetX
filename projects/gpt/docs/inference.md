@@ -71,7 +71,7 @@ bash projects/gpt/inference_gpt_single_card.sh
 ## 3. Benchmark
 - 运行benchmark脚本
 ```
-cd ppfleetx && python setup_cuda.py install && cd ..
+cd ppfleetx/ops && python setup_cuda.py install && cd ../..
 bash projects/gpt/run_benchmark.sh
 ```
 

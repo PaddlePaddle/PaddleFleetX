@@ -24,14 +24,19 @@ Learnt by ERNIE：[mask] [mask] [mask] 是黑龙江的省会，国际 [mask] [ma
 ```text
 .
 ├── docs
+│   └── inference.md
 │   └── README.md
+├── auto_export_ernie_345M_mp1.sh           # 345M ernie-base模型，自动切分单卡导出
+├── auto_export_ernie_345M_mp2.sh           # 345M ernie-base模型，自动切分多卡导出
 ├── export_ernie_345M_single_card.sh        # 345M ernie-base模型，单卡导出
 ├── finetune_ernie_345M_single_card.sh      # 345M ernie-base模型，单卡finetune训练
+├── inference.py                            # ernie推理代码
 ├── pretrain_ernie_base_175B_mp8_pp16.sh    # 175B ernie-base模型，3D混合并行
 ├── pretrain_ernie_base_3D.sh               # ci测试
 ├── pretrain_ernie_base_6.7B_sharding16.sh  # 6.7B ernie-base模型，sharding16
 ├── pretrain_ernie_base.sh                  # 345M ernie-base模型，单卡
-└── pretrain_ernie_large.sh                 # ernie-large模型，单卡     
+└── pretrain_ernie_large.sh                 # ernie-large模型，单卡  
+└── run_inference.sh                        # ernie推理运行脚本    
 ```
 
 
@@ -150,3 +155,8 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
     -c ./ppfleetx/configs/nlp/ernie/finetune_ernie_345M_single_card.yaml \
     -o Model.use_recompute=True
 ```
+</details>
+
+## 3. 推理部署
+
+[推理部署](inference.md)
