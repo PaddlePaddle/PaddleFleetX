@@ -19,14 +19,16 @@ import paddle.distributed.fleet as fleet
 from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 from paddle.distributed.fleet.meta_parallel import TensorParallel
+from paddle.distributed.sharding import group_sharded_parallel
 
-from ppfleetx.distributed.apis import env, sharding
+from ppfleetx.distributed.apis import env
 from ppfleetx.utils.tensor_fusion_helper import all_reduce_parameters
 
 
 def wrap_with_fleet(dist_config, model, optimizer=None, scaler=None):
     if dist_config.sharding.sharding_stage in [2, 3]:
-        assert dist_config.pp_degree == 1, "sharding stage2/3 will support pipeline parallel later"
+        assert dist_config.pp_degree == 1, \
+            "sharding stage2/3 will support pipeline parallel later"
         return wrap_sharding_2_3(dist_config, model, optimizer, scaler)
     else:
         return wrap_3D_parallel(dist_config, model, optimizer, scaler)
@@ -47,7 +49,7 @@ def wrap_sharding_2_3(dist_config, model, optimizer=None, scaler=None):
 
     level = "p_g_os" if dist_config.sharding.sharding_stage == 3 else "os_g"
     origin_model = model
-    model, optimizer, scaler = sharding.sharding_wrapper(
+    model, optimizer, scaler = group_sharded_parallel(
         model=model,
         optimizer=optimizer,
         level=level,
