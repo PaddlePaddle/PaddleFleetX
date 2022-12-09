@@ -25,6 +25,7 @@ Engine:
     save_epoch: 1
     output_dir: ./output
     ckpt_dir:
+    load_rng_state: True
 
 
 Model:
