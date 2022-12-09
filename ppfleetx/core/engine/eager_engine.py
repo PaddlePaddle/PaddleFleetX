@@ -145,7 +145,7 @@ class EagerEngine(BasicEngine):
 
         self._output_dir = self._configs['save_load']['output_dir']
         self._ckpt_dir = self._configs['save_load']['ckpt_dir']
-        self._load_rng_state = self._configs['save_load']["load_rng_state"]
+        self._load_rng_state = self._configs['save_load'].get("load_rng_state", True)
 
         self._compress_configs = None
         self.prune_configs = None
