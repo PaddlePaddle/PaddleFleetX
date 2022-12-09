@@ -1,4 +1,5 @@
 import paddle
+from .log import logger
 
 def get_device_and_mapping():
     """
@@ -28,10 +29,11 @@ def synchronize():
     """
     Synchronize device, return True if succeeded, otherwise return False
     """
-    if paddle.is_compiled_with_cuda():
+    device = paddle.get_device().split(":")[0]
+    if device in [ "gpu", "rocm"]:
         paddle.device.cuda.synchronize()
         return True
-    elif paddle.is_compiled_with_xpu():
+    elif device == "xpu":
         paddle.device.xpu.synchronize()
         return True
     else:
