@@ -15,7 +15,6 @@
 import paddle
 import paddle.nn as nn
 import paddle.nn.functional as F
-from paddle.fluid import layers
 from .initializer import xavier_uniform_, zeros_
 
 
@@ -50,7 +49,7 @@ class ViTAttention(nn.Layer):
                                    self.num_heads)).transpose((2, 0, 3, 1, 4))
         q, k, v = qkv[0], qkv[1], qkv[2]
 
-        attn = paddle.matmul(q, k, transpose_y=True) * self.scale
+        attn = (q.matmul(k.transpose((0, 1, 3, 2)))) * self.scale
         attn = nn.functional.softmax(attn, axis=-1)
         attn = self.attn_drop(attn)
 
