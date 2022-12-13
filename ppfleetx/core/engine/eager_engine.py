@@ -28,6 +28,7 @@ from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_
 from paddle.profiler import SummaryView
 from paddle.distributed.fleet.meta_parallel import TensorParallel
 
+import paddleslim
 from ppfleetx.distributed.apis import env, sharding
 from ppfleetx.optims import build_lr_scheduler, build_optimizer
 from ppfleetx.utils.log import logger, get_timestamp, convert_timestamp_to_data
@@ -38,6 +39,7 @@ from ppfleetx.utils.version import version_check
 from ppfleetx.utils.export import export_inference_model
 from paddle.incubate.distributed.utils.io import save_for_auto_inference
 from ppfleetx.utils.device import synchronize as device_synchronize
+from ppfleetx.utils.compression_helper import prune_model, quant_model
 
 
 class EagerEngine(BasicEngine):
@@ -144,6 +146,20 @@ class EagerEngine(BasicEngine):
         self._output_dir = self._configs['save_load']['output_dir']
         self._ckpt_dir = self._configs['save_load']['ckpt_dir']
 
+        self._compress_configs = None
+        self.prune_configs = None
+        self.quant_configs = None
+        self._quant_mode = False
+        if 'Compress' in configs:
+            self.mode = 'compress'
+            self._compress_configs = configs['Compress']
+            if "Prune" in self._compress_configs:
+                self.prune_configs = self._compress_configs["Prune"]
+            if "Quantization" in self._compress_configs:
+                self.quant_configs = self._compress_configs["Quantization"]
+                self._quant_mode = True
+            self.compress_model()
+
         # TODO(haohongxiang): Remove there extra configs after reconstruct of Fleet API
         self._dist_configs = configs['Distributed']
         self._dp_degree = self._dist_configs['dp_degree']
@@ -158,8 +174,6 @@ class EagerEngine(BasicEngine):
         self._broadcast_overlap = sharding_config['broadcast_overlap']
 
         self._use_recompute = configs['Model']['use_recompute']
-        self._quant_mode = True if 'Quantization' in configs and configs[
-            'Quantization']['enable'] else False
 
         if self._use_pure_fp16:
             if mode == 'train':
@@ -173,10 +187,12 @@ class EagerEngine(BasicEngine):
         else:
             self._scaler = None
 
-        self._lr_scheduler_mode = configs.Optimizer.lr.pop('run_mode', 'step')
-        assert self._lr_scheduler_mode in [
-            'epoch', 'step'
-        ], 'lr.run_mode must be epoch or step'
+        if mode == 'train':
+            self._lr_scheduler_mode = configs.Optimizer.lr.pop('run_mode',
+                                                               'step')
+            assert self._lr_scheduler_mode in [
+                'epoch', 'step'
+            ], 'lr.run_mode must be epoch or step'
         self._lr_scheduler = build_lr_scheduler(
             configs.Optimizer.lr) if mode == 'train' else None
 
@@ -248,7 +264,8 @@ class EagerEngine(BasicEngine):
 
         if self._mp_degree > 1:
             assert self._sharding_stage == 2, "only support mp + sharding stage2 hybrid parallel now."
-            self._module.model =  TensorParallel(self._module.model, self._hcg, strategy=None)
+            self._module.model = TensorParallel(
+                self._module.model, self._hcg, strategy=None)
 
         level = "p_g_os" if self._sharding_stage == 3 else "os_g"
         origin_model = self._module.model
@@ -677,6 +694,25 @@ class EagerEngine(BasicEngine):
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
 
+    def compress_model(self):
+        if self._compress_configs is None: return
+        self._distributed = (dist.get_world_size() > 1)
+        # Load pretrained model before compression
+        if 'pretrained' in self._compress_configs and self._compress_configs[
+                'pretrained'] is not None:
+            self._ckpt_dir = self._compress_configs['pretrained']
+            self.load()
+            # Avoid loading again
+            self._configs['save_load']['ckpt_dir'] = None
+
+        if self.prune_configs is not None and self.prune_configs.enable:
+            prune_model(self._module.model, self.prune_configs,
+                        self._module.input_spec())
+        #NOTE(minghaoBD): We haven't fully tested Prune+Quantization, so an "else if" is put here for separation.
+        elif self.quant_configs is not None and self.quant_configs.enable:
+            self._module.model, self.quanter = quant_model(self._module.model,
+                                                           self.quant_configs)
+
     def load(self):
         """
         load the saved checkpoint file and update the state dicts of model and optimizer.
@@ -748,7 +784,7 @@ class EagerEngine(BasicEngine):
                 save_dir,
                 'model',
                 export_quant_model=True,
-                quanter=self._module.quanter)
+                quanter=self.quanter)
 
     def inference(self, data):
         if self._inference_engine is None:

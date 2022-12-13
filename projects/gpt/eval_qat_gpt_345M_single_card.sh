@@ -1,3 +1,4 @@
+
 #! /bin/bash
 
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
@@ -14,5 +15,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 export CUDA_VISIBLE_DEVICES=0
-python3 tools/train.py -c ppfleetx/configs/multimodal/imagen/imagen_super_resolusion_512.yaml -o Data.Train.loader.num_workers=8
+
+python ./tools/eval.py \
+    -c ./ppfleetx/configs/nlp/gpt/eval_qat_gpt_345M_single_card.yaml \
+    -o Model.hidden_dropout_prob=0.0 \
+    -o Model.attention_probs_dropout_prob=0.0 \
+    -o Engine.save_load.ckpt_dir='./GPT_345M_QAT_w_analysis/'
+    -o Offline_Eval.eval_path=./lambada_test.jsonl \
+    -o Offline_Eval.cloze_eval=True 

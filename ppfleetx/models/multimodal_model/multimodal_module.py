@@ -21,7 +21,6 @@ from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.multimodal_model.imagen as imagen
 from ppfleetx.utils.log import logger
 
-import paddleslim
 from .utils import process_configs
 
 
@@ -82,11 +81,6 @@ class MultiModalModule(BasicModule):
             "[test] epoch: %d, batch: %d, loss: %.9f, avg_test_cost: %.5f sec, speed: %.2f step/s"
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
                1. / speed, speed))
-
-    def qat_model(self):
-        quanter = paddleslim.dygraph.quant.QAT(
-            config=self.configs.Quantization)
-        self.model = quanter.quantize(self.model)
 
     def input_spec(self):
         return [

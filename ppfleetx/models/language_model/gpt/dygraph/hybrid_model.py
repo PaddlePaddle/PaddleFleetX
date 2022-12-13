@@ -39,6 +39,7 @@ from ppfleetx.distributed.moe import MoELayer
 from ppfleetx.distributed.apis import env
 from ppfleetx.utils.log import logger
 
+
 def get_attr(layer, name):
     if getattr(layer, name, None) is not None:
         return getattr(layer, name, None)
@@ -175,8 +176,7 @@ class MultiHeadAttention(nn.Layer):
 
     def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
         mix_layer = self.qkv_proj(query)
-        mix_layer = paddle.reshape_(mix_layer,
-                                    [0, 0, self.num_heads, 3 * self.head_dim])
+        mix_layer = paddle.reshape_(mix_layer, [0, 0, -1, 3 * self.head_dim])
         if self.sequence_parallel:
             mix_layer = paddle.transpose(mix_layer, [1, 2, 0, 3])
         else:
@@ -204,7 +204,7 @@ class MultiHeadAttention(nn.Layer):
 
         """
         q = self.q_proj(query)
-        q = tensor.reshape(x=q, shape=[0, 0, self.num_heads, self.head_dim])
+        q = tensor.reshape(x=q, shape=[0, 0, -1, self.head_dim])
         if self.sequence_parallel:
             q = tensor.transpose(x=q, perm=[1, 2, 0, 3])
         else:
@@ -239,12 +239,12 @@ class MultiHeadAttention(nn.Layer):
         """
         k = self.k_proj(key)
         v = self.v_proj(value)
-        k = tensor.reshape(x=k, shape=[0, 0, self.num_heads, self.head_dim])
+        k = tensor.reshape(x=k, shape=[0, 0, -1, self.head_dim])
         if self.sequence_parallel:
             k = tensor.transpose(x=k, perm=[1, 2, 0, 3])
         else:
             k = tensor.transpose(x=k, perm=[0, 2, 1, 3])
-        v = tensor.reshape(x=v, shape=[0, 0, self.num_heads, self.head_dim])
+        v = tensor.reshape(x=v, shape=[0, 0, -1, self.head_dim])
         if self.sequence_parallel:
             v = tensor.transpose(x=v, perm=[1, 2, 0, 3])
         else:
@@ -278,8 +278,8 @@ class MultiHeadAttention(nn.Layer):
 
     def core_attn(self, q, k, v, attn_mask=None):
         # scale dot product attention
-        product = layers.matmul(
-            x=q, y=k, transpose_y=True, alpha=self.head_dim**-0.5)
+        product = paddle.matmul(
+            x=q, y=k, transpose_y=True) * self.head_dim**-0.5
 
         if attn_mask is not None:
             product = product + attn_mask
@@ -295,7 +295,7 @@ class MultiHeadAttention(nn.Layer):
                     training=self.training,
                     mode="upscale_in_train")
 
-        out = tensor.matmul(weights, v)
+        out = paddle.matmul(weights, v)
 
         # combine heads
         if self.sequence_parallel:
@@ -304,7 +304,7 @@ class MultiHeadAttention(nn.Layer):
             out = tensor.transpose(out, perm=[0, 2, 1, 3])
         # If sequence_parallel is true, out shape is [s, b, h] after reshape
         # else out shape is [b, s, h]
-        out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
+        out = tensor.reshape(x=out, shape=[0, 0, -1])
 
         return out, weights
 
@@ -478,7 +478,8 @@ class TransformerDecoderLayer(nn.Layer):
                  use_recompute=False,
                  recompute_granularity="full",
                  sequence_parallel=False,
-                 do_recompute=True):
+                 do_recompute=True,
+                 skip_quant_tensors=[]):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
@@ -561,6 +562,12 @@ class TransformerDecoderLayer(nn.Layer):
                 has_bias=True,
                 fuse_matmul_bias=fused_linear)
 
+            if 'linear1' in skip_quant_tensors:
+                self.linear1.skip_quant = True
+
+            if 'linear2' in skip_quant_tensors:
+                self.linear2.skip_quant = True
+
         self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
         if self.sequence_parallel:
@@ -637,7 +644,8 @@ class GPTEmbeddings(nn.Layer):
                  max_position_embeddings=512,
                  type_vocab_size=16,
                  initializer_range=0.02,
-                 sequence_parallel=False):
+                 sequence_parallel=False,
+                 freeze_embedding=False):
         super(GPTEmbeddings, self).__init__()
 
         self.sequence_parallel = sequence_parallel
@@ -653,6 +661,10 @@ class GPTEmbeddings(nn.Layer):
             hidden_size,
             weight_attr=paddle.ParamAttr(initializer=nn.initializer.Normal(
                 mean=0.0, std=initializer_range)))
+
+        if freeze_embedding:
+            self.word_embeddings.weight.learning_rate = 0.0
+            self.position_embeddings.weight.learning_rate = 0.0
 
         self.dropout = nn.Dropout(hidden_dropout_prob)
 
@@ -696,7 +708,9 @@ class GPTModelHybrid(nn.Layer):
                  fuse_attn_qkv=False,
                  recompute_granularity="full",
                  sequence_parallel=False,
-                 no_recompute_layers=None):
+                 no_recompute_layers=None,
+                 skip_tensor_map={},
+                 freeze_embedding=False):
 
         super(GPTModelHybrid, self).__init__()
 
@@ -717,7 +731,7 @@ class GPTModelHybrid(nn.Layer):
         self.embeddings = GPTEmbeddings(
             vocab_size, hidden_size, hidden_dropout_prob,
             max_position_embeddings, type_vocab_size, self.initializer_range,
-            sequence_parallel)
+            sequence_parallel, freeze_embedding)
         self.sequence_parallel = sequence_parallel
 
         decoder_layers = nn.LayerList()
@@ -742,7 +756,9 @@ class GPTModelHybrid(nn.Layer):
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
                     sequence_parallel=sequence_parallel,
-                    do_recompute=i not in no_recompute_layers))
+                    do_recompute=i not in no_recompute_layers,
+                    skip_quant_tensors=skip_tensor_map.get('block_{}'.format(
+                        i), [])))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
@@ -771,8 +787,7 @@ class GPTModelHybrid(nn.Layer):
                 dtype=input_ids.dtype)
             position_ids = position_ids.unsqueeze(0)
             # .expand_as(input_ids)
-            position_ids = paddle.expand_as(position_ids,
-                                                         input_ids)
+            position_ids = paddle.expand_as(position_ids, input_ids)
         # if sequence_parallel is true, embedding_output shape is [s/n, b, h]
         # else its shape is [b, s, h], n is mp parallelism
         embedding_output = self.embeddings(
@@ -800,8 +815,8 @@ class GPTModelHybrid(nn.Layer):
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
-            tgt_mask=None if self.training and paddle.is_compiled_with_cuda() else
-            attention_mask,  # use softmax_mask_fuse_upper_triangle
+            tgt_mask=None if self.training and paddle.is_compiled_with_cuda()
+            else attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
 

@@ -13,3 +13,4 @@
 # limitations under the License.
 
 from .ernie_module import ErnieModule, ErnieSeqClsModule
+from .auto.auto_module import ErnieModuleAuto, ErnieSeqClsModuleAuto

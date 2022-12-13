@@ -480,7 +480,7 @@ class ErnieLMPredictionHead(nn.Layer):
         hidden_states = self.layer_norm(hidden_states)
         # hidden_states = parallel_matmul(hidden_states, self.decoder_weight, True) + self.decoder_bias
 
-        hidden_states = paddle.tensor.matmul(
+        hidden_states = paddle.matmul(
             hidden_states, self.decoder_weight,
             transpose_y=True) + self.decoder_bias
 

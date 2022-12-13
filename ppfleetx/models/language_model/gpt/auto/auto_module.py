@@ -28,7 +28,7 @@ from paddle import LazyGuard
 from paddle.static import InputSpec
 from paddle.distributed.fleet import auto
 
-from .auto_utils import process_configs
+from ...auto_utils import process_configs
 
 import ppfleetx.models.language_model.gpt as gpt
 from ppfleetx.utils.log import logger
