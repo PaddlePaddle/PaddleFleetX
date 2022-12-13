@@ -58,11 +58,14 @@ def wrap_sharding_2_3(dist_config, model, optimizer=None, scaler=None):
         offload=dist_config.sharding.sharding_offload,
         dp_group=dp_group if dp_group.nranks > 1 else None)
 
-    model._set_reduce_overlap(dist_config.sharding.reduce_overlap)
-    optimizer._set_broadcast_overlap(
-        dist_config.sharding.broadcast_overlap,
-        layers=origin_model,
-        num_groups=2)
+    if dist_config.sharding.reduce_overlap:
+        model._set_reduce_overlap(dist_config.sharding.reduce_overlap)
+
+    if dist_config.sharding.broadcast_overlap:
+        optimizer._set_broadcast_overlap(
+            dist_config.sharding.broadcast_overlap,
+            layers=origin_model,
+            num_groups=2)
 
     return model, optimizer, scaler
 

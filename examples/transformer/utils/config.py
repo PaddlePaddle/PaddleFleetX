@@ -330,7 +330,7 @@ def process_dist_config(configs):
                 "broadcast overlap only valid for sharding stage 2 without offload"
             )
 
-    if broadcast_overlap and configs['Engine']['logging_freq'] == 1:
+    if broadcast_overlap and configs['Global']['logging_freq'] == 1:
         logger.warning(
             "Set logging_freq to 1 will disable broadcast_overlap. "
             "If you want to overlap the broadcast, please increase the logging_freq."

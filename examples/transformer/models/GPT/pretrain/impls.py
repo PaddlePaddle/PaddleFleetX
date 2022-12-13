@@ -79,7 +79,7 @@ def build_model(config):
 
     if config.Model.sequence_parallel:
         register_sequence_parallel_allreduce_hooks(
-            model, config.Engine.accumulate_steps,
+            model, config.Global.accumulate_steps,
             config.Distributed.fuse_sequence_parallel_allreduce)
 
     if nranks == 1:

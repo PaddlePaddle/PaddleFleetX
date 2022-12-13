@@ -23,7 +23,7 @@ import paddle.distributed as dist
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../../../')))
 
-from ppfleetx.distributed.apis import env, fleet_wrapper, io
+from ppfleetx.distributed.apis import env, strategy, io
 from ppfleetx.utils.log import logger
 from ppfleetx.utils import device, log
 from examples.transformer.utils import config as cfg
@@ -98,7 +98,7 @@ if __name__ == "__main__":
 
     # call fleet wrapper
     if nranks > 1:
-        model, optimizer, scaler = fleet_wrapper.wrap_with_fleet(
+        model, optimizer, scaler = strategy.wrap_with_fleet(
             config.Distributed, model, optimizer, scaler)
 
     # load pretrained checkpoints
@@ -134,7 +134,7 @@ if __name__ == "__main__":
             valid_data_loader) if valid_data_loader is not None else 0
         for step, batch in enumerate(train_data_loader):
             if epoch_index == load_recovery['epoch']:
-                if step < load_recovery['step']:
+                if step <= load_recovery['step']:
                     continue
 
             model.train()
