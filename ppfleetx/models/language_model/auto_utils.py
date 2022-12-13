@@ -119,7 +119,7 @@ def process_model_configs(config):
         cfg_model['ffn_hidden_size'] = 4 * cfg_model['hidden_size']
 
     if cfg_model['use_recompute']:
-        if not cfg_model['recompute_granularity']:
+        if not cfg_model.get('recompute_granularity', None):
             cfg_model['recompute_granularity'] = 'full'
 
 

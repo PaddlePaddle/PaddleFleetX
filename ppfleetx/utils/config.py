@@ -527,7 +527,7 @@ def process_auto_strategy(config):
 
     # recompute config
     if config.get('Model', None) is not None:
-        if not config.Model['no_recompute_layers']:
+        if not config.Model.get('no_recompute_layers', None):
             config.Model['no_recompute_layers'] = []
         else:
             assert isinstance(config.Model['no_recompute_layers'],
