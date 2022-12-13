@@ -1,4 +1,4 @@
-_base_: ./pretrain_gpt_345M_single_card.yaml
+_base_: ./pretrain_gpt_6.7B_single_card.yaml
 
 Model:
   module: GPTGenerationModule
