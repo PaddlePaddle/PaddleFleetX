@@ -48,6 +48,7 @@ if __name__ == "__main__":
 
     # build model
     model, tokenizer = impls.build_model(config)
+    model.eval()
     cfg.print_config(config)
 
     # call fleet wrapper
@@ -83,7 +84,6 @@ if __name__ == "__main__":
         # [1, seq_len]
         input_ids = paddle.to_tensor(input_ids, dtype='int64')
 
-    print("2 input_ids :", input_ids, "     type(model) :", type(model))
     ids, scores = model(input_ids=input_ids)
 
     result = []
