@@ -19,6 +19,7 @@ import copy
 import paddle
 from paddle.distributed import fleet
 import paddle.distributed as dist
+from paddle.static import InputSpec
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../../../')))
@@ -26,6 +27,7 @@ sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../../../')))
 from ppfleetx.distributed.apis import env, strategy, io
 from ppfleetx.utils.log import logger
 from ppfleetx.utils import device, log
+from examples.transformer.utils import qat
 from examples.transformer.utils import config as cfg
 from examples.transformer.utils import components as cpn
 
@@ -72,6 +74,14 @@ if __name__ == "__main__":
 
     # build GPT model
     model, tokenizer, loss_fn = impls.build_model(config)
+
+    if 'Compress' in config:
+        input_spec = [
+            InputSpec(
+                shape=[None, None], name="tokens", dtype='int64'), InputSpec(
+                    shape=[None, None], name="ids", dtype='int64')
+        ]
+        model, quanter = qat.compress_model(config, model, input_spec)
 
     if config.Global.mix_precision.use_pure_fp16:
         scaler = paddle.amp.GradScaler(

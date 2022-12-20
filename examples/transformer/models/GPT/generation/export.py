@@ -1,11 +1,11 @@
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
-#
+# 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-#
+# 
 #     http://www.apache.org/licenses/LICENSE-2.0
-#
+# 
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -27,6 +27,7 @@ sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../../../')))
 from ppfleetx.distributed.apis import env, strategy, io
 from ppfleetx.utils.log import logger
 from ppfleetx.utils import device, log
+from ppfleetx.utils.export import export_inference_model
 from examples.transformer.utils import qat
 from examples.transformer.utils import config as cfg
 from examples.transformer.utils import components as cpn
@@ -46,25 +47,38 @@ if __name__ == "__main__":
         env.init_dist_env(config)
 
     env.set_seed(config.Global.seed)
+
     cfg.process_configs(config)
-
-    # build model
-    model, tokenizer = impls.build_model(config)
-
-    if 'Compress' in config:
-        input_spec = [
-            InputSpec(
-                shape=[None, None], name="input_ids", dtype='int64')
-        ]
-        model, quanter = qat.compress_model(config, model, input_spec)
-
-    model.eval()
     cfg.print_config(config)
 
-    # call fleet wrapper
-    if nranks > 1:
-        model, _, _ = strategy.wrap_with_fleet(
-            config.Distributed, model, optimizer=None, scaler=None)
+    if config.Global.mix_precision.use_pure_fp16:
+        logger.info("NOTE: disable use_pure_fp16 in export mode")
+
+    # build GPT model
+    model, _ = impls.build_model(config)
+
+    # export
+    model.eval()
+    input_spec = [
+        InputSpec(
+            shape=[None, None], name="input_ids", dtype='int64')
+    ]
+
+    output_dir = config.Global.save_load.output_dir
+    dp_rank = 0 if nranks == 1 else env.get_hcg().get_data_parallel_rank()
+    save_dir = os.path.join(output_dir, "rank_{}".format(dp_rank))
+
+    quanter = None
+    quant_mode = False
+
+    if 'Compress' in config:
+        mode = 'compress'
+        compress_configs = config['Compress']
+
+        if "Quantization" in compress_configs:
+            quant_mode = True
+
+        model, quanter = qat.compress_model(config, model, input_spec)
 
     # load pretrained checkpoints
     if config.Global.save_load.ckpt_dir is not None:
@@ -72,40 +86,17 @@ if __name__ == "__main__":
             config.Global.save_load.ckpt_dir,
             model,
             optimizer=None,
-            mode='generation',
+            mode='export',
             load_recovery=None)
 
-    # build profiler
-    if config.get('Profiler', {}).get('enable', False):
-        profiler = cpn.build_profiler(config.Profiler)
+    if not quant_mode:
+        export_inference_model(model, input_spec, save_dir, 'model')
     else:
-        profiler = None
-
-    input_text = 'Hi, GPT2. Tell me who Jack Ma is.'
-    input_ids = tokenizer.encode(input_text)
-    inputs = {'input_ids': [input_ids]}
-
-    inputs = impls.left_padding(inputs, tokenizer.eos_token_id)
-    input_ids = inputs['input_ids']
-
-    if len(input_ids) == 0:
-        input_ids = None
-    else:
-        # [1, seq_len]
-        input_ids = paddle.to_tensor(input_ids, dtype='int64')
-
-    ids, scores = model(input_ids=input_ids)
-
-    result = []
-    for i, generated_ids in enumerate(ids):
-        generated_ids = generated_ids.numpy().tolist()
-        # Decode text
-        text = tokenizer.convert_ids_to_string(generated_ids)
-        sequence = input_text + text
-        result.append(sequence)
-
-    print(f'Prompt: {input_text}')
-    print(f'Generation: {result[0]}')
-
-    if profiler:
-        cpn.profiler_done(profiler, config.Profiler)
+        logger.info("export quantized model.")
+        export_inference_model(
+            model,
+            input_spec,
+            save_dir,
+            'model',
+            export_quant_model=True,
+            quanter=quanter)

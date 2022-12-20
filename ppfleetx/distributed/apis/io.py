@@ -117,7 +117,7 @@ def load(ckpt_dir, model, optimizer=None, mode='train', load_recovery=None):
 
             model.set_state_dict(model_dict)
         else:
-            raise ValueError("No optimizer checkpoint file found in %s." %
+            raise ValueError("No model checkpoint file found in %s." %
                              model_path)
 
         if mode == 'train':
