@@ -503,6 +503,9 @@ def process_optim_configs(config):
     """
     process optim configs for hybrid parallel
     """
+    if 'Optimizer' not in config.keys():
+        return
+
     nranks = dist.get_world_size()
     dp_degree = config['Distributed']['dp_degree']
     sharding_degree = config['Distributed']['sharding']['sharding_degree']
@@ -515,6 +518,9 @@ def process_data_configs(config):
     """
     process data configs for hybrid parallel
     """
+    if 'Data' not in config.keys():
+        return
+
     cfg_global = config['Global']
     cfg_data = config['Data']
 
@@ -534,10 +540,26 @@ def process_data_configs(config):
                 mode]
 
 
+def process_inference_configs(config):
+    """
+    process inference configs for hybrid parallel
+    """
+    if 'Inference' not in config.keys():
+        return
+
+    configs = config['Inference']
+
+    if configs['model_dir'] is None:
+        configs['model_dir'] = config['Global']['save_load']['output_dir']
+
+    if configs['mp_degree'] is None:
+        configs['mp_degree'] = config['Distributed']['mp_degree']
+
+
 def process_configs(config):
     process_data_configs(config)
     process_model_configs(config)
     process_optim_configs(config)
-    # process_inference_configs(config)
+    process_inference_configs(config)
 
     return config
