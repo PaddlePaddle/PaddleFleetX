@@ -24,6 +24,7 @@ import paddle.tensor as tensor
 from paddle.fluid import layers
 from paddle.nn.layer.transformer import _convert_param_attr_to_list
 import paddle.incubate as incubate
+from paddle.common_ops_import import convert_dtype
 
 import paddle.distributed.fleet as fleet
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
@@ -34,6 +35,10 @@ import sys
 from .single_model import ExpertLayer
 from .sequence_parallel_utils import ScatterOp, GatherOp, \
         mark_as_sequence_parallel_parameter, ColumnSequenceParallelLinear, RowSequenceParallelLinear
+from .processor import (
+    LogitsProcessorList, MinLengthLogitsProcessor,
+    HammingDiversityLogitsProcessor, RepetitionPenaltyLogitsProcessor,
+    ForcedBOSTokenLogitsProcessor, ForcedEOSTokenLogitsProcessor)
 
 from ppfleetx.distributed.moe import MoELayer
 from ppfleetx.distributed.apis import env
@@ -802,7 +807,6 @@ class GPTModelHybrid(nn.Layer):
                     (paddle.shape(input_ids)[-1], paddle.shape(input_ids)[-1]))
                 * -1e4,
                 diagonal=1)
-            logger.debug(f"attention mask: {attention_mask}")
             if attention_mask is not None:
                 if len(attention_mask.shape) == 2:
                     attention_mask = attention_mask[:, None, None, :]
@@ -1123,13 +1127,14 @@ class GPTForGenerationHybrid(nn.Layer):
 
     """
 
-    def __init__(self, gpt):
+    def __init__(self, gpt, configs):
         super(GPTForGenerationHybrid, self).__init__()
         self.gpt = gpt
         # extra_parameters using for sharding stage3 to register extra_parameters
         self.extra_parameters = [
             get_attr(self.gpt.embeddings.word_embeddings, "weight")
         ]
+        self.configs = configs
 
         self.max_length = self.configs.get('max_dec_len', 20)
         self.min_length = self.configs.get('min_dec_len', 0)

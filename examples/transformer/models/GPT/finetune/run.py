@@ -19,7 +19,6 @@ import copy
 import paddle
 from paddle.distributed import fleet
 import paddle.distributed as dist
-from paddle.static import InputSpec
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../../../')))
@@ -27,7 +26,7 @@ sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../../../')))
 from ppfleetx.distributed.apis import env, strategy, io
 from ppfleetx.utils.log import logger
 from ppfleetx.utils import device, log
-from examples.transformer.utils import qat
+from ppfleetx.models.language_model import metrics
 from examples.transformer.utils import config as cfg
 from examples.transformer.utils import components as cpn
 
@@ -43,45 +42,25 @@ if __name__ == "__main__":
     # init distributed env
     nranks = dist.get_world_size()
     if nranks > 1:
+        raise RuntimeError("Only support single-card finetune for GPT model.")
         env.init_dist_env(config)
 
     env.set_seed(config.Global.seed)
-
-    cfg.process_configs(config)
     cfg.print_config(config)
 
-    # Note: Only for GPTDataset
-    dataset_kwargs = {
-        "seed": config.Global.seed,
-        "model_type": config.Model.name,
-    }
-    sampler_kwargs = {"batch_size": config.Global.local_batch_size, }
-
     # build dataloader for training/eval
-    dataset_kwargs.update({"mode": "Train"})
-    dataset = cpn.build_dataset(config.Data.Train.dataset, **dataset_kwargs)
-    sampler = cpn.build_batch_sampler(config.Data.Train.sampler, dataset,
-                                      **sampler_kwargs)
+    dataset = cpn.build_dataset(config.Data.Train.dataset)
+    sampler = cpn.build_batch_sampler(config.Data.Train.sampler, dataset)
     train_data_loader = cpn.build_dataloader(config.Data.Train.loader, dataset,
                                              sampler)
 
-    dataset_kwargs.update({"mode": "Eval"})
-    dataset = cpn.build_dataset(config.Data.Eval.dataset, **dataset_kwargs)
-    sampler = cpn.build_batch_sampler(config.Data.Eval.sampler, dataset,
-                                      **sampler_kwargs)
+    dataset = cpn.build_dataset(config.Data.Eval.dataset)
+    sampler = cpn.build_batch_sampler(config.Data.Eval.sampler, dataset)
     valid_data_loader = cpn.build_dataloader(config.Data.Eval.loader, dataset,
                                              sampler)
 
     # build GPT model
-    model, tokenizer, loss_fn = impls.build_model(config)
-
-    if 'Compress' in config:
-        input_spec = [
-            InputSpec(
-                shape=[None, None], name="tokens", dtype='int64'), InputSpec(
-                    shape=[None, None], name="ids", dtype='int64')
-        ]
-        model, quanter = qat.compress_model(config, model, input_spec)
+    model, tokenizer, train_loss_fn, eval_loss_fn = impls.build_model(config)
 
     if config.Global.mix_precision.use_pure_fp16:
         scaler = paddle.amp.GradScaler(
@@ -92,13 +71,35 @@ if __name__ == "__main__":
     else:
         scaler = None
 
+    # build metric
+    model_setting = copy.deepcopy(config.Model)
+    metric_config = model_setting.pop("metric", None)
+
+    assert metric_config is not None and 'eval' in metric_config
+
+    if 'train' in metric_config:
+        train_metric = copy.deepcopy(metric_config.train)
+        train_metric_cls = train_metric.pop('name')
+        train_metric = eval("metrics.{}".format(train_metric_cls))(
+            **train_metric)
+
+    eval_metric = copy.deepcopy(metric_config.eval)
+    eval_metric_cls = eval_metric.pop('name')
+    eval_metric = eval("metrics.{}".format(eval_metric_cls))(**eval_metric)
+
+    best_metric = 0.0
+
+    # build lr and optim
     config.Optimizer.lr.update({
         'epochs': config.Global.num_train_epochs,
         'step_each_epoch': len(train_data_loader),
         'total_steps': config.Global.max_steps,
     })
 
-    # build lr and optim
+    if 'multi_precision' in config.Optimizer:
+        assert config.Optimizer.pop('multi_precision') \
+            == config.Global.mix_precision.use_pure_fp16
+
     lr_scheduler = cpn.build_lr_scheduler(config.Optimizer.lr)
     optimizer = cpn.build_optimizer(
         config.Optimizer,
@@ -124,6 +125,9 @@ if __name__ == "__main__":
         profiler = None
 
     # start training
+    assert config.Global.get('run_mode',
+                             'epoch') == 'epoch', 'run_mode must be epoch'
+
     train_start = log.get_timestamp()
 
     if load_recovery['rng_state'] != -1:
@@ -150,20 +154,18 @@ if __name__ == "__main__":
             model.train()
             fit_kwargs = {
                 "model": model,
-                "loss_fn": loss_fn,
                 "scaler": scaler,
                 "optimizer": optimizer,
+                "loss_fn": train_loss_fn,
             }
 
             def forward_func(batch, model, loss_fn):
-                tokens, position_ids, labels, loss_mask = batch
-
-                loss_mask.stop_gradient = True
+                input_ids, labels = batch
+                input_ids.stop_gradient = True
                 labels.stop_gradient = True
-                position_ids.stop_gradient = True
 
-                preds = model(tokens, position_ids)
-                loss = loss_fn(preds, labels, loss_mask)
+                logits = model(input_ids)
+                loss = loss_fn(logits, labels)
 
                 return loss
 
@@ -184,9 +186,10 @@ if __name__ == "__main__":
                 ips = ips_total / env.get_data_world_size()
 
                 logger.info(
-                    "[train] epoch: %d, batch: %d, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
-                    "ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
-                    % (epoch_index, step, sum(numpy_losses) / len(numpy_losses), train_cost, speed, ips_total, ips, optimizer.get_lr()))
+                    "[train] epoch: [%d/%d], step: [%d/%d], learning rate: %.7f, loss: %.9f, avg_batch_cost: " \
+                    "%.5f sec, speed: %.2f step/s, ips_total: %.0f tokens/s, ips: %.0f tokens/s"
+                    % (epoch_index, config.Global.num_train_epochs, batch, total_train_batch, optimizer.get_lr(),
+                    sum(numpy_losses) / len(numpy_losses), train_cost, speed, ips_total, ips))
 
                 train_step_start = log.get_timestamp()
                 train_losses = []
@@ -196,27 +199,7 @@ if __name__ == "__main__":
 
             optimizer.clear_grad()
 
-            # start eval
-            if step > 0 and config.Global.eval_freq > 0 and step % config.Global.eval_freq == 0:
-                eval_losses = []
-                eval_step_start = log.get_timestamp()
-
-                for eval_step, batch in enumerate(valid_data_loader):
-                    loss = impls.eval_impl(config, batch, model, loss_fn)
-                    eval_losses.append(loss)
-
-                    if eval_step >= config.Global.eval_iters - 1:
-                        break
-
-                eval_step_cost = log.get_timestamp() - eval_step_start
-                eval_loss = sum(eval_losses) / len(eval_losses)
-                eval_cost = eval_step_cost / config.Global.logging_freq
-
-                logger.info(
-                    "[eval] epoch: %d, batch: %d, loss: %.9f, avg_eval_cost: %.5f sec, speed: %.2f step/s"
-                    % (epoch_index, eval_step, eval_loss.numpy()[0], eval_cost,
-                       1. / eval_cost))
-
+            # save model/optim states in 'step' mode
             if step > 0 and config.Global.save_load.save_steps > 0 and \
                 step % config.Global.save_load.save_steps == 0:
                 device.synchronize()
@@ -238,6 +221,71 @@ if __name__ == "__main__":
         train_epoch_cost = log.get_timestamp() - train_epoch_start
         logger.info("[Training] epoch: %d, total time: %.5f sec" %
                     (epoch_index, train_epoch_cost))
+
+        eval_epoch_start = log.get_timestamp()
+
+        # start eval in 'epoch' mode
+        eval_step_start = log.get_timestamp()
+        eval_losses = []
+        total_eval_batch = len(valid_data_loader)
+
+        for eval_step, batch in enumerate(valid_data_loader):
+            loss = impls.eval_impl(config, batch, model, eval_loss_fn,
+                                   eval_metric)
+
+            eval_losses.append(loss.numpy()[0])
+
+            if eval_step % config.Global.logging_freq == 0:
+                eval_step_cost = log.get_timestamp() - eval_step_start
+
+                speed = 1. / eval_step_cost
+                logger.info(
+                    "[eval] epoch: %d, batch: %d, loss: %.9f, avg_eval_cost: %.5f sec, speed: %.2f step/s"
+                    % (epoch_index, eval_step, sum(eval_losses) /
+                       len(eval_losses), eval_step_cost, speed))
+
+                eval_step_start = log.get_timestamp()
+                eval_losses = []
+
+        eval_epoch_cost = log.get_timestamp() - eval_epoch_start
+
+        # eval epoch log
+        res = eval_metric.accumulate()
+        eval_metric.reset()
+
+        if isinstance(eval_metric, metrics.AccuracyAndF1):
+            msg = "acc: %.5f, precision: %.5f, recall: %.5f, f1: %.5f, acc and f1: %.5f" % (
+                res[0], res[1], res[2], res[3], res[4])
+            metric = res[4]
+        elif isinstance(eval_metric, metrics.Mcc):
+            msg = "mcc: %.5f" % (res[0])
+            metric = res[0]
+        elif isinstance(eval_metric, metrics.PearsonAndSpearman):
+            msg = "pearson: %.5f, spearman: %.5f, pearson and spearman: %.5f" % (
+                res[0], res[1], res[2])
+            metric = res[2]
+        else:
+            msg = "acc: %.5f" % (res)
+            metric = res
+
+        if metric > best_metric:
+            best_metric = metric
+
+        logger.info(
+            "[Eval] epoch: %d, total time: %.5f sec, %s, best_metric: %.5f" %
+            (epoch_index, eval_epoch_cost, msg, best_metric))
+
+        # save model/optim states in 'epoch' mode
+        if config.Global.save_load.save_epoch > 0 and \
+            epoch_index % config.Global.save_load.save_steps == 0:
+            device.synchronize()
+            io.save(
+                config.Global.save_load.output_dir,
+                model,
+                optimizer,
+                step=len(train_data_loader),
+                epoch=epoch_index,
+                sharding_stage=config.Distributed.sharding.sharding_stage)
 
     # training end log
     logger.info(

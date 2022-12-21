@@ -91,7 +91,7 @@ def build_model(config):
     return model, tokenizer, loss_fn
 
 
-def model_forward_backward(config, batch, **kwargs):
+def model_forward_backward(config, batch, forward_func, **kwargs):
     acc_steps = config.Global.accumulate_steps
     use_fp16 = config.Global.mix_precision.use_pure_fp16
     black_list = config.Global.mix_precision.custom_black_list
@@ -99,6 +99,9 @@ def model_forward_backward(config, batch, **kwargs):
 
     # train with pipeline strategy
     if config.Distributed.pp_degree > 1:
+        tokens, position_ids, labels, loss_mask = batch
+        batch = [(tokens, position_ids), (labels, loss_mask)]
+
         batches = [batch]
 
         with paddle.amp.auto_cast(
@@ -134,14 +137,8 @@ def model_forward_backward(config, batch, **kwargs):
                 level='O2'):
 
             # forward in training step
-            tokens, position_ids, labels, loss_mask = micro_batch
-
-            loss_mask.stop_gradient = True
-            labels.stop_gradient = True
-            position_ids.stop_gradient = True
-
-            preds = kwargs['model'](tokens, position_ids)
-            loss = kwargs['loss_fn'](preds, labels, loss_mask)
+            loss = forward_func(micro_batch, kwargs['model'],
+                                kwargs['loss_fn'])
 
         loss_bw = kwargs['scaler'].scale(loss) if use_fp16 else loss
         loss_bw = loss_bw / acc_steps if acc_steps > 1 else loss_bw
@@ -160,7 +157,6 @@ def model_forward_backward(config, batch, **kwargs):
 
 def optim_update_params(config, **kwargs):
     hcg = env.get_hcg()
-    dp_group = hcg.get_data_parallel_group()
     use_fp16 = config.Global.mix_precision.use_pure_fp16
 
     dp_degree = config.Distributed.dp_degree
@@ -172,10 +168,12 @@ def optim_update_params(config, **kwargs):
                 'optimizer'].all_fused_tensors is None:
             fused_allreduce_gradients(list(kwargs['model'].parameters()), None)
         else:
+            dp_group = hcg.get_data_parallel_group()
             all_reduce_parameters(kwargs['optimizer'].all_fused_tensors,
                                   dp_group)
 
     if sharding_stage == 3 and dp_degree > 1:
+        dp_group = hcg.get_data_parallel_group()
         fused_allreduce_gradients(kwargs['model'].parameters(), hcg)
 
         for p in kwargs['model'].parameters():
@@ -191,21 +189,20 @@ def optim_update_params(config, **kwargs):
         kwargs['optimizer'].step()
 
 
-def fit_impl(config, batch, **kwargs):
+def fit_impl(config, batch, forward_func, **kwargs):
     kwargs['model'].train()
 
     if config.Distributed.pp_degree == 1:
         if config.Model.use_recompute and isinstance(kwargs['model'],
                                                      paddle.DataParallel):
             with kwargs['model'].no_sync():
-                loss = model_forward_backward(config, batch, **kwargs)
+                loss = model_forward_backward(config, batch, forward_func,
+                                              **kwargs)
         else:
-            loss = model_forward_backward(config, batch, **kwargs)
+            loss = model_forward_backward(config, batch, forward_func,
+                                          **kwargs)
     else:
-        tokens, position_ids, labels, loss_mask = batch
-        batch = [(tokens, position_ids), (labels, loss_mask)]
-
-        loss = model_forward_backward(config, batch, **kwargs)
+        loss = model_forward_backward(config, batch, forward_func, **kwargs)
 
     optim_update_params(config, **kwargs)
 
