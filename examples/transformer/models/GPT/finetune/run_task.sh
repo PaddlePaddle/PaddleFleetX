@@ -15,6 +15,8 @@
 
 export CUDA_VISIBLE_DEVICES=0
 
+cd examples/transformer/models/GPT/finetune
+
 # Single-Sentence Tasks
 if [ $1 == "CoLA" ]
 then
