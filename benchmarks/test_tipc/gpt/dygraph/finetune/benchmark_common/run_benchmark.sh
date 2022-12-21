@@ -90,7 +90,7 @@ function _train(){
     # hybrid_parallelism case
     case ${run_mode} in
     DP1-MP1-PP1) echo "run run_mode: DP1-MP1-PP1"
-        train_cmd="bash projects/gpt/finetune_gpt_345M_single_card.sh \
+        train_cmd="bash examples/transformer/models/GPT/finetune/run_task.sh \
             ${train_cmd}"
         ;;
     *) echo "choose run_mode "; exit 1;
