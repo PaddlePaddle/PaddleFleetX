@@ -8,18 +8,6 @@
 | GPT-345M | FP16 |  44.17%  |
 | GPT-345M | INT8 |  44.94%  |
 
-下面是本例涉及的文件及说明：
-
-```text
-.
-├── qat_gpt_345M_single_card.sh            # 单卡345M模型量化训练入口
-├── qat_gpt_345M_mp8.sh                    # 8卡345M模型模型并行量化训练入口
-├── qat_gpt_6.7B_sharding16.sh             # 16卡6.7B模型分组切片并行量化训练入口
-├── eval_qat_gpt_345M_single_card.sh       # 单卡345M量化模型验证入口
-├── export_qat_gpt_345M_single_card.sh     # 单卡345M量化模型导出入口
-
-```
-
 
 ### 环境依赖和数据准备
 环境依赖和数据准备请参考[GPT文档](./README.md)。
@@ -36,23 +24,20 @@ tar xf GPT_345M.tar.gz
 
 ### 量化训练
 
-- [345M模型单卡训练](../qat_gpt_345M_single_card.sh)
+- [345M模型单卡训练](../pretrain/configs/qat_gpt_345M_single_card.yaml)
 
 快速启动：
 ```shell
-bash ./projects/gpt/qat_gpt_345M_single_card.sh
-```
+cd PaddleFleetX/examples/transformer/models/GPT # 如果已在此目录下，则忽略
 
-或如下启动：
-```shell
 export CUDA_VISIBLE_DEVICES=0
 
 log_dir=log_hybrid
 rm -rf $log_dir
 
-python ./tools/train.py \
-    -c ./ppfleetx/configs/nlp/gpt/qat_gpt_345M_single_card.yaml \
-    -o Engine.max_steps=100000 \
+python pretrain/run.py \
+    -c ./pretrain/configs/qat_gpt_345M_single_card.yaml \
+    -o Global.max_steps=100000 \
     -o Model.hidden_dropout_prob=0.0 \
     -o Model.attention_probs_dropout_prob=0.0 \
     -o Optimizer.lr.decay_steps=72000 \
@@ -63,24 +48,21 @@ python ./tools/train.py \
     
 ```
 
-- [345M模型模型并行训练](../qat_gpt_345M_mp8.sh)
+- [345M模型模型并行训练](../pretrain/configs/qat_gpt_345M_mp8.yaml)
 
 快速启动：
 ```shell
-bash ./projects/gpt/qat_gpt_345M_mp8.sh
-```
+cd PaddleFleetX/examples/transformer/models/GPT # 如果已在此目录下，则忽略
 
-或如下启动：
-```shell
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 
 log_dir=log_hybrid
 rm -rf $log_dir
 
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
-    ./tools/train.py \
-    -c ./ppfleetx/configs/nlp/gpt/qat_gpt_345M_mp8.yaml \
-    -o Engine.max_steps=100000 \
+    pretrain/run.py \
+    -c ./pretrain/configs/qat_gpt_345M_mp8.yaml \
+    -o Global.max_steps=100000 \
     -o Model.hidden_dropout_prob=0.0 \
     -o Model.attention_probs_dropout_prob=0.0 \
     -o Optimizer.lr.decay_steps=72000 \
@@ -90,22 +72,19 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
     -o Compress.pretrained='./PaddleFleetX_GPT_345M_220826'
 ```
 
-- [6.7B模型分组切片并行训练](../qat_gpt_6.7B_sharding16.sh)
+- [6.7B模型分组切片并行训练](../pretrain/configs/qat_gpt_6.7B_sharding16.yaml)
 
 快速启动：
 ```shell
-bash ./projects/gpt/qat_gpt_6.7B_sharding16.sh
-```
+cd PaddleFleetX/examples/transformer/models/GPT # 如果已在此目录下，则忽略
 
-或如下启动：
-```shell
 log_dir=log_hybrid
 rm -rf $log_dir
 
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
-    ./tools/train.py \
-    -c ./ppfleetx/configs/nlp/gpt/qat_gpt_6.7B_sharding16.yaml \
-    -o Engine.max_steps=100000 \
+    pretrain/run.py \
+    -c ./pretrain/configs/qat_gpt_6.7B_sharding16.yaml \
+    -o Global.max_steps=100000 \
     -o Model.hidden_dropout_prob=0.0 \
     -o Model.attention_probs_dropout_prob=0.0 \
     -o Optimizer.lr.decay_steps=72000 \
@@ -130,11 +109,11 @@ tar xf GPT_345M_QAT_wo_analysis.tar
 
 export CUDA_VISIBLE_DEVICES=0
 
-python ./tools/export.py \
-    -c ./ppfleetx/configs/nlp/gpt/export_qat_gpt_345M_single_card.yaml \
+python generation/export.py \
+    -c ./generation/configs/export_qat_gpt_345M_single_card.yaml \
     -o Model.hidden_dropout_prob=0.0 \
     -o Model.attention_probs_dropout_prob=0.0 \
-    -o Engine.save_load.ckpt_dir='./GPT_345M_QAT_wo_analysis/'
+    -o Global.save_load.ckpt_dir='./GPT_345M_QAT_wo_analysis/'
 ```
 注意：此处导出的并非GenerationModule，而是可用于验证的GPTModule。
 
@@ -145,6 +124,8 @@ python ./tools/export.py \
 
 ### 模型验证
 ```shell
+cd PaddleFleetX/examples/transformer/models/GPT # 如果已在此目录下，则忽略
+
 # 下载验证数据
 wget https://raw.githubusercontent.com/cybertronai/bflm/master/lambada_test.jsonl
 
@@ -153,25 +134,27 @@ wget https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M_QAT_w_analysis.ta
 tar xf GPT_345M_QAT_w_analysis.tar
 
 export CUDA_VISIBLE_DEVICES=0
-python ./tools/eval.py \
-    -c ./ppfleetx/configs/nlp/gpt/eval_qat_gpt_345M_single_card.yaml \
+python offline-eval/run.py \
+    -c ./offline-eval/configs/eval_qat_gpt_345M_single_card.yaml \
     -o Model.hidden_dropout_prob=0.0 \
     -o Model.attention_probs_dropout_prob=0.0 \
-    -o Engine.save_load.ckpt_dir='./GPT_345M_QAT_w_analysis' \
+    -o Global.save_load.ckpt_dir='./GPT_345M_QAT_w_analysis'
     -o Offline_Eval.eval_path=./lambada_test.jsonl \
     -o Offline_Eval.cloze_eval=True 
 ```
 
 ### 模型导出
 ```shell
+cd PaddleFleetX/examples/transformer/models/GPT # 如果已在此目录下，则忽略
+
 # 下载已经训练好的量化模型，若已有量化模型，不需要下载
 wget https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M_QAT_wo_analysis.tar
 tar xf GPT_345M_QAT_wo_analysis.tar
 
 export CUDA_VISIBLE_DEVICES=0
-python ./tools/export.py \
-    -c ./ppfleetx/configs/nlp/gpt/generation_qat_gpt_345M_single_card.yaml \
+python generation/export.py \
+    -c ./generation/configs/generation_qat_gpt_345M_single_card.yaml \
     -o Model.hidden_dropout_prob=0.0 \
     -o Model.attention_probs_dropout_prob=0.0 \
-    -o Engine.save_load.ckpt_dir='./GPT_345M_QAT_wo_analysis/'
+    -o Global.save_load.ckpt_dir='./GPT_345M_QAT_wo_analysis/'
 ```
