@@ -118,6 +118,10 @@ def process_model_configs(config):
     if cfg_model['ffn_hidden_size'] is None:
         cfg_model['ffn_hidden_size'] = 4 * cfg_model['hidden_size']
 
+    if cfg_model['use_recompute']:
+        if not cfg_model.get('recompute_granularity', None):
+            cfg_model['recompute_granularity'] = 'full'
+
 
 def process_data_configs(config):
     """

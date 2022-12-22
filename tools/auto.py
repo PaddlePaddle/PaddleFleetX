@@ -61,6 +61,9 @@ if __name__ == "__main__":
     if cfg.Engine.save_load.ckpt_dir is not None:
         engine.load()
 
-    engine.fit(train_dataset=train_data,
-               valid_dataset=eval_data,
-               epoch=cfg.Engine.num_train_epochs)
+    if cfg.get('Tuning', None) and cfg.Tuning.enable:
+        engine.tune(train_data)
+    else:
+        engine.fit(train_dataset=train_data,
+                   valid_dataset=eval_data,
+                   epoch=cfg.Engine.num_train_epochs)
