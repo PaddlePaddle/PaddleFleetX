@@ -53,6 +53,8 @@ class MultiHeadAttention(nn.Layer):
                  weight_attr=None,
                  bias_attr=None,
                  fuse_attn_qkv=False,
+                 use_recompute=False,
+                 recompute_granularity="full",
                  mesh=None,
                  mesh_idx=None):
         super(MultiHeadAttention, self).__init__()
@@ -63,6 +65,8 @@ class MultiHeadAttention(nn.Layer):
         self.dropout = dropout
         self.need_weights = need_weights
         self.fuse_attn_qkv = fuse_attn_qkv
+        self.use_recompute = use_recompute
+        self.recompute_granularity = recompute_granularity
         self.mesh = mesh
         self.mesh_idx = mesh_idx
 
@@ -241,7 +245,13 @@ class MultiHeadAttention(nn.Layer):
                 q, k, v, cache = self._prepare_qkv(query, key, value,
                                                    use_cache, cache)
 
-        out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
+        if self.use_recompute and self.recompute_granularity == "core_attn":
+            out, weights = auto.recompute(self.core_attn)(q,
+                                                          k,
+                                                          v,
+                                                          attn_mask=attn_mask)
+        else:
+            out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
 
         auto.shard_tensor(self.out_proj.weight, self.mesh[self.mesh_idx],
                           [self.mesh.mp, None])
@@ -262,18 +272,24 @@ class TransformerDecoder(nn.Layer):
     TransformerDecoder is a stack of N decoder layers.
     """
 
-    def __init__(self, decoder_layers, num_layers, norm=None,
-                 hidden_size=None):
+    def __init__(self,
+                 decoder_layers,
+                 num_layers,
+                 norm=None,
+                 hidden_size=None,
+                 use_recompute=False,
+                 recompute_granularity="full"):
         super(TransformerDecoder, self).__init__()
 
         self.num_layers = num_layers
         self.layers = decoder_layers
         self.norm = norm
+        self.use_recompute = use_recompute
+        self.recompute_granularity = recompute_granularity
         if norm == "LayerNorm":
             self.norm = nn.LayerNorm(hidden_size, epsilon=1e-5)
         elif norm is not None:
             raise ValueError("Only support LayerNorm")
-        self.checkpoints = []
 
     def forward(self,
                 tgt,
@@ -304,7 +320,12 @@ class TransformerDecoder(nn.Layer):
                                             cache=cache)
                     new_caches.append(new_cache)
                 else:
-                    output = mod(output, memory, tgt_mask, use_cache, cache)
+                    if self.use_recompute and self.recompute_granularity == "full":
+                        output = auto.recompute(mod)(output, memory, tgt_mask,
+                                                     use_cache, cache)
+                    else:
+                        output = mod(output, memory, tgt_mask, use_cache,
+                                     cache)
             else:
                 output, new_cache = mod(output,
                                         memory,
@@ -312,7 +333,6 @@ class TransformerDecoder(nn.Layer):
                                         use_cache=use_cache,
                                         cache=cache[i])
                 new_caches.append(new_cache)
-            self.checkpoints.append(output.name)
 
         if self.norm is not None:
             output = self.norm(output)
@@ -351,6 +371,8 @@ class TransformerDecoderLayer(nn.Layer):
                  weight_attr=None,
                  bias_attr=None,
                  fuse_attn_qkv=False,
+                 use_recompute=False,
+                 recompute_granularity="full",
                  mesh=None,
                  mesh_idx=None):
         self._config = locals()
@@ -361,6 +383,8 @@ class TransformerDecoderLayer(nn.Layer):
         attn_dropout = dropout if attn_dropout is None else attn_dropout
         act_dropout = dropout if act_dropout is None else act_dropout
         self.normalize_before = normalize_before
+        self.use_recompute = use_recompute
+        self.recompute_granularity = recompute_granularity
         self.mesh = mesh
         self.mesh_idx = mesh_idx
 
@@ -374,6 +398,8 @@ class TransformerDecoderLayer(nn.Layer):
             weight_attr=weight_attrs[0],
             bias_attr=bias_attrs[0],
             fuse_attn_qkv=fuse_attn_qkv,
+            use_recompute=use_recompute,
+            recompute_granularity=recompute_granularity,
             mesh=mesh,
             mesh_idx=mesh_idx)
 
@@ -402,7 +428,11 @@ class TransformerDecoderLayer(nn.Layer):
             tgt = self.norm1(tgt)
 
         if use_cache is False:
-            tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
+            if self.use_recompute and self.recompute_granularity == "full_attn":
+                tgt = auto.recompute(self.self_attn)(tgt, tgt, tgt, tgt_mask,
+                                                     use_cache, cache)
+            else:
+                tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
         else:
             tgt, incremental_cache = self.self_attn(tgt, tgt, tgt, tgt_mask,
                                                     use_cache, cache)
@@ -494,6 +524,8 @@ class GPTModelAuto(nn.Layer):
                  type_vocab_size=16,
                  initializer_range=0.02,
                  fuse_attn_qkv=False,
+                 use_recompute=False,
+                 recompute_granularity="full",
                  mesh=None):
 
         super(GPTModelAuto, self).__init__()
@@ -501,6 +533,8 @@ class GPTModelAuto(nn.Layer):
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
+        self.use_recompute = use_recompute
+        self.recompute_granularity = recompute_granularity
 
         if not mesh:
             raise RuntimeError(
@@ -530,6 +564,8 @@ class GPTModelAuto(nn.Layer):
                             mean=0.0, std=self.initializer_range)),
                     bias_attr=None,
                     fuse_attn_qkv=fuse_attn_qkv,
+                    use_recompute=use_recompute,
+                    recompute_granularity=recompute_granularity,
                     mesh=self.mesh,
                     mesh_idx=stages[i]))
 
@@ -537,8 +573,9 @@ class GPTModelAuto(nn.Layer):
             decoder_layers,
             num_layers,
             norm="LayerNorm",
-            hidden_size=hidden_size)
-        self.checkpoints = []
+            hidden_size=hidden_size,
+            use_recompute=use_recompute,
+            recompute_granularity=recompute_granularity)
 
     def forward(self,
                 input_ids,
@@ -590,7 +627,6 @@ class GPTModelAuto(nn.Layer):
             attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
-        self.checkpoints.extend(self.decoder.checkpoints)
         return encoder_outputs
 
 
