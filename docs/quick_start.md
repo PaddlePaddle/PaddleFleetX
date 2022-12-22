@@ -13,13 +13,7 @@
 请根据本地 CUDA 版本（使用 `nvidia-smi`命令查看）使用以下命令拉取对应或兼容的镜像，
 
 ```
-docker pull registry.baidubce.com/ppfleetx/ppfleetx-cuda11.2-cudnn8:v0.1.0
-```
-
-如本地环境cuda版本较低可以使用以下镜像，并在后续使用中替换。
-
-```
-docker pull registry.baidubce.com/ppfleetx/ppfleetx-cuda10.2-cudnn7:v0.1.0
+docker pull registry.baidubce.com/ppfleetx/fleetx-cuda11.2-cudnn8:2.4
 ```
 
 大模型训练需要使用GPU，如已安装 nvida-container-runtime 可以使用以下命令运行镜像，
