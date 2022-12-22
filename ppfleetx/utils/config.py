@@ -510,7 +510,6 @@ def process_auto_strategy(config):
     """
     process auto strategy for auto parallel
     """
-    configs = config['Engine']
     strategy = auto.Strategy()
     strategy.auto_mode = "semi"
     strategy.seed = config['Global']['seed']
@@ -528,10 +527,27 @@ def process_auto_strategy(config):
 
     # recompute config
     if config.get('Model', None) is not None:
-        config['Engine']['use_recompute'] = config['Model'].pop(
-            'use_recompute', None)
+        if not config.Model.get('no_recompute_layers', None):
+            config.Model['no_recompute_layers'] = []
+        else:
+            assert isinstance(config.Model['no_recompute_layers'],
+                              list), "no_recompute_layers should be a list"
+            for i in config.Model['no_recompute_layers']:
+                assert isinstance(
+                    i, int
+                ), "all values in no_recompute_layers should be an integer"
+            assert min(config.Model['no_recompute_layers']) >= 0, \
+                "the min value in no_recompute_layers should >= 0"
+            assert max(config.Model['no_recompute_layers']) < config.Model['num_layers'], \
+                "the max value in no_recompute_layers should < num_layers"
+            config.Model['no_recompute_layers'] = sorted(
+                list(set(config.Model['no_recompute_layers'])))
         recompute = strategy.recompute
-        recompute.enable = config['Engine']['use_recompute']
+        recompute.enable = config.Model.get('use_recompute', False)
+        recompute.no_recompute_segments = config.Model.pop(
+            'no_recompute_layers', [])
+        recompute.enable_tuning = config.get(
+            'Tuning', False) and config.Tuning.get('tuning_recompute', False)
 
     # sharding config
     sharding_cfg = config.Distributed.get('sharding', {})
@@ -554,7 +570,17 @@ def process_auto_strategy(config):
     qat.activation_bits = qat_cfg.get('activation_bits', 8)
     qat.onnx_format = qat_cfg.get('onnx_format', True)
 
-    configs['strategy'] = strategy
+    # tuning config
+    tuning_cfg = config.get('Tuning', {})
+    tuning = strategy.tuning
+    tuning.enable = tuning_cfg.get('enable', False)
+    tuning.profile_start_step = tuning_cfg.get('profile_start_step', 1)
+    tuning.profile_end_step = tuning_cfg.get('profile_end_step', 1)
+    tuning.run_after_tuning = tuning_cfg.get('run_after_tuning', True)
+    tuning.debug = tuning_cfg.get('debug', True)
+
+    engine_cfg = config['Engine']
+    engine_cfg['strategy'] = strategy
 
 
 def process_auto_ckpt_dir(config):
