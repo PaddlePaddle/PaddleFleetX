@@ -18,7 +18,7 @@ export CUDA_VISIBLE_DEVICES=0
 # Single-Sentence Tasks
 if [ $1 == "CoLA" ]
 then
-    python run.py -c ./configs/finetune_gpt_345M_single_card_glue.yaml \
+    python finetune/run.py -c ./finetune/configs/finetune_gpt_345M_single_card_glue.yaml \
       -o Data.Train.dataset.name=CoLA \
       -o Data.Train.dataset.root=./dataset/cola_public/ \
       -o Data.Eval.dataset.name=CoLA \
@@ -29,7 +29,7 @@ then
       -o Model.num_classes=2
 elif [ $1 == "SST2" ]
 then
-    python run.py -c ./configs/finetune_gpt_345M_single_card_glue.yaml \
+    python finetune/run.py -c ./finetune/configs/finetune_gpt_345M_single_card_glue.yaml \
       -o Data.Train.dataset.name=SST2 \
       -o Data.Train.dataset.root=./dataset/SST-2/ \
       -o Data.Eval.dataset.name=SST2 \
@@ -39,7 +39,7 @@ then
 # Similarity and Paraphrase Tasks
 elif [ $1 == "MRPC" ]
 then
-    python run.py -c ./configs/finetune_gpt_345M_single_card_glue.yaml \
+    python finetune/run.py -c ./finetune/configs/finetune_gpt_345M_single_card_glue.yaml \
       -o Global.num_train_epochs=5 \
       -o Data.Train.dataset.name=MRPC \
       -o Data.Train.dataset.root=./dataset/MRPC/ \
@@ -51,7 +51,7 @@ then
       -o Model.metric.eval.name=AccuracyAndF1
 elif [ $1 == "QQP" ]
 then
-    python run.py -c ./configs/finetune_gpt_345M_single_card_glue.yaml \
+    python finetune/run.py -c ./finetune/configs/finetune_gpt_345M_single_card_glue.yaml \
       -o Data.Train.dataset.name=QQP \
       -o Data.Train.dataset.root=./dataset/QQP/ \
       -o Data.Eval.dataset.name=QQP \
@@ -62,7 +62,7 @@ then
       -o Model.metric.eval.name=AccuracyAndF1
 elif [ $1 == "STSB" ]
 then
-    python run.py -c ./configs/finetune_gpt_345M_single_card_glue.yaml \
+    python finetune/run.py -c ./finetune/configs/finetune_gpt_345M_single_card_glue.yaml \
       -o Data.Train.dataset.name=STSB \
       -o Data.Train.dataset.root=./dataset/STS-B/ \
       -o Data.Eval.dataset.name=STSB \
@@ -76,7 +76,7 @@ then
 # Inference Tasks
 elif [ $1 == "MNLI" ]
 then
-    python run.py -c ./configs/finetune_gpt_345M_single_card_glue.yaml \
+    python finetune/run.py -c ./finetune/configs/finetune_gpt_345M_single_card_glue.yaml \
       -o Data.Train.dataset.name=MNLI \
       -o Data.Train.dataset.root=./dataset/multinli_1.0 \
       -o Data.Eval.dataset.name=MNLI \
@@ -85,7 +85,7 @@ then
       -o Model.num_classes=3
 elif [ $1 == "QNLI" ]
 then
-    python run.py -c ./configs/finetune_gpt_345M_single_card_glue.yaml \
+    python finetune/run.py -c ./finetune/configs/finetune_gpt_345M_single_card_glue.yaml \
       -o Data.Train.dataset.name=QNLI \
       -o Data.Train.dataset.root=./dataset/QNLI/ \
       -o Data.Eval.dataset.name=QNLI \
@@ -94,7 +94,7 @@ then
       -o Model.num_classes=2
 elif [ $1 == "RTE" ]
 then
-    python run.py -c ./configs/finetune_gpt_345M_single_card_glue.yaml \
+    python finetune/run.py -c ./finetune/configs/finetune_gpt_345M_single_card_glue.yaml \
       -o Data.Train.dataset.name=RTE \
       -o Data.Train.dataset.root=./dataset/RTE/ \
       -o Data.Eval.dataset.name=RTE \
@@ -103,7 +103,7 @@ then
       -o Model.num_classes=2
 elif [ $1 == "WNLI" ]
 then
-    python run.py -c ./configs/finetune_gpt_345M_single_card_glue.yaml \
+    python finetune/run.py -c ./finetune/configs/finetune_gpt_345M_single_card_glue.yaml \
       -o Global.num_train_epochs=5 \
       -o Data.Train.dataset.name=WNLI \
       -o Data.Train.dataset.root=./dataset/WNLI/ \

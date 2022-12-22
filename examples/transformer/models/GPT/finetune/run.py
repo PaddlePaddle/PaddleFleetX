@@ -181,14 +181,14 @@ if __name__ == "__main__":
                     if step == 0 else train_step_cost / config.Global.logging_freq
                 speed = 1. / train_cost
                 default_global_tokens_num = config.Global.global_batch_size * \
-                    config.Data.Train.dataset.max_seq_len
+                    config.Data.Train.dataset.max_length
                 ips_total = speed * default_global_tokens_num
                 ips = ips_total / env.get_data_world_size()
 
                 logger.info(
                     "[train] epoch: [%d/%d], step: [%d/%d], learning rate: %.7f, loss: %.9f, avg_batch_cost: " \
                     "%.5f sec, speed: %.2f step/s, ips_total: %.0f tokens/s, ips: %.0f tokens/s"
-                    % (epoch_index, config.Global.num_train_epochs, batch, total_train_batch, optimizer.get_lr(),
+                    % (epoch_index, config.Global.num_train_epochs, step, total_train_batch, optimizer.get_lr(),
                     sum(numpy_losses) / len(numpy_losses), train_cost, speed, ips_total, ips))
 
                 train_step_start = log.get_timestamp()
@@ -210,9 +210,6 @@ if __name__ == "__main__":
                     step=step,
                     epoch=epoch_index,
                     sharding_stage=config.Distributed.sharding.sharding_stage)
-
-            if step >= config.Global.max_steps:
-                break
 
             if profiler:
                 profiler.step()
