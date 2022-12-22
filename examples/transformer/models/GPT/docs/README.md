@@ -139,7 +139,7 @@ cd .. # 回到 GPT 目录下
 
 ### 模型网络
 
-网络部分完成了网络的组网操作，GPT在[PaddleFleetX/ppfleetx/models/language_model/gpt/dygraph/single_model.py]((https://github.com/PaddlePaddle/PaddleFleetX/blob/develop/ppfleetx/models/language_model/gpt/dygraph/single_model.py))下。 
+网络部分完成了网络的组网操作，GPT在[single_model.py](https://github.com/PaddlePaddle/PaddleFleetX/blob/develop/ppfleetx/models/language_model/gpt/dygraph/single_model.py)下。 
 可以使用配置文件配置模型的规模，如：
 
 ```yaml

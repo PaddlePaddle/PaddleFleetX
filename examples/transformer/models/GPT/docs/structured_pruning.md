@@ -2,15 +2,6 @@
 
 本项目对语言模型 GPT 进行结构化稀疏（以下简称稀疏）。在 GPT 模型中，我们对 fused-qkv、out-linear、ffn1 和 ffn2 四层的权重进行了通道稀疏，其中，fused-qkv 和 ffn1 是在输出通道进行稀疏，out-linear 和 ffn2 是在输入通道进行稀疏。如果您需要自定义稀疏的层和通道，可以通过重写 ppfleetx/utils/compression_helper.py 中的 get_pruned_params() 函数实现。
 
-下面是本例涉及的文件及说明：
-
-```text
-.
-├── prune_gpt_345M_single_card.sh            # 单卡345M稀疏训练入口
-├── eval_prune_gpt_345M_single_card.sh       # 单卡345M稀疏模型验证入口
-├── export_prune_gpt_345M_single_card.sh     # 单卡345M稀疏模型导出入口
-```
-
 
 ### 环境依赖和数据准备
 环境依赖和数据准备请参考[GPT训练文档](./README.md)。
