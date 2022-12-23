@@ -20,4 +20,4 @@ mkdir -p dataset/ernie
 wget -O dataset/ernie/cluecorpussmall_14g_1207_ids_part0 https://paddlefleetx.bj.bcebos.com/model/nlp/ernie/cluecorpussmall_14g_1207_ids_part0
 wget -O dataset/ernie/cluecorpussmall_14g_1207_ids_part1 https://paddlefleetx.bj.bcebos.com/model/nlp/ernie/cluecorpussmall_14g_1207_ids_part1
 cat dataset/ernie/cluecorpussmall_14g_1207_ids_part* &> dataset/ernie/cluecorpussmall_14g_1207_ids.npy
-wget dataset/ernie/cluecorpussmall_14g_1207_idx.npz https://paddlefleetx.bj.bcebos.com/model/nlp/ernie/cluecorpussmall_14g_1207_idx.npz
+wget -O dataset/ernie/cluecorpussmall_14g_1207_idx.npz https://paddlefleetx.bj.bcebos.com/model/nlp/ernie/cluecorpussmall_14g_1207_idx.npz
