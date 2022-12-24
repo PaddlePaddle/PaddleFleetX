@@ -511,7 +511,7 @@ def process_auto_strategy(config):
     process auto strategy for auto parallel
     """
     strategy = auto.Strategy()
-    strategy.auto_mode = "semi"
+    strategy.auto_mode = config.Engine.get('auto_mode', "semi")
     strategy.seed = config['Global']['seed']
 
     # amp config
