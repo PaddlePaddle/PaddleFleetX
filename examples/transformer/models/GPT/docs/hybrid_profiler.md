@@ -64,7 +64,7 @@ cd PaddleFleetX/examples/transformer/models/GPT # 如果已在此目录下，则
 ```
 python -m paddle.distributed.launch \
     ./pretrain/run.py -c \
-    ./pretrain/configs/pretrain_gpt_1.3B_dp8.yaml -o Profiler.enable=True
+    ./pretrain/configs/pretrain_gpt_1.3B_dp8.yaml -o Profiler.enable=True -o Global.max_steps=6
 
 ```
 

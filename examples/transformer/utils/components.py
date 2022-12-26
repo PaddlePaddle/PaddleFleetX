@@ -151,6 +151,7 @@ def build_profiler(profiler_config):
         profiler_log = profiler_config.get('profiler_log', './profiler_log')
         record_shapes = profiler_config.get('record_shapes', True)
         profile_memory = profiler_config.get('profile_memory', True)
+        with_flops = profiler_config.get('with_flops', True)
         profiler = paddle.profiler.Profiler(
             targets=[
                 paddle.profiler.ProfilerTarget.CPU,
@@ -159,7 +160,8 @@ def build_profiler(profiler_config):
             scheduler=scheduler,
             on_trace_ready=paddle.profiler.export_chrome_tracing(profiler_log),
             record_shapes=record_shapes,
-            profile_memory=profile_memory)
+            profile_memory=profile_memory,
+            with_flops=with_flops)
         profiler.start()
         logger.warning("Profiler is enabled, do not enable it in production.")
 
