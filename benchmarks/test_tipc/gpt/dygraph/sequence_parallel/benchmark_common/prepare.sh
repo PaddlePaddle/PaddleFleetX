@@ -14,7 +14,7 @@
 
 python -m pip install -r ../requirements.txt
 # get data
-cd ../
+cd ../examples/transformer/models/GPT/
 rm -rf data
 mkdir data
 wget -O data/gpt_en_dataset_300m_ids.npy https://bj.bcebos.com/paddlenlp/models/transformers/gpt/data/gpt_en_dataset_300m_ids.npy
