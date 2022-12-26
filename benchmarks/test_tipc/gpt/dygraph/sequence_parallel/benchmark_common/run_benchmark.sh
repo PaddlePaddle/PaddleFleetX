@@ -105,7 +105,7 @@ function _train(){
         # sharding case
         echo "run run_mode: DP1-MP1-PP1 device_num: N1C2"
         train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1 ${PADDLE_RANK_OPTION}\
-              examples/transformer/models/GPT/pretrain/run.py -c examples/transformer/models/GPT/pretrain/configs/pretrain_gpt_1.3B_dp8.yaml \
+              ./pretrain/run.py -c ./pretrain/configs/pretrain_gpt_1.3B_dp8.yaml \
               ${train_cmd}" 
         workerlog_id=0
     else
@@ -113,26 +113,26 @@ function _train(){
         case ${run_mode} in
         DP1-MP1-PP1) echo "run run_mode: DP1-MP1-PP1"
             train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0 ${PADDLE_RANK_OPTION}\
-                examples/transformer/models/GPT/pretrain/run.py -c examples/transformer/models/GPT/pretrain/configs/pretrain_gpt_1.3B_dp8.yaml \
+                ./pretrain/run.py -c ./pretrain/configs/pretrain_gpt_1.3B_dp8.yaml \
                 ${train_cmd}"
             workerlog_id=0
             ;;
         DP1-MP8-PP1) echo "run run_mode: ${run_mode}"
             train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 ${PADDLE_RANK_OPTION}\
-                examples/transformer/models/GPT/pretrain/run.py -c examples/transformer/models/GPT/pretrain/configs/pretrain_gpt_1.3B_dp8.yaml \
+                ./pretrain/run.py -c ./pretrain/configs/pretrain_gpt_1.3B_dp8.yaml \
                 ${train_cmd}"
             workerlog_id=0
             ;;
         DP2-MP8-PP2) echo "run run_mode: ${run_mode}"
             train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 ${PADDLE_RANK_OPTION}\
-                examples/transformer/models/GPT/pretrain/run.py -c examples/transformer/models/GPT/pretrain/configs/pretrain_gpt_6.7B_sharding16.yaml \
+                ./pretrain/run.py -c ./pretrain/configs/pretrain_gpt_6.7B_sharding16.yaml \
                 ${train_cmd}"
             workerlog_id=0
             ;;
         *) echo "choose run_mode "; exit 1;
         esac
     fi
-    cd ../
+    cd ../examples/transformer/models/GPT/
     echo "train_cmd: ${train_cmd}  log_file: ${log_file}"
     if [[ ${model_item} =~ "CE" ]];then # CE精度-不限制执行时间
         ${train_cmd} > ${log_file} 2>&1
