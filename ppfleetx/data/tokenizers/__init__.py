@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .gpt_tokenizer import GPTTokenizer
+from .gpt_tokenizer import GPTTokenizer, GPTChineseTokenizer
 from .ernie_tokenizer import get_ernie_tokenizer

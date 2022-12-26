@@ -5,6 +5,8 @@
 
 ## 1. 模型导出
 
+### 1.1 非量化模型导出
+
 以`GPT-3(345M)`模型为例，通过如下方式下载PaddleFleetX发布的训练好的权重。若你已下载或使用训练过程中的权重，可跳过此步。
 
 ```bash
@@ -14,36 +16,58 @@ tar -xzf ckpt/GPT_345M.tar.gz -C ckpt/
 ```
 
 通过如下方式进行推理模型导出
-`GPT-3(345M)` 模型导出与推理
 导出单卡`GPT-3(345M)`模型：
 ```bash
 sh projects/gpt/auto_export_gpt_345M_single_card.sh
 ```
 
-`GPT-3(6.7B)` 模型导出与推理
 导出单卡`GPT-3(6.7B)`模型：
 ```bash
 sh projects/gpt/auto_export_gpt_6.7B_mp1.sh
 ```
 
-`GPT-3(175B)` 模型导出与推理
 导出8卡`GPT-3(175B)`模型：
 ```bash
 sh projects/gpt/auto_export_gpt_175B_mp8.sh
 ```
 
+### 1.2 量化模型导出
+
+导出单卡`GPT-3(345M)`量化模型：
+
+```shell
+# 为了方便快速体验，这里给出345M量化训练的模型，若已有量化模型，则无需下载
+wget https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M_QAT_wo_analysis.tar
+tar xf GPT_345M_QAT_wo_analysis.tar
+
+export CUDA_VISIBLE_DEVICES=0
+python ./tools/export.py \
+    -c ./ppfleetx/configs/nlp/gpt/generation_qat_gpt_345M_single_card.yaml \
+    -o Model.hidden_dropout_prob=0.0 \
+    -o Model.attention_probs_dropout_prob=0.0 \
+    -o Engine.save_load.ckpt_dir='./GPT_345M_QAT_wo_analysis/'
+```
+
+导出单卡`GPT-3(6.7B)`量化模型：
+
+```shell
+export CUDA_VISIBLE_DEVICES=0
+python ./tools/export.py \
+    -c ./ppfleetx/configs/nlp/gpt/generation_qat_gpt_6.7B_single_card.yaml \
+    -o Model.hidden_dropout_prob=0.0 \
+    -o Model.attention_probs_dropout_prob=0.0
+```
 
 ## 2. 推理部署
 
 模型导出后，可通过`tasks/gpt/inference.py`脚本进行推理部署。
-`GPT-3(345M)` 推理
+
+单卡推理
 ```bash
-bash projects/gpt/inference_gpt_345M_single_card.sh
+bash projects/gpt/inference_gpt_single_card.sh
 ```
-`GPT-3(6.7B)` 推理
-```bash
-bash projects/gpt/inference_gpt_6.7B_single_card.sh
-```
+
+
 ## 3. Benchmark
 - 运行benchmark脚本
 ```
