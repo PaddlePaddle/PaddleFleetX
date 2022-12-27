@@ -21,7 +21,6 @@
 
 import paddle
 from paddle.distributed.models.moe.utils import _number_count, _limit_by_capacity, _prune_gate_by_capacity, _assign_pos
-from paddle.fluid.framework import in_dygraph_mode
 
 
 def prepare_forward(gate, num_expert, world_size, moe_group):
@@ -43,18 +42,12 @@ def _alltoall(in_tensor_list, group=None, use_calc_stream=True):
     if group is not None and not group.is_member():
         return
 
-    if in_dygraph_mode():
-        group = paddle.distributed.collective._get_default_group(
-        ) if group is None else group
-        out = paddle.empty(in_tensor_list.shape, in_tensor_list.dtype)
-        task = group.process_group.alltoall(in_tensor_list, out)
-        task.wait()
-        return out
-    else:
-        ring_id = 0 if group is None else group.id
-        return paddle._legacy_C_ops.alltoall(in_tensor_list, 'use_calc_stream',
-                                             use_calc_stream, 'ring_id',
-                                             ring_id)
+    group = paddle.distributed.collective._get_default_group(
+    ) if group is None else group
+    out = paddle.empty(in_tensor_list.shape, in_tensor_list.dtype)
+    task = group.process_group.alltoall(in_tensor_list, out)
+    task.wait()
+    return out
 
 
 def _local_scatter(inp, pos):
@@ -86,23 +79,15 @@ def _all_gather(tensor, group=None, use_calc_stream=True):
     if group is not None and not group.is_member():
         return
 
-    if in_dygraph_mode():
-        group = paddle.distributed.collective._get_default_group(
-        ) if group is None else group
-        tensor_shape = list(tensor.shape)
-        tensor_shape[0] *= group.nranks
-        out = paddle.empty(tensor_shape, tensor.dtype)
+    group = paddle.distributed.collective._get_default_group(
+    ) if group is None else group
+    tensor_shape = list(tensor.shape)
+    tensor_shape[0] *= group.nranks
+    out = paddle.empty(tensor_shape, tensor.dtype)
 
-        task = group.process_group.all_gather(tensor, out)
-        task.wait()
-        return out
-    else:
-        ring_id = 0 if group is None else group.id
-        nranks = paddle.distributed.collective._get_global_group(
-        ).nranks if group is None else group.nranks
-        return paddle._legacy_C_ops.c_allgather(tensor, 'use_calc_stream',
-                                                use_calc_stream, 'ring_id',
-                                                ring_id, 'nranks', nranks)
+    task = group.process_group.all_gather(tensor, out)
+    task.wait()
+    return out
 
 
 def count_by_gate(gate, num_expert, world_size, require_pos=True, group=None):
