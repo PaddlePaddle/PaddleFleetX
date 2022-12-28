@@ -24,7 +24,7 @@ install_requires = fetch_requirements('requirements.txt')
 
 setup(
     name='ppfleetx',
-    version='0.1',
+    version='2.4.1',
     description='PaddleFleetX',
     author='PaddlePaddle Authors',
     url='https://github.com/PaddlePaddle/PaddleFleetX',
