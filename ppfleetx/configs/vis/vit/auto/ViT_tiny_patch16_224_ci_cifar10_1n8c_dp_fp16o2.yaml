@@ -1,0 +1,94 @@
+_base_: ./base.yaml
+
+Global:
+  device: gpu
+  seed: 2021
+  local_batch_size: 256
+  micro_batch_size: 256
+
+Engine:
+  num_train_epochs: 1
+  eval_freq: 1
+  accumulate_steps: 1
+  logging_freq: 10
+  mix_precision:
+    level: "o2"
+    scale_loss: 32768.0
+    custom_black_list: ["reduce_sum", "elementwise_div"]
+    custom_white_list: []
+  save_load:
+    save_epoch: 1
+    output_dir: ./output
+    ckpt_dir:
+
+Distributed:
+  dp_degree:
+
+Model:
+  module: "GeneralClsModuleAuto"
+  model:
+    name: "ViT_tiny_patch16_224"
+    class_num: 10
+    drop_rate: 0.1
+  loss:
+    name: 'ViTCELoss'
+  metric:
+    name: 'TopkAcc'
+    topk: [1, 5]
+
+Optimizer:
+  name: AdamW
+  weight_decay: 0.3
+  beta1: 0.9
+  beta2: 0.999
+  epsilon: 1.0e-8
+  lr:
+    name: ViTLRScheduler
+    learning_rate: 0.003
+    decay_type: cosine
+    warmup_steps: 10000
+  grad_clip:
+    name: "ClipGradByGlobalNorm"
+    clip_norm: 1.0
+
+Data:
+  Train:
+    sample_split: 1
+    dataset:
+      name: CIFAR10
+      root: ./dataset/cifar-10-batches-py/
+      mode: train
+      transform_ops:
+        - RandCropImage:
+            size: 224
+            scale: [0.05, 1.0]
+            interpolation: bicubic
+            backend: pil
+        - RandFlipImage:
+            flip_code: 1
+        - NormalizeImage:
+            scale: 1.0/255.0
+            mean: [0.5, 0.5, 0.5]
+            std: [0.5, 0.5, 0.5]
+            order: ''
+        - ToCHWImage:
+
+  Eval:
+    sample_split: 1
+    dataset: 
+      name: CIFAR10
+      root: ./dataset/cifar-10-batches-py/
+      mode: test
+      transform_ops:
+        - ResizeImage:
+            resize_short: 256
+            interpolation: bicubic
+            backend: pil
+        - CenterCropImage:
+            size: 224
+        - NormalizeImage:
+            scale: 1.0/255.0
+            mean: [0.5, 0.5, 0.5]
+            std: [0.5, 0.5, 0.5]
+            order: ''
+        - ToCHWImage:

@@ -19,3 +19,4 @@ def version_check():
     version = paddle.version.full_version
     if version != '0.0.0':
         paddle.utils.require_version(min_version='2.3.0')
+

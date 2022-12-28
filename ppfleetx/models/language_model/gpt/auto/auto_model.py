@@ -53,6 +53,8 @@ class MultiHeadAttention(nn.Layer):
                  weight_attr=None,
                  bias_attr=None,
                  fuse_attn_qkv=False,
+                 use_recompute=False,
+                 recompute_granularity="full",
                  mesh=None,
                  mesh_idx=None):
         super(MultiHeadAttention, self).__init__()
@@ -63,6 +65,8 @@ class MultiHeadAttention(nn.Layer):
         self.dropout = dropout
         self.need_weights = need_weights
         self.fuse_attn_qkv = fuse_attn_qkv
+        self.use_recompute = use_recompute
+        self.recompute_granularity = recompute_granularity
         self.mesh = mesh
         self.mesh_idx = mesh_idx
 
@@ -188,8 +192,8 @@ class MultiHeadAttention(nn.Layer):
 
     def core_attn(self, q, k, v, attn_mask=None):
         # scale dot product attention
-        product = layers.matmul(
-            x=q, y=k, transpose_y=True, alpha=self.head_dim**-0.5)
+        product = paddle.matmul(
+            x=q, y=k, transpose_y=True) * self.head_dim**-0.5
 
         if attn_mask is not None:
             product = product + attn_mask
@@ -205,7 +209,7 @@ class MultiHeadAttention(nn.Layer):
                 training=self.training,
                 mode="upscale_in_train")
 
-        out = tensor.matmul(weights, v)
+        out = paddle.matmul(weights, v)
 
         # combine heads
         out = tensor.transpose(out, perm=[0, 2, 1, 3])
@@ -241,7 +245,13 @@ class MultiHeadAttention(nn.Layer):
                 q, k, v, cache = self._prepare_qkv(query, key, value,
                                                    use_cache, cache)
 
-        out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
+        if self.use_recompute and self.recompute_granularity == "core_attn":
+            out, weights = auto.recompute(self.core_attn)(q,
+                                                          k,
+                                                          v,
+                                                          attn_mask=attn_mask)
+        else:
+            out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
 
         auto.shard_tensor(self.out_proj.weight, self.mesh[self.mesh_idx],
                           [self.mesh.mp, None])
@@ -262,18 +272,24 @@ class TransformerDecoder(nn.Layer):
     TransformerDecoder is a stack of N decoder layers.
     """
 
-    def __init__(self, decoder_layers, num_layers, norm=None,
-                 hidden_size=None):
+    def __init__(self,
+                 decoder_layers,
+                 num_layers,
+                 norm=None,
+                 hidden_size=None,
+                 use_recompute=False,
+                 recompute_granularity="full"):
         super(TransformerDecoder, self).__init__()
 
         self.num_layers = num_layers
         self.layers = decoder_layers
         self.norm = norm
+        self.use_recompute = use_recompute
+        self.recompute_granularity = recompute_granularity
         if norm == "LayerNorm":
             self.norm = nn.LayerNorm(hidden_size, epsilon=1e-5)
         elif norm is not None:
             raise ValueError("Only support LayerNorm")
-        self.checkpoints = []
 
     def forward(self,
                 tgt,
@@ -304,7 +320,12 @@ class TransformerDecoder(nn.Layer):
                                             cache=cache)
                     new_caches.append(new_cache)
                 else:
-                    output = mod(output, memory, tgt_mask, use_cache, cache)
+                    if self.use_recompute and self.recompute_granularity == "full":
+                        output = auto.recompute(mod)(output, memory, tgt_mask,
+                                                     use_cache, cache)
+                    else:
+                        output = mod(output, memory, tgt_mask, use_cache,
+                                     cache)
             else:
                 output, new_cache = mod(output,
                                         memory,
@@ -312,7 +333,6 @@ class TransformerDecoder(nn.Layer):
                                         use_cache=use_cache,
                                         cache=cache[i])
                 new_caches.append(new_cache)
-            self.checkpoints.append(output.name)
 
         if self.norm is not None:
             output = self.norm(output)
@@ -351,6 +371,8 @@ class TransformerDecoderLayer(nn.Layer):
                  weight_attr=None,
                  bias_attr=None,
                  fuse_attn_qkv=False,
+                 use_recompute=False,
+                 recompute_granularity="full",
                  mesh=None,
                  mesh_idx=None):
         self._config = locals()
@@ -361,6 +383,8 @@ class TransformerDecoderLayer(nn.Layer):
         attn_dropout = dropout if attn_dropout is None else attn_dropout
         act_dropout = dropout if act_dropout is None else act_dropout
         self.normalize_before = normalize_before
+        self.use_recompute = use_recompute
+        self.recompute_granularity = recompute_granularity
         self.mesh = mesh
         self.mesh_idx = mesh_idx
 
@@ -374,6 +398,8 @@ class TransformerDecoderLayer(nn.Layer):
             weight_attr=weight_attrs[0],
             bias_attr=bias_attrs[0],
             fuse_attn_qkv=fuse_attn_qkv,
+            use_recompute=use_recompute,
+            recompute_granularity=recompute_granularity,
             mesh=mesh,
             mesh_idx=mesh_idx)
 
@@ -402,7 +428,11 @@ class TransformerDecoderLayer(nn.Layer):
             tgt = self.norm1(tgt)
 
         if use_cache is False:
-            tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
+            if self.use_recompute and self.recompute_granularity == "full_attn":
+                tgt = auto.recompute(self.self_attn)(tgt, tgt, tgt, tgt_mask,
+                                                     use_cache, cache)
+            else:
+                tgt = self.self_attn(tgt, tgt, tgt, tgt_mask, use_cache, cache)
         else:
             tgt, incremental_cache = self.self_attn(tgt, tgt, tgt, tgt_mask,
                                                     use_cache, cache)
@@ -494,6 +524,8 @@ class GPTModelAuto(nn.Layer):
                  type_vocab_size=16,
                  initializer_range=0.02,
                  fuse_attn_qkv=False,
+                 use_recompute=False,
+                 recompute_granularity="full",
                  mesh=None):
 
         super(GPTModelAuto, self).__init__()
@@ -501,6 +533,8 @@ class GPTModelAuto(nn.Layer):
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
+        self.use_recompute = use_recompute
+        self.recompute_granularity = recompute_granularity
 
         if not mesh:
             raise RuntimeError(
@@ -530,6 +564,8 @@ class GPTModelAuto(nn.Layer):
                             mean=0.0, std=self.initializer_range)),
                     bias_attr=None,
                     fuse_attn_qkv=fuse_attn_qkv,
+                    use_recompute=use_recompute,
+                    recompute_granularity=recompute_granularity,
                     mesh=self.mesh,
                     mesh_idx=stages[i]))
 
@@ -537,8 +573,9 @@ class GPTModelAuto(nn.Layer):
             decoder_layers,
             num_layers,
             norm="LayerNorm",
-            hidden_size=hidden_size)
-        self.checkpoints = []
+            hidden_size=hidden_size,
+            use_recompute=use_recompute,
+            recompute_granularity=recompute_granularity)
 
     def forward(self,
                 input_ids,
@@ -549,15 +586,14 @@ class GPTModelAuto(nn.Layer):
         if position_ids is None:
             past_length = 0
             if cache is not None:
-                past_length = paddle.shape(cache[0].k)[-2]
+                past_length = paddle.shape(attention_mask)[-1] - 1
             position_ids = paddle.arange(
                 past_length,
                 paddle.shape(input_ids)[-1] + past_length,
                 dtype=input_ids.dtype)
             position_ids = position_ids.unsqueeze(0)
             # .expand_as(input_ids)
-            position_ids = paddle.fluid.layers.expand_as(position_ids,
-                                                         input_ids)
+            position_ids = paddle.expand_as(position_ids, input_ids)
 
         input_ids.stop_gradient = True
         position_ids.stop_gradient = True
@@ -591,7 +627,6 @@ class GPTModelAuto(nn.Layer):
             attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
-        self.checkpoints.extend(self.decoder.checkpoints)
         return encoder_outputs
 
 
@@ -709,6 +744,8 @@ class GPTForGenerationAuto(nn.Layer):
         self.temperature = self.configs.get('temperature', 1.0)
         self.top_k = self.configs.get('top_k', 0)
         self.top_p = self.configs.get('top_p', 1.0)
+        self.use_topp_sampling = self.configs.get('use_topp_sampling', False)
+        self.inference = self.configs.get('inference', False)
         self.repetition_penalty = self.configs.get('repetition_penalty', 1.0)
         self.num_beams = self.configs.get('num_beams', 1)
         self.num_beam_groups = self.configs.get('num_beam_groups', 1)
@@ -852,10 +889,6 @@ class GPTForGenerationAuto(nn.Layer):
             if "int" in paddle.common_ops_import.convert_dtype(
                     attention_mask.dtype):
                 attention_mask = (1.0 - attention_mask) * -1e4
-        if cache is not None:
-            input_ids = input_ids[:, -1].unsqueeze(-1)
-            if position_ids is not None:
-                position_ids = position_ids[:, -1].unsqueeze(-1)
         return {
             "input_ids": input_ids,
             "position_ids": position_ids,
@@ -864,6 +897,7 @@ class GPTForGenerationAuto(nn.Layer):
         }
 
     def update_model_kwargs_for_generation(self,
+                                           next_tokens,
                                            outputs,
                                            model_kwargs,
                                            is_encoder_decoder=False):
@@ -888,8 +922,7 @@ class GPTForGenerationAuto(nn.Layer):
         if "position_ids" in model_kwargs and model_kwargs[
                 "position_ids"] is not None:
             position_ids = model_kwargs["position_ids"]
-            model_kwargs["position_ids"] = paddle.concat(
-                [position_ids, position_ids[:, -1:] + 1], axis=-1)
+            model_kwargs["position_ids"] = position_ids[:, -1:] + 1
 
         # update attention_mask
         if not is_encoder_decoder and "attention_mask" in model_kwargs:
@@ -925,6 +958,9 @@ class GPTForGenerationAuto(nn.Layer):
             role_ids = model_kwargs["role_ids"]
             model_kwargs["role_ids"] = paddle.concat(
                 [role_ids, role_ids[:, -1:]], axis=-1)
+
+        model_kwargs['res'] = paddle.concat(
+            [model_kwargs['res'], next_tokens], axis=1)
 
         return model_kwargs
 
@@ -977,10 +1013,19 @@ class GPTForGenerationAuto(nn.Layer):
             return probs
 
         batch_size, cur_len = paddle.shape(input_ids)
+        # used for compute on gpu, avoid memcpy D2H
+        cur_len_gpu = paddle.full([1], cur_len, dtype='int64')
+
         origin_len = paddle.shape(input_ids)[1]
+        # used for compute on gpu, avoid memcpy D2H
+        origin_len_gpu = paddle.full([1], origin_len, dtype='int64')
+
         unfinished_flag = paddle.full([batch_size, 1], True, dtype='bool')
         scores = paddle.full(
             [batch_size, 1], 0.0, dtype=paddle.get_default_dtype())
+
+        res = paddle.assign(input_ids)
+        model_kwargs['res'] = res
 
         # use_cache is immutable, we split it off other mutable kwargs.
         assert 'use_cache' in model_kwargs
@@ -1008,10 +1053,11 @@ class GPTForGenerationAuto(nn.Layer):
             w_dims_mapping = [self.gpt.mesh.mp, None]
             matmul = auto.shard_op(paddle.matmul, self.gpt.mesh[-1],
                                    [x_dims_mapping, w_dims_mapping, None])
-            logits = matmul(
-                logits,
-                self.gpt.embeddings.word_embeddings.weight,
-                transpose_y=True)
+            with paddle.fluid.name_scope('skip_quant'):
+                logits = matmul(
+                    logits,
+                    self.gpt.embeddings.word_embeddings.weight,
+                    transpose_y=True)
 
             # [batch_size, vocab_size]
             logits = logits[:, -1, :]
@@ -1021,15 +1067,33 @@ class GPTForGenerationAuto(nn.Layer):
 
             # sample
             origin_probs = F.softmax(logits)
-            origin_probs = paddle.log(origin_probs)
-            if temperature is not None and temperature != 1.0:
+            if temperature is None or temperature == 1.0:
+                probs = paddle.assign(origin_probs)
+                origin_probs = paddle.log(origin_probs)
+            else:
+                origin_probs = paddle.log(origin_probs)
                 logits = logits / temperature
-            probs = F.softmax(logits)
+                probs = F.softmax(logits)
             if top_k is not None and top_k != 0:
                 probs = TopKProcess(probs, top_k, min_tokens_to_keep)
             if top_p is not None and top_p < 1.0:
-                probs = TopPProcess(probs, top_p, min_tokens_to_keep)
-            next_tokens = paddle.multinomial(probs)
+                if self.use_topp_sampling:
+                    try:
+                        from ppfleetx_ops import topp_sampling
+                    except ImportError:
+                        raise ImportError(
+                            "please install ppfleetx_ops by 'cd ppfleetx/ops && python setup_cuda.py install'!"
+                        )
+                    top_ps_tensor = paddle.full(
+                        shape=[paddle.shape(probs)[0]],
+                        fill_value=top_p,
+                        dtype=probs.dtype)
+                    next_tokens = topp_sampling(probs, top_ps_tensor)
+                else:
+                    probs = TopPProcess(probs, top_p, min_tokens_to_keep)
+
+            if not self.use_topp_sampling:
+                next_tokens = paddle.multinomial(probs)
 
             next_scores = paddle.index_sample(origin_probs, next_tokens)
 
@@ -1041,13 +1105,14 @@ class GPTForGenerationAuto(nn.Layer):
             scores = self.update_scores_for_generation(
                 scores, next_scores, cur_len - origin_len, unfinished_flag)
 
-            input_ids = paddle.concat([input_ids, next_tokens], axis=1)
+            input_ids = next_tokens
 
             if eos_token_id is not None:
                 unfinished_flag = paddle.logical_and(
                     unfinished_flag, next_tokens != eos_token_id)
 
             model_kwargs = self.update_model_kwargs_for_generation(
+                next_tokens,
                 outputs,
                 model_kwargs,
                 is_encoder_decoder=self.is_encoder_decoder)
@@ -1059,9 +1124,14 @@ class GPTForGenerationAuto(nn.Layer):
         outputs = _forward_(**model_kwargs)
 
         input_ids, scores, unfinished_flag, model_kwargs = _post_process_(
-            outputs, input_ids, cur_len, origin_len, scores, unfinished_flag,
-            model_kwargs)
-        cur_len += 1
+            outputs, input_ids, cur_len_gpu, origin_len_gpu, scores,
+            unfinished_flag, model_kwargs)
+        if not self.inference:
+            cur_len += 1
+        else:
+            # Note(ZhenyuLi): Avoid the synchronization caused by scale in dy2static
+            paddle.increment(cur_len)
+        paddle.increment(cur_len_gpu)
 
         attn_mask = model_kwargs['attention_mask']
         # make the shape of attention_mask = (-1, -1, -1, -1) in dy2static.
@@ -1075,14 +1145,19 @@ class GPTForGenerationAuto(nn.Layer):
             # and change it to pass directly to _post_process_ to avoid 
             # closed-loop problem of dynamic-to-static model
             input_ids, scores, unfinished_flag, model_kwargs = _post_process_(
-                _forward_(**model_kwargs), input_ids, cur_len, origin_len,
-                scores, unfinished_flag, model_kwargs)
-            cur_len += 1
+                _forward_(**model_kwargs), input_ids, cur_len_gpu,
+                origin_len_gpu, scores, unfinished_flag, model_kwargs)
+            if not self.inference:
+                cur_len += 1
+            else:
+                # Note(ZhenyuLi): Avoid the synchronization caused by scale in dy2static
+                paddle.increment(cur_len)
+            paddle.increment(cur_len_gpu)
 
             if not paddle.any(unfinished_flag):
                 break
 
-        return input_ids[:, origin_len:], scores
+        return model_kwargs['res'][:, origin_len:], scores
 
     def forward(self, input_ids=None, **model_kwargs):
 
@@ -1136,16 +1211,31 @@ class GPTForGenerationAuto(nn.Layer):
             model_kwargs[
                 "attention_mask"] = self.prepare_attention_mask_for_generation(
                     input_ids, pad_token_id, eos_token_id)
+
+        if model_kwargs.get("position_ids", None) is None:
+            model_kwargs['position_ids'] = paddle.arange(
+                0,
+                paddle.shape(model_kwargs['attention_mask'])[-1],
+                dtype=input_ids.dtype).unsqueeze(0)
+
         self.is_encoder_decoder = False
 
         model_kwargs["use_cache"] = use_cache
 
-        max_length += paddle.shape(input_ids)[-1]
-        min_length += paddle.shape(input_ids)[-1]
+        if self.inference:
+            # Note(ZhenyuLi): Avoid the synchronization caused by scale in dy2static
+            min_len = input_ids.shape[-1]
+            max_len = input_ids.shape[-1]
+            paddle.increment(min_len, min_length)
+            paddle.increment(max_len, max_length)
+        else:
+            input_len = input_ids.shape[-1]
+            max_len = max_length + input_len
+            min_len = min_length + input_len
 
         logits_processors = self.get_logits_processor(
-            min_length=min_length,
-            max_length=max_length,
+            min_length=min_len,
+            max_length=max_len,
             eos_token_id=eos_token_id,
             forced_bos_token_id=forced_bos_token_id,
             forced_eos_token_id=forced_eos_token_id,
@@ -1161,7 +1251,7 @@ class GPTForGenerationAuto(nn.Layer):
                     expand_size=num_return_sequences,
                     **model_kwargs)
 
-            ret = self.sample(input_ids, logits_processors, max_length,
+            ret = self.sample(input_ids, logits_processors, max_len,
                               pad_token_id, eos_token_id, top_k, top_p,
                               temperature, **model_kwargs)
         else:

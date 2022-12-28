@@ -25,9 +25,9 @@ import paddle.distributed.fleet as fleet
 
 from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.language_model.gpt as gpt
-from ppfleetx.utils import env
+from ppfleetx.models.language_model.gpt.dygraph.sequence_parallel_utils import register_sequence_parallel_allreduce_hooks
+from ppfleetx.distributed.apis import env
 from ppfleetx.utils.log import logger
-import paddleslim
 from .utils import process_configs
 from ppfleetx.data.tokenizers import GPTTokenizer
 from .metrics import *
@@ -109,11 +109,6 @@ class LanguageModule(BasicModule):
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
                log_dict['test_cost'], speed))
 
-    def qat_model(self, model):
-        quanter = paddleslim.dygraph.quant.QAT(
-            config=self.configs.Quantization)
-        return quanter.quantize(model)
-
     def get_model_size(self, l, h, v, s):
         P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
         logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 /
@@ -127,9 +122,19 @@ class LanguageModule(BasicModule):
 class GPTModule(LanguageModule):
     def __init__(self, configs):
         super(GPTModule, self).__init__(configs)
+        if configs.Model.sequence_parallel:
+            register_sequence_parallel_allreduce_hooks(
+                self, configs.Engine.accumulate_steps,
+                configs.Distributed.fuse_sequence_parallel_allreduce)
 
     def get_model(self):
         model_setting = copy.deepcopy(self.configs.Model)
+        if 'Compress' in self.configs and 'Quantization' in self.configs.Compress:
+            quant_setting = copy.deepcopy(self.configs.Compress.Quantization)
+            skip_tensor_map = quant_setting.get('skip_tensor_map', {})
+            freeze_embedding = quant_setting.get('freeze_embedding', False)
+            model_setting['skip_tensor_map'] = skip_tensor_map
+            model_setting['freeze_embedding'] = freeze_embedding
         model_setting.pop("module")
 
         l = model_setting['num_layers']
@@ -160,17 +165,14 @@ class GPTModule(LanguageModule):
             else:
                 model = gpt.GPTForPretrainingPipe(**model_setting)
 
-        if 'Quantization' in self.configs.keys(
-        ) and self.configs.Quantization.enable:
-            model = self.qat_model(model)
-
         return model
 
     def get_loss_fn(self):
         if self.nranks == 1:
             loss_fn = gpt.GPTPretrainingCriterion()
         else:
-            loss_fn = gpt.GPTPretrainingCriterionHybird()
+            loss_fn = gpt.GPTPretrainingCriterionHybird(
+                sequence_parallel=self.configs.Model.sequence_parallel)
         return loss_fn
 
     def pretreating_batch(self, batch):
@@ -473,6 +475,12 @@ class GPTGenerationModule(BasicModule):
 
     def get_model(self):
         model_setting = copy.deepcopy(self.configs.Model)
+        if 'Compress' in self.configs and 'Quantization' in self.configs.Compress:
+            quant_setting = copy.deepcopy(self.configs.Compress.Quantization)
+            skip_tensor_map = quant_setting.get('skip_tensor_map', {})
+            freeze_embedding = quant_setting.get('freeze_embedding', False)
+            model_setting['skip_tensor_map'] = skip_tensor_map
+            model_setting['freeze_embedding'] = freeze_embedding
         model_setting.pop("module")
 
         model_name = model_setting.pop("name")
@@ -592,6 +600,12 @@ class GPTEvalModule(LanguageModule):
 
     def get_model(self):
         model_setting = copy.deepcopy(self.configs.Model)
+        if 'Compress' in self.configs and 'Quantization' in self.configs.Compress:
+            quant_setting = copy.deepcopy(self.configs.Compress.Quantization)
+            skip_tensor_map = quant_setting.get('skip_tensor_map', {})
+            freeze_embedding = quant_setting.get('freeze_embedding', False)
+            model_setting['skip_tensor_map'] = skip_tensor_map
+            model_setting['freeze_embedding'] = freeze_embedding
         model_setting.pop("module")
         model_setting.pop("name")
 
@@ -672,10 +686,16 @@ class GPTEvalModule(LanguageModule):
 
         logger.info(string)
 
+    def input_spec(self):
+        return [
+            InputSpec(
+                shape=[None, None], name="tokens", dtype='int64'), InputSpec(
+                    shape=[None, None], name="ids", dtype='int64')
+        ]
+
 
 class MoEModule(LanguageModule):
     def __init__(self, configs):
-        self.initialize_model_and_expert_group()
         super(MoEModule, self).__init__(configs)
 
         assert self.nranks == configs.Distributed.dp_degree, \
@@ -752,30 +772,8 @@ class MoEModule(LanguageModule):
 
         return loss
 
-    def initialize_model_and_expert_group(self):
-        if paddle.distributed.get_world_size() == 1:
-            return
-
-        hcg = fleet.get_hybrid_communicate_group()
-
-        def get_expert_parallel_world_size(self):
-            return self.get_data_parallel_world_size(
-            ) * self.get_model_parallel_world_size()
-
-        hcg.get_expert_parallel_world_size = types.MethodType(
-            get_expert_parallel_world_size, hcg)
-
-        # need create mp_dp group for expert parallel group in advance
-        _, mp_dp_comm_group = hcg._set_check_group(parallel_method="pipe")
-
-        def get_expert_parallel_group(self):
-            return mp_dp_comm_group
-
-        hcg.get_expert_parallel_group = types.MethodType(
-            get_expert_parallel_group, hcg)
-
     def initialize_mp_dp_parameters(self):
-        hcg = fleet.get_hybrid_communicate_group()
+        hcg = env.get_hcg()
         mp_group = hcg.get_model_parallel_group()
         mp_src_rank = hcg.get_model_parallel_group_src_rank()
 

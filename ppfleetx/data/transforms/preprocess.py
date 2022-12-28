@@ -17,13 +17,16 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 from functools import partial
-import six
 import math
 import random
 import cv2
 import numpy as np
 from PIL import Image
+from PIL import ImageFilter
+
+from paddle.vision.transforms import functional as F
 from paddle.vision.transforms import ColorJitter as PPColorJitter
+from paddle.vision.transforms import Grayscale
 
 from ppfleetx.utils.log import logger
 
@@ -42,12 +45,8 @@ class DecodeImage(object):
         self.channel_first = channel_first
 
     def __call__(self, img):
-        if six.PY2:
-            assert type(img) is str and len(
-                img) > 0, "invalid input 'img' in DecodeImage"
-        else:
-            assert type(img) is bytes and len(
-                img) > 0, "invalid input 'img' in DecodeImage"
+        assert type(img) is bytes and len(
+            img) > 0, "invalid input 'img' in DecodeImage"
         data = np.frombuffer(img, dtype='uint8')
         img = cv2.imdecode(data, 1)
         if self.to_rgb:
@@ -297,15 +296,36 @@ class ColorJitter(PPColorJitter):
     """
 
     def __init__(self, *args, **kwargs):
+        self.p = kwargs.pop('p', 1.0)
         super().__init__(*args, **kwargs)
 
     def __call__(self, img):
-        if not isinstance(img, Image.Image):
-            img = np.ascontiguousarray(img)
-            img = Image.fromarray(img)
-        img = super()._apply_image(img)
-        if isinstance(img, Image.Image):
-            img = np.asarray(img)
+        if random.random() < self.p:
+            if not isinstance(img, Image.Image):
+                img = np.ascontiguousarray(img)
+                img = Image.fromarray(img)
+            img = super()._apply_image(img)
+            if isinstance(img, Image.Image):
+                img = np.asarray(img)
+        return img
+
+
+class GaussianBlur(object):
+    """Gaussian blur augmentation in SimCLR https://arxiv.org/abs/2002.05709"""
+
+    def __init__(self, sigma=[.1, 2.], p=1.0):
+        self.p = p
+        self.sigma = sigma
+
+    def __call__(self, img):
+        if random.random() < self.p:
+            if not isinstance(img, Image.Image):
+                img = np.ascontiguousarray(img)
+                img = Image.fromarray(img)
+            sigma = random.uniform(self.sigma[0], self.sigma[1])
+            img = img.filter(ImageFilter.GaussianBlur(radius=sigma))
+            if isinstance(img, Image.Image):
+                img = np.asarray(img)
         return img
 
 
@@ -375,4 +395,43 @@ class RandomErasing(object):
                 else:
                     img[x1:x1 + h, y1:y1 + w, 0] = pixels[0]
                 return img
+        return img
+
+
+class RandomGrayscale(object):
+    """Randomly convert image to grayscale with a probability of p (default 0.1).
+    Args:
+        p (float): probability that image should be converted to grayscale.
+    Returns:
+        PIL Image: Grayscale version of the input image with probability p and unchanged
+        with probability (1-p).
+        - If input image is 1 channel: grayscale version is 1 channel
+        - If input image is 3 channel: grayscale version is 3 channel with r == g == b
+    """
+
+    def __init__(self, p=0.1):
+        self.p = p
+
+    def __call__(self, img):
+        """
+        Args:
+            img (PIL Image): Image to be converted to grayscale.
+        Returns:
+            PIL Image: Randomly grayscaled image.
+        """
+
+        flag = False
+        if not isinstance(img, Image.Image):
+            img = np.ascontiguousarray(img)
+            img = Image.fromarray(img)
+            flag = True
+
+        num_output_channels = 1 if img.mode == 'L' else 3
+
+        if random.random() < self.p:
+            img = F.to_grayscale(img, num_output_channels=num_output_channels)
+
+        if flag:
+            img = np.asarray(img)
+
         return img

@@ -16,7 +16,6 @@ import os
 import io
 import copy
 import logging
-import six
 import json
 
 import paddle
@@ -24,17 +23,24 @@ import paddle.nn as nn
 from paddle.nn import functional as F
 from dataclasses import dataclass, field
 
-from ..layers.model_outputs import BaseModelOutputWithPoolingAndCrossAttentions, ModelOutput
+from ..layers.model_outputs import (
+    BaseModelOutputWithPoolingAndCrossAttentions,
+    ModelOutput,
+    ErnieForPreTrainingOutput,
+    SequenceClassifierOutput, )
+
 from ..layers.distributed_transformer import TransformerEncoderLayer, TransformerEncoder
 from paddle.distributed import fleet
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 from paddle.distributed.fleet.meta_parallel import LayerDesc, PipelineLayer, SharedLayerDesc
 
+from ppfleetx.distributed.apis import env
+
 
 def parallel_matmul(lm_output, logit_weights, parallel_output):
     """
     """
-    hcg = fleet.get_hybrid_communicate_group()
+    hcg = env.get_hcg()
     model_parallel_group = hcg.get_model_parallel_group()
     world_size = hcg.get_model_parallel_world_size()
     rank = hcg.get_model_parallel_rank()
@@ -106,6 +112,7 @@ class ErnieEmbeddings(nn.Layer):
         if input_ids is not None:
             input_shape = paddle.shape(input_ids)
             input_embeddings = self.word_embeddings(input_ids)
+
         else:
             input_shape = paddle.shape(inputs_embeds)[:-1]
             input_embeddings = inputs_embeds
@@ -127,6 +134,7 @@ class ErnieEmbeddings(nn.Layer):
             if token_type_ids is None:
                 token_type_ids = paddle.zeros(input_shape, dtype="int64")
             token_type_embeddings = self.token_type_embeddings(token_type_ids)
+
             embeddings = embeddings + token_type_embeddings
 
         if self.use_task_id:
@@ -160,10 +168,7 @@ class ErnieModelHybrid(nn.Layer):
     r"""
     The bare ERNIE Model transformer outputting raw hidden-states.
 
-    This model inherits from :class:`~paddlenlp.transformers.model_utils.PretrainedModel`.
-    Refer to the superclass documentation for the generic methods.
-
-    This model is also a Paddle `paddle.nn.Layer <https://www.paddlepaddle.org.cn/documentation
+    This model is a Paddle `paddle.nn.Layer <https://www.paddlepaddle.org.cn/documentation
     /docs/en/api/paddle/fluid/dygraph/layers/Layer_en.html>`__ subclass. Use it as a regular Paddle Layer
     and refer to the Paddle documentation for all matter related to general usage and behavior.
 
@@ -238,6 +243,7 @@ class ErnieModelHybrid(nn.Layer):
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
         self.hidden_act = hidden_act
+        self.hidden_dropout_prob = hidden_dropout_prob
 
         weight_attr = paddle.ParamAttr(
             initializer=nn.initializer.TruncatedNormal(
@@ -336,27 +342,14 @@ class ErnieModelHybrid(nn.Layer):
                 Whether to return the attentions tensors of all attention layers.
                 Defaults to `False`.
             return_dict (bool, optional):
-                Whether to return a :class:`~paddlenlp.transformers.model_outputs.ModelOutput` object. If `False`, the output
-                will be a tuple of tensors. Defaults to `False`.
+                Whether to return a :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.ModelOutput` object. 
+                If `False`, the output will be a tuple of tensors. Defaults to `False`.
 
         Returns:
-            An instance of :class:`~paddlenlp.transformers.model_outputs.BaseModelOutputWithPoolingAndCrossAttentions` if
+            An instance of :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.BaseModelOutputWithPoolingAndCrossAttentions` if
             `return_dict=True`. Otherwise it returns a tuple of tensors corresponding
             to ordered and not None (depending on the input arguments) fields of
-            :class:`~paddlenlp.transformers.model_outputs.BaseModelOutputWithPoolingAndCrossAttentions`.
-
-        Example:
-            .. code-block::
-
-                import paddle
-                from paddlenlp.transformers import ErnieModel, ErnieTokenizer
-
-                tokenizer = ErnieTokenizer.from_pretrained('ernie-1.0')
-                model = ErnieModel.from_pretrained('ernie-1.0')
-
-                inputs = tokenizer("Welcome to use PaddlePaddle and PaddleNLP!")
-                inputs = {k:paddle.to_tensor([v]) for (k, v) in inputs.items()}
-                sequence_output, pooled_output = model(**inputs)
+            :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.BaseModelOutputWithPoolingAndCrossAttentions`.
 
         """
         if input_ids is not None and inputs_embeds is not None:
@@ -487,7 +480,7 @@ class ErnieLMPredictionHead(nn.Layer):
         hidden_states = self.layer_norm(hidden_states)
         # hidden_states = parallel_matmul(hidden_states, self.decoder_weight, True) + self.decoder_bias
 
-        hidden_states = paddle.tensor.matmul(
+        hidden_states = paddle.matmul(
             hidden_states, self.decoder_weight,
             transpose_y=True) + self.decoder_bias
 
@@ -578,13 +571,13 @@ class ErnieForPretrainingHybrid(nn.Layer):
                 Whether to return the attentions tensors of all attention layers.
                 Defaults to `False`.
             return_dict (bool, optional):
-                Whether to return a :class:`~paddlenlp.transformers.bert.ErnieForPreTrainingOutput` object. If
+                Whether to return a :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.ErnieForPreTrainingOutput` object. If
                 `False`, the output will be a tuple of tensors. Defaults to `False`.
 
         Returns:
-            An instance of :class:`~paddlenlp.transformers.bert.ErnieForPreTrainingOutput` if `return_dict=True`.
+            An instance of :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.ErnieForPreTrainingOutput` if `return_dict=True`.
             Otherwise it returns a tuple of tensors corresponding to ordered and
-            not None (depending on the input arguments) fields of :class:`~paddlenlp.transformers.bert.ErnieForPreTrainingOutput`.
+            not None (depending on the input arguments) fields of :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.ErnieForPreTrainingOutput`.
 
         """
         # with paddle.static.amp.fp16_guard():
@@ -603,8 +596,7 @@ class ErnieForPretrainingHybrid(nn.Layer):
 
         total_loss = None
         if labels is not None and next_sentence_label is not None:
-            if fleet.get_hybrid_communicate_group(
-            ).get_model_parallel_world_size > 1:
+            if env.get_hcg().get_model_parallel_world_size > 1:
                 loss_fct = fleet.meta_parallel.ParallelCrossEntropy()
             else:
                 loss_fct = paddle.nn.CrossEntropyLoss()
@@ -645,37 +637,6 @@ class ErnieForPretrainingHybrid(nn.Layer):
                         shape=layer.weight.shape))
         elif isinstance(layer, nn.LayerNorm):
             layer._epsilon = 1e-12
-
-
-@dataclass
-class ErnieForPreTrainingOutput(ModelOutput):
-    """
-    Output type of [`ErnieForPreTraining`].
-    Args:
-        loss (*optional*, returned when `labels` is provided, `paddle.Tensor` of shape `(1,)`):
-            Total loss as the sum of the masked language modeling loss and the next sequence prediction
-            (classification) loss.
-        prediction_logits (`paddle.Tensor` of shape `(batch_size, sequence_length, config.vocab_size)`):
-            Prediction scores of the language modeling head (scores for each vocabulary token before SoftMax).
-        seq_relationship_logits (`paddle.Tensor` of shape `(batch_size, 2)`):
-            Prediction scores of the next sequence prediction (classification) head (scores of True/False continuation
-            before SoftMax).
-        hidden_states (`tuple(paddle.Tensor)`, *optional*, returned when `output_hidden_states=True` is passed or when `config.output_hidden_states=True`):
-            Tuple of `paddle.Tensor` (one for the output of the embeddings + one for the output of each layer) of
-            shape `(batch_size, sequence_length, hidden_size)`.
-            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
-        attentions (`tuple(paddle.Tensor)`, *optional*, returned when `output_attentions=True` is passed or when `config.output_attentions=True`):
-            Tuple of `paddle.Tensor` (one for each layer) of shape `(batch_size, num_heads, sequence_length,
-            sequence_length)`.
-            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
-            heads.
-    """
-
-    loss = None
-    prediction_logits = None
-    seq_relationship_logits = None
-    hidden_states = None
-    attentions = None
 
 
 class ErniePretrainingCriterionHybrid(paddle.nn.Layer):
@@ -719,7 +680,7 @@ class ErniePretrainingCriterionHybrid(paddle.nn.Layer):
         """
 
         # with paddle.static.amp.fp16_guard():
-        # hcg = fleet.get_hybrid_communicate_group()
+        # hcg = env.get_hcg()
         # mp_size = hcg.get_model_parallel_world_size()
 
         # if mp_size > 1:
@@ -732,8 +693,6 @@ class ErniePretrainingCriterionHybrid(paddle.nn.Layer):
         # masked_lm_loss = self.loss_func(prediction_scores,
         #                                 masked_lm_labels,
         #                                 ignore_index=-1)
-        # print("prediction_scores", prediction_scores.shape, masked_lm_labels.shape)
-
         masked_lm_loss = F.cross_entropy(
             prediction_scores,
             masked_lm_labels,
@@ -757,23 +716,9 @@ class EmbeddingsPipe(ErnieEmbeddings):
         return self.word_embeddings.weight
 
     def forward(self, tensors):
-        print(">> tensors", tensors)
-        input_ids, token_type_ids, attention_mask, masked_positions = tensors
-
-        # if input_ids is not None and inputs_embeds is not None:
-        #     raise ValueError(
-        #         "You cannot specify both input_ids and inputs_embeds at the same time.")
-        # elif input_ids is not None:
-        #     input_shape = paddle.shape(input_ids)
-        # elif inputs_embeds is not None:
-        #     input_shape = paddle.shape(inputs_embeds)[:-1]
-        # else:
-        #     raise ValueError(
-        #         "You have to specify either input_ids or inputs_embeds")
+        input_ids, token_type_ids, attention_mask = tensors
 
         past_key_values_length = None
-        # if past_key_values is not None:
-        #     past_key_values_length = past_key_values[0][0].shape[2]
 
         if attention_mask is None:
             attention_mask = paddle.unsqueeze(
@@ -821,28 +766,30 @@ class LayerNormPipe(nn.LayerNorm):
 
 
 class ErniePoolerPipe(ErniePooler):
-    def forward(self, sequence_output):
+    def forward(self, args):
+        sequence_output = args
         pooled_output = super().forward(sequence_output)
         return sequence_output, pooled_output
 
 
-class ErniePretrainingHeadsPipe(ErniePretrainingHeads):
-    def forward(self, args):
-        sequence_output, pooled_output = args
-        prediction_scores, seq_relationship_score = super().forward(
-            sequence_output, pooled_output)
-        return prediction_scores, seq_relationship_score
+class ErniePretrainingCriterionPipe(ErniePretrainingCriterionHybrid):
+    def __init__(self, *heads_args, **heads_kargs):
+        super(ErniePretrainingCriterionPipe, self).__init__()
+        self.heads = ErniePretrainingHeads(*heads_args, **heads_kargs)
 
-
-class ErniePretrainingCriterionHybridPipe(ErniePretrainingCriterionHybrid):
     def forward(self, outputs, data):
-        masked_lm_labels, next_sentence_labels = data
-        prediction_scores, seq_relationship_score = outputs
+        sequence_output, pooled_output = outputs
+        masked_lm_positions, masked_lm_labels, next_sentence_labels = data
+
+        prediction_scores, seq_relationship_score = self.heads(
+            sequence_output, pooled_output, masked_lm_positions)
+
         lm_loss, sop_loss = super().forward(
             prediction_scores=prediction_scores,
             seq_relationship_score=seq_relationship_score,
             masked_lm_labels=masked_lm_labels,
             next_sentence_labels=next_sentence_labels)
+
         return lm_loss + sop_loss
 
 
@@ -878,7 +825,7 @@ class ErnieForPretrainingPipe(PipelineLayer):
                 pad_token_id=pad_token_id,
                 weight_attr=None,
                 task_type_vocab_size=task_type_vocab_size,
-                task_id=task_type_vocab_size,
+                task_id=task_id,
                 use_task_id=use_task_id))
 
         for _ in range(num_hidden_layers):
@@ -902,25 +849,144 @@ class ErnieForPretrainingPipe(PipelineLayer):
                 LayerNormPipe, normalized_shape=hidden_size))
         self.descs.append(LayerDesc(ErniePoolerPipe, hidden_size=hidden_size))
 
-        self.descs.append(
-            LayerDesc(
-                ErniePretrainingHeadsPipe,
-                hidden_size=hidden_size,
-                vocab_size=vocab_size,
-                activation=hidden_act,
-                embedding_weights=None,
-                weight_attr=paddle.ParamAttr(
-                    initializer=nn.initializer.TruncatedNormal(
-                        mean=0.0, std=initializer_range))))
+        loss_fun = ErniePretrainingCriterionPipe(
+            hidden_size=hidden_size,
+            vocab_size=vocab_size,
+            activation=hidden_act,
+            embedding_weights=None,
+            weight_attr=paddle.ParamAttr(
+                initializer=nn.initializer.TruncatedNormal(
+                    mean=0.0, std=initializer_range)))
 
         super().__init__(
             layers=self.descs,
-            loss_fn=ErniePretrainingCriterionHybridPipe,
-            topology=fleet.get_hybrid_communicate_group().topology(),
+            loss_fn=loss_fun,
+            topology=env.get_hcg().topology(),
             seg_method="layer:TransformerEncoderLayer",
             recompute_interval=1 if use_recompute else 0,
             recompute_ctx={
-                "mp_group": fleet.fleet._hcg.get_model_parallel_group(),
+                "mp_group": env.get_hcg().get_model_parallel_group(),
                 "offload": False,
                 "partition": False
             })
+
+
+class ErnieForSequenceClassificationHybrid(nn.Layer):
+    """
+    Ernie Model with a linear layer on top of the output layer,
+    designed for sequence classification/regression tasks like GLUE tasks.
+
+    Args:
+        ernie (:class:`ErnieModel`):
+            An instance of ErnieModel.
+        num_classes (int, optional):
+            The number of classes. Defaults to `2`.
+        dropout (float, optional):
+            The dropout probability for output of ERNIE.
+            If None, use the same value as `hidden_dropout_prob` of `ErnieModel`
+            instance `ernie`. Defaults to None.
+    """
+
+    def __init__(self, ernie, num_classes=2, dropout=None):
+        super(ErnieForSequenceClassificationHybrid, self).__init__()
+        self.num_classes = num_classes
+        self.ernie = ernie  # allow ernie to be config
+        self.dropout = nn.Dropout(dropout if dropout is not None else
+                                  self.ernie.hidden_dropout_prob)
+        self.classifier = nn.Linear(self.ernie.hidden_size, num_classes)
+        self.apply(self.init_weights)
+
+    def forward(self,
+                input_ids,
+                token_type_ids=None,
+                position_ids=None,
+                attention_mask=None,
+                labels=None,
+                output_hidden_states=False,
+                output_attentions=False,
+                return_dict=False):
+        r"""
+        The ErnieForSequenceClassification forward method, overrides the __call__() special method.
+
+        Args:
+            input_ids (Tensor):
+                See :class:`ErnieModelHybrid`.
+            token_type_ids (Tensor, optional):
+                See :class:`ErnieModelHybrid`.
+            position_ids(Tensor, optional):
+                See :class:`ErnieModelHybrid`.
+            attention_mask (Tensor, optional):
+                See :class:`ErnieModelHybrid`.
+            labels (Tensor of shape `(batch_size,)`, optional):
+                Labels for computing the sequence classification/regression loss.
+                Indices should be in `[0, ..., num_classes - 1]`. If `num_classes == 1`
+                a regression loss is computed (Mean-Square loss), If `num_classes > 1`
+                a classification loss is computed (Cross-Entropy).
+            output_hidden_states (bool, optional):
+                Whether to return the hidden states of all layers.
+                Defaults to `False`.
+            output_attentions (bool, optional):
+                Whether to return the attentions tensors of all attention layers.
+                Defaults to `False`.
+            return_dict (bool, optional):
+                Whether to return a :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.SequenceClassifierOutput` object. If
+                `False`, the output will be a tuple of tensors. Defaults to `False`.
+
+        Returns:
+            An instance of :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.SequenceClassifierOutput` if `return_dict=True`.
+            Otherwise it returns a tuple of tensors corresponding to ordered and
+            not None (depending on the input arguments) fields of :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.SequenceClassifierOutput`.
+
+        """
+
+        outputs = self.ernie(
+            input_ids,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            attention_mask=attention_mask,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict)
+        pooled_output = outputs[1]
+
+        pooled_output = self.dropout(pooled_output)
+        logits = self.classifier(pooled_output)
+
+        loss = None
+        if labels is not None:
+            if self.num_classes == 1:
+                loss_fct = paddle.nn.MSELoss()
+                loss = loss_fct(logits, labels)
+            elif labels.dtype == paddle.int64 or labels.dtype == paddle.int32:
+                loss_fct = paddle.nn.CrossEntropyLoss()
+                loss = loss_fct(
+                    logits.reshape((-1, self.num_classes)),
+                    labels.reshape((-1, )))
+            else:
+                loss_fct = paddle.nn.BCEWithLogitsLoss()
+                loss = loss_fct(logits, labels)
+
+        if not return_dict:
+            output = (logits, ) + outputs[2:]
+            return ((loss, ) + output) if loss is not None else (
+                output[0] if len(output) == 1 else output)
+
+        return SequenceClassifierOutput(
+            loss=loss,
+            logits=logits,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions, )
+
+    def init_weights(self, layer):
+        """ Initialization hook """
+        if isinstance(layer, (nn.Linear, nn.Embedding)):
+            if isinstance(layer.weight, paddle.Tensor):
+                layer.weight.set_value(
+                    paddle.tensor.normal(
+                        mean=0.0,
+                        std=self.initializer_range
+                        if hasattr(self, "initializer_range") else
+                        self.ernie.initializer_range,
+                        shape=layer.weight.shape))
+        elif isinstance(layer, nn.LayerNorm):
+            layer._epsilon = 1e-12

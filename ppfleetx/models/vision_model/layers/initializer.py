@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from paddle.nn.initializer import Constant, Normal, XavierUniform
+import numpy as np
+import math
+from paddle.nn.initializer import Constant, Normal, XavierUniform, Uniform
 
 mlp_bias_normal_ = Normal(std=1e-6)
 pos_normal_ = Normal(std=0.02)
@@ -20,3 +22,11 @@ xavier_uniform_ = XavierUniform()
 zeros_ = Constant(value=0.)
 minus_tens_ = Constant(value=-10.)
 ones_ = Constant(value=1.)
+
+
+def xavier_uniform_2d_(param, axis=-1):
+    fan_in = int(np.prod(param.shape[:axis]))
+    fan_out = int(np.prod(param.shape[axis:]))
+    limit = math.sqrt(6.0 / (fan_in + fan_out))
+    uniform = Uniform(low=-limit, high=limit)
+    uniform(param)

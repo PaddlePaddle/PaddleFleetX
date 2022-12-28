@@ -21,7 +21,7 @@ import numpy as np
 import paddle
 
 from ppfleetx.data import dataset, sampler, utils
-from ppfleetx.utils import env
+from ppfleetx.distributed.apis import env
 from ppfleetx.utils.log import logger
 
 
@@ -29,13 +29,25 @@ def build_auto_dataset(config, mode):
     """
     build dataset for auto parallel
     """
+    assert mode in ['Train', 'Eval', 'Test'
+                    ], "Dataset mode should be Train, Eval, Test"
+
+    if mode not in config:
+        return None
+
     dataset = build_dataset(config, mode)
 
     collate_fn = None
     if 'collate_fn' in config[mode].keys():
-        collate_fn_name = config[mode].pop('collate_fn', None)
-        collate_fn = getattr(
-            utils, collate_fn_name) if collate_fn_name is not None else None
+        collate_fn_cfg = config[mode].pop('collate_fn', None)
+        if isinstance(collate_fn_cfg, str):
+            collate_fn = getattr(
+                utils, collate_fn_cfg) if collate_fn_cfg is not None else None
+        elif isinstance(collate_fn_cfg, dict):
+            collate_fn_class_name = collate_fn_cfg.pop("name")
+            collate_fn = eval("utils.{}".format(collate_fn_class_name))(
+                **collate_fn_cfg)
+            logger.debug("build collate_fn({}) success...".format(collate_fn))
 
     dataset.collate_fn = collate_fn
     dataset.sample_split = config[mode].pop('sample_split', None)
@@ -80,9 +92,16 @@ def build_dataloader(config, mode):
     if 'loader' in config[mode].keys():
         config_loader = config[mode].loader
         config_loader = copy.deepcopy(config_loader)
-        collate_fn_name = config_loader.pop('collate_fn', None)
-        collate_fn = getattr(
-            utils, collate_fn_name) if collate_fn_name is not None else None
+
+        collate_fn_cfg = config_loader.pop('collate_fn', None)
+        if isinstance(collate_fn_cfg, str):
+            collate_fn = getattr(
+                utils, collate_fn_cfg) if collate_fn_cfg is not None else None
+        elif isinstance(collate_fn_cfg, dict):
+            collate_fn_class_name = collate_fn_cfg.pop("name")
+            collate_fn = eval("utils.{}".format(collate_fn_class_name))(
+                **collate_fn_cfg)
+            logger.debug("build collate_fn({}) success...".format(collate_fn))
 
     def worker_init_fn(worker_id):
         """ set seed in subproces for dataloader when num_workers > 0"""

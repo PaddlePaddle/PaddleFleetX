@@ -13,19 +13,25 @@ GPT-[2](https://cdn.openai.com/better-language-models/language_models_are_unsupe
 
 ```text
 .
+├── auto_export_gpt_345M_mp2.sh            # 自动并行345M模型两卡张量并行导出入口
 ├── auto_gpt_345M_single_card.sh           # 自动并行345M模型单卡预训练入口
 ├── auto_gpt_1.3B_single_card.sh           # 自动并行1.3B模型单卡预训练入口
 ├── auto_gpt_1.3B_dp8.sh                   # 自动并行1.3B模型数据并行预训练入口
 ├── auto_gpt_6.7B_sharding16.sh            # 自动并行6.7B模型分组切片并行预训练入口
 ├── evaluate_gpt_345M_single_card.sh       # 单卡345M模型评估入口
 ├── export_gpt_345M_single_card.sh         # 单卡345M模型动转静导出入口
+├── finetune_gpt_345M_single_card.sh       # 单卡345M模型finetune训练入口
 ├── inference_gpt_345M_single_card.sh      # 单卡345M模型推理入口
 ├── pretrain_gpt_345M_single_card.sh       # 单卡345M模型预训练入口
-├── pretrain_gpt_345M_mp8_qat.sh           # 8卡345M模型模型并行量化训练入口
 ├── pretrain_gpt_1.3B_single_card.sh       # 单卡1.3B模型预训练入口
 ├── pretrain_gpt_1.3B_dp8.sh               # 8卡1.3B模型数据并行预训练入口
 ├── pretrain_gpt_6.7B_sharding16.sh        # 16卡6.7B模型分组切片并行预训练入口
 ├── pretrain_gpt_175B_mp8_pp16.sh          # 128卡175B模型混合并行预训练入口
+├── qat_gpt_345M_single_card.sh            # 单卡345M模型量化训练入口
+├── qat_gpt_345M_mp8.sh                    # 8卡345M模型模型并行量化训练入口
+├── qat_gpt_6.7B_sharding16.sh             # 16卡6.7B模型分组切片并行量化训练入口
+├── eval_qat_gpt_345M_single_card.sh       # 单卡345M量化模型验证入口
+├── export_qat_gpt_345M_single_card.sh     # 单卡345M量化模型导出入口
 ```
 
 ## 快速开始
@@ -67,12 +73,20 @@ cd .. # 回到 PaddleFleetX 根目录下
 
 - [自动并行训练](./auto_parallel.md)
 
-### 文本生成
+### 文本生成体验
 
 - [单卡预训练模型文本生成](./single_card.md#GPT-Zero-shot-文本生成)
 
 - [混合并行预训练模型文本生成](./hybrid_parallel.md#GPT-Zero-shot-文本生成)
 
+
+### 模型压缩
+
+- [量化训练](./quantization_aware_training.md)
+
+### 推理部署
+
+- [推理部署](inference.md)
 ### GLUE 下游任务微调
 
 - [单卡微调](./single_finetune.md)
@@ -277,6 +291,10 @@ GPT训练默认使用AdamW优化器以及cosine学习率衰减，这里通过配
 | tensor_fusion    | 是否使用tensor_fustion功能加速训练 |
 
 另外，[Profiler](./hybrid_profiler.md)中还介绍了在 GPT 中开启 Profiler 并分析调试分析结果的方法及相关的参数解释。
+
+### 模型压缩
+PaddleFleetX 集成了 PaddleSlim 中的常见的压缩方法：量化训练（Qutization Aware Training，QAT）、结构化稀疏（Structured Pruning，SP）和知识蒸馏（Knowledge Distillation，KD）。详细参数介绍见[模型压缩介绍](../../../docs/compression.md)。
+
 
 ## 参考文献
 - [Language Models are Unsupervised Multitask Learners](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)

@@ -19,20 +19,13 @@ from collections import defaultdict
 import numpy as np
 
 import paddle
+from paddle import LazyGuard
+from paddle.static import InputSpec
 from ppfleetx.utils.log import logger
 
 from ppfleetx.core.module.basic_module import BasicModule
-from .vit import *
-from .loss import *
-from .metrics import *
 
-
-def build(config):
-    config = copy.deepcopy(config)
-    model_type = config.pop("name")
-    mod = importlib.import_module(__name__)
-    model = getattr(mod, model_type)(**config)
-    return model
+from .factory import build
 
 
 class GeneralClsModule(BasicModule):
@@ -63,7 +56,12 @@ class GeneralClsModule(BasicModule):
     def get_model(self):
         if not hasattr(self, 'model') or self.model is None:
             self.model = build(self.model_configs.model)
+
         return self.model
+
+    def qat_model(self):
+        self.quanter = paddleslim.dygraph.quant.QAT(config=self.qat_config)
+        self.quanter.quantize(self.model)
 
     def forward(self, inputs):
         return self.model(inputs)
@@ -159,3 +157,31 @@ class GeneralClsModule(BasicModule):
 
         logger.info("[Eval] epoch: %d, total time: %.5f sec%s" %
                     (log_dict['epoch'], log_dict['eval_cost'], msg))
+
+
+class GeneralClsModuleAuto(BasicModule):
+    def __init__(self, configs):
+        self.nranks = paddle.distributed.get_world_size()
+        self.model_configs = copy.deepcopy(configs.Model)
+        self.model_configs.pop('module')
+
+        # must init before loss function
+        super(GeneralClsModuleAuto, self).__init__(configs)
+
+        assert 'loss' in self.model_configs
+        self.loss_fn = build(self.model_configs.loss)
+
+        if 'metric' in self.model_configs:
+            self.metric_fn = build(self.model_configs.metric)
+
+    def get_model(self):
+        with LazyGuard():
+            if not hasattr(self, 'model') or self.model is None:
+                self.model = build(self.model_configs.model)
+        return self.model
+
+    def input_spec(self):
+        return [
+            InputSpec(
+                shape=[None, 3, 224, 224], name="images", dtype='float32')
+        ]

@@ -22,6 +22,9 @@ import copy
 import random
 import paddle
 import numpy as np
+import paddle.distributed as dist
+
+from paddle.distributed import fleet
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../')))
@@ -39,6 +42,9 @@ if __name__ == "__main__":
     cfg = config.get_auto_config(
         args.config, overrides=args.override, show=False)
 
+    if dist.get_world_size() > 1:
+        fleet.init(is_collective=True)
+
     module = build_module(cfg)
     config.print_config(cfg)
 
@@ -55,6 +61,9 @@ if __name__ == "__main__":
     if cfg.Engine.save_load.ckpt_dir is not None:
         engine.load()
 
-    engine.fit(train_dataset=train_data,
-               valid_dataset=eval_data,
-               epoch=cfg.Engine.num_train_epochs)
+    if cfg.get('Tuning', None) and cfg.Tuning.enable:
+        engine.tune(train_data)
+    else:
+        engine.fit(train_dataset=train_data,
+                   valid_dataset=eval_data,
+                   epoch=cfg.Engine.num_train_epochs)
