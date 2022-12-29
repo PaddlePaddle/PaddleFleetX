@@ -29,4 +29,4 @@ setup(
     author='PaddlePaddle Authors',
     url='https://github.com/PaddlePaddle/PaddleFleetX',
     install_requires=install_requires,
-    packages=find_packages())
+    packages=find_packages(exclude=["tools"]))
