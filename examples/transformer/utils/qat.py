@@ -37,7 +37,7 @@ def compress_model(config, model, input_spec):
                 ckpt_dir,
                 model,
                 optimizer=None,
-                mode='export',
+                mode='quant',
                 load_recovery=None)
 
             # Avoid loading again
