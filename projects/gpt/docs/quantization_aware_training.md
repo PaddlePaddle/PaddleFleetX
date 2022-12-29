@@ -24,6 +24,12 @@
 ### 环境依赖和数据准备
 环境依赖和数据准备请参考[GPT文档](./README.md)。
 
+另外，模型导出还依赖于`ppfleetx-ops`的安装
+
+```
+cd PaddleFleetX/ # 如果已在此目录下，则忽略
+cd ppfleetx/ops && python setup_cuda.py install && cd ../..
+```
 
 ### 预训练模型准备
 量化训练需加载[GPT-345M](https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz) 的预训练模型。
