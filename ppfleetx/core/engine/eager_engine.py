@@ -705,9 +705,12 @@ class EagerEngine(BasicEngine):
         if self._ckpt_dir and isinstance(self._ckpt_dir, str):
             logger.info("Try to load checkpoint from %s " % self._ckpt_dir)
 
-            load_dir = "{}/mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}".format(
-                self._ckpt_dir, self._mp_rank, self._sharding_rank,
-                self._pp_rank) if self._distributed else self._ckpt_dir
+            if self._quant_mode:
+                load_dir = self._ckpt_dir
+            else:
+                load_dir = "{}/mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}".format(
+                    self._ckpt_dir, self._mp_rank, self._sharding_rank,
+                    self._pp_rank) if self._distributed else self._ckpt_dir
             model_path = os.path.join(load_dir, "model.pdparams")
             opt_path = os.path.join(load_dir, "model_state.pdopt")
             meta_path = os.path.join(load_dir, "meta_state.pdopt")
