@@ -1,0 +1,40 @@
+_base_: ./imagen_base.yaml
+
+Global:
+  global_batch_size:
+  local_batch_size: 1
+  micro_batch_size: 1
+
+
+Model:
+  name: imagen_text2im_64
+  text_encoder_name: t5/t5-11b
+  text_embed_dim: 1024 
+  timesteps: 1000 
+  in_chans: 3
+  cond_drop_prob: 0.1
+  noise_schedules: cosine
+  pred_objectives: noise
+  lowres_noise_schedule: linear
+  lowres_sample_noise_level: 0.2
+  per_sample_random_aug_noise_level: False
+  condition_on_text: True
+  auto_normalize_img: True
+  p2_loss_weight_gamma: 0.5
+  dynamic_thresholding: True,
+  dynamic_thresholding_percentile: 0.95
+  only_train_unet_number: 1 
+  use_recompute: False
+
+Loss:
+  name: mse_loss
+  p2_loss_weight_k: 1.0
+
+Distributed:
+  dp_degree: 1
+  mp_degree: 1
+  pp_degree: 1
+  sharding:
+    sharding_degree: 1
+    sharding_stage: 1
+    sharding_offload: False
