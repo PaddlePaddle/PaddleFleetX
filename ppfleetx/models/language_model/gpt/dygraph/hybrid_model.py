@@ -605,8 +605,13 @@ class TransformerDecoderLayer(nn.Layer):
         else:
             tgt, incremental_cache = self.self_attn(tgt, tgt, tgt, tgt_mask,
                                                     use_cache, cache)
-
-        with get_rng_state_tracker().rng_state('global_seed'):
+        # If use sequence_parallel, different input partition in dropout
+        # should use different seed.
+        if self.sequence_parallel:
+            current_seed = 'local_seed'
+        else:
+            current_seed = 'global_seed'
+        with get_rng_state_tracker().rng_state(current_seed):
             tgt = residual + self.dropout1(tgt)
 
         if not self.normalize_before:
@@ -619,7 +624,7 @@ class TransformerDecoderLayer(nn.Layer):
         if self.expert_mode:
             tgt = self.moe_mlp(tgt)
         else:
-            with get_rng_state_tracker().rng_state('global_seed'):
+            with get_rng_state_tracker().rng_state(current_seed):
                 tgt = self.dropout2(
                     self.linear2(F.gelu(
                         self.linear1(tgt), approximate=True)))
