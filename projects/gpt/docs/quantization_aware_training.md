@@ -24,6 +24,12 @@
 ### 环境依赖和数据准备
 环境依赖和数据准备请参考[GPT文档](./README.md)。
 
+另外，模型导出还依赖于`ppfleetx-ops`的安装
+
+```
+cd PaddleFleetX/ # 如果已在此目录下，则忽略
+cd ppfleetx/ops && python setup_cuda.py install && cd ../..
+```
 
 ### 预训练模型准备
 量化训练需加载[GPT-345M](https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz) 的预训练模型。
@@ -90,31 +96,6 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
     -o Compress.pretrained='./PaddleFleetX_GPT_345M_220826'
 ```
 
-- [6.7B模型分组切片并行训练](../qat_gpt_6.7B_sharding16.sh)
-
-快速启动：
-```shell
-bash ./projects/gpt/qat_gpt_6.7B_sharding16.sh
-```
-
-或如下启动：
-```shell
-log_dir=log_hybrid
-rm -rf $log_dir
-
-python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
-    ./tools/train.py \
-    -c ./ppfleetx/configs/nlp/gpt/qat_gpt_6.7B_sharding16.yaml \
-    -o Engine.max_steps=100000 \
-    -o Model.hidden_dropout_prob=0.0 \
-    -o Model.attention_probs_dropout_prob=0.0 \
-    -o Optimizer.lr.decay_steps=72000 \
-    -o Optimizer.weight_decay=0.02 \
-    -o Optimizer.lr.max_lr=5.0e-6 \
-    -o Optimizer.lr.min_lr=1.0e-6 \
-    -o Compress.pretrained='./PaddleFleetX_GPT_6.7B'
-
-```
 Tips：尽管设置的最大训练轮数为100000轮，但实验经验4000轮即可达到最优效果。
 
 

@@ -5,6 +5,14 @@
 
 ## 1. 模型导出
 
+首先需要安装`ppfleetx-ops`
+
+```bash
+cd PaddleFleetX/ # 如果已在此目录下，则忽略
+
+cd ppfleetx/ops && python setup_cuda.py install && cd ../..
+```
+
 ### 1.1 非量化模型导出
 
 以`GPT-3(345M)`模型为例，通过如下方式下载PaddleFleetX发布的训练好的权重。若你已下载或使用训练过程中的权重，可跳过此步。
