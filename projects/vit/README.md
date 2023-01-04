@@ -75,7 +75,7 @@ python -m paddle.distributed.launch --gpus="0,1,2,3,4,5,6,7" tools/train.py \
     -o Optimizer.weight_decay=0.0002 
 ```
 
-量化训练的参数详细介绍见[模型压缩介绍](../../../docs/compression.md)。
+量化训练的参数详细介绍见[模型压缩介绍](../../docs/compression.md)。
 
 
 ## Model
