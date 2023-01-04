@@ -30,6 +30,7 @@ import paddle.distributed.fleet as fleet
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
 from paddle.distributed.fleet.meta_parallel import LayerDesc, PipelineLayer, SharedLayerDesc
 from paddle.distributed.fleet.utils import recompute
+from paddle.autograd import PyLayer
 import sys
 
 from .single_model import ExpertLayer
@@ -923,13 +924,19 @@ class GPTPretrainingCriterionHybird(nn.Layer):
         if self.sequence_parallel:
             masked_lm_labels = masked_lm_labels.transpose([1, 0])
             loss_mask = loss_mask.transpose([1, 0])
-        if mp_size > 1 and paddle.is_compiled_with_cuda():
-            masked_lm_loss = self.parallel_loss_func(
-                prediction_scores, masked_lm_labels.unsqueeze(2))
+        
+        if mp_size > 1:
+            if paddle.is_compiled_with_cuda():
+                masked_lm_loss = self.parallel_loss_func(
+                    prediction_scores, masked_lm_labels.unsqueeze(2))
+            else:
+                prediction_scores = ConcatSoftmaxInput.apply(prediction_scores, group = env.get_hcg().get_model_parallel_group())
+                masked_lm_loss = self.loss_func(prediction_scores,
+                                            masked_lm_labels.unsqueeze(2))
         else:
             masked_lm_loss = self.loss_func(prediction_scores,
                                             masked_lm_labels.unsqueeze(2))
-
+        print(loss_mask)
         loss_mask = loss_mask.reshape([-1])
         masked_lm_loss = paddle.sum(masked_lm_loss.reshape([-1]) * loss_mask)
         loss = masked_lm_loss / loss_mask.sum()
@@ -1608,3 +1615,18 @@ def get_triangle_upper_mask(x, mask):
     mask = paddle.triu(mask, diagonal=1)
     mask.stop_gradient = True
     return mask
+
+class ConcatSoftmaxInput(PyLayer):
+    @staticmethod
+    def forward(ctx,
+                inp,
+                group=None):
+        cat = paddle.distributed.collective._c_concat(inp, group)
+        ctx.cat_args = group
+        return cat
+    
+    @staticmethod
+    def backward(ctx,grad):
+        group = ctx.cat_args
+        grad = paddle.distributed.collective._c_split(grad, group)
+        return grad
