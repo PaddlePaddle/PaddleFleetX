@@ -98,9 +98,12 @@ def load(ckpt_dir, model, optimizer=None, mode='train', load_recovery=None):
     if ckpt_dir and isinstance(ckpt_dir, str):
         logger.info("Try to load checkpoint from %s " % ckpt_dir)
 
-        load_dir = "{}/mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}".format(
-            ckpt_dir, mp_rank, sharding_rank,
-            pp_rank) if nranks > 1 else ckpt_dir
+        if mode == 'quant':
+            load_dir = ckpt_dir
+        else:
+            load_dir = "{}/mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}".format(
+                ckpt_dir, mp_rank, sharding_rank,
+                pp_rank) if nranks > 1 else ckpt_dir
         model_path = os.path.join(load_dir, "model.pdparams")
         opt_path = os.path.join(load_dir, "model_state.pdopt")
         meta_path = os.path.join(load_dir, "meta_state.pdopt")

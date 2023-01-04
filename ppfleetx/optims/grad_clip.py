@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import paddle
-from paddle.fluid.clip import ClipGradByGlobalNorm
+from paddle.nn.clip import ClipGradByGlobalNorm
 
-from paddle.fluid.clip import ClipGradBase, _squared_l2_norm
+from paddle.nn.clip import ClipGradBase, _squared_l2_norm
 from paddle.fluid.dygraph import base as imperative_base
 from paddle.fluid import core, layers
 from paddle.distributed import collective
