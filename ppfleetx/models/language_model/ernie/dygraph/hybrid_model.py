@@ -596,7 +596,7 @@ class ErnieForPretrainingHybrid(nn.Layer):
 
         total_loss = None
         if labels is not None and next_sentence_label is not None:
-            if env.get_hcg().get_model_parallel_world_size > 1:
+            if env.get_hcg().get_model_parallel_world_size > 1 and paddle.is_compiled_with_cuda():
                 loss_fct = fleet.meta_parallel.ParallelCrossEntropy()
             else:
                 loss_fct = paddle.nn.CrossEntropyLoss()
