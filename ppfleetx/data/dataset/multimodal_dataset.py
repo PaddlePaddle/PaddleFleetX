@@ -14,6 +14,7 @@
 
 import os
 import time
+import gzip
 
 import random
 import base64
@@ -130,8 +131,7 @@ class ImagenDataset(Dataset):
             f.seek(offset)
             return f.readline()
 
-    @staticmethod
-    def get_line_for_line(filename):
+    def get_line_for_line(self, filename):
         while True:
             for fname in filename:
                 if fname[-2:] != "gz":
@@ -141,7 +141,7 @@ class ImagenDataset(Dataset):
                             data = line.strip().split('\t')
                             image_base64 = data[4]
                             image_item = self.base64_to_image(image_base64)
-                            if min(image_item.size) >= self.image_size[0]:
+                            if min(image_item.size) >= self.image_size:
                                 yield line
                 else:
                     file = gzip.GzipFile(fname, "r")
@@ -151,7 +151,7 @@ class ImagenDataset(Dataset):
                             data = line.strip().split('\t')
                             image_base64 = data[4]
                             image_item = self.base64_to_image(image_base64)
-                            if min(image_item.size) >= self.image_size[0]:
+                            if min(image_item.size) >= self.image_size:
                                 yield line
 
     def __getitem__(self, index):
@@ -193,7 +193,7 @@ class ImagenDataset(Dataset):
 
             image = Image.fromarray(img)
             image = image.resize(
-                (self.image_size[0], self.image_size[1]),
+                (self.image_size, self.image_size),
                 resample=self.interpolation)
 
             image_item = self.transform(image)
