@@ -17,8 +17,10 @@ Model:
   max_position_embeddings: 1024
   type_vocab_size: 16
   initializer_range: 0.02
-  use_recompute: True
   fuse_attn_qkv: True
+  use_recompute: True
+  recompute_granularity:
+  no_recompute_layers:
 
 
 Distributed:

@@ -101,7 +101,8 @@ def init_dist_env(config):
                     "config.Global.enable_partial_send_recv should be set False."
 
     strategy.pipeline_configs = {
-        "accumulate_steps": config.Engine.accumulate_steps,
+        "accumulate_steps":
+        config.Global.local_batch_size // config.Global.micro_batch_size,
         "micro_batch_size": config.Global.micro_batch_size,
         "enable_partial_send_recv": config.Global.enable_partial_send_recv,
     }
