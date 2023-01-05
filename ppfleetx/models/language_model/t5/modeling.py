@@ -16,13 +16,14 @@ import math
 import copy
 import json
 import numpy as np
+from collections import OrderedDict
 from typing import Callable, List, Optional, Set, Tuple, Union, Any
 
 import paddle
 from paddle import nn
 
-from ppfleetx.data.tokenizers import t5_tokenize, get_t5_tokenizer
-from ppfleetx.models.multimodal_model import rearrange, exists, default
+from ppfleetx.data.tokenizers.t5_tokenizer import t5_tokenize, get_t5_tokenizer
+from ppfleetx.models.multimodal_model.imagen.utils import rearrange, exists, default
 
 DEFAULT_T5_NAME = 't5/t5-11b'
 
