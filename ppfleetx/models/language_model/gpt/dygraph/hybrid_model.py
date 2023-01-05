@@ -1621,12 +1621,17 @@ class ConcatSoftmaxInput(PyLayer):
     def forward(ctx,
                 inp,
                 group=None):
-        cat = paddle.distributed.collective._c_concat(inp, group)
+        inputs = []
+        paddle.distributed.all_gather(inputs, inp, group=group)
+        with paddle.no_grad():
+            cat = paddle.concat(inputs, axis=-1)
         ctx.cat_args = group
         return cat
     
     @staticmethod
     def backward(ctx,grad):
         group = ctx.cat_args
-        grad = paddle.distributed.collective._c_split(grad, group)
+        with paddle.no_grad():
+            grads = paddle.split(grad, aixs=-1)
+        grad = grads[paddle.distributed.get_rank(group)]
         return grad
