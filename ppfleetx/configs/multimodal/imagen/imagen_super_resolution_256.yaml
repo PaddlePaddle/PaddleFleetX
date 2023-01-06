@@ -8,36 +8,42 @@ Global:
 
 Model:
   name: imagen_SR256
-  text_encoder_name: t5/t5-11b
-  text_embed_dim: 1024 
+  text_encoder_name: None  # We do not use text conditoin during training.
+  text_embed_dim: 
   timesteps: 1000 
-  in_chans: 3
+  channels: 3
   cond_drop_prob: 0.1
   noise_schedules: cosine
   pred_objectives: noise
+  lowres_cond: True 
   lowres_noise_schedule: linear
   lowres_sample_noise_level: 0.2
   per_sample_random_aug_noise_level: False
-  condition_on_text: True
+  condition_on_text: False 
   auto_normalize_img: True
   p2_loss_weight_gamma: 0.5
   dynamic_thresholding: True,
   dynamic_thresholding_percentile: 0.95
   only_train_unet_number: 1 
-  use_recompute: False
+  is_sr: True
+  use_recompute: True 
+  recompute_granularity:
 
 Data:
   Train:
     dataset:
       name: ImagenDataset
-      input_path: ./projects/imagen/filelist/cc12m_base64.lst
+      input_path: ./projects/imagen/filelist/laion_400M/train
       shuffle: True
-      input_resolution: 256 
-      max_seq_len: 128 
+      image_format: base64 
+      image_size: 256 
+      text_max_len: 128 
+      filter_image_resolution: 256 
+      sr: True
     loader:
       num_workers: 8
       shuffle: True
-      batch_size: 1 
+      batch_size: 6 
       drop_last: True
       collate_fn: imagen_collate_fn
   
