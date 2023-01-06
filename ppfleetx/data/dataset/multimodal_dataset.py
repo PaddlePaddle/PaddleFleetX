@@ -34,6 +34,8 @@ from paddle.io import Dataset, DataLoader
 from paddle.distributed import get_world_size
 from paddle.vision import transforms as T
 
+from ppfleetx.utils.log import logger
+
 
 def get_keys(data_path, gpu_num, shuffle=False):
     files = [
@@ -52,7 +54,7 @@ def get_keys(data_path, gpu_num, shuffle=False):
             keys_extend = files + random.sample(files, 1) * added_num
 
     keys = keys_extend[local_rank::gpu_num]
-    print("keys: ", keys, local_rank)
+    logger.info("keys: {} {}".format(keys, local_rank))
 
     return keys
 
@@ -123,13 +125,6 @@ class ImagenDataset(Dataset):
         if img.mode != 'RGB':
             img = img.convert('RGB')
         return img
-
-    @staticmethod
-    def get_line(filename, indexes):
-        offset, n = indexes
-        with open(filename, 'r', encoding='utf-8') as f:
-            f.seek(offset)
-            return f.readline()
 
     def get_line_for_line(self, filename):
         while True:
