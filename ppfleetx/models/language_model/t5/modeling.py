@@ -22,10 +22,9 @@ from typing import Callable, List, Optional, Set, Tuple, Union, Any
 import paddle
 from paddle import nn
 
-from ppfleetx.data.tokenizers.t5_tokenizer import t5_tokenize, get_t5_tokenizer
+from ppfleetx.data.tokenizers.t5_tokenizer import (
+    t5_tokenize, get_t5_tokenizer, DEFAULT_T5_NAME)
 from ppfleetx.models.multimodal_model.imagen.utils import rearrange, exists, default
-
-DEFAULT_T5_NAME = 't5/t5-11b'
 
 
 def finfo(dtype):
@@ -1462,11 +1461,8 @@ def dict_from_json_file(name):
         return config_dict
 
 
-def t5_encode_text(t5,
-                   texts: List[str],
-                   name=DEFAULT_T5_NAME,
-                   return_attn_mask=False):
-    token_ids, attn_mask = t5_tokenize(texts, name=name)
+def t5_encode_text(t5, texts, tokenizer, return_attn_mask=False):
+    token_ids, attn_mask = t5_tokenize(texts, tokenizer)
     t5.eval()
     with paddle.no_grad():
         encoded_text = t5(input_ids=token_ids, attention_mask=attn_mask)
