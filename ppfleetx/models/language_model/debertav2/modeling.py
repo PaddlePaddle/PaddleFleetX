@@ -23,7 +23,7 @@ from paddle.nn import BCEWithLogitsLoss, CrossEntropyLoss, LayerNorm, MSELoss
 
 from ppfleetx.models.language_model.t5 import (finfo, ACT2FN, ModelOutput,
                                                normal_, constant_init)
-from ppfleetx.data.tokenizers import debertav2_tokenize
+from ppfleetx.data.tokenizers.debertav2_tokenizer import debertav2_tokenize
 
 from dataclasses import dataclass
 
@@ -1297,11 +1297,8 @@ def dict_from_json_file(name):
         return config_dict
 
 
-def debertav2_encode_text(debertav2,
-                          texts,
-                          name='cache/deberta-v-xxlarge',
-                          return_attn_mask=False):
-    token_ids, attn_mask = debertav2_tokenize(texts, name=name)
+def debertav2_encode_text(debertav2, texts, tokenizer, return_attn_mask=False):
+    token_ids, attn_mask = debertav2_tokenize(texts, tokenizer)
     debertav2.eval()
     with paddle.no_grad():
         output = debertav2(input_ids=token_ids, attention_mask=attn_mask)
