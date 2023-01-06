@@ -1,18 +1,18 @@
-# coding=utf-8
-# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
-# Copyright 2018 The Open AI Team Authors and The HuggingFace Inc. team.
-#
+# Copyright (c) 2023 PaddlePaddle Authors. All Rights Reserved.
+# 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-#
+# 
 #     http://www.apache.org/licenses/LICENSE-2.0
-#
+# 
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# Copyright 2018 The Open AI Team Authors and The HuggingFace Inc. team.
 """Tokenization for DebertaV2."""
 
 from __future__ import (absolute_import, division, print_function,
@@ -20,6 +20,7 @@ from __future__ import (absolute_import, division, print_function,
 
 import os
 import json
+import copy
 import logging
 import warnings
 import regex as re
@@ -37,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 MAX_LENGTH = 256
 
-DEFAULT_DebertaV2_NAME = "cache/deberta-v-xxlarge"
+DEFAULT_DebertaV2_NAME = "projects/imagen/cache/deberta-v-xxlarge"
 
 # Slow tokenizers used to be saved in three separated files
 SPECIAL_TOKENS_MAP_FILE = "special_tokens_map.json"
@@ -48,9 +49,6 @@ TOKENIZER_CONFIG_FILE = "tokenizer_config.json"
 FULL_TOKENIZER_FILE = "tokenizer.json"
 _re_tokenizer_file = re.compile(r"tokenizer\.(.*)\.json")
 
-CONFIG_MAPPING_NAMES = OrderedDict([("deberta-v2", "DebertaV2Config")])
-
-CONFIG_MAPPING = _LazyConfigMapping(CONFIG_MAPPING_NAMES)
 CONFIG_NAME = "config.json"
 
 
@@ -59,8 +57,7 @@ def get_debertav2_tokenizer(name):
     return tokenizer
 
 
-def debertav2_tokenize(texts, name=DEFAULT_DebertaV2_NAME):
-    tokenizer = get_debertav2_tokenizer(name)
+def debertav2_tokenize(texts, tokenizer):
     encoded = tokenizer.batch_encode_plus(
         texts,
         return_tensors="paddle",
@@ -431,24 +428,20 @@ class DebertaV2Tokenizer(SpecialTokensMixin):
                 config_dict = os.path.join(pretrained_model_name_or_path,
                                            config_dict)
                 config_dict = cls._dict_from_json_file(config_dict)
-                if 'model_type' in config_dict:
-                    config_class = CONFIG_MAPPING[config_dict["model_type"]]
-                    config = config_class.from_dict(config_dict, **kwargs)
-
-                config_tokenizer_class = config.tokenizer_class
+                config_tokenizer_class = config_dict[
+                    "tokenizer_class"] if "tokenizer_class" in config_dict else None
             except (OSError, ValueError, KeyError):
                 # skip if an error occurred.
-                config = None
+                config_dict = None
             if config_tokenizer_class is None:
                 # Third attempt. If we have not yet found the original type of the tokenizer,
                 # we are loading we see if we can infer it from the type of the configuration file
-                from packages.tokenization_utils_base import TOKENIZER_MAPPING_NAMES  # tests_ignore
+                from ppfleetx.data.tokenizers.tokenization_utils_base import TOKENIZER_MAPPING_NAMES  # tests_ignore
 
-                if hasattr(config, "model_type"):
-                    model_type = config.model_type
-                else:
+                model_type = config_dict[
+                    "model_type"] if "model_type" in config_dict else None
+                if model_type is None:
                     # Fallback: use pattern matching on the string.
-                    model_type = None
                     for pattern in TOKENIZER_MAPPING_NAMES.keys():
                         if pattern in str(pretrained_model_name_or_path):
                             model_type = pattern
@@ -1858,8 +1851,9 @@ class DebertaV2Tokenizer(SpecialTokensMixin):
         if hasattr(self, "do_lower_case") and self.do_lower_case:
             # convert non-special tokens to lowercase
             escaped_special_toks = [
-                re.escape(s_tok) for s_tok in
-                (self.unique_no_split_tokens + self.all_special_tokens)
+                re.escape(s_tok)
+                for s_tok in (self.unique_no_split_tokens +
+                              self.all_special_tokens)
             ]
             pattern = r"(" + r"|".join(escaped_special_toks) + r")|" + r"(.+?)"
             text = re.sub(pattern,
