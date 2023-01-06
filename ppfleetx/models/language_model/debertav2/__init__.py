@@ -14,4 +14,4 @@
 
 from .modeling import (get_debertav2_model, debertav2_encode_text,
                        get_debertav2_encoded_dim)
-from .utils import normal_, constant_init
+from ppfleetx.models.language_model.t5 import normal_, constant_init
