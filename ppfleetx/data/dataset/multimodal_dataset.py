@@ -37,7 +37,7 @@ from paddle.vision import transforms as T
 from ppfleetx.utils.log import logger
 
 
-def get_keys(data_path, gpu_num, shuffle=False):
+def get_keys(data_path, gpu_num):
     files = [
         file.strip() for file in open(data_path).readlines()
         if file.strip() != ""
@@ -74,8 +74,7 @@ class ImagenDataset(Dataset):
                  flip_p=0.5):
         super().__init__()
         device_world_size = paddle.distributed.get_world_size()
-        self.filename = get_keys(
-            input_path, gpu_num=device_world_size, shuffle=shuffle)
+        self.filename = get_keys(input_path, gpu_num=device_world_size)
         if shuffle:
             random.shuffle(self.filename)
         self.filter_image_resolution = filter_image_resolution
