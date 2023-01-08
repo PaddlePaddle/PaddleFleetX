@@ -14,5 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-export CUDA_VISIBLE_DEVICES=0
-python3 tools/train.py -c ppfleetx/configs/multimodal/imagen/imagen_397M_text2im_64x64.yaml -o Data.Train.loader.num_workers=8
+log_dir=log_sharding
+rm -rf $log_dir
+
+python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
+    ./tools/train.py \
+    -c ./ppfleetx/configs/multimodal/imagen/imagen_super_resolution_1024.yaml \
+    -o Distributed.sharding.sharding_stage=2 \
+    -o Distributed.sharding.sharding_degree=8 \
+    -o Engine.mix_precision.use_pure_fp16=True \
+    -o Data.Train.loader.batch_size=1 \
+    -o Model.use_recompute=True \

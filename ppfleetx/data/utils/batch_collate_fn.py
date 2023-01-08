@@ -187,29 +187,25 @@ class DataCollatorWithPadding:
         return batch
 
 
-def imagen_collate_fn(batch):
+def imagen_collate_fn(samples):
     """ collate for imagen base64 """
-    text_embs = []
-    images = []
-    attn_masks = []
-    max_len = 0
-    for image, text_emb, attn_mask in batch:
-        if text_emb is None:
-            return [None] * 3
-        text_len, dim = text_emb.shape
-        if text_len > max_len:
-            max_len = text_emb.shape[0]
+    tmp = []
+    for i in samples:
+        if i and len(i['image']):
+            tmp.append(i)
+    samples = tmp
 
-        images.append(image)
-        text_embs.append(text_emb)
-        attn_masks.append(attn_mask)
-    bsz = len(images)
-    dim = text_embs[0].shape[-1]
-    text_embeds = paddle.zeros(shape=[bsz, max_len, dim], dtype=np.float32)
-    text_masks = paddle.zeros(shape=[bsz, max_len], dtype=np.int64)
-    images = paddle.stack(images)
-    for i, (emb, mask) in enumerate(zip(text_embs, attn_masks)):
-        text_embeds[i, :emb.shape[0], :] = emb
-        text_masks[i, :mask.shape[0]] = mask
+    if len(samples) == 0:
+        return None
 
-    return images, text_embeds, text_masks
+    pad_idx = 0
+    text_items = [sample['caption'] for sample in samples]
+    image_items = [sample['image'] for sample in samples]
+    text_lengths = [len(cap) for cap in text_items]
+
+    bsz = len(text_items)
+    text_input = text_items
+
+    image_input = paddle.stack(image_items, axis=0)
+    _input = {'images': image_input, 'texts': text_input}
+    return _input

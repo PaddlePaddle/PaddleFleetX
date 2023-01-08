@@ -73,6 +73,7 @@ PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES = {
 }
 
 # Slow tokenizers used to be saved in three separated files
+DEFAULT_T5_NAME = "projects/imagen/t5/t5-11b"
 SPECIAL_TOKENS_MAP_FILE = "special_tokens_map.json"
 ADDED_TOKENS_FILE = "added_tokens.json"
 TOKENIZER_CONFIG_FILE = "tokenizer_config.json"
@@ -82,13 +83,12 @@ FULL_TOKENIZER_FILE = "tokenizer.json"
 _re_tokenizer_file = re.compile(r"tokenizer\.(.*)\.json")
 
 
-def get_t5_tokenizer(name='t5/t5-11b'):
+def get_t5_tokenizer(name=DEFAULT_T5_NAME):
     tokenizer = T5Tokenizer.from_pretrained(name)
     return tokenizer
 
 
-def t5_tokenize(texts, name='t5/t5-11b'):
-    tokenizer = get_t5_tokenizer(name)
+def t5_tokenize(texts, tokenizer):
     encoded = tokenizer.batch_encode_plus(
         texts,
         return_tensors="paddle",
@@ -126,7 +126,7 @@ class T5Tokenizer(SpecialTokensMixin):
         # Add extra_ids to the special token list
         if extra_ids > 0 and additional_special_tokens is None:
             additional_special_tokens = [
-                "<extra_id_{i}>" for i in range(extra_ids)
+                f"<extra_id_{i}>" for i in range(extra_ids)
             ]
         elif extra_ids > 0 and additional_special_tokens is not None:
             # Check that we have the right number of extra_id special tokens
@@ -136,7 +136,7 @@ class T5Tokenizer(SpecialTokensMixin):
                            additional_special_tokens)))
             if extra_tokens != extra_ids:
                 raise ValueError(
-                    "Both extra_ids ({extra_ids}) and additional_special_tokens ({additional_special_tokens}) are"
+                    f"Both extra_ids ({extra_ids}) and additional_special_tokens ({additional_special_tokens}) are"
                     " provided to T5Tokenizer. In this case the additional_special_tokens must include the extra_ids"
                     " tokens")
 
@@ -175,11 +175,11 @@ class T5Tokenizer(SpecialTokensMixin):
         if os.path.isfile(pretrained_model_name_or_path):
             if len(cls.vocab_files_names) > 1:
                 raise ValueError(
-                    "Calling {cls.__name__}.from_pretrained() with the path to a single file or url is not "
+                    f"Calling {cls.__name__}.from_pretrained() with the path to a single file or url is not "
                     "supported for this tokenizer. Use a model identifier or the path to a directory instead."
                 )
             warnings.warn(
-                "Calling {cls.__name__}.from_pretrained() with the path to a single file or url is deprecated and "
+                f"Calling {cls.__name__}.from_pretrained() with the path to a single file or url is deprecated and "
                 "won't be possible anymore in v5. Use a model identifier or the path to a directory instead.",
                 FutureWarning, )
             file_id = list(cls.vocab_files_names.keys())[0]
@@ -259,10 +259,11 @@ class T5Tokenizer(SpecialTokensMixin):
         if all(full_file_name is None
                for full_file_name in resolved_vocab_files.values()):
             raise EnvironmentError(
-                "Can't load tokenizer for '{pretrained_model_name_or_path}'. If you were trying to load it from "
+                f"Can't load tokenizer for '{pretrained_model_name_or_path}'. If you were trying to load it from "
                 "'https://huggingface.co/models', make sure you don't have a local directory with the same name. "
-                "Otherwise, make sure '{pretrained_model_name_or_path}' is the correct path to a directory "
-                "containing all relevant files for a {cls.__name__} tokenizer.")
+                f"Otherwise, make sure '{pretrained_model_name_or_path}' is the correct path to a directory "
+                f"containing all relevant files for a {cls.__name__} tokenizer."
+            )
 
         for file_id, file_path in vocab_files.items():
             if file_id not in resolved_vocab_files:
@@ -327,22 +328,19 @@ class T5Tokenizer(SpecialTokensMixin):
             try:
                 config_dict = resolved_vocab_files.pop("config_file", None)
                 config_dict = cls._dict_from_json_file(config_dict)
-                if 'model_type' in config_dict:
-                    config_class = CONFIG_MAPPING[config_dict["model_type"]]
-                    config = config_class.from_dict(config_dict, **kwargs)
-
-                config_tokenizer_class = config.tokenizer_class
+                config_tokenizer_class = config_dict[
+                    "tokenizer_class"] if "tokenizer_class" in config_dict else None
             except (OSError, ValueError, KeyError):
                 # skip if an error occurred.
-                config = None
+                config_dict = None
             if config_tokenizer_class is None:
                 # Third attempt. If we have not yet found the original type of the tokenizer,
                 # we are loading we see if we can infer it from the type of the configuration file
-                from packages.tokenization_utils_base import TOKENIZER_MAPPING_NAMES  # tests_ignore
+                from ppfleetx.data.tokenizers.tokenization_utils_base import TOKENIZER_MAPPING_NAMES  # tests_ignore
 
-                if hasattr(config, "model_type"):
-                    model_type = config.model_type
-                else:
+                model_type = config_dict[
+                    "model_type"] if "model_type" in config_dict else None
+                if model_type is None:
                     # Fallback: use pattern matching on the string.
                     model_type = None
                     for pattern in TOKENIZER_MAPPING_NAMES.keys():
@@ -362,8 +360,8 @@ class T5Tokenizer(SpecialTokensMixin):
                 logger.warning(
                     "The tokenizer class you load from this checkpoint is not the same type as the class this"
                     " function is called from. It may result in unexpected tokenization. \nThe tokenizer class you"
-                    " load from this checkpoint is '{config_tokenizer_class}'. \nThe class this function is called"
-                    " from is '{cls.__name__}'.")
+                    f" load from this checkpoint is '{config_tokenizer_class}'. \nThe class this function is called"
+                    f" from is '{cls.__name__}'.")
 
         # Update with newly provided kwargs
         init_kwargs.update(kwargs)
@@ -465,7 +463,7 @@ class T5Tokenizer(SpecialTokensMixin):
                     False):
                 logger.warning(
                     "Token indices sequence length is longer than the specified maximum sequence length "
-                    "for this model ({len(ids)} > {self.model_max_length}). Running this sequence through the model "
+                    f"for this model ({len(ids)} > {self.model_max_length}). Running this sequence through the model "
                     "will result in indexing errors")
             self.deprecation_warnings[
                 "sequence-length-is-longer-than-the-specified-maximum"] = True
@@ -610,7 +608,7 @@ class T5Tokenizer(SpecialTokensMixin):
             (max_length % pad_to_multiple_of != 0)):
             raise ValueError(
                 "Truncation and padding are both activated but "
-                "truncation length ({max_length}) is not a multiple of pad_to_multiple_of ({pad_to_multiple_of})."
+                f"truncation length ({max_length}) is not a multiple of pad_to_multiple_of ({pad_to_multiple_of})."
             )
 
         return padding_strategy, truncation_strategy, max_length, kwargs
@@ -780,7 +778,7 @@ class T5Tokenizer(SpecialTokensMixin):
         if self.model_input_names[0] not in encoded_inputs:
             raise ValueError(
                 "You should supply an encoding or a list of encodings to this method "
-                "that includes {self.model_input_names[0]}, but you provided {list(encoded_inputs.keys())}"
+                f"that includes {self.model_input_names[0]}, but you provided {list(encoded_inputs.keys())}"
             )
 
         required_input = encoded_inputs[self.model_input_names[0]]
@@ -811,7 +809,7 @@ class T5Tokenizer(SpecialTokensMixin):
                 return_tensors = "np" if return_tensors is None else return_tensors
             else:
                 raise ValueError(
-                    "type of {first_element} unknown: {type(first_element)}. "
+                    f"type of {first_element} unknown: {type(first_element)}. "
                     "Should be one of a python, numpy, pytorch or tensorflow object."
                 )
 
@@ -884,7 +882,7 @@ class T5Tokenizer(SpecialTokensMixin):
         """Do not add eos again if user already added it."""
         if len(token_ids) > 0 and token_ids[-1] == self.eos_token_id:
             warnings.warn(
-                "This sequence already has {self.eos_token}. In future versions this behavior may lead to duplicated"
+                f"This sequence already has {self.eos_token}. In future versions this behavior may lead to duplicated"
                 " eos tokens being added.")
             return token_ids
         else:
@@ -976,24 +974,24 @@ class T5Tokenizer(SpecialTokensMixin):
                     ids = ids[:-num_tokens_to_remove]
                 else:
                     raise ValueError(
-                        "invalid truncation strategy: {self.truncation_side}, use 'left' or 'right'."
+                        f"invalid truncation strategy: {self.truncation_side}, use 'left' or 'right'."
                     )
 
             else:
                 error_msg = (
-                    "We need to remove {num_tokens_to_remove} to truncate the input "
-                    "but the first sequence has a length {len(ids)}. ")
+                    f"We need to remove {num_tokens_to_remove} to truncate the input "
+                    f"but the first sequence has a length {len(ids)}. ")
                 if truncation_strategy == TruncationStrategy.ONLY_FIRST:
                     error_msg = (
                         error_msg +
                         "Please select another truncation strategy than "
-                        "{truncation_strategy}, for instance 'longest_first' or 'only_second'."
+                        f"{truncation_strategy}, for instance 'longest_first' or 'only_second'."
                     )
                 logger.error(error_msg)
         elif truncation_strategy == TruncationStrategy.LONGEST_FIRST:
             logger.warning(
                 "Be aware, overflowing tokens are not returned for the setting you have chosen,"
-                " i.e. sequence pairs with the '{TruncationStrategy.LONGEST_FIRST.value}' "
+                f" i.e. sequence pairs with the '{TruncationStrategy.LONGEST_FIRST.value}' "
                 "truncation strategy. So the returned list will always be empty even if some "
                 "tokens have been removed.")
             for _ in range(num_tokens_to_remove):
@@ -1027,9 +1025,9 @@ class T5Tokenizer(SpecialTokensMixin):
                         self.truncation_side))
             else:
                 logger.error(
-                    "We need to remove {num_tokens_to_remove} to truncate the input "
-                    "but the second sequence has a length {len(pair_ids)}. "
-                    "Please select another truncation strategy than {truncation_strategy}, "
+                    f"We need to remove {num_tokens_to_remove} to truncate the input "
+                    f"but the second sequence has a length {len(pair_ids)}. "
+                    f"Please select another truncation strategy than {truncation_strategy}, "
                     "for instance 'longest_first' or 'only_first'.")
 
         return (ids, pair_ids, overflowing_tokens)
@@ -1369,7 +1367,7 @@ class T5Tokenizer(SpecialTokensMixin):
             (max_length % pad_to_multiple_of != 0)):
             raise ValueError(
                 "Truncation and padding are both activated but "
-                "truncation length ({max_length}) is not a multiple of pad_to_multiple_of ({pad_to_multiple_of})."
+                f"truncation length ({max_length}) is not a multiple of pad_to_multiple_of ({pad_to_multiple_of})."
             )
 
         return padding_strategy, truncation_strategy, max_length, kwargs
@@ -1542,7 +1540,7 @@ class T5Tokenizer(SpecialTokensMixin):
         text, kwargs = self.prepare_for_tokenization(text, **kwargs)
 
         if kwargs:
-            logger.warning("Keyword arguments {kwargs} not recognized.")
+            logger.warning(f"Keyword arguments {kwargs} not recognized.")
 
         # TODO: should this be in the base class?
         if hasattr(self, "do_lower_case") and self.do_lower_case:
@@ -1720,12 +1718,12 @@ class T5Tokenizer(SpecialTokensMixin):
             elif init_max_model_length is None:
                 warnings.warn(
                     "This tokenizer was incorrectly instantiated with a model max length of"
-                    " {deprecated_max_model_length} which will be corrected in Transformers v5.\nFor now, this"
+                    f" {deprecated_max_model_length} which will be corrected in Transformers v5.\nFor now, this"
                     " behavior is kept to avoid breaking backwards compatibility when padding/encoding with"
                     " `truncation is True`.\n- Be aware that you SHOULD NOT rely on"
-                    " {pretrained_model_name_or_path} automatically truncating your input to"
-                    " {deprecated_max_model_length} when padding/encoding.\n- If you want to encode/pad to sequences"
-                    " longer than {deprecated_max_model_length} you can either instantiate this tokenizer with"
+                    f" {pretrained_model_name_or_path} automatically truncating your input to"
+                    f" {deprecated_max_model_length} when padding/encoding.\n- If you want to encode/pad to sequences"
+                    f" longer than {deprecated_max_model_length} you can either instantiate this tokenizer with"
                     " `model_max_length` or pass `max_length` when encoding/padding.\n- To avoid this warning, please"
                     " instantiate this tokenizer with `model_max_length` set to your preferred value.",
                     FutureWarning, )
@@ -1778,7 +1776,7 @@ class T5Tokenizer(SpecialTokensMixin):
         """Do not add eos again if user already added it."""
         if len(token_ids) > 0 and token_ids[-1] == self.eos_token_id:
             warnings.warn(
-                "This sequence already has {self.eos_token}. In future versions this behavior may lead to duplicated"
+                f"This sequence already has {self.eos_token}. In future versions this behavior may lead to duplicated"
                 " eos tokens being added.")
             return token_ids
         else:
@@ -1862,7 +1860,7 @@ class T5Tokenizer(SpecialTokensMixin):
         if index < self.sp_model.get_piece_size():
             token = self.sp_model.IdToPiece(index)
         else:
-            token = "<extra_id_{self.vocab_size - 1 - index}>"
+            token = f"<extra_id_{self.vocab_size - 1 - index}>"
         return token
 
     def convert_tokens_to_string(self, tokens):
@@ -1883,7 +1881,7 @@ class T5Tokenizer(SpecialTokensMixin):
     def save_vocabulary(self, save_directory, filename_prefix=None):
         if not os.path.isdir(save_directory):
             logger.error(
-                "Vocabulary path ({save_directory}) should be a directory")
+                f"Vocabulary path ({save_directory}) should be a directory")
             return
         out_vocab_file = os.path.join(
             save_directory,

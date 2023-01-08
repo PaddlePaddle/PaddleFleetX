@@ -14,6 +14,7 @@
 
 import os
 import time
+import gzip
 
 import random
 import base64
@@ -25,6 +26,7 @@ from tqdm import tqdm
 from io import BytesIO
 from pathlib import Path
 from copy import deepcopy
+import PIL
 from PIL import Image, ImageFile
 
 import paddle
@@ -32,95 +34,69 @@ from paddle.io import Dataset, DataLoader
 from paddle.distributed import get_world_size
 from paddle.vision import transforms as T
 
+from ppfleetx.utils.log import logger
 
-def get_files(data_path, gpu_num, shuffle=False):
+
+def get_keys(data_path, gpu_num):
     files = [
         file.strip() for file in open(data_path).readlines()
         if file.strip() != ""
     ]
-    if shuffle:
-        random.shuffle(files)
     local_rank = paddle.distributed.get_rank()
 
     if len(files) % gpu_num == 0:
-        files_extend = list(files)
+        keys_extend = list(files)
     else:
         added_num = gpu_num - (len(files) % gpu_num)
         try:
-            files_extend = files + random.sample(files, added_num)
+            keys_extend = files + random.sample(files, added_num)
         except:
-            files_extend = files + random.sample(files, 1) * added_num
+            keys_extend = files + random.sample(files, 1) * added_num
 
-    assert len(
-        files_extend
-    ) % gpu_num == 0  # make sure the files can be evenly distributed
-    num_files_per_gpu = len(files_extend) / gpu_num
+    keys = keys_extend[local_rank::gpu_num]
+    logger.info("keys: {} {}".format(keys, local_rank))
 
-    files = files_extend[local_rank::gpu_num]
-    print("files: ", files, local_rank)
-    print("num files per gpu: ", num_files_per_gpu)
-
-    return files
-
-    return DataLoader(
-        dataset_train,
-        batch_size=configs['batch_size'],
-        shuffle=shuffle,
-        drop_last=True,
-        num_workers=configs['num_workers'],
-        collate_fn=collate_imagen,
-        places=places,
-        use_shared_memory=configs['use_shared_memory'],
-        worker_init_fn=worker_init)
-
-
-def data_augmentation_for_imagen(img, resolution):
-    arr = deepcopy(img)
-    while min(*arr.size) >= 2 * resolution:
-        arr = arr.resize(
-            tuple(x // 2 for x in arr.size), resample=Image.Resampling.BOX)
-    scale = resolution / min(*arr.size)
-    arr = arr.resize(
-        tuple(round(x * scale) for x in arr.size),
-        resample=Image.Resampling.BICUBIC)
-
-    arr = np.array(arr.convert("RGB"))
-    crop_y = (arr.shape[0] - resolution) // 2
-    crop_x = (arr.shape[1] - resolution) // 2
-    arr = arr[crop_y:crop_y + resolution, crop_x:crop_x + resolution]
-    arr = arr.astype(np.float32)
-    arr = np.transpose(arr, [2, 0, 1])
-    return paddle.to_tensor(arr)
+    return keys
 
 
 class ImagenDataset(Dataset):
     def __init__(self,
                  input_path,
-                 input_format='embed_base64_cc12m',
+                 image_format='base64',
                  shuffle=False,
-                 input_resolution=64,
-                 second_size=256,
-                 max_seq_len=128,
+                 image_size=64,
+                 text_max_len=128,
                  filter_image_resolution=128,
                  tokenizer=None,
-                 split='train'):
+                 sr=False,
+                 split='train',
+                 interpolation="bicubic",
+                 flip_p=0.5):
         super().__init__()
         device_world_size = paddle.distributed.get_world_size()
-        self.filename = get_files(
-            input_path, gpu_num=device_world_size, shuffle=shuffle)
+        self.filename = get_keys(input_path, gpu_num=device_world_size)
+        if shuffle:
+            random.shuffle(self.filename)
         self.filter_image_resolution = filter_image_resolution
-        self.input_resolution = input_resolution
-        self.max_seq_len = max_seq_len
+        self.text_max_len = text_max_len
         self.split = split
-        if not isinstance(self.filename, list):
-            self.indexes = self.load_path(self.filename)
-        else:
-            self.indexes = []
-            for f_index, f in enumerate(self.filename):
-                self.load_path(f, f_index)
-        self.legacy_index = []
-        self.skip = 0
         self.tokenizer = tokenizer
+        self.sr = sr
+        if sr:
+            self.transform = T.Compose([T.Resize(image_size), T.ToTensor()])
+
+        self.for_line = self.get_line_for_line(self.filename).__iter__()
+
+        self.good_index = []
+
+        self.interpolation = {
+            "linear": PIL.Image.LINEAR,
+            "bilinear": PIL.Image.BILINEAR,
+            "bicubic": PIL.Image.BICUBIC,
+            "lanczos": PIL.Image.LANCZOS,
+        }[interpolation]
+        self.flip = T.RandomHorizontalFlip(prob=flip_p)
+        self.image_size = image_size
 
     def load_path(self, data_path, f_index=None):
         if f_index is None:
@@ -141,40 +117,86 @@ class ImagenDataset(Dataset):
         return
 
     @staticmethod
-    def load_file(filepath, filename):
-        return np.load(os.path.join(filepath, filename), mmap_mode='r')
-
-    @staticmethod
     def base64_to_image(base64_str):
         byte_data = base64.b64decode(base64_str)
         image_data = BytesIO(byte_data)
         img = Image.open(image_data)
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
         return img
 
-    @staticmethod
-    def get_line(filename, indexes):
-        offset, n = indexes
-        with open(filename, 'r', encoding='utf-8') as f:
-            f.seek(offset)
-            return f.readline()
+    def get_line_for_line(self, filename):
+        while True:
+            for fname in filename:
+                if fname[-2:] != "gz":
+                    file = open(fname)
+                    for line in file:
+                        if line != "":
+                            data = line.strip().split('\t')
+                            image_base64 = data[4]
+                            image_item = self.base64_to_image(image_base64)
+                            if min(image_item.size) >= self.image_size:
+                                yield line
+                else:
+                    file = gzip.GzipFile(fname, "r")
+                    for line in file:
+                        if line != "":
+                            line = line.decode()
+                            data = line.strip().split('\t')
+                            image_base64 = data[4]
+                            image_item = self.base64_to_image(image_base64)
+                            if min(image_item.size) >= self.image_size:
+                                yield line
 
     def __getitem__(self, index):
         if not isinstance(self.filename, list):
-            data_dir = os.path.dirname(self.filename)
-            data = self.get_line(self.filename, self.indexes[index])
+            data = self.for_line.__next__()
         else:
-            data_dir = os.path.dirname(self.filename[self.indexes[index][1]])
-            data = self.get_line(self.filename[self.indexes[index][1]],
-                                 self.indexes[index][0])
-        data = data.strip().split('\t')
-        text_embed = self.load_file(data_dir, data[1])
-        attn_mask = self.load_file(data_dir, data[2])
-        image = self.base64_to_image(data[3])
-        image = data_augmentation_for_imagen(image, self.input_resolution)
+            data = self.for_line.__next__()
 
-        return image, paddle.to_tensor(
-            text_embed, dtype='float32'), paddle.to_tensor(
-                attn_mask, dtype='int64')
+        data = data.strip().split('\t')
+
+        # For laion 400m
+        if len(data) == 6:
+            image_base64 = data[4]
+            caption = data[2]
+
+        image_item = self.base64_to_image(image_base64)
+
+        # Filter image resolution
+        if min(image_item.size) < self.filter_image_resolution:
+            return None
+
+        if not self.sr:
+            self.transform = T.Compose([
+                T.CenterCrop([min(image_item.size), min(image_item.size)]),
+                T.Resize(64), T.ToTensor()
+            ])
+            image_item = self.transform(image_item)
+        else:
+            img = np.array(image_item).astype(np.uint8)
+
+            crop = min(img.shape[0], img.shape[1])
+            h, w, = img.shape[0], img.shape[1]
+
+            if img.shape[0] > img.shape[1]:
+                img = img[0:crop, (w - crop) // 2:(w + crop) // 2]
+            else:
+                img = img[(h - crop) // 2:(h + crop) // 2, (w - crop) // 2:(
+                    w + crop) // 2]
+
+            image = Image.fromarray(img)
+            image = image.resize(
+                (self.image_size, self.image_size),
+                resample=self.interpolation)
+
+            image_item = self.transform(image)
+
+        example = {'id': index, 'image': image_item, 'caption': caption}
+        return example
 
     def __len__(self):
-        return len(self.indexes)
+        #return len(self.indexes)
+        if self.sr:
+            return 300000000
+        return 5000000

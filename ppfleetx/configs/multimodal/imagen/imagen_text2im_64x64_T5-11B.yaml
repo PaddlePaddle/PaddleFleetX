@@ -7,11 +7,11 @@ Global:
 
 
 Model:
-  name: imagen_SR512
-  text_encoder_name: t5/t5-11b
+  name: imagen_text2im_64
+  text_encoder_name: projects/imagen/t5/t5-11b
   text_embed_dim: 1024 
   timesteps: 1000 
-  in_chans: 3
+  channels: 3
   cond_drop_prob: 0.1
   noise_schedules: cosine
   pred_objectives: noise
@@ -25,22 +25,24 @@ Model:
   dynamic_thresholding_percentile: 0.95
   only_train_unet_number: 1 
   use_recompute: False
+  recompute_granularity:
 
 Data:
   Train:
     dataset:
       name: ImagenDataset
-      input_path: ./projects/imagen/filelist/cc12m_base64.lst
+      input_path: ./projects/imagen/filelist/laion_400M/train
       shuffle: True
-      input_resolution: 512 
-      max_seq_len: 128 
+      image_format: base64 
+      image_size: 64 
+      text_max_len: 128 
+      filter_image_resolution: 64
     loader:
       num_workers: 8
       shuffle: True
-      batch_size: 1 
+      batch_size: 8 
       drop_last: True
       collate_fn: imagen_collate_fn
-  
 
 Loss:
   name: mse_loss

@@ -14,3 +14,4 @@
 
 from .gpt_tokenizer import GPTTokenizer, GPTChineseTokenizer
 from .ernie_tokenizer import get_ernie_tokenizer
+from .t5_tokenizer import get_t5_tokenizer
