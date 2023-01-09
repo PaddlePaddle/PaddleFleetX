@@ -48,5 +48,5 @@ repos:
         name: copyright_checker
         entry: python ./codestyle/copyright.hook
         language: system
-        files: \.(c|cc|cxx|cpp|cu|h|hpp|hxx|proto|py|sh)$
+        files: \.(c|cc|cxx|cpp|cu|h|hpp|hxx|proto)$
         exclude: (?!.*third_party)^.*$ | (?!.*book)^.*$

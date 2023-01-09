@@ -89,6 +89,11 @@ Train Imagen text-to-image 64×64 2B diffusion model with 256 gpus.
 cd PaddleFleetX/
 sh projects/imagen/run_text2im_2B_64x64_T5-11B_sharding8_dp32.sh
 ```
+### Train DeBERTaV2 1.5B Imagen diffusion model with 8 gpus.
+```
+cd PaddleFleetX/
+sh projects/imagen/run_text2im_64x64_DebertaV2_dp8.sh
+```
 ### Train Imagen Super Resolusion 256×256 diffusion model.
 Train Imagen Super Resolusion 256×256 diffusion model with single gpu.
 ```
