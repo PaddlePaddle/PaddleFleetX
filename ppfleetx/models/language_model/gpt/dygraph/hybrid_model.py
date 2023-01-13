@@ -926,7 +926,7 @@ class GPTPretrainingCriterionHybird(nn.Layer):
             loss_mask = loss_mask.transpose([1, 0])
         
         if mp_size > 1:
-            if paddle.is_compiled_with_cuda():
+            if paddle.is_compiled_with_cuda() and True:
                 masked_lm_loss = self.parallel_loss_func(
                     prediction_scores, masked_lm_labels.unsqueeze(2))
             else:
@@ -1632,6 +1632,6 @@ class ConcatSoftmaxInput(PyLayer):
     def backward(ctx,grad):
         group = ctx.cat_args
         with paddle.no_grad():
-            grads = paddle.split(grad, aixs=-1)
+            grads = paddle.split(grad, paddle.distributed.get_world_size(group), axis=-1)
         grad = grads[paddle.distributed.get_rank(group)]
         return grad
