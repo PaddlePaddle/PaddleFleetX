@@ -20,67 +20,53 @@ import paddle
 from paddle import nn
 from paddle import nn, einsum
 import paddle.nn.functional as F
+from paddle.distributed.fleet.utils import recompute
 
-from .utils import (zeros_, zero_init_, default, exists, cast_tuple,
+from .utils import (zeros_, zero_init_, default, exists, cast_tuple, l2norm,
                     resize_image_to, prob_mask_like, masked_mean, Identity,
                     repeat, repeat_many, Rearrange, rearrange, rearrange_many,
-                    EinopsToAndFrom, Parallel, Always)
+                    EinopsToAndFrom, Parallel, Always, print_once)
+
+from ppfleetx.models.language_model.t5.modeling import finfo
 
 
 class LayerNorm(nn.Layer):
-    def __init__(self, dim, stable=False):
+    def __init__(self, feats, stable=False, dim=-1):
         super().__init__()
         self.stable = stable
+        self.dim = dim
+
         self.g = self.create_parameter(
-            [dim], default_initializer=nn.initializer.Constant(value=1.))
-
-    def forward(self, x):
-        if self.stable:
-            amax = x.amax(axis=1, keepdim=True)
-            x = x / amax
-
-        eps = 1e-5 if x.dtype == paddle.float32 else 1e-3
-        var = paddle.var(x, axis=1, unbiased=False, keepdim=True)
-        mean = paddle.mean(x, axis=1, keepdim=True)
-        return (x - mean) * (var + eps).rsqrt() * self.g
-
-
-class ChanLayerNorm(nn.Layer):
-    def __init__(self, dim, stable=False):
-        super().__init__()
-        self.stable = stable
-        self.g = self.create_parameter(
-            [1, dim, 1, 1],
+            [feats, *((1, ) * (-dim - 1))],
             default_initializer=nn.initializer.Constant(value=1.))
 
     def forward(self, x):
+        dtype, dim = x.dtype, self.dim
+
         if self.stable:
-            amax = x.amax(axis=1, keepdim=True)
-            x = x / amax
+            x = x / x.amax(axis=dim, keepdim=True).detach()
+
         eps = 1e-5 if x.dtype == paddle.float32 else 1e-3
-        var = paddle.var(x, axis=1, unbiased=False, keepdim=True)
-        mean = paddle.mean(x, axis=1, keepdim=True)
-        return (x - mean) / (var + eps).sqrt() * self.g
+        var = paddle.var(x, axis=dim, unbiased=False, keepdim=True)
+        mean = paddle.mean(x, axis=dim, keepdim=True)
+
+        return (x - mean) * (
+            var + eps).rsqrt().cast(dtype) * self.g.cast(dtype)
 
 
-class GlobalContext(nn.Layer):
-    """ basically a superior form of squeeze-excitation that is attention-esque """
+ChanLayerNorm = partial(LayerNorm, dim=-3)
 
-    def __init__(self, *, dim_in, dim_out):
+
+class Residual(nn.Layer):
+    def __init__(self, fn):
         super().__init__()
-        self.to_k = nn.Conv2D(dim_in, 1, 1)
-        hidden_dim = max(3, dim_out // 2)
+        self.fn = fn
 
-        self.net = nn.Sequential(
-            nn.Conv2D(dim_in, hidden_dim, 1),
-            nn.Silu(), nn.Conv2D(hidden_dim, dim_out, 1), nn.Sigmoid())
+    def forward(self, x, **kwargs):
+        return self.fn(x, **kwargs) + x
 
-    def forward(self, x):
-        context = self.to_k(x)
-        x, context = rearrange_many((x, context), 'b n ... -> b n (...)')
-        out = einsum('b i n, b c n -> b c i', F.softmax(context, axis=-1), x)
-        out = out[:, :, :, None]
-        return self.net(out)
+
+# attention pooling
 
 
 class PerceiverAttention(nn.Layer):
@@ -89,8 +75,8 @@ class PerceiverAttention(nn.Layer):
         self.scale = dim_head**-0.5 if not cosine_sim_attn else 1
         self.cosine_sim_attn = cosine_sim_attn
         self.cosine_sim_scale = 16 if cosine_sim_attn else 1
+
         self.heads = heads
-        self.max_neg_value = -3.4028234663852886e+38
         inner_dim = dim_head * heads
 
         self.norm = nn.LayerNorm(dim)
@@ -130,12 +116,15 @@ class PerceiverAttention(nn.Layer):
                      k) * self.cosine_sim_scale
 
         if exists(mask):
+            max_neg_value = -finfo(sim.dtype).max
             mask = F.pad(mask, (0, latents.shape[-2]), value=True)
             mask = rearrange(mask, 'b j -> b 1 1 j')
-            sim = paddle.where(mask == 0,
-                               paddle.to_tensor(self.max_neg_value), sim)
+            sim = paddle.where(mask == 0, paddle.to_tensor(max_neg_value), sim)
+
+        # attention
 
         attn = F.softmax(sim, axis=-1, dtype=paddle.float32)
+        attn = attn.cast(sim.dtype)
 
         out = einsum('... i j, ... j d -> ... i d', attn, v)
         B, H, N, D = out.shape
@@ -206,6 +195,272 @@ class PerceiverResampler(nn.Layer):
         return latents
 
 
+# attention
+
+
+class Attention(nn.Layer):
+    def __init__(
+            self,
+            dim,
+            *,
+            dim_head=64,
+            heads=8,
+            context_dim=None,
+            cosine_sim_attn=False,
+            use_recompute=False, ):
+        super().__init__()
+        self.use_recompute = use_recompute
+        self.scale = dim_head**-0.5 if not cosine_sim_attn else 1.
+        self.cosine_sim_attn = cosine_sim_attn
+        self.cosine_sim_scale = 16 if cosine_sim_attn else 1
+
+        self.heads = heads
+        inner_dim = dim_head * heads
+
+        self.norm = LayerNorm(dim)
+
+        self.null_kv = self.create_parameter(
+            [2, dim_head], default_initializer=nn.initializer.Normal())
+        self.to_q = nn.Linear(dim, inner_dim, bias_attr=False)
+        self.to_kv = nn.Linear(dim, dim_head * 2, bias_attr=False)
+
+        self.to_context = nn.Sequential(
+            nn.LayerNorm(context_dim), nn.Linear(
+                context_dim, dim_head * 2)) if exists(context_dim) else None
+
+        self.to_out = nn.Sequential(
+            nn.Linear(
+                inner_dim, dim, bias_attr=False), LayerNorm(dim))
+
+    def forward(self, x, context=None, mask=None, attn_bias=None):
+        if self.use_recompute:
+            return recompute(self._forward, x, context, mask, attn_bias)
+        else:
+            return self._forward(x, context, mask, attn_bias)
+
+    def _forward(self, x, context=None, mask=None, attn_bias=None):
+        b, n = x.shape[:2]
+
+        x = self.norm(x)
+
+        q, k, v = (self.to_q(x), *self.to_kv(x).chunk(2, axis=-1))
+
+        q = rearrange(q, 'b n (h d) -> b h n d', h=self.heads)
+
+        q = q * self.scale
+
+        # add null key / value for classifier free guidance in prior net
+
+        nk, nv = repeat_many(self.null_kv.unbind(axis=-2), 'd -> b 1 d', b=b)
+        k = paddle.concat((nk, k), axis=-2)
+        v = paddle.concat((nv, v), axis=-2)
+
+        # add text conditioning, if present
+
+        if exists(context):
+            assert exists(self.to_context)
+            ck, cv = self.to_context(context).chunk(2, axis=-1)
+            k = paddle.concat((ck, k), axis=-2)
+            v = paddle.concat((cv, v), axis=-2)
+
+        # cosine sim attention
+
+        if self.cosine_sim_attn:
+            q, k = map(l2norm, (q, k))
+
+        # calculate query / key similarities
+
+        sim = einsum('b h i d, b j d -> b h i j', q, k) * self.cosine_sim_scale
+
+        # relative positional encoding (T5 style)
+
+        if exists(attn_bias):
+            sim = sim + attn_bias
+
+        # masking
+
+        max_neg_value = -finfo(sim.dtype).max
+
+        if exists(mask):
+            mask = F.pad(mask, (1, 0), value=True)
+            mask = rearrange(mask, 'b j -> b 1 1 j')
+            sim = paddle.where(mask == 0, paddle.to_tensor(max_neg_value), sim)
+
+        # attention
+
+        attn = F.softmax(sim, axis=-1, dtype=paddle.float32)
+
+        # aggregate values
+
+        out = einsum('b h i j, b j d -> b h i d', attn, v)
+
+        out = rearrange(out, 'b h n d -> b n (h d)')
+        return self.to_out(out)
+
+
+# decoder
+
+
+def Upsample(dim, dim_out=None):
+    dim_out = default(dim_out, dim)
+
+    return nn.Sequential(
+        nn.Upsample(
+            scale_factor=2, mode='nearest'),
+        nn.Conv2D(
+            dim, dim_out, 3, padding=1))
+
+
+class PixelShuffleUpsample(nn.Layer):
+    """
+    code shared by @MalumaDev at DALLE2 for addressing checkboard artifacts
+    https://arxiv.org/ftp/arxiv/papers/1707/1707.02937.pdf
+    """
+
+    def __init__(self, dim, dim_out=None):
+        super().__init__()
+        dim_out = default(dim_out, dim)
+        conv = nn.Conv2D(dim, dim_out * 4, 1)
+
+        self.net = nn.Sequential(conv, nn.Silu(), nn.PixelShuffle(2))
+
+        self.init_conv_(conv)
+
+    def init_conv_(self, conv):
+        o, i, h, w = conv.weight.shape
+        conv_weight = paddle.empty([o // 4, i, h, w])
+        nn.initializer.KaimingUniform(conv_weight)
+        conv_weight = repeat(conv_weight, 'o ... -> (o 4) ...')
+
+        conv.weight.set_value(conv_weight)
+        zeros_(conv.bias)
+
+    def forward(self, x):
+        return self.net(x)
+
+
+def Downsample(dim, dim_out=None):
+    dim_out = default(dim_out, dim)
+    return nn.Sequential(
+        Rearrange(
+            'b c (h s1) (w s2) -> b (c s1 s2) h w', s1=2, s2=2),
+        nn.Conv2D(dim * 4, dim_out, 1))
+
+
+class SinusoidalPosEmb(nn.Layer):
+    def __init__(self, dim):
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, x):
+        half_dim = self.dim // 2
+        emb = math.log(10000) / (half_dim - 1)
+        emb = paddle.exp(paddle.arange(half_dim) * -emb)
+        emb = x[:, None] * emb[None, :]
+        return paddle.concat((emb.sin(), emb.cos()), axis=-1)
+
+
+class LearnedSinusoidalPosEmb(nn.Layer):
+    """ following @crowsonkb 's lead with learned sinusoidal pos emb """
+    """ https://github.com/crowsonkb/v-diffusion-jax/blob/master/diffusion/models/danbooru_128.py#L8 """
+
+    def __init__(self, dim):
+        super().__init__()
+        assert (dim % 2) == 0
+        half_dim = dim // 2
+        self.weights = self.create_parameter(
+            [half_dim], default_initializer=nn.initializer.Normal())
+
+    def forward(self, x):
+        x = x[:, None]
+        freqs = x * self.weights[None, :] * 2 * math.pi
+        fouriered = paddle.concat((freqs.sin(), freqs.cos()), axis=-1)
+        fouriered = paddle.concat((x, fouriered), axis=-1)
+        return fouriered
+
+
+class Block(nn.Layer):
+    def __init__(self, dim, dim_out, groups=8, norm=True):
+        super().__init__()
+        self.groupnorm = nn.GroupNorm(groups, dim) if norm else Identity()
+        self.activation = nn.Silu()
+        self.project = nn.Conv2D(dim, dim_out, 3, padding=1)
+
+    def forward(self, x, scale_shift=None):
+        x = self.groupnorm(x)
+
+        if exists(scale_shift):
+            scale, shift = scale_shift
+            x = x * (scale + 1) + shift
+
+        x = self.activation(x)
+        return self.project(x)
+
+
+class ResnetBlock(nn.Layer):
+    def __init__(self,
+                 dim,
+                 dim_out,
+                 *,
+                 cond_dim=None,
+                 time_cond_dim=None,
+                 groups=8,
+                 linear_attn=False,
+                 use_gca=False,
+                 squeeze_excite=False,
+                 use_recompute=False,
+                 **attn_kwargs):
+        super().__init__()
+
+        self.time_mlp = None
+        self.use_recompute = use_recompute
+
+        if exists(time_cond_dim):
+            self.time_mlp = nn.Sequential(
+                nn.Silu(), nn.Linear(time_cond_dim, dim_out * 2))
+
+        self.cross_attn = None
+
+        if exists(cond_dim):
+            attn_klass = CrossAttention if not linear_attn else LinearCrossAttention
+
+            self.cross_attn = attn_klass(
+                dim=dim_out, context_dim=cond_dim, **attn_kwargs)
+
+        self.block1 = Block(dim, dim_out, groups=groups)
+        self.block2 = Block(dim_out, dim_out, groups=groups)
+
+        self.gca = GlobalContext(
+            dim_in=dim_out, dim_out=dim_out) if use_gca else Always(1)
+
+        self.res_conv = nn.Conv2D(dim, dim_out,
+                                  1) if dim != dim_out else Identity()
+
+    def forward(self, x, time_emb=None, cond=None):
+        scale_shift = None
+        if exists(self.time_mlp) and exists(time_emb):
+            time_emb = self.time_mlp(time_emb)
+            time_emb = time_emb[:, :, None, None]
+            scale_shift = time_emb.chunk(2, axis=1)
+
+        h = self.block1(x)
+
+        if exists(self.cross_attn):
+            assert exists(cond)
+            h = h.transpose([0, 2, 3, 1])
+            n, b, c, *_ = h.shape
+            h = h.reshape([n, b * c, -1])
+            h = self.cross_attn(h, context=cond) + h
+            h = h.reshape([n, b, c, -1])
+            h = h.transpose([0, 3, 1, 2])
+
+        h = self.block2(h, scale_shift=scale_shift)
+
+        h = h * self.gca(h)
+
+        return h + self.res_conv(x)
+
+
 class CrossAttention(nn.Layer):
     def __init__(self,
                  dim,
@@ -221,7 +476,6 @@ class CrossAttention(nn.Layer):
         self.cosine_sim_scale = 16 if cosine_sim_attn else 1
 
         self.heads = heads
-        self.max_neg_value = -3.4028234663852886e+38
         inner_dim = dim_head * heads
 
         context_dim = default(context_dim, dim)
@@ -272,13 +526,15 @@ class CrossAttention(nn.Layer):
 
         # masking
 
+        max_neg_value = -finfo(sim.dtype).max
+
         if exists(mask):
             mask = F.pad(mask, (1, 0), value=True)
             mask = rearrange(mask, 'b j -> b 1 1 j')
-            sim = paddle.where(mask == 0,
-                               paddle.to_tensor(self.max_neg_value), sim)
+            sim = paddle.where(mask == 0, paddle.to_tensor(max_neg_value), sim)
 
         attn = F.softmax(sim, axis=-1, dtype=paddle.float32)
+        attn = attn.cast(sim.dtype)
 
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
         out = rearrange(out, 'b h n d -> b n (h d)')
@@ -307,280 +563,25 @@ class LinearCrossAttention(CrossAttention):
 
         # masking
 
+        max_neg_value = -finfo(x.dtype).max
+
         if exists(mask):
             mask = F.pad(mask, (1, 0), value=True)
             mask = rearrange(mask, 'b n -> b n 1')
-            k = paddle.where(mask == 0,
-                             paddle.to_tensor(self.max_neg_value), k)
+            k = paddle.where(mask == 0, paddle.to_tensor(max_neg_value), k)
             v = paddle.where(mask == 0, paddle.to_tensor(0.), v)
 
         # linear attention
 
-        q = q * self.scale
         q = F.softmax(q, axis=-1)
         k = F.softmax(k, axis=-2)
+
+        q = q * self.scale
 
         context = einsum('b n d, b n e -> b d e', k, v)
         out = einsum('b n d, b d e -> b n e', q, context)
         out = rearrange(out, '(b h) n d -> b n (h d)', h=self.heads)
         return self.to_out(out)
-
-
-class Block(nn.Layer):
-    def __init__(self, dim, dim_out, groups=8, norm=True):
-        super().__init__()
-        self.groupnorm = nn.GroupNorm(groups, dim) if norm else Identity()
-        self.activation = nn.Silu()
-        self.project = nn.Conv2D(dim, dim_out, 3, padding=1)
-
-    def forward(self, x, scale_shift=None):
-        x = self.groupnorm(x)
-
-        if exists(scale_shift):
-            scale, shift = scale_shift
-            x = x * (scale + 1) + shift
-
-        x = self.activation(x)
-        return self.project(x)
-
-
-class ResnetBlock(nn.Layer):
-    def __init__(self,
-                 dim,
-                 dim_out,
-                 *,
-                 cond_dim=None,
-                 time_cond_dim=None,
-                 groups=8,
-                 linear_attn=False,
-                 use_gca=False,
-                 squeeze_excite=False,
-                 **attn_kwargs):
-        super().__init__()
-
-        self.time_mlp = None
-
-        if exists(time_cond_dim):
-            self.time_mlp = nn.Sequential(
-                nn.Silu(), nn.Linear(time_cond_dim, dim_out * 2))
-
-        self.cross_attn = None
-
-        if exists(cond_dim):
-            attn_klass = CrossAttention if not linear_attn else LinearCrossAttention
-
-            self.cross_attn = EinopsToAndFrom(
-                'b c h w',
-                'b (h w) c',
-                attn_klass(
-                    dim=dim_out, context_dim=cond_dim, **attn_kwargs))
-
-        self.block1 = Block(dim, dim_out, groups=groups)
-        self.block2 = Block(dim_out, dim_out, groups=groups)
-
-        self.gca = GlobalContext(
-            dim_in=dim_out, dim_out=dim_out) if use_gca else Always(1)
-
-        self.res_conv = nn.Conv2D(dim, dim_out,
-                                  1) if dim != dim_out else Identity()
-
-    def forward(self, x, time_emb=None, cond=None):
-
-        scale_shift = None
-        if exists(self.time_mlp) and exists(time_emb):
-            time_emb = self.time_mlp(time_emb)
-            time_emb = time_emb[:, :, None, None]
-            scale_shift = time_emb.chunk(2, axis=1)
-
-        h = self.block1(x)
-
-        if exists(self.cross_attn):
-            assert exists(cond)
-            h = self.cross_attn(h, context=cond) + h
-
-        h = self.block2(h, scale_shift=scale_shift)
-
-        h = h * self.gca(h)
-
-        return h + self.res_conv(x)
-
-
-def FeedForward(dim, mult=2):
-    hidden_dim = int(dim * mult)
-    return nn.Sequential(
-        LayerNorm(dim),
-        nn.Linear(
-            dim, hidden_dim, bias_attr=False),
-        nn.GELU(),
-        LayerNorm(hidden_dim),
-        nn.Linear(
-            hidden_dim, dim, bias_attr=False))
-
-
-def ChanFeedForward(
-        dim, mult=2
-):  # in paper, it seems for self attention layers they did feedforwards with twice channel width
-    hidden_dim = int(dim * mult)
-    return nn.Sequential(
-        ChanLayerNorm(dim),
-        nn.Conv2D(
-            dim, hidden_dim, 1, bias_attr=False),
-        nn.GELU(),
-        ChanLayerNorm(hidden_dim),
-        nn.Conv2D(
-            hidden_dim, dim, 1, bias_attr=False))
-
-
-class Attention(nn.Layer):
-    def __init__(self,
-                 dim,
-                 *,
-                 dim_head=64,
-                 heads=8,
-                 context_dim=None,
-                 cosine_sim_attn=False):
-        super().__init__()
-        self.scale = dim_head**-0.5 if not cosine_sim_attn else 1.
-        self.cosine_sim_attn = cosine_sim_attn
-        self.cosine_sim_scale = 16 if cosine_sim_attn else 1
-        self.max_neg_value = -3.4028234663852886e+38
-        self.heads = heads
-        inner_dim = dim_head * heads
-
-        self.norm = LayerNorm(dim)
-
-        self.null_kv = self.create_parameter(
-            [2, dim_head], default_initializer=nn.initializer.Normal())
-        self.to_q = nn.Linear(dim, inner_dim, bias_attr=False)
-        self.to_kv = nn.Linear(dim, dim_head * 2, bias_attr=False)
-
-        self.to_context = nn.Sequential(
-            nn.LayerNorm(context_dim), nn.Linear(
-                context_dim, dim_head * 2)) if exists(context_dim) else None
-
-        self.to_out = nn.Sequential(
-            nn.Linear(
-                inner_dim, dim, bias_attr=False), LayerNorm(dim))
-
-    def forward(self, x, context=None, mask=None, attn_bias=None):
-        b, n = x.shape[:2]
-
-        x = self.norm(x)
-        q, k, v = (self.to_q(x), *self.to_kv(x).chunk(2, axis=-1))
-
-        q = rearrange(q, 'b n (h d) -> b h n d', h=self.heads)
-
-        q = q * self.scale
-
-        # add null key / value for classifier free guidance in prior net
-
-        nk, nv = repeat_many(self.null_kv.unbind(axis=-2), 'd -> b 1 d', b=b)
-        k = paddle.concat((nk, k), axis=-2)
-        v = paddle.concat((nv, v), axis=-2)
-
-        # add text conditioning, if present
-
-        if exists(context):
-            assert exists(self.to_context)
-            ck, cv = self.to_context(context).chunk(2, axis=-1)
-            k = paddle.concat((ck, k), axis=-2)
-            v = paddle.concat((cv, v), axis=-2)
-
-        # cosine sim attention
-
-        if self.cosine_sim_attn:
-            q, k = map(l2norm, (q, k))
-
-        # calculate query / key similarities
-
-        sim = einsum('b h i d, b j d -> b h i j', q, k) * self.cosine_sim_scale
-
-        # relative positional encoding (T5 style)
-
-        if exists(attn_bias):
-            sim = sim + attn_bias
-
-        # masking
-
-        if exists(mask):
-            mask = F.pad(mask, (1, 0), value=True)
-            mask = rearrange(mask, 'b j -> b 1 1 j')
-            sim = paddle.where(mask == 0,
-                               paddle.to_tensor(self.max_neg_value), sim)
-
-        # attention
-
-        attn = F.softmax(sim, axis=-1, dtype=paddle.float32)
-
-        # aggregate values
-
-        out = einsum('b h i j, b j d -> b h i d', attn, v)
-
-        out = rearrange(out, 'b h n d -> b n (h d)')
-        return self.to_out(out)
-
-
-class Residual(nn.Layer):
-    def __init__(self, fn):
-        super().__init__()
-        self.fn = fn
-
-    def forward(self, x, **kwargs):
-        return self.fn(x, **kwargs) + x
-
-
-class TransformerBlock(nn.Layer):
-    def __init__(self,
-                 dim,
-                 *,
-                 depth=1,
-                 heads=8,
-                 dim_head=32,
-                 ff_mult=2,
-                 context_dim=None,
-                 cosine_sim_attn=False):
-        super().__init__()
-        self.layers = nn.LayerList([])
-
-        for _ in range(depth):
-            self.layers.append(
-                nn.LayerList([
-                    EinopsToAndFrom(
-                        'b c h w',
-                        'b (h w) c',
-                        Attention(
-                            dim=dim,
-                            heads=heads,
-                            dim_head=dim_head,
-                            context_dim=context_dim,
-                            cosine_sim_attn=cosine_sim_attn)), ChanFeedForward(
-                                dim=dim, mult=ff_mult)
-                ]))
-
-    def forward(self, x, context=None):
-        for attn, ff in self.layers:
-            x = attn(x, context=context) + x
-            x = ff(x) + x
-        return x
-
-
-class LearnedSinusoidalPosEmb(nn.Layer):
-    """ following @crowsonkb 's lead with learned sinusoidal pos emb """
-    """ https://github.com/crowsonkb/v-diffusion-jax/blob/master/diffusion/models/danbooru_128.py#L8 """
-
-    def __init__(self, dim):
-        super().__init__()
-        assert (dim % 2) == 0
-        half_dim = dim // 2
-        self.weights = self.create_parameter(
-            [half_dim], default_initializer=nn.initializer.Normal())
-
-    def forward(self, x):
-        x = x[:, None]
-        freqs = x * self.weights[None, :] * 2 * math.pi
-        fouriered = paddle.concat((freqs.sin(), freqs.cos()), axis=-1)
-        fouriered = paddle.concat((x, fouriered), axis=-1)
-        return fouriered
 
 
 class LinearAttention(nn.Layer):
@@ -673,6 +674,92 @@ class LinearAttention(nn.Layer):
         return self.to_out(out)
 
 
+class GlobalContext(nn.Layer):
+    """ basically a superior form of squeeze-excitation that is attention-esque """
+
+    def __init__(self, *, dim_in, dim_out):
+        super().__init__()
+        self.to_k = nn.Conv2D(dim_in, 1, 1)
+        hidden_dim = max(3, dim_out // 2)
+
+        self.net = nn.Sequential(
+            nn.Conv2D(dim_in, hidden_dim, 1),
+            nn.Silu(), nn.Conv2D(hidden_dim, dim_out, 1), nn.Sigmoid())
+
+    def forward(self, x):
+        context = self.to_k(x)
+        x, context = rearrange_many((x, context), 'b n ... -> b n (...)')
+        out = einsum('b i n, b c n -> b c i', F.softmax(context, axis=-1), x)
+        out = out[:, :, :, None]
+        return self.net(out)
+
+
+def FeedForward(dim, mult=2):
+    hidden_dim = int(dim * mult)
+    return nn.Sequential(
+        LayerNorm(dim),
+        nn.Linear(
+            dim, hidden_dim, bias_attr=False),
+        nn.GELU(),
+        LayerNorm(hidden_dim),
+        nn.Linear(
+            hidden_dim, dim, bias_attr=False))
+
+
+def ChanFeedForward(
+        dim, mult=2
+):  # in paper, it seems for self attention layers they did feedforwards with twice channel width
+    hidden_dim = int(dim * mult)
+    return nn.Sequential(
+        ChanLayerNorm(dim),
+        nn.Conv2D(
+            dim, hidden_dim, 1, bias_attr=False),
+        nn.GELU(),
+        ChanLayerNorm(hidden_dim),
+        nn.Conv2D(
+            hidden_dim, dim, 1, bias_attr=False))
+
+
+class TransformerBlock(nn.Layer):
+    def __init__(
+            self,
+            dim,
+            *,
+            depth=1,
+            heads=8,
+            dim_head=32,
+            ff_mult=2,
+            context_dim=None,
+            cosine_sim_attn=False,
+            use_recompute=False, ):
+        super().__init__()
+        self.layers = nn.LayerList([])
+
+        for _ in range(depth):
+            self.layers.append(
+                nn.LayerList([
+                    Attention(
+                        dim=dim,
+                        heads=heads,
+                        dim_head=dim_head,
+                        context_dim=context_dim,
+                        cosine_sim_attn=cosine_sim_attn,
+                        use_recompute=use_recompute), FeedForward(
+                            dim=dim, mult=ff_mult)
+                ]))
+
+    def forward(self, x, context=None):
+        x = x.transpose([0, 2, 3, 1])
+        n, b, c, *_ = x.shape
+        x = x.reshape([n, b * c, -1])
+        for attn, ff in self.layers:
+            x = attn(x, context=context) + x
+            x = ff(x) + x
+        x = x.reshape([n, b, c, -1])
+        x = x.transpose([0, 3, 1, 2])
+        return x
+
+
 class LinearAttentionTransformerBlock(nn.Layer):
     def __init__(self,
                  dim,
@@ -730,49 +817,6 @@ class CrossEmbedLayer(nn.Layer):
     def forward(self, x):
         fmaps = tuple(map(lambda conv: conv(x), self.convs))
         return paddle.concat(fmaps, axis=1)
-
-
-def Downsample(dim, dim_out=None):
-    dim_out = default(dim_out, dim)
-    return nn.Conv2D(dim, dim_out, 4, 2, 1)
-
-
-def Upsample(dim, dim_out=None):
-    dim_out = default(dim_out, dim)
-
-    return nn.Sequential(
-        nn.Upsample(
-            scale_factor=2, mode='nearest'),
-        nn.Conv2D(
-            dim, dim_out, 3, padding=1))
-
-
-class PixelShuffleUpsample(nn.Layer):
-    """
-    code shared by @MalumaDev at DALLE2-pypaddle for addressing checkboard artifacts
-    https://arxiv.org/ftp/arxiv/papers/1707/1707.02937.pdf
-    """
-
-    def __init__(self, dim, dim_out=None):
-        super().__init__()
-        dim_out = default(dim_out, dim)
-        conv = nn.Conv2D(dim, dim_out * 4, 1)
-
-        self.net = nn.Sequential(conv, nn.Silu(), nn.PixelShuffle(2))
-
-        self.init_conv_(conv)
-
-    def init_conv_(self, conv):
-        o, i, h, w = conv.weight.shape
-        conv_weight = paddle.empty([o // 4, i, h, w])
-        nn.initializer.KaimingUniform(conv_weight)
-        conv_weight = repeat(conv_weight, 'o ... -> (o 4) ...')
-
-        conv.weight.set_value(conv_weight)
-        zeros_(conv.bias)
-
-    def forward(self, x):
-        return self.net(x)
 
 
 class UpsampleCombiner(nn.Layer):
@@ -833,6 +877,7 @@ class Unet(nn.Layer):
                  lowres_cond=False,
                  layer_attns=True,
                  layer_attns_depth=1,
+                 layer_mid_attns_depth=1,
                  layer_attns_add_text_cond=True,
                  attend_at_middle=True,
                  layer_cross_attns=True,
@@ -859,15 +904,17 @@ class Unet(nn.Layer):
                  cosine_sim_attn=False,
                  self_cond=False,
                  combine_upsample_fmaps=False,
-                 pixel_shuffle_upsample=True):
+                 pixel_shuffle_upsample=True,
+                 use_recompute=False):
         super().__init__()
 
+        self.use_recompute = use_recompute
         # guide researchers
 
         assert attn_heads > 1, 'you need to have more than 1 attention head, ideally at least 4 or 8'
 
         if dim < 128:
-            print(
+            print_once(
                 'The base dimension of your u-net should ideally be no smaller than 128, as recommended by a professional DDPM trainer https://nonint.com/2022/05/04/friends-dont-let-friends-train-small-diffusion-models/'
             )
 
@@ -914,7 +961,7 @@ class Unet(nn.Layer):
         cond_dim = default(cond_dim, dim)
         time_cond_dim = dim * 4 * (2 if lowres_cond else 1)
 
-        # embedding time for discrete gaussian diffusion or log(snr) noise for continuous version
+        # embedding time for log(snr) noise from continuous version
 
         sinu_pos_emb = LearnedSinusoidalPosEmb(learned_sinu_pos_emb_dim)
         sinu_pos_emb_input_dim = learned_sinu_pos_emb_dim + 1
@@ -949,7 +996,7 @@ class Unet(nn.Layer):
             self.to_lowres_time_tokens = nn.Sequential(
                 nn.Linear(time_cond_dim, cond_dim * num_time_tokens),
                 Rearrange(
-                    'b (r d) -> b r d', r=num_time_tokens))
+                    'b (n d) -> b n d', n=num_time_tokens))
 
         # normalizations
 
@@ -1004,7 +1051,8 @@ class Unet(nn.Layer):
         attn_kwargs = dict(
             heads=attn_heads,
             dim_head=attn_dim_head,
-            cosine_sim_attn=cosine_sim_attn)
+            cosine_sim_attn=cosine_sim_attn,
+            use_recompute=use_recompute)
 
         num_layers = len(in_out)
 
@@ -1019,9 +1067,13 @@ class Unet(nn.Layer):
         layer_attns_depth = cast_tuple(layer_attns_depth, num_layers)
         layer_cross_attns = cast_tuple(layer_cross_attns, num_layers)
 
+        use_linear_attn = cast_tuple(use_linear_attn, num_layers)
+        use_linear_cross_attn = cast_tuple(use_linear_cross_attn, num_layers)
+
         assert all([
-            layers == num_layers for layers in
-            list(map(len, (resnet_groups, layer_attns, layer_cross_attns)))
+            layers == num_layers
+            for layers in list(
+                map(len, (resnet_groups, layer_attns, layer_cross_attns)))
         ])
 
         # downsample klass
@@ -1055,7 +1107,7 @@ class Unet(nn.Layer):
 
         layer_params = [
             num_resnet_blocks, resnet_groups, layer_attns, layer_attns_depth,
-            layer_cross_attns
+            layer_cross_attns, use_linear_attn, use_linear_cross_attn
         ]
         reversed_layer_params = list(map(reversed, layer_params))
 
@@ -1064,16 +1116,19 @@ class Unet(nn.Layer):
         skip_connect_dims = []  # keep track of skip connection dimensions
 
         for ind, ((dim_in, dim_out), layer_num_resnet_blocks, groups,
-                  layer_attn, layer_attn_depth,
-                  layer_cross_attn) in enumerate(zip(in_out, *layer_params)):
+                  layer_attn, layer_attn_depth, layer_cross_attn,
+                  layer_use_linear_attn, layer_use_linear_cross_attn
+                  ) in enumerate(zip(in_out, *layer_params)):
             is_last = ind >= (num_resolutions - 1)
 
-            layer_use_linear_cross_attn = not layer_cross_attn and use_linear_cross_attn
             layer_cond_dim = cond_dim if layer_cross_attn or layer_use_linear_cross_attn else None
 
-            transformer_block_klass = TransformerBlock if layer_attn else (
-                LinearAttentionTransformerBlock
-                if use_linear_attn else Identity)
+            if layer_attn:
+                transformer_block_klass = TransformerBlock
+            elif layer_use_linear_attn:
+                transformer_block_klass = LinearAttentionTransformerBlock
+            else:
+                transformer_block_klass = Identity
 
             current_dim = dim_in
 
@@ -1105,13 +1160,15 @@ class Unet(nn.Layer):
                         cond_dim=layer_cond_dim,
                         linear_attn=layer_use_linear_cross_attn,
                         time_cond_dim=time_cond_dim,
-                        groups=groups), nn.LayerList([
+                        groups=groups,
+                        use_recompute=use_recompute), nn.LayerList([
                             ResnetBlock(
                                 current_dim,
                                 current_dim,
                                 time_cond_dim=time_cond_dim,
                                 groups=groups,
-                                use_gca=use_global_context_attn)
+                                use_gca=use_global_context_attn,
+                                use_recompute=use_recompute)
                             for _ in range(layer_num_resnet_blocks)
                         ]), transformer_block_klass(
                             dim=current_dim,
@@ -1130,17 +1187,18 @@ class Unet(nn.Layer):
             mid_dim,
             cond_dim=cond_dim,
             time_cond_dim=time_cond_dim,
-            groups=resnet_groups[-1])
-        self.mid_attn = EinopsToAndFrom(
-            'b c h w', 'b (h w) c',
-            Residual(Attention(mid_dim, **
-                               attn_kwargs))) if attend_at_middle else None
+            groups=resnet_groups[-1],
+            use_recompute=use_recompute)
+        self.mid_attn = TransformerBlock(
+            mid_dim, depth=layer_mid_attns_depth,
+            **attn_kwargs) if attend_at_middle else None
         self.mid_block2 = ResnetBlock(
             mid_dim,
             mid_dim,
             cond_dim=cond_dim,
             time_cond_dim=time_cond_dim,
-            groups=resnet_groups[-1])
+            groups=resnet_groups[-1],
+            use_recompute=use_recompute)
 
         # upsample klass
 
@@ -1152,16 +1210,23 @@ class Unet(nn.Layer):
 
         for ind, (
             (dim_in, dim_out), layer_num_resnet_blocks, groups, layer_attn,
-                layer_attn_depth, layer_cross_attn
+                layer_attn_depth, layer_cross_attn, layer_use_linear_attn,
+                layer_use_linear_cross_attn
         ) in enumerate(zip(reversed(in_out), *reversed_layer_params)):
             is_last = ind == (len(in_out) - 1)
-            layer_use_linear_cross_attn = not layer_cross_attn and use_linear_cross_attn
+
             layer_cond_dim = cond_dim if layer_cross_attn or layer_use_linear_cross_attn else None
-            transformer_block_klass = TransformerBlock if layer_attn else (
-                LinearAttentionTransformerBlock
-                if use_linear_attn else Identity)
+
+            if layer_attn:
+                transformer_block_klass = TransformerBlock
+            elif layer_use_linear_attn:
+                transformer_block_klass = LinearAttentionTransformerBlock
+            else:
+                transformer_block_klass = Identity
 
             skip_connect_dim = skip_connect_dims.pop()
+
+            upsample_fmap_dims.append(dim_out)
 
             self.ups.append(
                 nn.LayerList([
@@ -1171,13 +1236,15 @@ class Unet(nn.Layer):
                         cond_dim=layer_cond_dim,
                         linear_attn=layer_use_linear_cross_attn,
                         time_cond_dim=time_cond_dim,
-                        groups=groups), nn.LayerList([
+                        groups=groups,
+                        use_recompute=use_recompute), nn.LayerList([
                             ResnetBlock(
                                 dim_out + skip_connect_dim,
                                 dim_out,
                                 time_cond_dim=time_cond_dim,
                                 groups=groups,
-                                use_gca=use_global_context_attn)
+                                use_gca=use_global_context_attn,
+                                use_recompute=use_recompute)
                             for _ in range(layer_num_resnet_blocks)
                         ]), transformer_block_klass(
                             dim=dim_out,
@@ -1209,7 +1276,8 @@ class Unet(nn.Layer):
             dim,
             time_cond_dim=time_cond_dim,
             groups=resnet_groups[0],
-            use_gca=True) if final_resnet_block else None
+            use_gca=True,
+            use_recompute=use_recompute) if final_resnet_block else None
 
         final_conv_dim_in = dim if final_resnet_block else final_conv_dim
         final_conv_dim_in += (channels if lowres_cond else 0)
@@ -1224,17 +1292,15 @@ class Unet(nn.Layer):
 
     # if the current settings for the unet are not correct
     # for cascading DDPM, then reinit the unet with the right settings
-    def cast_model_parameters(self, *, lowres_cond, text_embed_dim, channels,
-                              channels_out, cond_on_text):
-        if lowres_cond == self.lowres_cond and \
-            channels == self.channels and \
+    def cast_model_parameters(self, *, text_embed_dim, channels, channels_out,
+                              cond_on_text):
+        if channels == self.channels and \
             cond_on_text == self.cond_on_text and \
             text_embed_dim == self._locals['text_embed_dim'] and \
             channels_out == self.channels_out:
             return self
 
         updated_kwargs = dict(
-            lowres_cond=lowres_cond,
             text_embed_dim=text_embed_dim,
             channels=channels,
             channels_out=channels_out,
@@ -1281,6 +1347,7 @@ class Unet(nn.Layer):
     # forward with classifier free guidance
 
     def forward_with_cond_scale(self, *args, cond_scale=1., **kwargs):
+        #print("forward_with_cond_scale.args[1]: ", args[1])
         logits = self.forward(*args, **kwargs)
 
         if cond_scale == 1:
@@ -1297,9 +1364,17 @@ class Unet(nn.Layer):
                 lowres_noise_times=None,
                 text_embeds=None,
                 text_mask=None,
+                self_cond=None,
                 cond_images=None,
-                cond_drop_prob=0.):
+                cond_drop_prob=0.,
+                use_recompute=False):
         batch_size = x.shape[0]
+
+        # condition on self
+
+        if self.self_cond:
+            self_cond = default(self_cond, lambda: paddle.zeros_like(x))
+            x = paddle.concat((x, self_cond), axis=1)
 
         # add low resolution conditioning, if present
 
@@ -1340,7 +1415,8 @@ class Unet(nn.Layer):
 
         time_tokens = self.to_time_tokens(time_hiddens)
         t = self.to_time_cond(time_hiddens)
-
+        if use_recompute:
+            t.stop_gradient = True
         # add lowres time conditioning to time hiddens
         # and add lowres time tokens along sequence dimension for attention
 
@@ -1385,21 +1461,18 @@ class Unet(nn.Layer):
                                     data_format='NLC')
 
             if exists(text_mask):
-                text_mask = text_mask[:, :, None]
+                text_mask = text_mask[:, :, None].cast('float32')
                 if remainder > 0:
                     text_mask = F.pad(text_mask, (0, remainder),
                                       data_format='NLC')
 
-                text_keep_mask_embed = text_mask & text_keep_mask_embed.cast(
-                    text_mask.dtype)
+                text_keep_mask_embed = text_mask.cast(
+                    bool) & text_keep_mask_embed
 
-            null_text_embed = self.null_text_embed.cast(
-                text_tokens.dtype)  # for some reason pypaddle AMP not working
+            null_text_embed = self.null_text_embed.cast(text_tokens.dtype)
 
-            text_tokens = paddle.where(
-                text_keep_mask_embed.cast(paddle.uint8),  # fixed
-                text_tokens,
-                null_text_embed)
+            text_tokens = paddle.where(text_keep_mask_embed, text_tokens,
+                                       null_text_embed)
 
             if exists(self.attn_pool):
                 text_tokens = self.attn_pool(text_tokens)
@@ -1426,6 +1499,10 @@ class Unet(nn.Layer):
         # normalize conditioning tokens
 
         c = self.norm_cond(c)
+        if use_recompute:
+            c.stop_gradient = True
+
+        # initial resnet block (for memory efficient unet)
 
         if exists(self.init_resnet_block):
             x = self.init_resnet_block(x, t)

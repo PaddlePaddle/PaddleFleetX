@@ -1,6 +1,6 @@
 #! /bin/bash
 
-# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2023 PaddlePaddle Authors. All Rights Reserved.
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,5 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-export CUDA_VISIBLE_DEVICES=0
-python3 tools/train.py -c ppfleetx/configs/multimodal/imagen/imagen_super_resolution_1024.yaml -o Data.Train.loader.num_workers=0
+
+log_dir=log_dp8
+rm -rf $log_dir
+
+python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
+  tools/train.py \
+  -c ppfleetx/configs/multimodal/imagen/imagen_text2im_64x64_DebertaV2.yaml \
+  -o Distributed.dp_degree=8
