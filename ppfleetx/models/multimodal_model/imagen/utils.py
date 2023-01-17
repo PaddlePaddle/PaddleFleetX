@@ -47,6 +47,23 @@ def maybe(fn):
     return inner
 
 
+def once(fn):
+    called = False
+
+    @wraps(fn)
+    def inner(x):
+        nonlocal called
+        if called:
+            return
+        called = True
+        return fn(x)
+
+    return inner
+
+
+print_once = once(print)
+
+
 def default(val, d):
     if exists(val):
         return val
@@ -65,10 +82,27 @@ def cast_tuple(val, length=None):
     return output
 
 
+def is_float_dtype(dtype):
+    return any([
+        dtype == float_dtype
+        for float_dtype in (paddle.float64, paddle.float32, paddle.float16,
+                            paddle.bfloat16)
+    ])
+
+
 def cast_uint8_images_to_float(images):
     if not images.dtype == paddle.uint8:
         return images
     return images / 255
+
+
+zeros_ = nn.initializer.Constant(value=0.)
+
+
+def zero_init_(m):
+    zeros_(m.weight)
+    if exists(m.bias):
+        zeros_(m.bias)
 
 
 def eval_decorator(fn):
@@ -90,15 +124,6 @@ def pad_tuple_to_length(t, length, fillvalue=None):
     return (*t, *((fillvalue, ) * remain_length))
 
 
-zeros_ = nn.initializer.Constant(value=0.)
-
-
-def zero_init_(m):
-    zeros_(m.weight)
-    if exists(m.bias):
-        zeros_(m.bias)
-
-
 # helper classes
 
 
@@ -108,6 +133,13 @@ class Identity(nn.Layer):
 
     def forward(self, x, *args, **kwargs):
         return x
+
+
+# tensor helpers
+
+
+def log(t, eps: float=1e-12):
+    return paddle.log(t.clip(min=eps))
 
 
 class Parallel(nn.Layer):
@@ -120,11 +152,26 @@ class Parallel(nn.Layer):
         return sum(outputs)
 
 
+def l2norm(t):
+    return F.normalize(t, axis=-1)
+
+
 def right_pad_dims_to(x, t):
     padding_dims = x.ndim - t.ndim
     if padding_dims <= 0:
         return t
     return t.reshape([*t.shape, *((1, ) * padding_dims)])
+
+
+def masked_mean(t, *, axis, mask=None):
+    if not exists(mask):
+        return t.mean(axis=axis)
+
+    denom = mask.sum(axis=axis, keepdim=True)
+    mask = mask[:, :, None]
+    masked_t = paddle.where(mask == 0, paddle.to_tensor(0.), t)
+
+    return masked_t.sum(axis=axis) / denom.clip(min=1e-5)
 
 
 def resize_image_to(image, target_image_size, clamp_range=None):
@@ -133,7 +180,8 @@ def resize_image_to(image, target_image_size, clamp_range=None):
     if orig_image_size == target_image_size:
         return image
 
-    out = F.interpolate(image, target_image_size, mode='nearest')
+    out = F.interpolate(
+        image, (target_image_size, target_image_size), mode='nearest')
 
     if exists(clamp_range):
         out = out.clip(*clamp_range)
@@ -153,6 +201,18 @@ def unnormalize_zero_to_one(normed_img):
     return (normed_img + 1) * 0.5
 
 
+# classifier free guidance functions
+
+
+def prob_mask_like(shape, prob):
+    if prob == 1:
+        return paddle.ones(shape, dtype=paddle.bool)
+    elif prob == 0:
+        return paddle.zeros(shape, dtype=paddle.bool)
+    else:
+        return paddle.zeros(shape).cast('float32').uniform_(0, 1) < prob
+
+
 def rearrange(tensor,
               pattern: str,
               b: int=-1,
@@ -161,7 +221,9 @@ def rearrange(tensor,
               c: int=-1,
               x: int=-1,
               y: int=-1,
-              n: int=-1):
+              n: int=-1,
+              s1: int=-1,
+              s2: int=-1):
     if pattern == 'b n (h d) -> b h n d':
         B, N, _ = tensor.shape
         return tensor.reshape([B, N, h, -1]).transpose([0, 2, 1, 3])
@@ -203,6 +265,17 @@ def rearrange(tensor,
     elif pattern == 'b (n d) -> b n d':
         B, _ = tensor.shape
         return tensor.reshape([B, n, -1])
+    elif pattern == 'b ... -> b 1 ...':
+        return tensor[:, None]
+    elif pattern == 'b -> b 1 1 1':
+        return tensor[:, None, None, None]
+    elif pattern == 'b c (h s1) (w s2) -> b (c s1 s2) h w':
+        assert s1 is not None
+        assert s2 is not None
+        B, C, H, W = tensor.shape
+        tensor = tensor.reshape([B, C, H // s1, s1, W // s2, s2])
+        tensor = tensor.transpose([0, 1, 3, 5, 2, 4])
+        return tensor.reshape([B, C * s1 * s2, H // s1, W // s2])
 
 
 def rearrange_many(tensors, pattern: str, h: int=-1, x: int=-1, y: int=-1):
@@ -219,7 +292,11 @@ def rearrange_many(tensors, pattern: str, h: int=-1, x: int=-1, y: int=-1):
 
 def repeat(tensor, pattern: str, h: int=-1, b: int=-1):
     if pattern == '1 -> b':
-        return paddle.tile(tensor, repeat_times=b)
+        if b > 1:
+            b = paddle.to_tensor(b)
+            return paddle.tile(tensor, repeat_times=b)
+        else:
+            return tensor
     elif pattern == 't -> b t':
         tensor = tensor[None, :]
         return paddle.tile(tensor, repeat_times=(b, 1))
@@ -272,48 +349,19 @@ class EinopsToAndFrom(nn.Layer):
 
 
 class Rearrange(nn.Layer):
-    def __init__(self, pattern, n):
+    def __init__(self, pattern, n=None, s1=None, s2=None):
         super().__init__()
         self.pattern = pattern
         self.n = n
+        self.s1 = s1
+        self.s2 = s2
 
     def forward(self, x, **kwargs):
-        shape = x.shape
-        x = rearrange(x, f'{self.pattern}', n=self.n)
+        x = rearrange(x, f'{self.pattern}', n=self.n, s1=self.s1, s2=self.s2)
         return x
 
 
-def l2norm(t):
-    return F.normalize(t, dim=-1)
-
-
-def log(t, eps: float=1e-12):
-    return paddle.log(t.clip(min=eps))
-
-
-def masked_mean(t, *, axis, mask=None):
-    if not exists(mask):
-        return t.mean(axis=axis)
-
-    denom = mask.sum(axis=axis, keepdim=True)
-    mask = mask[:, :, None]
-
-    masked_t = paddle.where(mask == 0, paddle.to_tensor(0.), t)
-
-    return masked_t.sum(axis=axis) / denom.clip(min=1e-5)
-
-
 # classifier free guidance functions
-
-
-def prob_mask_like(shape, prob):
-    if prob == 1:
-        return paddle.ones(shape, dtype=paddle.bool)
-    elif prob == 0:
-        return paddle.zeros(shape, dtype=paddle.bool)
-    else:
-        return paddle.zeros(shape).cast('float32').uniform_(0, 1) < prob
-
 
 # gaussian diffusion with continuous time helper functions and classes
 # large part of this was thanks to @crowsonkb at https://github.com/crowsonkb/v-diffusion-jax/blob/master/diffusion/utils.py
@@ -336,6 +384,7 @@ def log_snr_to_alpha_sigma(log_snr):
 class GaussianDiffusionContinuousTimes(nn.Layer):
     def __init__(self, *, noise_schedule, timesteps=1000):
         super().__init__()
+
         if noise_schedule == 'linear':
             self.log_snr = beta_linear_log_snr
         elif noise_schedule == "cosine":
@@ -348,9 +397,8 @@ class GaussianDiffusionContinuousTimes(nn.Layer):
     def get_times(self, batch_size, noise_level):
         return paddle.full((batch_size, ), noise_level, dtype=paddle.float32)
 
-    def sample_random_times(self, batch_size, max_thres=0.999):
-        return paddle.zeros(
-            (batch_size, )).cast('float32').uniform_(0, max_thres)
+    def sample_random_times(self, batch_size):
+        return paddle.zeros((batch_size, )).cast('float32').uniform_(0, 1)
 
     def get_condition(self, times):
         return maybe(self.log_snr)(times)
@@ -384,14 +432,18 @@ class GaussianDiffusionContinuousTimes(nn.Layer):
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
     def q_sample(self, x_start, t, noise=None):
+        dtype = x_start.dtype
+
         if isinstance(t, float):
             batch = x_start.shape[0]
-            t = paddle.full((batch, ), t, dtype=x_start.dtype)
-        noise = default(noise, lambda: paddle.randn(shape=x_start.shape, dtype=x_start.dtype))
-        log_snr = self.log_snr(t)
+            t = paddle.full((batch, ), t, dtype=dtype)
+
+        noise = default(noise, lambda: paddle.randn(shape=x_start.shape, dtype=dtype))
+        log_snr = self.log_snr(t).cast(dtype)
         log_snr_padded_dim = right_pad_dims_to(x_start, log_snr)
         alpha, sigma = log_snr_to_alpha_sigma(log_snr_padded_dim)
-        return alpha * x_start + sigma * noise, log_snr
+
+        return alpha * x_start + sigma * noise, log_snr, alpha, sigma
 
     def q_sample_from_to(self, x_from, from_t, to_t, noise=None):
         shape, dtype = x_from.shape, x_from.dtype
@@ -409,12 +461,18 @@ class GaussianDiffusionContinuousTimes(nn.Layer):
         log_snr_padded_dim = right_pad_dims_to(x_from, log_snr)
         alpha, sigma = log_snr_to_alpha_sigma(log_snr_padded_dim)
 
-        log_snr_to = self.log_snr(from_t)
+        log_snr_to = self.log_snr(to_t)
         log_snr_padded_dim_to = right_pad_dims_to(x_from, log_snr_to)
         alpha_to, sigma_to = log_snr_to_alpha_sigma(log_snr_padded_dim_to)
 
         return x_from * (alpha_to / alpha) + noise * (sigma_to * alpha - sigma
                                                       * alpha_to) / alpha
+
+    def predict_start_from_v(self, x_t, t, v):
+        log_snr = self.log_snr(t)
+        log_snr = right_pad_dims_to(x_t, log_snr)
+        alpha, sigma = log_snr_to_alpha_sigma(log_snr)
+        return alpha * x_t - sigma * v
 
     def predict_start_from_noise(self, x_t, t, noise):
         log_snr = self.log_snr(t)

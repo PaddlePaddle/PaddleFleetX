@@ -14,5 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-export CUDA_VISIBLE_DEVICES=0
-python3 tools/train.py -c ppfleetx/configs/multimodal/imagen/imagen_super_resolution_1024.yaml -o Data.Train.loader.num_workers=0
+log_dir=log_mp1
+rm -rf $log_dir
+
+python  projects/gpt/inference.py --mp_degree 1 --model_dir output

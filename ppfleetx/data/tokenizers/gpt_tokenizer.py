@@ -39,6 +39,12 @@ except ImportError:
 
 from ppfleetx.utils.log import logger
 
+try:
+    import paddlenlp
+    from paddlenlp.transformers.gpt.tokenizer import GPTChineseTokenizer
+except ImportError:
+    raise ImportError("Please import paddlenlp before running the GPT tasks.")
+
 PRETRAINED_VOCAB_ARCHIVE_MAP = {
     'gpt2': "http://fleet.bj.bcebos.com/datasets/gpt/gpt2-vocab.json",
 }

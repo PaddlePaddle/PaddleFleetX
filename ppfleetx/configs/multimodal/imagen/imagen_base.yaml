@@ -8,7 +8,7 @@ Global:
 
 
 Engine:
-  max_steps: 400000
+  max_steps: 2500000
   num_train_epochs: 1
   accumulate_steps: 1
   logging_freq: 10
@@ -35,10 +35,12 @@ Data:
   Train:
     dataset:
       name: ImagenDataset
-      input_path: ./projects/imagen/filelist/cc12m_base64.lst
+      input_path: ./projects/imagen/filelist/laion_400M/train
       shuffle: True
-      input_resolution: 64 
-      max_seq_len: 128 
+      image_format: base64 
+      image_size: 64 
+      text_max_len: 128 
+      filter_image_resolution: 64
     loader:
       num_workers: 8
       shuffle: True
@@ -59,7 +61,7 @@ Optimizer:
   epsilon: 1.0e-8
   lr:
     name: CosineAnnealingWithWarmupDecay
-    decay_steps: 400000
+    decay_steps: 2500000
     warmup_rate: 0.025 
     max_lr: 1.0e-4
     min_lr: 0.0
