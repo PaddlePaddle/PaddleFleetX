@@ -8,7 +8,7 @@ Global:
 
 Model:
   name: imagen_SR1024
-  text_encoder_name: t5/t5-11b
+  text_encoder_name: projects/imagen/t5/t5-11b
   text_embed_dim: 1024 
   timesteps: 1000 
   in_chans: 3
@@ -25,12 +25,13 @@ Model:
   dynamic_thresholding_percentile: 0.95
   only_train_unet_number: 1 
   use_recompute: False
+  recompute_granularity:
 
 Data:
   Train:
     dataset:
       name: ImagenDataset
-      input_path: ./projects/imagen/filelist/cc12m_base64.lst
+      input_path: ./projects/imagen/filelist/laion_400M/train
       shuffle: True
       input_resolution: 1024 
       max_seq_len: 128 

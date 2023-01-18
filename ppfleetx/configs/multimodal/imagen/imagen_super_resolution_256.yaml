@@ -53,7 +53,7 @@ Loss:
   p2_loss_weight_k: 1.0
 
 Distributed:
-  dp_degree: 1
+  dp_degree: 128
   mp_degree: 1
   pp_degree: 1
   sharding:
