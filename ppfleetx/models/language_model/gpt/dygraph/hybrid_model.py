@@ -44,6 +44,8 @@ from ppfleetx.distributed.moe import MoELayer
 from ppfleetx.distributed.apis import env
 from ppfleetx.utils.log import logger
 
+import numpy as np
+
 
 def get_attr(layer, name):
     if getattr(layer, name, None) is not None:
@@ -285,6 +287,10 @@ class MultiHeadAttention(nn.Layer):
         # scale dot product attention
         product = paddle.matmul(
             x=q, y=k, transpose_y=True) * self.head_dim**-0.5
+        
+        # softmax_mask_fuse_upper_triangle is not supported sif paddle is not compiled with cuda/rocm
+        if not paddle.is_compiled_with_cuda():
+            attn_mask = get_triangle_upper_mask(product, attn_mask)
 
         if attn_mask is not None:
             product = product + attn_mask
@@ -1592,3 +1598,13 @@ class GPTForGenerationHybrid(nn.Layer):
         else:
             raise ValueError(f'Not support {decoding_strategy} strategy yet!')
         return ret
+
+
+def get_triangle_upper_mask(x, mask):
+    if mask is not None:
+        return mask
+    mask = paddle.full_like(x, -np.inf)
+    mask.stop_gradient = True
+    mask = paddle.triu(mask, diagonal=1)
+    mask.stop_gradient = True
+    return mask
