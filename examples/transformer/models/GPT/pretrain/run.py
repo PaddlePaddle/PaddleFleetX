@@ -173,7 +173,7 @@ if __name__ == "__main__":
             # training step log
             if (step + 1) % config.Global.logging_freq == 0:
                 train_step_cost = log.get_timestamp() - train_step_start
-                numpy_losses = [loss.numpy()[0] for loss in train_losses]
+                numpy_losses = [float(loss) for loss in train_losses]
 
                 train_cost = train_step_cost \
                     if step == 0 else train_step_cost / config.Global.logging_freq
@@ -214,7 +214,7 @@ if __name__ == "__main__":
 
                 logger.info(
                     "[eval] epoch: %d, batch: %d, loss: %.9f, avg_eval_cost: %.5f sec, speed: %.2f step/s"
-                    % (epoch_index, eval_step, eval_loss.numpy()[0], eval_cost,
+                    % (epoch_index, eval_step, float(eval_loss), eval_cost,
                        1. / eval_cost))
 
             if step > 0 and config.Global.save_load.save_steps > 0 and \

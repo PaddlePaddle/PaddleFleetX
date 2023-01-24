@@ -316,7 +316,7 @@ class EagerEngine(BasicEngine):
 
             if (step + 1) % self._logging_freq == 0:
                 train_step_cost = get_timestamp() - train_step_start
-                numpy_losses = [loss.numpy()[0] for loss in train_losses]
+                numpy_losses = [float(loss) for loss in train_losses]
                 log_dict = {
                     'epoch': epoch_index,
                     'total_epoch': self._num_train_epochs,
@@ -354,7 +354,7 @@ class EagerEngine(BasicEngine):
                     eval_loss = sum(eval_losses) / len(eval_losses)
 
                     log_dict = {
-                        'loss': eval_loss.numpy()[0],
+                        'loss': float(eval_loss),
                         'epoch': epoch_index,
                         'batch': eval_step,
                         'total_batch': total_eval_batch,
@@ -555,7 +555,7 @@ class EagerEngine(BasicEngine):
         total_eval_batch = len(valid_data_loader)
         for eval_step, batch in enumerate(valid_data_loader):
             loss = self._evaluate_impl(batch)
-            eval_losses.append(loss.numpy()[0])
+            eval_losses.append(float(loss))
 
             if eval_step % self._logging_freq == 0:
                 eval_step_cost = get_timestamp() - eval_step_start
@@ -612,7 +612,7 @@ class EagerEngine(BasicEngine):
         for test_step, batch in enumerate(test_data_loader):
             loss = self._predict_impl(batch)
 
-            test_losses.append(loss.numpy()[0])
+            test_losses.append(float(loss))
 
             if test_step % self._logging_freq == 0:
                 test_cost = get_timestamp() - test_start
