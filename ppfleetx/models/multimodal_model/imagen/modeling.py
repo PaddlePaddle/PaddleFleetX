@@ -22,8 +22,9 @@ from paddle import nn
 import paddle.vision.transforms as T
 
 from .unet import Unet
+from ppfleetx.models.language_model.debertav2 import *
 from ppfleetx.models.language_model.t5 import *
-from ppfleetx.data.tokenizers import get_t5_tokenizer
+from ppfleetx.data.tokenizers import get_t5_tokenizer, get_debertav2_tokenizer
 from .utils import (
     GaussianDiffusionContinuousTimes, default, exists, cast_tuple, first,
     maybe, eval_decorator, identity, pad_tuple_to_length, right_pad_dims_to,
