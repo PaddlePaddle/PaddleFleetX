@@ -24,7 +24,7 @@ Model:
   dynamic_thresholding: True,
   dynamic_thresholding_percentile: 0.95
   only_train_unet_number: 1 
-  use_recompute: False
+  use_recompute: True 
   recompute_granularity:
 
 Data:
