@@ -129,6 +129,11 @@ class ErnieModule(BasicModule):
         else:
             self.criterion = ErniePretrainingCriterion(self.binary_head)
 
+    def get_model_size(self, l, h, v, s):
+        P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
+        logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 /
+                                                  1000.0))
+
     def process_configs(self, configs):
         process_data_configs(configs)
         process_model_configs(configs)
@@ -138,6 +143,12 @@ class ErnieModule(BasicModule):
         model_setting = copy.deepcopy(self.configs.Model)
         model_setting.pop("module")
         model_setting.pop("name")
+
+        l = model_setting['num_hidden_layers']
+        h = model_setting['hidden_size']
+        v = model_setting['vocab_size']
+        s = self.configs.Data.Train.dataset.max_seq_length
+        self.get_model_size(l, h, v, s)
 
         if self.nranks > 1:
             model_setting[
