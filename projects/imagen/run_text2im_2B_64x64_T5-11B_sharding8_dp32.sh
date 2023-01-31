@@ -22,5 +22,5 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
     ./tools/train.py \
     -c ./ppfleetx/configs/multimodal/imagen/imagen_text2im_64x64_T5-11B.yaml \
     -o Distributed.sharding.sharding_stage=2 \
-    -o Distributed.dp_degree=32 \ 
+    -o Distributed.dp_degree=32 \
     -o Distributed.sharding.sharding_degree=8 
