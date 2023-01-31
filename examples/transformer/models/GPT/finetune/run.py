@@ -175,7 +175,7 @@ if __name__ == "__main__":
             # training step log
             if (step + 1) % config.Global.logging_freq == 0:
                 train_step_cost = log.get_timestamp() - train_step_start
-                numpy_losses = [loss.numpy()[0] for loss in train_losses]
+                numpy_losses = [float(loss) for loss in train_losses]
 
                 train_cost = train_step_cost \
                     if step == 0 else train_step_cost / config.Global.logging_freq
@@ -230,7 +230,7 @@ if __name__ == "__main__":
             loss = impls.eval_impl(config, batch, model, eval_loss_fn,
                                    eval_metric)
 
-            eval_losses.append(loss.numpy()[0])
+            eval_losses.append(float(loss))
 
             if eval_step % config.Global.logging_freq == 0:
                 eval_step_cost = log.get_timestamp() - eval_step_start
