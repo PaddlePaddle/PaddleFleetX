@@ -14,7 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+log_dir=log_345m_mp1
+rm -rf $log_dir
 
-export CUDA_VISIBLE_DEVICES=0
-python ./tools/export.py -c ./ppfleetx/configs/nlp/gpt/inference_gpt_345M_single_card.yaml \
--o Engine.save_load.ckpt_dir=./ckpt/PaddleFleetX_GPT_345M_220826/
+python -m paddle.distributed.launch --log_dir $log_dir --devices "1" \
+    ./tools/auto_export.py \
+    -c ./ppfleetx/configs/nlp/gpt/auto/qat_generation_gpt_345M_single_card.yaml \
+    -o Engine.save_load.ckpt_dir=./GPT_345M_QAT_wo_analysis/auto

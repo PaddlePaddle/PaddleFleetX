@@ -190,6 +190,7 @@ class InferenceEngine(object):
 
         config.enable_memory_optim()
         config.switch_ir_optim(True)
+        # config.switch_ir_debug(True)
         config.enable_use_gpu(100, device_id)
 
         # distributed config

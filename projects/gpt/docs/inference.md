@@ -33,22 +33,23 @@ sh projects/gpt/auto_export_gpt_175B_mp8.sh
 
 ### 1.2 量化模型导出
 
-导出单卡`GPT-3(345M)`量化模型：
+导出单卡`GPT-3(345M)`量化模型(FP32)：
 
 ```shell
 # 为了方便快速体验，这里给出345M量化训练的模型，若已有量化模型，则无需下载
 wget https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M_QAT_wo_analysis.tar
 tar xf GPT_345M_QAT_wo_analysis.tar
 
-export CUDA_VISIBLE_DEVICES=0
-python ./tools/export.py \
-    -c ./ppfleetx/configs/nlp/gpt/generation_qat_gpt_345M_single_card.yaml \
-    -o Model.hidden_dropout_prob=0.0 \
-    -o Model.attention_probs_dropout_prob=0.0 \
-    -o Engine.save_load.ckpt_dir='./GPT_345M_QAT_wo_analysis/'
+bash projects/gpt/export_qat_gpt_345M_single_card.sh
 ```
 
-导出单卡`GPT-3(6.7B)`量化模型：
+导出单卡`GPT-3(345M)`量化模型(FP16)：
+
+```shell
+bash projects/gpt/auto_export_qat_gpt_345M_single_card.sh
+```
+
+导出单卡`GPT-3(6.7B)`量化模型(FP32)：
 
 ```shell
 export CUDA_VISIBLE_DEVICES=0
