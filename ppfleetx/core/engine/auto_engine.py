@@ -142,7 +142,7 @@ class AutoEngine(BasicEngine):
     def predict(self, test_dataset=None):
         test_sample_split = test_dataset.sample_split if test_dataset else None
         inputs_spec, labels_spec = self._auto_engine._prepare_data_spec(
-            test_dataset, test_sample_split, 1)
+            test_dataset, test_sample_split, self.batch_size)
         self._auto_engine.prepare(inputs_spec, labels_spec, mode="predict")
 
         self._auto_engine.predict(
