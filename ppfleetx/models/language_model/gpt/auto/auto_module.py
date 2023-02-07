@@ -79,6 +79,20 @@ class GPTModuleAuto(LanguageModuleAuto):
         model_setting = copy.deepcopy(self.configs.Model)
         return gpt.GPTPretrainingCriterionAuto(model_setting['mesh'])
 
+    def input_spec(self):
+        return [
+            InputSpec(
+                shape=[None, None], name="input0", dtype='int64'), InputSpec(
+                    shape=[None, None], name="input1", dtype='int64')
+        ]
+
+    def label_spec(self):
+        return [
+            InputSpec(
+                shape=[None, None], name="label0", dtype='int64'), InputSpec(
+                    shape=[None, None], name="label1", dtype='float32')
+        ]
+
 
 class GPTGenerationModuleAuto(BasicModule):
     def __init__(self, configs):

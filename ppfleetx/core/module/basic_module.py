@@ -76,6 +76,10 @@ class BasicModule(nn.Layer):
         raise NotImplementedError(
             "Please redefine Module.input_spec for model export")
 
+    def label_spec(self):
+        raise NotImplementedError(
+            "Please redefine Module.label_spec for model export")
+
     def inference_end(self, outputs):
         pass
 

@@ -106,9 +106,8 @@ class AutoEngine(BasicEngine):
         train_sample_split = train_dataset.sample_split if train_dataset else None
         valid_sample_split = valid_dataset.sample_split if valid_dataset else None
 
-        inputs_spec, labels_spec = self._auto_engine._prepare_data_spec(
-            train_dataset, train_sample_split, self.batch_size)
-        self._auto_engine.prepare(inputs_spec, labels_spec, mode="train")
+        self._auto_engine.prepare(
+            self._module.input_spec(), self._module.label_spec(), mode="train")
 
         self._auto_engine.fit(train_data=train_dataset,
                               valid_data=valid_dataset,
@@ -126,11 +125,8 @@ class AutoEngine(BasicEngine):
                               verbose=self._verbose)
 
     def evaluate(self, valid_dataset=None):
-        valid_sample_split = valid_dataset.sample_split if valid_dataset else None
-        inputs_spec, labels_spec = self._auto_engine._prepare_data_spec(
-            valid_dataset, valid_sample_split, self.batch_size)
-
-        self._auto_engine.prepare(inputs_spec, labels_spec, mode="eval")
+        self._auto_engine.prepare(
+            self._module.input_spec(), self._module.label_spec(), mode="eval")
 
         self._auto_engine.evaluate(
             valid_data=valid_dataset,
@@ -140,10 +136,10 @@ class AutoEngine(BasicEngine):
             collate_fn=valid_dataset.collate_fn)
 
     def predict(self, test_dataset=None):
-        test_sample_split = test_dataset.sample_split if test_dataset else None
-        inputs_spec, labels_spec = self._auto_engine._prepare_data_spec(
-            test_dataset, test_sample_split, self.batch_size)
-        self._auto_engine.prepare(inputs_spec, labels_spec, mode="predict")
+        self._auto_engine.prepare(
+            self._module.input_spec(),
+            self._module.label_spec(),
+            mode="predict")
 
         self._auto_engine.predict(
             test_data=test_dataset,
