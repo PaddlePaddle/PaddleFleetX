@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .modeling import (ImagenModel, imagen_397M_text2im_64, 
-                       imagen_2B_text2im_64, imagen_text2im_64_SR256,
-                       imagen_SR256, imagen_SR1024, imagen_SR512, ImagenCriterion)
+from .modeling import (ImagenModel, imagen_397M_text2im_64, imagen_text2im_64,
+                       imagen_text2im_64_debertav2, imagen_SR256,
+                       imagen_SR1024, ImagenCriterion)
