@@ -128,19 +128,48 @@ class GPTBatchSampler(paddle.io.BatchSampler):
     def __iter__(self):
         assert self.consumed_samples % self.nranks == 0, \
             "The consumed_samples should be divided by nranks. consumed_samples=%d, nranks=%s" % (
-            self.consumed_samples, nranks)
+            self.consumed_samples, self.nranks)
         self.remain_num_samples = int(
             math.ceil((len(self.dataset) - self.consumed_samples) * 1.0 /
                       self.nranks))
         self.remain_total_size = self.remain_num_samples * self.nranks
         self.batch_size_times_rank_size = self.batch_size * self.nranks
 
+        num_samples = len(self.dataset)
+        indices = np.arange(num_samples).tolist()
+        indices += indices[:(self.total_size - len(indices))]
+        assert len(indices) == self.total_size
+
+        # subsample
+        def _get_indices_by_batch_size(indices):
+            subsampled_indices = []
+            last_batch_size = self.total_size % (self.batch_size * self.nranks)
+            assert last_batch_size % self.nranks == 0
+            last_local_batch_size = last_batch_size // self.nranks
+
+            for i in range(
+                    self.local_rank * self.batch_size,
+                    len(indices) - last_batch_size,
+                    self.batch_size * self.nranks, ):
+                subsampled_indices.extend(indices[i:i + self.batch_size])
+
+            indices = indices[len(indices) - last_batch_size:]
+            subsampled_indices.extend(indices[
+                self.local_rank * last_local_batch_size:(
+                    self.local_rank + 1) * last_local_batch_size])
+            return subsampled_indices
+
+        if self.nranks > 1:
+            indices = _get_indices_by_batch_size(indices)
+
+        assert len(indices) == self.num_samples
+        _sample_iter = iter(indices)
+
         batch_indices = []
-        for idx in range(self.consumed_samples, self.total_size):
+        for idx in _sample_iter:
             batch_indices.append(idx)
-            if len(batch_indices) == self.batch_size_times_rank_size:
-                start_idx, end_idx = self.get_start_end_idx()
-                yield batch_indices[start_idx:end_idx]
+            if len(batch_indices) == self.batch_size:
+                yield batch_indices
                 batch_indices = []
         if not self.drop_last and len(batch_indices) > 0:
             yield batch_indices
