@@ -179,6 +179,9 @@ class EagerEngine(BasicEngine):
         self._sequence_parallel = configs['Model']['sequence_parallel']
         self._num_layers = configs['Model']['num_layers']
 
+        self._amp_level = configs['Engine']['mix_precision'].get('amp_level',
+                                                                 'O2')
+
         if self._use_pure_fp16:
             if mode == 'train':
                 self._scaler = paddle.amp.GradScaler(
@@ -187,7 +190,7 @@ class EagerEngine(BasicEngine):
             # Save dtype is the same as model dtype. Also can set save_dtype='float32' when 
             # training with pure fp16 strategy, but will cause the rise of memory.
             self._module.model = paddle.amp.decorate(
-                models=self._module.model, level='O2')
+                models=self._module.model, level=self._amp_level)
         else:
             self._scaler = None
 
@@ -457,7 +460,7 @@ class EagerEngine(BasicEngine):
                     self._use_pure_fp16,
                     custom_black_list=self._custom_black_list,
                     custom_white_list=self._custom_white_list,
-                    level='O2'):
+                    level=self._amp_level):
                 batch = self._module.model._prepare_training(
                     batch, self._optimizer, self._lr_scheduler)
                 loss = self._module.model.forward_backward_pipeline(
@@ -483,7 +486,7 @@ class EagerEngine(BasicEngine):
                     self._use_pure_fp16,
                     custom_black_list=self._custom_black_list,
                     custom_white_list=self._custom_white_list,
-                    level='O2'):
+                    level=self._amp_level):
                 loss = self._module.training_step(micro_batch)
 
             loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
@@ -588,7 +591,7 @@ class EagerEngine(BasicEngine):
                 self._use_pure_fp16,
                 custom_black_list=self._custom_black_list,
                 custom_white_list=self._custom_white_list,
-                level='O2'):
+                level=self._amp_level):
             if self._pp_degree == 1:
                 loss = self._module.validation_step(batch)
             else:
@@ -644,7 +647,7 @@ class EagerEngine(BasicEngine):
                 self._use_pure_fp16,
                 custom_black_list=self._custom_black_list,
                 custom_white_list=self._custom_white_list,
-                level='O2'):
+                level=self._amp_level):
             if self._pp_degree == 1:
                 loss = self._module.test_step(batch)
             else:
@@ -787,6 +790,30 @@ class EagerEngine(BasicEngine):
 
                                     opt_dict['linear_{}.b_0_{}'.format(4*i+2*j+1, suffix)] \
                                         = opt_dict.pop('row_sequence_parallel_linear_{}.b_0_{}'.format(2*i+j, suffix))
+
+                    if not self._use_pure_fp16 or (self._use_pure_fp16 and self._amp_level == 'O1')\
+                        and 'linear_0.w_0_fp32_master_0_moment1_0' in opt_dict:
+
+                        for suffix in [
+                                'fp32_master_0_moment1_0',
+                                'fp32_master_0_moment2_0',
+                                'fp32_master_0_beta1_pow_acc_0',
+                                'fp32_master_0_beta2_pow_acc_0'
+                        ]:
+
+                            opt_dict['embedding_0.w_0_{}'.format(suffix.replace('fp32_master_0_', ''))] \
+                                = opt_dict.pop('embedding_0.w_0_{}'.format(suffix))
+
+                            opt_dict['embedding_1.w_0_{}'.format(suffix.replace('fp32_master_0_', ''))] \
+                                = opt_dict.pop('embedding_1.w_0_{}'.format(suffix))
+
+                            for i in range(4 * self._num_layers):
+
+                                opt_dict['linear_{}.w_0_{}'.format(i, suffix.replace('fp32_master_0_', ''))] \
+                                    = opt_dict.pop('linear_{}.w_0_{}'.format(i, suffix))
+
+                                opt_dict['linear_{}.b_0_{}'.format(i, suffix.replace('fp32_master_0_', ''))] \
+                                    = opt_dict.pop('linear_{}.b_0_{}'.format(i, suffix))
 
                     self._optimizer.set_state_dict(opt_dict)
                 else:
