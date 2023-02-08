@@ -176,6 +176,9 @@ class EagerEngine(BasicEngine):
 
         self._use_recompute = configs['Model']['use_recompute']
 
+        self._sequence_parallel = configs['Model']['sequence_parallel']
+        self._num_layers = configs['Model']['num_layers']
+
         if self._use_pure_fp16:
             if mode == 'train':
                 self._scaler = paddle.amp.GradScaler(
@@ -735,6 +738,23 @@ class EagerEngine(BasicEngine):
                     if param.dtype != model_dict[name].dtype:
                         model_dict[name] = model_dict[name].cast(param.dtype)
 
+                if not self._sequence_parallel and \
+                   'column_sequence_parallel_linear_0.w_0' in model_dict:
+
+                    for i in range(self._num_layers):
+                        for j in range(2):
+                            model_dict['linear_{}.w_0'.format(4*i+2*j)] \
+                                = model_dict.pop('column_sequence_parallel_linear_{}.w_0'.format(2*i+j))
+
+                            model_dict['linear_{}.b_0'.format(4*i+2*j)] \
+                                = model_dict.pop('column_sequence_parallel_linear_{}.b_0'.format(2*i+j))
+
+                            model_dict['linear_{}.w_0'.format(4*i+2*j+1)] \
+                                = model_dict.pop('row_sequence_parallel_linear_{}.w_0'.format(2*i+j))
+
+                            model_dict['linear_{}.b_0'.format(4*i+2*j+1)] \
+                                = model_dict.pop('row_sequence_parallel_linear_{}.b_0'.format(2*i+j))
+
                 self._module.model.set_state_dict(model_dict)
             else:
                 raise ValueError("No optimizer checkpoint file found in %s." %
@@ -743,6 +763,31 @@ class EagerEngine(BasicEngine):
             if self.mode == 'train':
                 if os.path.exists(opt_path):
                     opt_dict = paddle.load(opt_path)
+
+                    if not self._sequence_parallel and \
+                       'column_sequence_parallel_linear_0.w_0_fp32_master_0_moment1_0' in opt_dict:
+
+                        for i in range(self._num_layers):
+                            for j in range(2):
+                                for suffix in [
+                                        'fp32_master_0_moment1_0',
+                                        'fp32_master_0_moment2_0',
+                                        'fp32_master_0_beta1_pow_acc_0',
+                                        'fp32_master_0_beta2_pow_acc_0'
+                                ]:
+
+                                    opt_dict['linear_{}.w_0_{}'.format(4*i+2*j, suffix)] \
+                                        = opt_dict.pop('column_sequence_parallel_linear_{}.w_0_{}'.format(2*i+j, suffix))
+
+                                    opt_dict['linear_{}.b_0_{}'.format(4*i+2*j, suffix)] \
+                                        = opt_dict.pop('column_sequence_parallel_linear_{}.b_0_{}'.format(2*i+j, suffix))
+
+                                    opt_dict['linear_{}.w_0_{}'.format(4*i+2*j+1, suffix)] \
+                                        = opt_dict.pop('row_sequence_parallel_linear_{}.w_0_{}'.format(2*i+j, suffix))
+
+                                    opt_dict['linear_{}.b_0_{}'.format(4*i+2*j+1, suffix)] \
+                                        = opt_dict.pop('row_sequence_parallel_linear_{}.b_0_{}'.format(2*i+j, suffix))
+
                     self._optimizer.set_state_dict(opt_dict)
                 else:
                     raise ValueError(
