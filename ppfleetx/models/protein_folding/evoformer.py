@@ -362,8 +362,10 @@ class EvoformerIteration(nn.Layer):
 
                 outer_product_mean = paddle.zeros_like(pair_act)
                 outer_product_mean.stop_gradient = pair_act.stop_gradient
-                # TODO(GuoxiaWang): fix PyLayer ctx illegal access
-                msa_act = paddle.assign(msa_act)
+
+            # TODO(GuoxiaWang): fix PyLayer ctx illegal access
+            msa_act = paddle.assign(msa_act)
+            pair_act = paddle.assign(pair_act)
 
             msa_act, pair_act = bp.sync_evoformer_results(outer_product_mean,
                                                           msa_act, pair_act)
