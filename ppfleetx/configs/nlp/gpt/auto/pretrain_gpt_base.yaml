@@ -24,6 +24,11 @@ Engine:
     ckpt_dir:
 
 
+Fused_passes:
+  enable: False
+  fused_passes_list: []
+
+
 Model:
   module: "GPTModuleAuto"
   name: "GPT"
