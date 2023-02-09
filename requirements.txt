@@ -1,4 +1,4 @@
-git+https://github.com/PaddlePaddle/PaddleSlim@3616d593638fb30bbe1b02c8290ea2b39f014a4b#egg=paddleslim
+paddleslim @ https://paddle-qa.bj.bcebos.com/PaddleSlim/paddleslim-0.0.0.dev0-py3-none-any.whl
 requests==2.25.1
 regex==2022.7.25
 colorlog==6.6.0
