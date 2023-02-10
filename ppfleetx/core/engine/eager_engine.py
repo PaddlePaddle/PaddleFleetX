@@ -207,6 +207,15 @@ class EagerEngine(BasicEngine):
             configs.Optimizer, self._module.model,
             self._lr_scheduler) if mode == 'train' else None
 
+        self._batch_stage_cost = {
+            'read_batch': 0.,
+            'split_batch': 0.,
+            'forward': 0.,
+            'backward': 0.,
+            'dp_allreduce': 0.,
+            'optimization': 0.,
+        }
+
         # distributed configs
         self._distributed = (dist.get_world_size() > 1)
 
@@ -311,7 +320,13 @@ class EagerEngine(BasicEngine):
         total_train_batch = len(train_data_loader)
         total_eval_batch = len(
             valid_data_loader) if valid_data_loader is not None else 0
+
+        read_batch_start = get_timestamp()
+
         for step, batch in enumerate(train_data_loader):
+
+            self._batch_stage_cost['read_batch'] += (
+                get_timestamp() - read_batch_start)
 
             if epoch_index == self._load_recovery['epoch']:
                 if step < self._load_recovery['step']:
@@ -323,6 +338,11 @@ class EagerEngine(BasicEngine):
             if (step + 1) % self._logging_freq == 0:
                 train_step_cost = get_timestamp() - train_step_start
                 numpy_losses = [float(loss) for loss in train_losses]
+
+                for k in self._batch_stage_cost.keys():
+                    self._batch_stage_cost[k] = self._batch_stage_cost[k] if step == 0 \
+                        else self._batch_stage_cost[k] / self._logging_freq
+
                 log_dict = {
                     'epoch': epoch_index,
                     'total_epoch': self._num_train_epochs,
@@ -333,10 +353,20 @@ class EagerEngine(BasicEngine):
                     'loss': sum(numpy_losses) / len(numpy_losses),
                     'lr': self._optimizer.get_lr()
                 }
+                log_dict.update(self._batch_stage_cost)
                 self._module.training_step_end(log_dict)
 
                 train_step_start = get_timestamp()
                 train_losses = []
+
+                self._batch_stage_cost = {
+                    'read_batch': 0.,
+                    'split_batch': 0.,
+                    'forward': 0.,
+                    'backward': 0.,
+                    'dp_allreduce': 0.,
+                    'optimization': 0.,
+                }
 
             if self._lr_scheduler is not None and self._lr_scheduler_mode == 'step':
                 self._lr_scheduler.step()
@@ -379,6 +409,8 @@ class EagerEngine(BasicEngine):
 
             if self.profiler:
                 self.profiler.step()
+
+            read_batch_start = get_timestamp()
 
     def fit(self, epoch=1, train_data_loader=None, valid_data_loader=None):
         """
@@ -446,6 +478,8 @@ class EagerEngine(BasicEngine):
                                                   paddle.DataParallel):
                 with self._module.model.no_sync():
                     loss = self._model_forward_backward(batch)
+
+                dp_allreduce_start = get_timestamp()
                 if not hasattr(self._optimizer, "all_fused_tensors"
                                ) or self._optimizer.all_fused_tensors is None:
                     fused_allreduce_gradients(
@@ -453,6 +487,8 @@ class EagerEngine(BasicEngine):
                 else:
                     all_reduce_parameters(self._optimizer.all_fused_tensors,
                                           self._dp_group)
+                self._batch_stage_cost['dp_allreduce'] += get_timestamp(
+                ) - dp_allreduce_start
             else:
                 loss = self._model_forward_backward(batch)
         else:
@@ -466,10 +502,17 @@ class EagerEngine(BasicEngine):
                 loss = self._module.model.forward_backward_pipeline(
                     batch, self._scaler)
 
+        train_optim_start = get_timestamp()
         self._optim_update_params()
+        self._batch_stage_cost['optimization'] += get_timestamp(
+        ) - train_optim_start
+
         return loss
 
     def _model_forward_backward(self, batch):
+
+        split_batch_start = get_timestamp()
+
         if self._accumulate_steps == 1 or self._pp_degree > 1:
             batches = [batch]
         else:
@@ -480,6 +523,10 @@ class EagerEngine(BasicEngine):
             for i in range(len(split_batches[0])):
                 micro_batch = [split_batch[i] for split_batch in split_batches]
                 batches.append(micro_batch)
+
+        self._batch_stage_cost['split_batch'] += get_timestamp(
+        ) - split_batch_start
+
         final_loss = None
         for micro_batch in batches:
             with paddle.amp.auto_cast(
@@ -487,14 +534,20 @@ class EagerEngine(BasicEngine):
                     custom_black_list=self._custom_black_list,
                     custom_white_list=self._custom_white_list,
                     level=self._amp_level):
+                train_forward_start = get_timestamp()
                 loss = self._module.training_step(micro_batch)
+                self._batch_stage_cost['forward'] += get_timestamp(
+                ) - train_forward_start
 
+            train_backward_start = get_timestamp()
             loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
             if self._accumulate_steps > 1:
                 # div the loss for backward
                 loss_bw = loss_bw / self._accumulate_steps
 
             self._module.backward(loss_bw)
+            self._batch_stage_cost['backward'] += get_timestamp(
+            ) - train_backward_start
 
             detach_loss = loss.detach()
             if final_loss is None:
