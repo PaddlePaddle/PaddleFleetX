@@ -20,4 +20,4 @@ rm -rf $log_dir
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
     ./tools/train.py \
     -c ./ppfleetx/configs/multimodal/imagen/imagen_super_resolution_256.yaml \
-    -o Distributed.dp_degree=8
+    -o Distributed.dp_degree=128

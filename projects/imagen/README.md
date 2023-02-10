@@ -58,7 +58,7 @@ spm.model: wget https://paddlefleetx.bj.bcebos.com/tokenizers/debertav2/spm.mode
 tokenizer_config.json: https://paddlefleetx.bj.bcebos.com/tokenizers/debertav2/tokenizer_config.json
 denerta v2 model: wget https://fleetx.bj.bcebos.com/DebertaV2/debertav2.pd.tar.gz.0
                   wget https://fleetx.bj.bcebos.com/DebertaV2/debertav2.pd.tar.gz.1
-                  tar debertav2.pd.tar.gz.* | tar -xf -
+                  cat debertav2.pd.tar.gz.* | tar -xf -
 put them into cache folder like this:
 PaddleFleetX/projects/imagen/cache
                   └── deberta-v-xxlarge
