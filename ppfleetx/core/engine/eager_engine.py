@@ -442,8 +442,13 @@ class EagerEngine(BasicEngine):
                     loss = self._model_forward_backward(batch)
                 if not hasattr(self._optimizer, "all_fused_tensors"
                                ) or self._optimizer.all_fused_tensors is None:
-                    fused_allreduce_gradients(
-                        list(self._module.model.parameters()), None)
+                    try:
+                        fused_allreduce_gradients(
+                            list(self._module.model.parameters()), None)
+                    except:
+                        m = self._module.model.state_dict()
+                        fused_allreduce_gradients(
+                            list(self._module.model.parameters()), None)
                 else:
                     all_reduce_parameters(self._optimizer.all_fused_tensors,
                                           self._dp_group)
