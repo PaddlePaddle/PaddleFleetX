@@ -37,7 +37,6 @@ Learnt by ERNIE：[mask] [mask] [mask] 是黑龙江的省会，国际 [mask] [ma
 ├── pretrain_ernie_base_6.7B_sharding16.sh  # 6.7B ernie-base模型，sharding16
 ├── pretrain_ernie_base.sh                  # 345M ernie-base模型，单卡
 ├── pretrain_ernie_large.sh                 # ernie-large模型，单卡
-├── pretrain_ernie_base.sh                  # 345M ernie-base模型，单卡
 ├── run_inference.sh                        # ernie 推理运行脚本 
 ├── run_inference_mp2.sh                    # ernie 多卡推理运行脚本 
 └── run_inference_mp2_xpu.sh                # ernie 多卡推理运行脚本（XPU)
