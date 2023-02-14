@@ -1,5 +1,5 @@
 Global:
-  device: gpu
+  device: xpu
   seed: 1024
   binary_head: True
   
