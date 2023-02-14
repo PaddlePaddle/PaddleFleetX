@@ -35,31 +35,18 @@ def get_rank_in_group():
         rank = scg.get_rank_in_bp_group()
     return rank
 
-# @paddle.no_grad()
-# def broadcast(tensor, src):
-#     """ broadcast tensor from src rank in bp group """
-#     if get_world_size() == 1:
-#         return tensor
-    
-#     assert src in [0, 1], "Branch Parallel is only support bp_degree=2 now!"
-    
-#     group = scg.bp_group
-#     task = group.process_group.broadcast(tensor, src)
-#     task.wait()
-#     return tensor
-
-#TODO(GuoxiaWang): change c_broadcast to process_group.broadcast
 @paddle.no_grad()
 def broadcast(tensor, src):
     """ broadcast tensor from src rank in bp group """
     if get_world_size() == 1:
         return tensor
-
+  
     assert src in [0, 1], "Branch Parallel is only support bp_degree=2 now!"
-    
+  
     group = scg.bp_group
-    ring_id = group.id
-    paddle._legacy_C_ops.c_broadcast(tensor, tensor, 'root', src, 'use_calc_stream', True, 'ring_id', ring_id)
+    task = group.process_group.broadcast(tensor, src)
+    task.wait()
+    return tensor
 
 class BroadcastGrad(PyLayer):
     """ A PyLayer Op broadcast gradient in backward stage """
