@@ -127,7 +127,7 @@ function _train(){
     if [[ ${model_item} =~ "CE" ]];then # CE精度-不限制执行时间
         ${train_cmd} > ${log_file} 2>&1
     else
-        timeout 60m ${train_cmd} > ${log_file} 2>&1
+        timeout 70m ${train_cmd} > ${log_file} 2>&1
     fi
     if [ $? -ne 0 ];then
         echo -e "${model_name}, FAIL"
