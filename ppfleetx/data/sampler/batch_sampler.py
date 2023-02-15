@@ -136,13 +136,12 @@ class GPTBatchSampler(paddle.io.BatchSampler):
         self.batch_size_times_rank_size = self.batch_size * self.nranks
 
         num_samples = len(self.dataset)
-        indices = np.arange(num_samples).tolist()
-        indices += indices[:(self.total_size - len(indices))]
-        assert len(indices) == self.total_size
-
         batch_indices = []
         for idx in range(self.consumed_samples, self.total_size):
-            batch_indices.append(indices[idx])
+            if idx >= num_samples:
+                batch_indices.append(idx - num_samples)
+            else:
+                batch_indices.append(idx)
             if len(batch_indices) == self.batch_size_times_rank_size:
                 start_idx, end_idx = self.get_start_end_idx()
                 yield batch_indices[start_idx:end_idx]
