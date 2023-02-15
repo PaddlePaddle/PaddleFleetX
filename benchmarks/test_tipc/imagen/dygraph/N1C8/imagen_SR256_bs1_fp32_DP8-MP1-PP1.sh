@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-model_item=imagen_397M_text2im_64
-dp_degree=1
+model_item=imagen_SR256
+dp_degree=8
 mp_degree=1
 pp_degree=1
 bs_item=1
 fp_item=fp32
-run_mode=DP1-MP1-PP1
-device_num=N1C1
-yaml_path=ppfleetx/configs/multimodal/imagen/imagen_397M_text2im_64x64.yaml
+run_mode=DP8-MP1-PP1
+device_num=N1C8
+yaml_path=ppfleetx/configs/multimodal/imagen/imagen_super_resolution_256.yaml
 
 model=imagen
 micro_bs=1
