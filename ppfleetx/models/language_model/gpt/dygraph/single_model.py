@@ -453,6 +453,7 @@ class TransformerDecoderLayer(nn.Layer):
         # recompute_interval=int(self.use_recompute))
         self.moe_mlp = None
         if self.num_experts > 1:
+            assert(topk==1, "Only support topk=1 currently.")
             self.moe_mlp = MoE(
                 d_model,
                 ExpertLayer(d_model, dim_feedforward),
