@@ -37,8 +37,8 @@ Model:
   expert_interval: 2
   topk: 1
   moe_use_residual: False #True
-  moe_train_capacity_factor: 2.0
-  moe_eval_capacity_factor: 2.0
+  moe_train_capacity_factor: 1.0
+  moe_eval_capacity_factor: 1.0
   moe_min_capacity: 4
   moe_token_dropping: True
   balance_loss_weight: 0.01

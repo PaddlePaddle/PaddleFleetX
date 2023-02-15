@@ -174,6 +174,7 @@ def top1gating(logits,
         logits_w_noise if noisy_gate_policy == 'RSample' else gates, axis=1)
     num_experts = int(gates.shape[1])
 
+    assert(0 <= indices1_s.min() and indices1_s.max() < num_experts)
     mask1 = F.one_hot(indices1_s, num_classes=num_experts)
 
     # mask only used tokens
@@ -220,16 +221,19 @@ def top1gating(logits,
     mask1 *= new_mask1
 
     # Compute locations in capacity buffer
-    locations1 = paddle.cumsum(mask1, axis=0) - 1
 
-    # Store the capacity location for each token
-    locations1_s = paddle.sum(locations1 * mask1, axis=1)
+    with paddle.amp.auto_cast(False, level='O2'):
+        locations1 = paddle.cumsum(mask1.astype(paddle.float32), axis=0) - 1
+        # Store the capacity location for each token
+        locations1_s = paddle.sum(locations1 * mask1.astype(paddle.float32), axis=1)
 
     # Normalize gate probabilities
     mask1_float = mask1.astype("float32")
     gates = gates * mask1_float
 
-    locations1_sc = F.one_hot(locations1_s.astype(paddle.int32), capacity).astype(paddle.float32)
+    assert(0 <= locations1_s.astype(paddle.int32).min() and locations1_s.astype(paddle.int32).max() < capacity)
+    locations1_sc = F.one_hot(locations1_s.astype(paddle.int32),
+                              capacity).astype(paddle.float32)
 
     combine_weights = einsum("se,sc->sec", gates, locations1_sc)
 

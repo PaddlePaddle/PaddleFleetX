@@ -40,7 +40,7 @@ if __name__ == "__main__":
     config = cfg.get_config(args.config, overrides=args.override, show=True)
 
     # HACK: use certain device
-    paddle.set_device(config.Global.device + ':2')
+    paddle.set_device(config.Global.device + ':3')
 
     # init distributed env
     nranks = dist.get_world_size()

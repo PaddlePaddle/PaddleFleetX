@@ -93,15 +93,18 @@ class GPTDataset(paddle.io.Dataset):
         input_prefix = input_dir[0]
 
         if os.path.isfile(input_prefix + "_ids.npz"):
-            logger.warning("You are using compatible dataset, please make new dataset as the readme!")
-            process_data = np.load(input_prefix + "_ids.npz", mmap_mode="r+", allow_pickle=True)
+            logger.warning(
+                "You are using compatible dataset, please make new dataset as the readme!"
+            )
+            process_data = np.load(
+                input_prefix + "_ids.npz", mmap_mode="r+", allow_pickle=True)
             sample_ids = process_data["ids"]
             sample_lens = process_data["lens"].astype("int32")
         else:
             for suffix in ["_ids.npy", "_idx.npz"]:
                 if not os.path.isfile(input_prefix + suffix):
                     raise ValueError("File Not found, %s" %
-                                    (input_prefix + suffix))
+                                     (input_prefix + suffix))
 
             sample_ids = np.load(
                 input_prefix + "_ids.npy", mmap_mode="r", allow_pickle=True)
