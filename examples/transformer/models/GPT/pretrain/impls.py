@@ -60,11 +60,6 @@ def build_model(config):
     tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
     tokenizer = tokenizer_class.from_pretrained(pretrained_name)
 
-    moe_configs = model_setting.get('moe_configs', {'expert_mode': False})
-    assert not moe_configs[
-        'expert_mode'], "Not support expert mode in GPT model!"
-    model_setting["moe_configs"] = moe_configs
-
     if nranks == 1:
         model_setting.pop("sequence_parallel")
         model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
