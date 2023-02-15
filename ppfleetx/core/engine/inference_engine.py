@@ -243,7 +243,7 @@ class InferenceEngine(object):
                     raise ValueError()
                 for d, name in zip(data, self.input_names()):
                     handle = self.predictor.get_input_handle(name)
-                    handle.copy_from_cpu(np.array(d))
+                    handle.copy_from_cpu(np.array(d.copy()))
             elif isinstance(data, Mapping):
                 # key check
                 for k, v in data.items():
