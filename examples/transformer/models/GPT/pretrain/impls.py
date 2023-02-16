@@ -21,6 +21,9 @@ import paddle.distributed as dist
 from paddle.optimizer.lr import LRScheduler
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 
+__dir__ = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../../../')))
+
 from ppfleetx.utils.log import logger
 from ppfleetx.distributed.apis import env
 import ppfleetx.models.language_model.gpt as gpt
@@ -35,7 +38,17 @@ MODEL_CLASSES = {
 
 
 def _get_model_size(l, h, v, s):
-    P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
+    P = 0
+    # embedding
+    P += (v + s) * h
+    # attention
+    P += (4 * h * h + 4 * h) * l
+    # layer_norm of decoder
+    P += (2 * (2 * h)) * l
+    # FFN Layer
+    P += (8 * h * h + 5 * h) * l
+    # layer_norm of transformer
+    P += 2 * h
     logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 / 1000.0))
 
 
