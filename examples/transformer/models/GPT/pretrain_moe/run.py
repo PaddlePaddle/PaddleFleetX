@@ -27,8 +27,6 @@ sys.path.insert(1, os.path.abspath(os.path.join(__dir__, '../../../../../')))
 from ppfleetx.distributed.apis import env, strategy, io
 from ppfleetx.utils.log import logger
 from ppfleetx.utils import device, log
-# HACK cannot import paddleslim
-from examples.transformer.utils import qat
 from examples.transformer.utils import config as cfg
 from examples.transformer.utils import components as cpn
 
@@ -78,6 +76,7 @@ if __name__ == "__main__":
     model, tokenizer, loss_fn = impls.build_model(config)
 
     if 'Compress' in config:
+        from examples.transformer.utils import qat
         input_spec = [
             InputSpec(
                 shape=[None, None], name="tokens", dtype='int64'), InputSpec(

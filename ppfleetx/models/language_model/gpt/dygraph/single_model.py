@@ -437,19 +437,7 @@ class TransformerDecoderLayer(nn.Layer):
             use_recompute=use_recompute,
             recompute_granularity=recompute_granularity,
             do_recompute=do_recompute)
-
-        # if self.expert_mode:
-        #     experts_list = nn.LayerList([
-        #         ExpertLayer(d_model, dim_feedforward)
-        #         for e in range(self.num_experts)
-        #     ])
-
-        #     self.moe_mlp = MoELayer(
-        #         d_model=d_model,
-        #         experts=experts_list,
-        #         gate=self.gate,
-        #         top_k=self.top_k,
-        # recompute_interval=int(self.use_recompute))
+            
         self.moe_mlp = None
         if self.num_experts > 1:
             assert(topk==1, "Only support topk=1 currently.")

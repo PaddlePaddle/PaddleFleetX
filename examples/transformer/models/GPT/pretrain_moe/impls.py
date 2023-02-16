@@ -34,8 +34,28 @@ MODEL_CLASSES = {
 }
 
 
-def _get_model_size(l, h, v, s):
-    P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
+def _get_model_size(l, h, v, s, ne, ei):
+    P = 0
+    # embedding
+    P += (v + s) * h
+    if len(ne) == 1:
+        ne = [ne for _ in range(l)]
+    for i in range(l):
+        # attention
+        P += 4 * h * h + 4 * h
+        # layer_norm of decoder
+        P += 2 * (2 * h)
+        # MoE Layer
+        if ((i + 1) % ei == 0):
+            # gate
+            P += ne[i] * l
+            # experts
+            P += ne[i] * (8 * h * h + 5 * h)
+        # FFN Layer
+        else:
+            P += 8 * h * h + 5 * h
+    # layer_norm of transformer
+    P += 2 * h
     logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 / 1000.0))
 
 

@@ -1,5 +1,11 @@
 # Copyright (c) 2023 PaddlePaddle Authors. All Rights Reserved.
 # 
+# The file has been adapted from a deepspeed file:
+# https://github.com/microsoft/DeepSpeed/blob/master/deepspeed/moe/mappings.py
+# Git commit hash: a091bc223c01e94448f443456a6c15684644b966
+# We retain the following license from the original files:
+#   Copyright (c) The Microsoft DeepSpeed Team. All rights reserved.
+# 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at

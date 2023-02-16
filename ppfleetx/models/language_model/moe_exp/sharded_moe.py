@@ -1,5 +1,12 @@
 # Copyright (c) 2023 PaddlePaddle Authors. All Rights Reserved.
 # 
+# The file has been adapted from a deepspeed file:
+# https://github.com/microsoft/DeepSpeed/blob/master/deepspeed/moe/sharded_moe.py
+# Git commit hash: a091bc223c01e94448f443456a6c15684644b966
+# We retain the following license from the original files:
+#   Copyright (c) The Microsoft DeepSpeed Team. All rights reserved.
+# 
+
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -30,18 +37,6 @@ exp_selection_uniform_map: Dict[str, Callable] = {}
 
 
 def multiplicative_jitter(x, epsilon=1e-2):
-    """
-    Modified from switch transformer paper. mesh transformers
-    Multiply values by a random number between 1-epsilon and 1+epsilon.
-    Makes models more resilient to rounding errors introduced by bfloat16.
-    This seems particularly important for logits.
-    Args:
-        x: a paddle.Tensor
-        device: torch.device
-        epsilon: a floating point value
-    Returns:
-        a jittered x.
-    """
     if epsilon == 0:
         return x
     device = paddle.get_device()
@@ -68,8 +63,6 @@ def gumbel_rsample(shape):
 # einsum dimensions: (g)roup, (s)equence, (e)xpert, (m)odel, (c)apacity
 # See https://arxiv.org/pdf/2006.16668.pdf for details.
 
-
-# Based on https://github.com/pytorch/pytorch/pull/40762
 class _AllToAll(PyLayer):
     @staticmethod
     def forward(ctx: Any, group: dist.collective.Group,
@@ -123,22 +116,10 @@ def einsum(rule, a, b):
     else:
         return paddle.einsum(rule, a, b)
 
-
-# The following functions are extracted and scripted
-# because otherwise during a torch.jit.trace, the non-Tensor
-# values used in the calculations get recorded as constants.
-# torch.jit.script coerces them into Tensors and preserves
-# their dynamic shapes. This enables ONNX export.
-# We can't script the entire top1gating function because it
-# includes stateful caching logic which is incompatible with ONNX.
-
-
 def _capacity(gates, capacity_factor, min_capacity):
     # gates has shape of SE
     num_tokens = gates.shape[0]
     num_experts = gates.shape[1]
-    # to(torch.int64) works around a bug in torch.onnx.export:
-    # it should cast k to int64 when converting torch.topk but it doesn't.
     capacity = paddle.ceil(
         (num_tokens / num_experts) * capacity_factor).astype(paddle.int64)
     if capacity < min_capacity:
@@ -298,7 +279,7 @@ def top2gating(logits: Tensor, capacity_factor: float,
     denom_s = gates1_s + gates2_s
     # Avoid divide-by-zero
     # HACK: paddle currently does not support finfo, use constant instead
-    min_constant = 1.1920928955078125e-07  # torch.finfo(denom_s.dtype).eps
+    min_constant = 1.1920928955078125e-07
     denom_s = paddle.clip(denom_s, min=min_constant)
     gates1_s /= denom_s
     gates2_s /= denom_s
@@ -396,22 +377,6 @@ class TopKGate(nn.Layer):
 
 
 class MOELayer(nn.Layer):
-    """MOELayer module which implements MixtureOfExperts as described in Gshard_.
-    ::
-
-        gate = TopKGate(model_dim, num_experts)
-        moe = MOELayer(gate, expert)
-        output = moe(input)
-        l_aux = moe.l_aux
-
-    .. Gshard_: https://arxiv.org/pdf/2006.16668.pdf
-
-    Args:
-        gate (torch.nn.Module):
-            gate network
-        expert (torch.nn.Module):
-            expert network
-    """
 
     def __init__(self,
                  gate: nn.Layer,
