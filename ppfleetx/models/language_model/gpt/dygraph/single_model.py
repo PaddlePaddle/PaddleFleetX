@@ -27,14 +27,13 @@ from paddle.common_ops_import import convert_dtype
 import paddle.incubate as incubate
 from paddle.distributed.fleet.utils import recompute
 from paddle.incubate.nn import FusedLinear
-from sklearn import neural_network
 from .processor import (
     LogitsProcessorList, MinLengthLogitsProcessor,
     HammingDiversityLogitsProcessor, RepetitionPenaltyLogitsProcessor,
     ForcedBOSTokenLogitsProcessor, ForcedEOSTokenLogitsProcessor)
 
 from ppfleetx.models.language_model.moe import MoELayer
-from ppfleetx.models.language_model.moe_ds.layer import MoE
+from ppfleetx.models.language_model.moe_exp.layer import MoE
 
 
 def get_attr(layer, name):
