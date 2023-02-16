@@ -16,6 +16,8 @@ import os
 import sys
 import copy
 
+import numpy as np
+
 import paddle
 import paddle.distributed as dist
 from paddle.optimizer.lr import LRScheduler
@@ -35,22 +37,29 @@ MODEL_CLASSES = {
 
 
 def _get_model_size(l, h, v, s, ne, ei):
+    assert len(ne) == 1 or len(ne) == l // ei, \
+            'num_experts must be either a single value or a list of the same length as the number of MoE layers'
     P = 0
     # embedding
     P += (v + s) * h
+    logger.info(f'vs: {v} {s}')
+    moe_mode = True
     if len(ne) == 1:
-        ne = [ne for _ in range(l)]
+        if ne[0] == 1:
+            moe_mode = False
+        ne = ne * (l // ei)
     for i in range(l):
         # attention
         P += 4 * h * h + 4 * h
         # layer_norm of decoder
         P += 2 * (2 * h)
         # MoE Layer
-        if ((i + 1) % ei == 0):
+        if ((i + 1) % ei == 0) and moe_mode:
+            nei = ne[i // ei]
             # gate
-            P += ne[i] * l
+            P += (h * nei + nei)
             # experts
-            P += ne[i] * (8 * h * h + 5 * h)
+            P += nei * (8 * h * h + 5 * h) 
         # FFN Layer
         else:
             P += 8 * h * h + 5 * h
@@ -73,8 +82,10 @@ def build_model(config):
     l = model_setting['num_layers']
     h = model_setting['hidden_size']
     v = model_setting['vocab_size']
-    s = config.Data.Train.dataset.max_seq_len
-    _get_model_size(l, h, v, s)
+    s = model_setting['max_position_embeddings']
+    ne = model_setting['num_experts']
+    ei = model_setting['expert_interval']
+    _get_model_size(l, h, v, s, ne, ei)
 
     model_name = model_setting.pop("name")
     tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
