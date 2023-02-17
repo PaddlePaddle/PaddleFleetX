@@ -580,7 +580,6 @@ def process_auto_strategy(config):
     tuning.debug = tuning_cfg.get('debug', True)
 
     fused_passes_cfg = config.get('Fused_passes', {})
-    print("fused_passes_cfg:", fused_passes_cfg)
     fused_passes = strategy.fused_passes
     fused_passes.enable = fused_passes_cfg.get('enable', False)
     fused_passes.fused_passes_list = fused_passes_cfg.get('fused_passes_list', [])

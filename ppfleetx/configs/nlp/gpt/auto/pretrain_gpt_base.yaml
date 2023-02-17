@@ -24,7 +24,7 @@ Engine:
     ckpt_dir:
 
 
-Fused_passes:
+Fused_Passes:
   enable: False
   fused_passes_list: []
 
