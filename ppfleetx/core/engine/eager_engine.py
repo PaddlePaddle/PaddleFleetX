@@ -844,7 +844,7 @@ class EagerEngine(BasicEngine):
                                     opt_dict['linear_{}.b_0_{}'.format(4*i+2*j+1, suffix)] \
                                         = opt_dict.pop('row_sequence_parallel_linear_{}.b_0_{}'.format(2*i+j, suffix))
 
-                    if not self._use_pure_fp16 or (self._use_pure_fp16 and self._amp_level == 'O1')\
+                    if (not self._use_pure_fp16 or (self._use_pure_fp16 and self._amp_level == 'O1'))\
                         and 'linear_0.w_0_fp32_master_0_moment1_0' in opt_dict:
 
                         for suffix in [
