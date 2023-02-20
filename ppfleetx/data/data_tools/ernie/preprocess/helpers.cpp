@@ -1,1 +1,1 @@
-../../../data_tools/ernie/cpp/ernie_fast_index_map_helpers.cpp
+../../../data_tools/cpp/fast_index_map_helpers.cpp
