@@ -14,6 +14,9 @@
 
 from setuptools import setup, Extension, find_packages
 
+from ppfleetx.data.data_tools.cpp.compile import compile_helper
+compile_helper()
+
 
 def fetch_requirements(path):
     with open(path, 'r') as fd:
@@ -29,4 +32,7 @@ setup(
     author='PaddlePaddle Authors',
     url='https://github.com/PaddlePaddle/PaddleFleetX',
     install_requires=install_requires,
+    package_data={
+        'ppfleetx.data.data_tools.cpp': ['fast_index_map_helpers.so']
+    },
     packages=find_packages())
