@@ -13,10 +13,11 @@
 # limitations under the License.
 
 import paddle
-
+from ppfleetx.utils.log import logger
 
 def version_check():
     version = paddle.version.full_version
+    logger.info('run with paddle {}, commit id {}'.format(paddle.__version__, paddle.__git_commit__[:8]))
     if version != '0.0.0':
-        paddle.utils.require_version(min_version='2.3.0')
+        paddle.utils.require_version(min_version='2.4.0')
 

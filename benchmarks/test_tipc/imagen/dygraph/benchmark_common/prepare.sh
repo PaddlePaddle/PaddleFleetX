@@ -15,5 +15,25 @@
 python -m pip install -r ../requirements.txt
 # get data
 cd ../
-wget https://fleetx.bj.bcebos.com/datasets/cc12m_base64.tar
-tar xf cc12m_base64.tar
+wget -O projects/imagen/part-00079 https://paddlefleetx.bj.bcebos.com/data/laion400m/part-00079
+# T5-11B
+mkdir -p projects/imagen/t5/t5-11b/ && cd projects/imagen/t5/t5-11b/
+wget https://paddlefleetx.bj.bcebos.com/tokenizers/t5/t5-11b/config.json
+wget https://paddlefleetx.bj.bcebos.com/tokenizers/t5/t5-11b/spiece.model
+wget https://paddlefleetx.bj.bcebos.com/tokenizers/t5/t5-11b/tokenizer.json
+wget https://fleetx.bj.bcebos.com/T5/t5-11b/t5.pd.tar.gz.0
+wget https://fleetx.bj.bcebos.com/T5/t5-11b/t5.pd.tar.gz.1
+wget https://fleetx.bj.bcebos.com/T5/t5-11b/t5.pd.tar.gz.2
+wget https://fleetx.bj.bcebos.com/T5/t5-11b/t5.pd.tar.gz.3
+wget https://fleetx.bj.bcebos.com/T5/t5-11b/t5.pd.tar.gz.4
+cat t5.pd.tar.gz.* |tar -xf -
+cd -
+# DeBERTa V2 1.5B
+mkdir -p projects/imagen/cache/deberta-v-xxlarge && cd projects/imagen/cache/deberta-v-xxlarge
+wget https://paddlefleetx.bj.bcebos.com/tokenizers/debertav2/config.json
+wget https://paddlefleetx.bj.bcebos.com/tokenizers/debertav2/spm.model
+wget https://paddlefleetx.bj.bcebos.com/tokenizers/debertav2/tokenizer_config.json
+wget https://fleetx.bj.bcebos.com/DebertaV2/debertav2.pd.tar.gz.0
+wget https://fleetx.bj.bcebos.com/DebertaV2/debertav2.pd.tar.gz.1
+cat debertav2.pd.tar.gz.* | tar -xf -
+cd -
