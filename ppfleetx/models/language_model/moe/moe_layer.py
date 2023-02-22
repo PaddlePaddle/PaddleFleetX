@@ -112,7 +112,7 @@ class MoELayer(nn.Layer):
 
         self.experts = nn.LayerList(experts) if isinstance(experts,
                                                            list) else experts
-        self.num_expert = len(experts)
+        self.num_experts = len(experts)
 
         gate = "naive" if gate is None else gate
         assert isinstance(gate, (str, BaseGate)), \

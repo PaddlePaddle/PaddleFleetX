@@ -92,19 +92,28 @@ class GPTDataset(paddle.io.Dataset):
 
         input_prefix = input_dir[0]
 
-        for suffix in ["_ids.npy", "_idx.npz"]:
-            if not os.path.isfile(input_prefix + suffix):
-                raise ValueError("File Not found, %s" %
-                                 (input_prefix + suffix))
+        if os.path.isfile(input_prefix + "_ids.npz"):
+            logger.warning(
+                "You are using compatible dataset, please make new dataset as the readme!"
+            )
+            process_data = np.load(
+                input_prefix + "_ids.npz", mmap_mode="r+", allow_pickle=True)
+            sample_ids = process_data["ids"]
+            sample_lens = process_data["lens"].astype("int32")
+        else:
+            for suffix in ["_ids.npy", "_idx.npz"]:
+                if not os.path.isfile(input_prefix + suffix):
+                    raise ValueError("File Not found, %s" %
+                                     (input_prefix + suffix))
 
-        sample_ids = np.load(
-            input_prefix + "_ids.npy", mmap_mode="r", allow_pickle=True)
-        # All documment ids, extend as 1-D array.
+            sample_ids = np.load(
+                input_prefix + "_ids.npy", mmap_mode="r", allow_pickle=True)
+            # All documment ids, extend as 1-D array.
 
-        process_data = np.load(input_prefix + "_idx.npz")
-        # The len(sample_lens) num of docs
-        # The sum(sample_lens) should equal len(sample_ids)
-        sample_lens = process_data["lens"]
+            process_data = np.load(input_prefix + "_idx.npz")
+            # The len(sample_lens) num of docs
+            # The sum(sample_lens) should equal len(sample_ids)
+            sample_lens = process_data["lens"]
 
         splits = get_train_valid_test_split_(split, len(sample_lens))
         assert len(sample_lens) >= splits[
