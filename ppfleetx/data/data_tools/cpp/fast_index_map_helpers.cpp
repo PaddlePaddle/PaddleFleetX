@@ -20,9 +20,9 @@
 #include <random>
 #include <stdexcept>
 
+#include <math.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
-#include <math.h>
 
 namespace py = pybind11;
 using namespace std;
@@ -238,6 +238,8 @@ build_mapping_impl(const py::array_t<int64_t> &docs_,
          << std::flush;
     cout << "     maximum sequence length:        " << max_seq_length << endl
          << std::flush;
+    cout << "     minimum sentences num:          " << min_num_sent << endl
+         << std::flush;
     cout << "     short sequence probability:     " << short_seq_prob << endl
          << std::flush;
     cout << "     short sequence ration (1/prob): " << short_seq_ratio << endl
@@ -277,6 +279,14 @@ build_mapping_impl(const py::array_t<int64_t> &docs_,
                << std::flush;
         }
         break;
+      }
+      if (epoch > 0 && map_index == 0) {
+        cout << endl
+             << "     No available documtment find this dataset." << endl
+             << std::flush;
+        throw std::invalid_argument(
+            "Invalid dataset! the document should be with more than " +
+            std::to_string(min_num_sent) + " scentences.");
       }
       // For each document:
       for (int32_t doc = 0; doc < (docs.shape(0) - 1); ++doc) {

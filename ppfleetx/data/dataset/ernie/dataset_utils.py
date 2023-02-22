@@ -43,19 +43,6 @@ print_rank_0 = print
 # DSET_TYPES = [DSET_TYPE_BERT, DSET_TYPE_T5, DSET_TYPE_ERNIE]
 
 
-def compile_helper():
-    """Compile helper function ar runtime. Make sure this
-    is invoked on a single process."""
-    import os
-    import subprocess
-    path = os.path.abspath(os.path.dirname(__file__))
-    ret = subprocess.run(['make', '-C', path])
-    if ret.returncode != 0:
-        print("Making C++ dataset helpers module failed, exiting.")
-        import sys
-        sys.exit(1)
-
-
 def get_datasets_weights_and_num_samples(data_prefix,
                                          train_valid_test_num_samples):
 
@@ -627,17 +614,17 @@ def get_samples_mapping(indexed_dataset, data_prefix, num_epochs,
         assert indexed_dataset.sizes.dtype == np.int32
 
         try:
-            import ppfleetx.data.data_tools.ernie.cpp.ernie_fast_index_map_helpers as ernie_fast_index_map_helpers
+            import ppfleetx.data.data_tools.cpp.fast_index_map_helpers as ernie_fast_index_map_helpers
         except Exception as e:
             start_time = time.time()
             print('> compiling dataset index builder ...')
-            from ppfleetx.data.data_tools.ernie.cpp.compile import compile_helper
+            from ppfleetx.data.data_tools.cpp.compile import compile_helper
             compile_helper()
             print(
                 '>>> done with dataset index builder. Compilation time: {:.3f} '
                 'seconds'.format(time.time() - start_time),
                 flush=True)
-            import ppfleetx.data.data_tools.ernie.cpp.ernie_fast_index_map_helpers as ernie_fast_index_map_helpers
+            import ppfleetx.data.data_tools.cpp.fast_index_map_helpers as ernie_fast_index_map_helpers
 
         samples_mapping = ernie_fast_index_map_helpers.build_mapping(
             indexed_dataset.doc_idx, indexed_dataset.sizes, num_epochs,
