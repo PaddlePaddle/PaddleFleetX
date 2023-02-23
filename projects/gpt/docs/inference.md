@@ -67,11 +67,31 @@ python ./tools/export.py \
 bash projects/gpt/inference_gpt_single_card.sh
 ```
 
+多卡推理(以8卡为例)
+
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+export MP=8
+bash projects/gpt/inference_gpt_multigpu.sh
+```
+
 
 ## 3. Benchmark
+- 导出模型
+修改配置文件
+PaddleFleetX/ppfleetx/configs/nlp/gpt/auto/generation_gpt_6.7B_mp1.yaml，将`Generation/early_finish`选项设置为False(关闭提前终止，仅适用于测速场景)
+
+执行导出
+```bash
+sh projects/gpt/auto_export_gpt_6.7B_mp1.sh
+```
+如果打开了topp_sampling,则需要安装自定义算子：
+```bash
+cd ppfleetx/ops && python setup_cuda.py install && cd ../..
+```
+
 - 运行benchmark脚本
 ```
-cd ppfleetx/ops && python setup_cuda.py install && cd ../..
 bash projects/gpt/run_benchmark.sh
 ```
 
