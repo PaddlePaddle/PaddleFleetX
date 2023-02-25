@@ -135,6 +135,8 @@ class EagerEngine(BasicEngine):
             logger.info("NOTE: disable use_pure_fp16 in export mode")
             self._use_pure_fp16 = False
 
+        self._amp_dtype = self._configs['mix_precision']['dtype']
+        self._amp_level = self._configs['mix_precision']['level']
         self._scale_loss = self._configs['mix_precision']['scale_loss']
         self._custom_black_list = self._configs['mix_precision'][
             'custom_black_list']
@@ -177,14 +179,17 @@ class EagerEngine(BasicEngine):
         self._use_recompute = configs['Model']['use_recompute']
 
         if self._use_pure_fp16:
-            if mode == 'train':
+            if mode == 'train' and self._amp_dtype == "float16":
                 self._scaler = paddle.amp.GradScaler(
                     init_loss_scaling=self._scale_loss)
 
             # Save dtype is the same as model dtype. Also can set save_dtype='float32' when 
             # training with pure fp16 strategy, but will cause the rise of memory.
-            self._module.model = paddle.amp.decorate(
-                models=self._module.model, level='O2')
+            if self._amp_level == "O2":
+                self._module.model = paddle.amp.decorate(
+                    models=self._module.model,
+                    dtype=self._amp_dtype,
+                    level=self._amp_level)
         else:
             self._scaler = None
 
@@ -373,6 +378,8 @@ class EagerEngine(BasicEngine):
 
             if self.profiler:
                 self.profiler.step()
+                if step == 120:
+                    return
 
     def fit(self, epoch=1, train_data_loader=None, valid_data_loader=None):
         """
@@ -456,10 +463,11 @@ class EagerEngine(BasicEngine):
                 loss = self._model_forward_backward(batch)
         else:
             with paddle.amp.auto_cast(
-                    self._use_pure_fp16,
+                    enable=self._use_pure_fp16,
                     custom_black_list=self._custom_black_list,
                     custom_white_list=self._custom_white_list,
-                    level='O2'):
+                    dtype=self._amp_dtype,
+                    level=self._amp_level):
                 batch = self._module.model._prepare_training(
                     batch, self._optimizer, self._lr_scheduler)
                 loss = self._module.model.forward_backward_pipeline(
@@ -485,10 +493,14 @@ class EagerEngine(BasicEngine):
                     self._use_pure_fp16,
                     custom_black_list=self._custom_black_list,
                     custom_white_list=self._custom_white_list,
-                    level='O2'):
+                    dtype=self._amp_dtype,
+                    level=self._amp_level):
                 loss = self._module.training_step(micro_batch)
 
-            loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
+            if self._use_pure_fp16 and self._amp_dtype == "float16":
+                loss_bw = self._scaler.scale(loss)
+            else:
+                loss_bw = loss
             if self._accumulate_steps > 1:
                 # div the loss for backward
                 loss_bw = loss_bw / self._accumulate_steps
@@ -516,7 +528,7 @@ class EagerEngine(BasicEngine):
                     p.bw_storage.scale_(1.0 / self._dp_group.nranks)
                     dist.all_reduce(p.bw_storage, group=self._dp_group)
 
-        if self._use_pure_fp16:
+        if self._use_pure_fp16 and self._amp_dtype == "float16":
             self._scaler.step(self._optimizer)
             self._scaler.update()
         else:
@@ -590,7 +602,8 @@ class EagerEngine(BasicEngine):
                 self._use_pure_fp16,
                 custom_black_list=self._custom_black_list,
                 custom_white_list=self._custom_white_list,
-                level='O2'):
+                dtype=self._amp_dtype,
+                level=self._amp_level):
             if self._pp_degree == 1:
                 loss = self._module.validation_step(batch)
             else:
@@ -646,7 +659,8 @@ class EagerEngine(BasicEngine):
                 self._use_pure_fp16,
                 custom_black_list=self._custom_black_list,
                 custom_white_list=self._custom_white_list,
-                level='O2'):
+                dtype=self._amp_dtype,
+                level=self._amp_level):
             if self._pp_degree == 1:
                 loss = self._module.test_step(batch)
             else:
@@ -849,6 +863,8 @@ class EagerEngine(BasicEngine):
         logger.info("Profiler finished, prepare to print summary...")
 
         self.profiler.stop()
+        self.profiler.summary(op_detail=True)
+        return
 
         self._print_summary()
         profiler_log = self.profiler_config.get('profiler_log',
