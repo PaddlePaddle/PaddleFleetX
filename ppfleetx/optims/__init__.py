@@ -43,6 +43,9 @@ def build_lr_scheduler(lr_config):
 
 def build_grad_clip(grad_clip_config):
     if grad_clip_config is not None:
+        multi_precision = grad_clip_config.pop('multi_precision', False)
+        if multi_precision:
+            paddle.nn.clip._clip_by_global_norm_using_mp_type(True)
         grad_clip_name = grad_clip_config.pop('name', 'ClipGradByGlobalNorm')
         grad_clip = eval(grad_clip_name)(**grad_clip_config)
         return grad_clip
