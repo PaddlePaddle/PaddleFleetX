@@ -17,7 +17,7 @@ Engine:
 
 
 Model:
-  vocab_size: 50304
+  vocab_size: 50432
   hidden_size: 5120
   num_layers: 40
   num_attention_heads: 40
@@ -57,7 +57,7 @@ Distributed:
 Optimizer:
   lr:
     name: CosineAnnealingWithWarmupDecay
-    decay_steps: 360000
+    decay_steps: 160000
     warmup_rate: 0.001
     max_lr: 1.0e-4
     min_lr: 1.0e-5
