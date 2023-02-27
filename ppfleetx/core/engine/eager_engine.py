@@ -182,6 +182,9 @@ class EagerEngine(BasicEngine):
             if mode == 'train' and self._amp_dtype == "float16":
                 self._scaler = paddle.amp.GradScaler(
                     init_loss_scaling=self._scale_loss)
+            else:  # bfloat16
+                self._scaler = paddle.amp.GradScaler(
+                    init_loss_scaling=1, use_dynamic_loss_scaling=False)
 
             # Save dtype is the same as model dtype. Also can set save_dtype='float32' when 
             # training with pure fp16 strategy, but will cause the rise of memory.
@@ -378,8 +381,6 @@ class EagerEngine(BasicEngine):
 
             if self.profiler:
                 self.profiler.step()
-                if step == 120:
-                    return
 
     def fit(self, epoch=1, train_data_loader=None, valid_data_loader=None):
         """
@@ -497,10 +498,7 @@ class EagerEngine(BasicEngine):
                     level=self._amp_level):
                 loss = self._module.training_step(micro_batch)
 
-            if self._use_pure_fp16 and self._amp_dtype == "float16":
-                loss_bw = self._scaler.scale(loss)
-            else:
-                loss_bw = loss
+            loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
             if self._accumulate_steps > 1:
                 # div the loss for backward
                 loss_bw = loss_bw / self._accumulate_steps
@@ -528,7 +526,7 @@ class EagerEngine(BasicEngine):
                     p.bw_storage.scale_(1.0 / self._dp_group.nranks)
                     dist.all_reduce(p.bw_storage, group=self._dp_group)
 
-        if self._use_pure_fp16 and self._amp_dtype == "float16":
+        if self._use_pure_fp16:
             self._scaler.step(self._optimizer)
             self._scaler.update()
         else:
@@ -863,8 +861,6 @@ class EagerEngine(BasicEngine):
         logger.info("Profiler finished, prepare to print summary...")
 
         self.profiler.stop()
-        self.profiler.summary(op_detail=True)
-        return
 
         self._print_summary()
         profiler_log = self.profiler_config.get('profiler_log',
