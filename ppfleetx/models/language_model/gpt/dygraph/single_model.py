@@ -222,7 +222,7 @@ class MultiHeadAttention(nn.Layer):
     def core_attn(self, q, k, v, attn_mask=None):
         # scale dot product attention
         product = paddle.matmul(
-            x=q, y=k, transpose_y=True) * self.head_dim**-0.5
+            x=q.scale(self.head_dim**-0.5), y=k, transpose_y=True)
 
         if attn_mask is not None:
             product = product + attn_mask
@@ -437,10 +437,10 @@ class TransformerDecoderLayer(nn.Layer):
             use_recompute=use_recompute,
             recompute_granularity=recompute_granularity,
             do_recompute=do_recompute)
-            
+
         self.moe_mlp = None
         if self.num_experts > 1:
-            assert(topk==1, "Only support topk=1 currently.")
+            assert (topk == 1, "Only support topk=1 currently.")
             self.moe_mlp = MoE(
                 d_model,
                 ExpertLayer(d_model, dim_feedforward),

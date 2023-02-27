@@ -160,7 +160,7 @@ class GPTDataset(paddle.io.Dataset):
         #  seq_length))
         # The pad and eos tokens do not contribute the loss
         loss_mask = np.ones(seq_length, dtype="float32")
-        loss_mask[np.where(np.array(tokens) == self.eos_id)] = 0.0
+        loss_mask[tokens == self.eos_id] = 0.0
         position_ids = np.arange(0, seq_length, dtype="int64")
 
         labels = np.array(labels).astype("int64")
@@ -421,6 +421,7 @@ def _build_doc_idx(documents, num_epochs, np_rng, separate_last_epoch):
         # The documents repeat num_epochs times.
         doc_idx = doc_idx.reshape(-1)
         doc_idx = doc_idx.astype(np.int32)
+        np_rng.shuffle(doc_idx)
         return doc_idx
 
     doc_idx_first = _build_doc_idx(documents, num_epochs - 1, np_rng, False)

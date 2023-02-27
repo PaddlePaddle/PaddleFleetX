@@ -287,8 +287,8 @@ class MultiHeadAttention(nn.Layer):
     def core_attn(self, q, k, v, attn_mask=None):
         # scale dot product attention
         product = paddle.matmul(
-            x=q, y=k, transpose_y=True) * self.head_dim**-0.5
-        
+            x=q.scale(self.head_dim**-0.5), y=k, transpose_y=True)
+
         # softmax_mask_fuse_upper_triangle is not supported sif paddle is not compiled with cuda/rocm
         if not paddle.is_compiled_with_cuda():
             attn_mask = get_triangle_upper_mask(product, attn_mask)
@@ -924,15 +924,17 @@ class GPTPretrainingCriterionHybird(nn.Layer):
         if self.sequence_parallel:
             masked_lm_labels = masked_lm_labels.transpose([1, 0])
             loss_mask = loss_mask.transpose([1, 0])
-        
+
         if mp_size > 1:
             if paddle.is_compiled_with_cuda() and True:
                 masked_lm_loss = self.parallel_loss_func(
                     prediction_scores, masked_lm_labels.unsqueeze(2))
             else:
-                prediction_scores = ConcatSoftmaxInput.apply(prediction_scores, group = env.get_hcg().get_model_parallel_group())
+                prediction_scores = ConcatSoftmaxInput.apply(
+                    prediction_scores,
+                    group=env.get_hcg().get_model_parallel_group())
                 masked_lm_loss = self.loss_func(prediction_scores,
-                                            masked_lm_labels.unsqueeze(2))
+                                                masked_lm_labels.unsqueeze(2))
         else:
             masked_lm_loss = self.loss_func(prediction_scores,
                                             masked_lm_labels.unsqueeze(2))
@@ -1615,22 +1617,22 @@ def get_triangle_upper_mask(x, mask):
     mask.stop_gradient = True
     return mask
 
+
 class ConcatSoftmaxInput(PyLayer):
     @staticmethod
-    def forward(ctx,
-                inp,
-                group=None):
+    def forward(ctx, inp, group=None):
         inputs = []
         paddle.distributed.all_gather(inputs, inp, group=group)
         with paddle.no_grad():
             cat = paddle.concat(inputs, axis=-1)
         ctx.cat_args = group
         return cat
-    
+
     @staticmethod
-    def backward(ctx,grad):
+    def backward(ctx, grad):
         group = ctx.cat_args
         with paddle.no_grad():
-            grads = paddle.split(grad, paddle.distributed.get_world_size(group), axis=-1)
+            grads = paddle.split(
+                grad, paddle.distributed.get_world_size(group), axis=-1)
         grad = grads[paddle.distributed.get_rank(group)]
         return grad
