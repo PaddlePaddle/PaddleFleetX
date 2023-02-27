@@ -110,7 +110,17 @@ class LanguageModule(BasicModule):
                log_dict['test_cost'], speed))
 
     def get_model_size(self, l, h, v, s):
-        P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
+        P = 0
+        # embedding
+        P += (v + s) * h
+        # attention
+        P += (4 * h * h + 4 * h) * l
+        # layer_norm of decoder
+        P += (2 * (2 * h)) * l
+        # FFN Layer
+        P += (8 * h * h + 5 * h) * l
+        # layer_norm of transformer
+        P += 2 * h
         logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 /
                                                   1000.0))
 
