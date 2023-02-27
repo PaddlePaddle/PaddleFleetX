@@ -47,6 +47,11 @@ from ppfleetx.utils.log import logger
 
 import numpy as np
 
+try:
+    from paddle.nn.functional.flash_attention import flash_attention
+except:
+    flash_attention = None
+
 
 def get_attr(layer, name):
     if getattr(layer, name, None) is not None:
@@ -105,7 +110,8 @@ class MultiHeadAttention(nn.Layer):
                  use_recompute=False,
                  recompute_granularity="full",
                  sequence_parallel=False,
-                 do_recompute=True):
+                 do_recompute=True,
+                 use_flash_attn=False):
         super(MultiHeadAttention, self).__init__()
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
@@ -118,6 +124,7 @@ class MultiHeadAttention(nn.Layer):
         self.recompute_granularity = recompute_granularity
         self.do_recompute = do_recompute
         self.sequence_parallel = sequence_parallel
+        self.use_flash_attn = use_flash_attn if flash_attention else None
 
         if sequence_parallel:
             ColumnParallelLinear = ColumnSequenceParallelLinear
@@ -284,11 +291,19 @@ class MultiHeadAttention(nn.Layer):
             # incremental_state with initial value, mainly for usage like UniLM
             return self.Cache(key, value)
 
+    def _flash_attention(self, q, k, v):
+        q = tensor.transpose(x=q, perm=[0, 2, 1, 3])
+        k = tensor.transpose(x=k, perm=[0, 2, 1, 3])
+        v = tensor.transpose(x=v, perm=[0, 2, 1, 3])
+        out, weights = flash_attention(q, k, v, self.dropout, True, True)
+        out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
+        return out, weights
+
     def core_attn(self, q, k, v, attn_mask=None):
         # scale dot product attention
         product = paddle.matmul(
             x=q, y=k, transpose_y=True) * self.head_dim**-0.5
-        
+
         # softmax_mask_fuse_upper_triangle is not supported sif paddle is not compiled with cuda/rocm
         if not paddle.is_compiled_with_cuda():
             attn_mask = get_triangle_upper_mask(product, attn_mask)
@@ -333,7 +348,7 @@ class MultiHeadAttention(nn.Layer):
         """
         key = query if key is None else key
         value = query if value is None else value
-        # if sequence_parallel is true, query, key, value shape are [s, b, h], 
+        # if sequence_parallel is true, query, key, value shape are [s, b, h],
         # else their shape are [b, s, h], n is mp parallelism.
         # no matter sequence_parallel is true or false,
         # after reshape, q, k, v shape should be [b, num_heads/n, s, head_dim]
@@ -354,11 +369,13 @@ class MultiHeadAttention(nn.Layer):
 
         if self.use_recompute and self.recompute_granularity == "core_attn" and self.do_recompute:
             out, weights = recompute(self.core_attn, q, k, v, attn_mask)
+        elif self.use_flash_attn and attn_mask is None:
+            out, weights = self._flash_attention(q, k, v)
         else:
             out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
 
         # project to output
-        # if sequence_parallel is true, out shape are [s/n, b, h], 
+        # if sequence_parallel is true, out shape are [s/n, b, h],
         # else their shape are [b, s, h], n is mp parallelism.
         out = self.out_proj(out)
 
@@ -399,7 +416,7 @@ class TransformerDecoder(nn.Layer):
         if norm == "LayerNorm":
             self.norm = nn.LayerNorm(hidden_size, epsilon=1e-5)
             # if sequence parallel is true,
-            # register hook to all_reduce gradient of weight, bias 
+            # register hook to all_reduce gradient of weight, bias
             if self.sequence_parallel:
                 mark_as_sequence_parallel_parameter(self.norm.weight)
                 mark_as_sequence_parallel_parameter(self.norm.bias)
@@ -491,7 +508,8 @@ class TransformerDecoderLayer(nn.Layer):
                  recompute_granularity="full",
                  sequence_parallel=False,
                  do_recompute=True,
-                 skip_quant_tensors=[]):
+                 skip_quant_tensors=[],
+                 use_flash_attn=False):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
@@ -535,7 +553,8 @@ class TransformerDecoderLayer(nn.Layer):
             use_recompute=use_recompute,
             recompute_granularity=recompute_granularity,
             sequence_parallel=sequence_parallel,
-            do_recompute=do_recompute)
+            do_recompute=do_recompute,
+            use_flash_attn=use_flash_attn)
 
         if self.expert_mode:
             experts_list = nn.LayerList([
@@ -583,7 +602,7 @@ class TransformerDecoderLayer(nn.Layer):
         self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
         if self.sequence_parallel:
-            # if sequence parallel is true, register hook to all_reduce gradient of bias 
+            # if sequence parallel is true, register hook to all_reduce gradient of bias
             mark_as_sequence_parallel_parameter(self.norm1.weight)
             mark_as_sequence_parallel_parameter(self.norm1.bias)
             mark_as_sequence_parallel_parameter(self.norm2.weight)
@@ -727,7 +746,8 @@ class GPTModelHybrid(nn.Layer):
                  sequence_parallel=False,
                  no_recompute_layers=None,
                  skip_tensor_map={},
-                 freeze_embedding=False):
+                 freeze_embedding=False,
+                 use_flash_attn=False):
 
         super(GPTModelHybrid, self).__init__()
 
@@ -736,6 +756,13 @@ class GPTModelHybrid(nn.Layer):
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
+
+        if use_flash_attn:
+            if flash_attention:
+                logger.info("Flash-attention enabled.")
+            else:
+                logger.warning(
+                    "Flash-attention is not support in this Paddle version.")
 
         hcg = env.get_hcg()
         mp_size = hcg.get_model_parallel_world_size()
@@ -775,7 +802,8 @@ class GPTModelHybrid(nn.Layer):
                     sequence_parallel=sequence_parallel,
                     do_recompute=i not in no_recompute_layers,
                     skip_quant_tensors=skip_tensor_map.get('block_{}'.format(
-                        i), [])))
+                        i), []),
+                    use_flash_attn=use_flash_attn))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
@@ -924,15 +952,17 @@ class GPTPretrainingCriterionHybird(nn.Layer):
         if self.sequence_parallel:
             masked_lm_labels = masked_lm_labels.transpose([1, 0])
             loss_mask = loss_mask.transpose([1, 0])
-        
+
         if mp_size > 1:
             if paddle.is_compiled_with_cuda() and True:
                 masked_lm_loss = self.parallel_loss_func(
                     prediction_scores, masked_lm_labels.unsqueeze(2))
             else:
-                prediction_scores = ConcatSoftmaxInput.apply(prediction_scores, group = env.get_hcg().get_model_parallel_group())
+                prediction_scores = ConcatSoftmaxInput.apply(
+                    prediction_scores,
+                    group=env.get_hcg().get_model_parallel_group())
                 masked_lm_loss = self.loss_func(prediction_scores,
-                                            masked_lm_labels.unsqueeze(2))
+                                                masked_lm_labels.unsqueeze(2))
         else:
             masked_lm_loss = self.loss_func(prediction_scores,
                                             masked_lm_labels.unsqueeze(2))
@@ -1508,8 +1538,8 @@ class GPTForGenerationHybrid(nn.Layer):
         model_kwargs['cache'] = outputs[1] if isinstance(outputs,
                                                          tuple) else None
         while cur_len < max_length:
-            # Note(GuoxiaWang): Remove outputs = _forward_(**model_kwargs) 
-            # and change it to pass directly to _post_process_ to avoid 
+            # Note(GuoxiaWang): Remove outputs = _forward_(**model_kwargs)
+            # and change it to pass directly to _post_process_ to avoid
             # closed-loop problem of dynamic-to-static model
             input_ids, scores, unfinished_flag, model_kwargs = _post_process_(
                 _forward_(**model_kwargs), input_ids, cur_len, origin_len,
@@ -1615,22 +1645,22 @@ def get_triangle_upper_mask(x, mask):
     mask.stop_gradient = True
     return mask
 
+
 class ConcatSoftmaxInput(PyLayer):
     @staticmethod
-    def forward(ctx,
-                inp,
-                group=None):
+    def forward(ctx, inp, group=None):
         inputs = []
         paddle.distributed.all_gather(inputs, inp, group=group)
         with paddle.no_grad():
             cat = paddle.concat(inputs, axis=-1)
         ctx.cat_args = group
         return cat
-    
+
     @staticmethod
-    def backward(ctx,grad):
+    def backward(ctx, grad):
         group = ctx.cat_args
         with paddle.no_grad():
-            grads = paddle.split(grad, paddle.distributed.get_world_size(group), axis=-1)
+            grads = paddle.split(
+                grad, paddle.distributed.get_world_size(group), axis=-1)
         grad = grads[paddle.distributed.get_rank(group)]
         return grad

@@ -33,6 +33,7 @@ Model:
   fused_linear: False
   fuse_attn_qkv: True
   sequence_parallel: False
+  use_flash_attn: False
 
 
 Data:

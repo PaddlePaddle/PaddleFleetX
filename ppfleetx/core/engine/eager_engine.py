@@ -1,11 +1,11 @@
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -45,7 +45,7 @@ from ppfleetx.utils.compression_helper import prune_model, quant_model
 
 class EagerEngine(BasicEngine):
     """
-    The common engine for all models that support single-card and distributed 
+    The common engine for all models that support single-card and distributed
     training, validation and test. Only used in eager dygraph mode.
     """
 
@@ -55,13 +55,13 @@ class EagerEngine(BasicEngine):
 
         Args:
 
-            module(BasicModule): user-defined module. After assigning computations 
-                and configurations of model/optimizers/lr Schedulers, engine can 
+            module(BasicModule): user-defined module. After assigning computations
+                and configurations of model/optimizers/lr Schedulers, engine can
                 support the whole loop of training/validation/test.
-            
-            configs(dict): the configurations that engine needs for training/validation/test 
+
+            configs(dict): the configurations that engine needs for training/validation/test
                 loop. Such as mix precision strategy, save&load and the infos of steps/epoches.
-        
+
         Return:
 
             An instance of `EagerEngine`.
@@ -175,13 +175,14 @@ class EagerEngine(BasicEngine):
         self._broadcast_overlap = sharding_config['broadcast_overlap']
 
         self._use_recompute = configs['Model']['use_recompute']
+        self._use_flash_attn = configs['Model']['use_flash_attn']
 
         if self._use_pure_fp16:
             if mode == 'train':
                 self._scaler = paddle.amp.GradScaler(
                     init_loss_scaling=self._scale_loss)
 
-            # Save dtype is the same as model dtype. Also can set save_dtype='float32' when 
+            # Save dtype is the same as model dtype. Also can set save_dtype='float32' when
             # training with pure fp16 strategy, but will cause the rise of memory.
             self._module.model = paddle.amp.decorate(
                 models=self._module.model, level='O2')
@@ -381,7 +382,7 @@ class EagerEngine(BasicEngine):
         Args:
 
             epoch(int): the epoch index.
-            
+
             train_data_loader(DataLoader, None): a collection of :class:`paddle.io.DataLoader`, specifying training samples.
 
             valid_data_loader(DataLoader, None): a collection of :class:`paddle.io.DataLoader`, specifying validation samples.
@@ -606,7 +607,7 @@ class EagerEngine(BasicEngine):
         Args:
 
             epoch(int): the epoch index.
-            
+
             test_data_loader(DataLoader, None): a collection of :class:`paddle.io.DataLoader`, specifying test samples.
 
         """
