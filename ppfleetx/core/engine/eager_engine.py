@@ -130,18 +130,17 @@ class EagerEngine(BasicEngine):
         self._num_train_epochs = self._configs['num_train_epochs']
         self._accumulate_steps = self._configs['accumulate_steps']
 
-        self._use_pure_fp16 = self._configs['mix_precision']['use_pure_fp16']
+        amp_config = self._configs['mix_precision']
+        self._use_pure_fp16 = amp_config['use_pure_fp16']
         if mode == 'export' and self._use_pure_fp16:
             logger.info("NOTE: disable use_pure_fp16 in export mode")
             self._use_pure_fp16 = False
 
-        self._amp_dtype = self._configs['mix_precision']['dtype']
-        self._amp_level = self._configs['mix_precision']['level']
-        self._scale_loss = self._configs['mix_precision']['scale_loss']
-        self._custom_black_list = self._configs['mix_precision'][
-            'custom_black_list']
-        self._custom_white_list = self._configs['mix_precision'][
-            'custom_white_list']
+        self._amp_dtype = amp_config.get('dtype', 'float16')
+        self._amp_level = amp_config.get('level', 'O2')
+        self._scale_loss = amp_config('scale_loss')
+        self._custom_black_list = amp_config('custom_black_list')
+        self._custom_white_list = amp_config('custom_white_list')
 
         self._save_steps = self._configs['save_load']['save_steps']
         self._save_epoch = self._configs['save_load']['save_epoch']
