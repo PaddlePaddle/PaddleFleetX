@@ -305,7 +305,8 @@ class EagerEngine(BasicEngine):
         total_train_batch = len(train_data_loader)
         total_eval_batch = len(
             valid_data_loader) if valid_data_loader is not None else 0
-        valid_data_loader = valid_data_loader()
+        valid_data_loader = valid_data_loader(
+        ) if valid_data_loader is not None else None
         eval_resume_step = 0
         for step, batch in enumerate(train_data_loader()):
 
@@ -561,7 +562,8 @@ class EagerEngine(BasicEngine):
         eval_step_start = get_timestamp()
         eval_losses = []
         total_eval_batch = len(valid_data_loader)
-        valid_data_loader = valid_data_loader()
+        valid_data_loader = valid_data_loader(
+        ) if valid_data_loader is not None else None
         for eval_step, batch in enumerate(valid_data_loader):
             loss = self._evaluate_impl(batch)
             eval_losses.append(float(loss))
