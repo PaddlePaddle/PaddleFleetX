@@ -109,38 +109,28 @@ function _train(){
         PADDLE_RANK_OPTION=""
     fi
     # 以下为通用执行命令，无特殊可不用修改
-    if [ "N1C2" = ${device_num} ]; then
-        # sharding case
-        echo "run run_mode: DP1-MP1-PP1 device_num: N1C2"
+    case ${run_mode} in
+    DP1-MP1-PP1) echo "run run_mode: DP1-MP1-PP1"
         train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1 ${PADDLE_RANK_OPTION}\
               tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
               ${train_cmd}" 
         workerlog_id=0
-    else
-        # hybrid_parallelism case
-        case ${run_mode} in
-        DP1-MP1-PP1) echo "run run_mode: DP1-MP1-PP1"
-            train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0 ${PADDLE_RANK_OPTION}\
-                tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
-                ${train_cmd}"
-            workerlog_id=0
-            ;;
-        DP1-MP1-PP4|DP1-MP4-PP1) echo "run run_mode: ${run_mode}"
-            train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3 ${PADDLE_RANK_OPTION}\
-                tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
-                ${train_cmd}"
-            workerlog_id=0
-            ;;
-        DP8-MP1-PP1|DP1-MP8-PP1|DP1-MP1-PP8|DP1-MP2-PP4|DP1-MP4-PP2|DP2-MP2-PP2| \
-        DP2-MP8-PP2|DP4-MP8-PP1|DP1-MP8-PP4) echo "run run_mode: ${run_mode}"
-            train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 ${PADDLE_RANK_OPTION}\
-                tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
-                ${train_cmd}"
-            workerlog_id=0
-            ;;
-        *) echo "choose run_mode "; exit 1;
-        esac
-    fi
+        ;;
+    DP1-MP1-PP4|DP1-MP4-PP1) echo "run run_mode: ${run_mode}"
+        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3 ${PADDLE_RANK_OPTION}\
+            tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml
+            ${train_cmd}"
+        workerlog_id=0
+        ;;
+    DP8-MP1-PP1|DP1-MP8-PP1|DP1-MP1-PP8|DP1-MP2-PP4|DP1-MP4-PP2|DP2-MP2-PP2| \
+    DP2-MP8-PP2|DP4-MP8-PP1|DP1-MP8-PP4) echo "run run_mode: ${run_mode}"
+        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 ${PADDLE_RANK_OPTION}\
+            tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml
+            ${train_cmd}"
+        workerlog_id=0
+        ;;
+    *) echo "choose run_mode "; exit 1;
+    esac
     cd ../
     echo "train_cmd: ${train_cmd}  log_file: ${log_file}"
     if [[ ${model_item} =~ "CE" ]];then # CE精度-不限制执行时间
