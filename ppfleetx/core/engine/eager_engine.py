@@ -305,7 +305,9 @@ class EagerEngine(BasicEngine):
         total_train_batch = len(train_data_loader)
         total_eval_batch = len(
             valid_data_loader) if valid_data_loader is not None else 0
-        for step, batch in enumerate(train_data_loader):
+        valid_data_loader = valid_data_loader()
+        eval_resume_step = 0
+        for step, batch in enumerate(train_data_loader()):
 
             if epoch_index == self._load_recovery['epoch']:
                 if step < self._load_recovery['step']:
@@ -344,6 +346,7 @@ class EagerEngine(BasicEngine):
                     eval_step_start = get_timestamp()
 
                     for eval_step, batch in enumerate(valid_data_loader):
+                        eval_resume_step += 1
                         loss = self._evaluate_impl(batch)
                         eval_losses.append(loss)
 
@@ -356,7 +359,7 @@ class EagerEngine(BasicEngine):
                     log_dict = {
                         'loss': float(eval_loss),
                         'epoch': epoch_index,
-                        'batch': eval_step,
+                        'batch': eval_resume_step,
                         'total_batch': total_eval_batch,
                         'eval_cost': eval_step_cost / self._logging_freq,
                     }
@@ -558,6 +561,7 @@ class EagerEngine(BasicEngine):
         eval_step_start = get_timestamp()
         eval_losses = []
         total_eval_batch = len(valid_data_loader)
+        valid_data_loader = valid_data_loader()
         for eval_step, batch in enumerate(valid_data_loader):
             loss = self._evaluate_impl(batch)
             eval_losses.append(float(loss))
@@ -614,6 +618,7 @@ class EagerEngine(BasicEngine):
 
         test_start = get_timestamp()
         test_losses = []
+        test_data_loader = test_data_loader()
         for test_step, batch in enumerate(test_data_loader):
             loss = self._predict_impl(batch)
 

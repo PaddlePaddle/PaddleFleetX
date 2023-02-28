@@ -91,9 +91,9 @@ class LanguageModule(BasicModule):
     def validation_step_end(self, log_dict):
         speed = 1. / log_dict['eval_cost']
         logger.info(
-            "[eval] epoch: %d, batch: %d, loss: %.9f, avg_eval_cost: %.5f sec, speed: %.2f step/s"
-            % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
-               log_dict['eval_cost'], speed))
+            "[eval] epoch: %d, batch: %d/%d, loss: %.9f, avg_eval_cost: %.5f sec, speed: %.2f step/s"
+            % (log_dict['epoch'], log_dict['batch'], log_dict['total_batch'],
+               log_dict['loss'], log_dict['eval_cost'], speed))
 
     def test_step(self, batch):
         tokens, position_ids, labels, loss_mask = batch
