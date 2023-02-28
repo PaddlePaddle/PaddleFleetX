@@ -1,1 +1,1 @@
-../../../data_tools/ernie/cpp/Makefile
+../../../data_tools/cpp/Makefile

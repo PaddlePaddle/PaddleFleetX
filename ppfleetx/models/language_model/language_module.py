@@ -110,7 +110,17 @@ class LanguageModule(BasicModule):
                log_dict['test_cost'], speed))
 
     def get_model_size(self, l, h, v, s):
-        P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
+        P = 0
+        # embedding
+        P += (v + s) * h
+        # attention
+        P += (4 * h * h + 4 * h) * l
+        # layer_norm of decoder
+        P += (2 * (2 * h)) * l
+        # FFN Layer
+        P += (8 * h * h + 5 * h) * l
+        # layer_norm of transformer
+        P += 2 * h
         logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 /
                                                   1000.0))
 
@@ -146,11 +156,6 @@ class GPTModule(LanguageModule):
         model_name = model_setting.pop("name")
         tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
         self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
-
-        moe_configs = model_setting.get('moe_configs', {'expert_mode': False})
-        assert not moe_configs[
-            'expert_mode'], "Not support expert mode in GPT model!"
-        model_setting["moe_configs"] = moe_configs
 
         if self.nranks == 1:
             model_setting.pop("sequence_parallel")
@@ -712,9 +717,6 @@ class MoEModule(LanguageModule):
         s = self.configs.Data.Train.dataset.max_seq_len
         self.get_model_size(l, h, v, s)
 
-        moe_configs = model_setting.get('moe_configs', {'expert_mode': False})
-        model_setting["moe_configs"] = moe_configs
-
         if self.nranks == 1:
             model_setting.pop("sequence_parallel")
             model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
@@ -753,8 +755,8 @@ class MoEModule(LanguageModule):
         loss = self.loss_fn(preds, labels, loss_mask)
 
         with paddle.amp.auto_cast(enable=False):
-            if self.configs.Model.moe_configs.gate != "naive" and \
-                self.configs.Engine.balance_loss_weight:
+            if self.configs.Model.gate != "naive" and \
+                self.configs.Model.balance_loss_weight:
 
                 gpt_layer = self.model._layers.gpt if isinstance(
                     self.model, paddle.DataParallel) else self.model.gpt

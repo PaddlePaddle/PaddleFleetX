@@ -1,4 +1,4 @@
-# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved
+# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,17 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import subprocess
-path = os.path.abspath(os.path.dirname(__file__))
+model_item=gpt
+dp_degree=1
+mp_degree=2
+pp_degree=4
+bs_item=16
+fp_item=fp16
+run_mode=DP1-MP2-PP4
+device_num=N1C8
 
+model=gpt
+micro_bs=2
 
-def compile_helper():
-    """Compile helper function ar runtime. Make sure this
-    is invoked on a single process."""
-    import sys
-    excutable = sys.executable
-    ret = subprocess.run(['make', '-C', path, f'PYTHON_BIN={excutable}'])
-    if ret.returncode != 0:
-        print("Making C++ dataset helpers module failed, exiting.")
-        sys.exit(1)
+cd ./benchmarks
+bash ./test_tipc/gpt/dygraph/hybrid_parallel/benchmark_common/prepare.sh
+# run
+bash ./test_tipc/gpt/dygraph/hybrid_parallel/benchmark_common/run_benchmark.sh ${model_item} ${fp_item} ${dp_degree} ${mp_degree} ${pp_degree} ${micro_bs} ${bs_item} ${run_mode} ${device_num} 2>&1;

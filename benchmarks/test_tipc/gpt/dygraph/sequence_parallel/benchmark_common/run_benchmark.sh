@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -32,15 +32,15 @@ function _set_params(){
     skip_steps=0                  # (必选)解析日志，跳过模型前几个性能不稳定的step
     keyword="ips:"                 # (必选)解析日志，筛选出性能数据所在行的关键字
     convergence_key="loss:"        # (可选)解析日志，筛选出收敛数据所在行的关键字 如：convergence_key="loss:"
-    max_iter=${10:-1000}                      # （可选）需保证模型执行时间在5分钟内，需要修改代码提前中断的直接提PR 合入套件；或使用max_epoch参数
-    sequence_parallel=${11:-"False"}    # (可选)是否打开sequence_parallel
+    sequence_parallel=${10:-"False"}    # (可选)是否打开sequence_parallel
+    max_iter=${11:-1000}                      # （可选）需保证模型执行时间在5分钟内，需要修改代码提前中断的直接提PR 合入套件；或使用max_epoch参数
+    eval_freq=${12:-"1000"}         # (可选)模型评估间隔
     num_workers=0                  # (可选)
     base_batch_size=$global_batch_size
-    use_recompute=${12:-"False"}    # (可选)是否打开recompute
-    sharding_stage=${13:-"1"}       # (可选)sharding case
-    sharding_offload=${14:-"False"} # (可选)
-    eval_freq=${15:-"1000"}         # (可选)
-    sharding_degree=${16:-"1"}      # (可选)
+    use_recompute=${13:-"True"}    # (可选)是否打开recompute
+    sharding_degree=${14:-"1"}      # (可选)分组切分并行维度
+    sharding_stage=${15:-"1"}       # (可选)切分策略；1表示仅切分优化器状态，2表示再切分梯度，3表示再切分前向参数
+    sharding_offload=${16:-"False"} # (可选)CPU offload策略
     # 以下为通用执行命令，无特殊可不用修改
     model_name=${model_item}_bs${global_batch_size}_${fp_item}_${run_mode}  # (必填) 且格式不要改动,与竞品名称对齐
     device=${CUDA_VISIBLE_DEVICES//,/ }
@@ -89,6 +89,7 @@ function _train(){
                -o Distributed.pp_degree=${pp_degree} \
                -o Distributed.sharding.sharding_degree=${sharding_degree} \
                -o Distributed.sharding.sharding_stage=${sharding_stage} \
+               -o Distributed.sharding.sharding_offload=${sharding_offload} \
                -o Model.sequence_parallel=${sequence_parallel}  \
                -o Distributed.sharding.reduce_overlap=False \
                -o Distributed.sharding.broadcast_overlap=False \
@@ -101,37 +102,27 @@ function _train(){
         PADDLE_RANK_OPTION=""
     fi
     # 以下为通用执行命令，无特殊可不用修改
-    if [ "N1C2" = ${device_num} ]; then
-        # sharding case
-        echo "run run_mode: DP1-MP1-PP1 device_num: N1C2"
-        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1 ${PADDLE_RANK_OPTION}\
-              ./pretrain/run.py -c ./pretrain/configs/pretrain_gpt_1.3B_dp8.yaml \
-              ${train_cmd}" 
+    case ${run_mode} in
+    DP1-MP1-PP1) echo "run run_mode: DP1-MP1-PP1"
+        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0 ${PADDLE_RANK_OPTION}\
+            ./pretrain/run.py -c ./pretrain/configs/pretrain_gpt_1.3B_dp8.yaml \
+            ${train_cmd}"
         workerlog_id=0
-    else
-        # hybrid_parallelism case
-        case ${run_mode} in
-        DP1-MP1-PP1) echo "run run_mode: DP1-MP1-PP1"
-            train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0 ${PADDLE_RANK_OPTION}\
-                ./pretrain/run.py -c ./pretrain/configs/pretrain_gpt_1.3B_dp8.yaml \
-                ${train_cmd}"
-            workerlog_id=0
-            ;;
-        DP1-MP8-PP1) echo "run run_mode: ${run_mode}"
-            train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 ${PADDLE_RANK_OPTION}\
-                ./pretrain/run.py -c ./pretrain/configs/pretrain_gpt_1.3B_dp8.yaml \
-                ${train_cmd}"
-            workerlog_id=0
-            ;;
-        DP2-MP8-PP2) echo "run run_mode: ${run_mode}"
-            train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 ${PADDLE_RANK_OPTION}\
-                ./pretrain/run.py -c ./pretrain/configs/pretrain_gpt_6.7B_sharding16.yaml \
-                ${train_cmd}"
-            workerlog_id=0
-            ;;
-        *) echo "choose run_mode "; exit 1;
-        esac
-    fi
+        ;;
+    DP1-MP8-PP1) echo "run run_mode: ${run_mode}"
+        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 ${PADDLE_RANK_OPTION}\
+            ./pretrain/run.py -c ./pretrain/configs/pretrain_gpt_1.3B_dp8.yaml \
+            ${train_cmd}"
+        workerlog_id=0
+        ;;
+    DP2-MP8-PP2) echo "run run_mode: ${run_mode}"
+        train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 ${PADDLE_RANK_OPTION}\
+            ./pretrain/run.py -c ./pretrain/configs/pretrain_gpt_6.7B_sharding16.yaml \
+            ${train_cmd}"
+        workerlog_id=0
+        ;;
+    *) echo "choose run_mode "; exit 1;
+    esac
     cd ../examples/transformer/models/GPT/
     echo "train_cmd: ${train_cmd}  log_file: ${log_file}"
     if [[ ${model_item} =~ "CE" ]];then # CE精度-不限制执行时间

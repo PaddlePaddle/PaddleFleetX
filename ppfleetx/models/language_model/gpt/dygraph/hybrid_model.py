@@ -41,7 +41,7 @@ from .processor import (
     HammingDiversityLogitsProcessor, RepetitionPenaltyLogitsProcessor,
     ForcedBOSTokenLogitsProcessor, ForcedEOSTokenLogitsProcessor)
 
-from ppfleetx.distributed.moe import MoELayer
+from ppfleetx.models.language_model.moe import MoELayer
 from ppfleetx.distributed.apis import env
 from ppfleetx.utils.log import logger
 

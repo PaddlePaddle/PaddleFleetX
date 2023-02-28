@@ -32,7 +32,8 @@ from .processor import (
     HammingDiversityLogitsProcessor, RepetitionPenaltyLogitsProcessor,
     ForcedBOSTokenLogitsProcessor, ForcedEOSTokenLogitsProcessor)
 
-from ppfleetx.distributed.moe import MoELayer
+from ppfleetx.models.language_model.moe import MoELayer
+from ppfleetx.models.language_model.moe_exp.layer import MoE
 
 
 def get_attr(layer, name):
@@ -46,12 +47,16 @@ class ExpertLayer(nn.Layer):
     def __init__(self, d_model, d_hidden, name=None):
         super(ExpertLayer, self).__init__()
 
-        self.htoh4 = nn.Linear(d_model, d_hidden, \
-            weight_attr=nn.initializer.KaimingUniform(), \
-             bias_attr=nn.initializer.Constant(value=0.0))
-        self.h4toh = nn.Linear(d_hidden, d_model, \
-            weight_attr=nn.initializer.KaimingUniform(), \
-             bias_attr=nn.initializer.Constant(value=0.0))
+        self.htoh4 = nn.Linear(
+            d_model,
+            d_hidden,
+            weight_attr=nn.initializer.KaimingUniform(),
+            bias_attr=nn.initializer.Constant(value=0.0))
+        self.h4toh = nn.Linear(
+            d_hidden,
+            d_model,
+            weight_attr=nn.initializer.KaimingUniform(),
+            bias_attr=nn.initializer.Constant(value=0.0))
 
         self.htoh4.weight.name = "expert_" + self.htoh4.weight.name
         self.h4toh.weight.name = "expert_" + self.h4toh.weight.name
@@ -103,7 +108,8 @@ class MultiHeadAttention(nn.Layer):
         self.do_recompute = do_recompute
 
         self.head_dim = embed_dim // num_heads
-        assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
+        assert self.head_dim * \
+            num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
 
         Linear = FusedLinear if fused_linear else nn.Linear
 
@@ -380,16 +386,23 @@ class TransformerDecoderLayer(nn.Layer):
                  d_model,
                  nhead,
                  dim_feedforward,
+                 num_experts=1,
                  dropout=0.1,
                  activation="gelu",
                  attn_dropout=None,
                  act_dropout=None,
                  normalize_before=True,
+                 topk=1,
+                 moe_use_residual=False,
+                 moe_train_capacity_factor=1.0,
+                 moe_eval_capacity_factor=1.0,
+                 moe_min_capacity=4,
+                 moe_token_dropping=True,
+                 enable_expert_tensor_parallelism=False,
                  weight_attr=None,
                  bias_attr=None,
                  fused_linear=False,
                  fuse_attn_qkv=False,
-                 moe_configs=None,
                  use_recompute=False,
                  recompute_granularity="full",
                  do_recompute=True,
@@ -406,13 +419,7 @@ class TransformerDecoderLayer(nn.Layer):
         self.recompute_granularity = recompute_granularity
         self.do_recompute = do_recompute
 
-        self.expert_mode = False
-        # moe config
-        if moe_configs is not None:
-            self.gate = moe_configs.get('gate', 'gshard')
-            self.top_k = moe_configs.get('top_k', 2)
-            self.num_experts = moe_configs.get('num_experts', 1)
-            self.expert_mode = moe_configs.get('expert_mode', False)
+        self.num_experts = num_experts
 
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
@@ -430,19 +437,23 @@ class TransformerDecoderLayer(nn.Layer):
             use_recompute=use_recompute,
             recompute_granularity=recompute_granularity,
             do_recompute=do_recompute)
-
-        if self.expert_mode:
-            experts_list = nn.LayerList([
-                ExpertLayer(d_model, dim_feedforward)
-                for e in range(self.num_experts)
-            ])
-
-            self.moe_mlp = MoELayer(
-                d_model=d_model,
-                experts=experts_list,
-                gate=self.gate,
-                top_k=self.top_k,
-                recompute_interval=int(self.use_recompute))
+            
+        self.moe_mlp = None
+        if self.num_experts > 1:
+            assert(topk==1, "Only support topk=1 currently.")
+            self.moe_mlp = MoE(
+                d_model,
+                ExpertLayer(d_model, dim_feedforward),
+                self.num_experts,
+                ep_size=1,
+                k=topk,
+                use_residual=moe_use_residual,
+                capacity_factor=moe_train_capacity_factor,
+                eval_capacity_factor=moe_eval_capacity_factor,
+                min_capacity=moe_min_capacity,
+                drop_tokens=moe_token_dropping,
+                enable_expert_tensor_parallelism=enable_expert_tensor_parallelism
+            )
         else:
             self.linear1 = Linear(
                 d_model,
@@ -493,7 +504,9 @@ class TransformerDecoderLayer(nn.Layer):
         if self.normalize_before:
             tgt = self.norm2(tgt)
 
-        if self.expert_mode:
+        # if self.expert_mode:
+        #     tgt = self.moe_mlp(tgt)
+        if self.num_experts > 1:
             tgt = self.moe_mlp(tgt)
         else:
             tgt = self.dropout2(
@@ -570,7 +583,15 @@ class GPTModel(nn.Layer):
                  type_vocab_size=16,
                  use_recompute=False,
                  initializer_range=0.02,
-                 moe_configs=None,
+                 num_experts=[1],
+                 expert_interval=2,
+                 topk=1,
+                 moe_use_residual=False,
+                 moe_train_capacity_factor=1.0,
+                 moe_eval_capacity_factor=1.0,
+                 moe_min_capacity=4,
+                 moe_token_dropping=True,
+                 enable_expert_tensor_parallelism=False,
                  fused_linear=False,
                  fuse_attn_qkv=False,
                  recompute_granularity="full",
@@ -592,24 +613,44 @@ class GPTModel(nn.Layer):
             max_position_embeddings, type_vocab_size, self.initializer_range,
             freeze_embedding)
 
+        assert len(num_experts) == 1 or len(num_experts) == num_layers // expert_interval, \
+            'num_experts must be either a single value or a list of the same length as the number of MoE layers'
+
+        # Expand the list of MoE experts num to MoE layers num
+        if len(num_experts) == 1:
+            num_experts = num_experts * (num_layers // expert_interval)
+
         decoder_layers = nn.LayerList()
         for i in range(num_layers):
+            # TODO: original layer_num = i + 1 + offset here
+            layer_num = i + 1
+            if layer_num % expert_interval == 0:
+                n_e = num_experts[(layer_num - 1) // expert_interval]
+            else:
+                n_e = 1
             decoder_layers.append(
                 TransformerDecoderLayer(
                     d_model=hidden_size,
                     nhead=num_attention_heads,
                     dim_feedforward=ffn_hidden_size,
+                    num_experts=n_e,
                     dropout=hidden_dropout_prob,
                     activation="gelu",
                     attn_dropout=attention_probs_dropout_prob,
                     act_dropout=hidden_dropout_prob,
+                    topk=topk,
+                    moe_use_residual=moe_use_residual,
+                    moe_train_capacity_factor=moe_train_capacity_factor,
+                    moe_eval_capacity_factor=moe_eval_capacity_factor,
+                    moe_min_capacity=moe_min_capacity,
+                    moe_token_dropping=moe_token_dropping,
+                    enable_expert_tensor_parallelism=enable_expert_tensor_parallelism,
                     weight_attr=paddle.ParamAttr(
                         initializer=nn.initializer.Normal(
                             mean=0.0, std=self.initializer_range)),
                     bias_attr=None,
                     fused_linear=fused_linear,
                     fuse_attn_qkv=fuse_attn_qkv,
-                    moe_configs=moe_configs,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
                     do_recompute=i not in no_recompute_layers,
@@ -763,7 +804,7 @@ class GPTForSequenceClassification(nn.Layer):
             An instance of GPTModel.
         num_classes (int, optional):
             The number of classes. Defaults to `2`.
-            
+
     """
 
     def __init__(self, gpt, num_classes=2):
@@ -1201,8 +1242,8 @@ class GPTForGeneration(nn.Layer):
         model_kwargs['cache'] = outputs[1] if isinstance(outputs,
                                                          tuple) else None
         while cur_len < max_length:
-            # Note(GuoxiaWang): Remove outputs = _forward_(**model_kwargs) 
-            # and change it to pass directly to _post_process_ to avoid 
+            # Note(GuoxiaWang): Remove outputs = _forward_(**model_kwargs)
+            # and change it to pass directly to _post_process_ to avoid
             # closed-loop problem of dynamic-to-static model
             input_ids, scores, unfinished_flag, model_kwargs = _post_process_(
                 _forward_(**model_kwargs), input_ids, cur_len_gpu,
