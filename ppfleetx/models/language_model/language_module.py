@@ -81,6 +81,11 @@ class LanguageModule(BasicModule):
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'], log_dict['train_cost'], speed,
                speed * default_global_tokens_num, speed * default_global_tokens_num / self.data_world_size, log_dict['lr']))
 
+        logger.info(
+            "[train] avg_cost of every stage - read_batch: %.5f sec, split_batch: %.5f sec, forward: %.5f sec, " \
+            "backward: %.5f sec, dp_allreduce: %.5f sec, optimization: %.5f sec \n"
+            % (log_dict['read_batch'], log_dict['split_batch'], log_dict['forward'], log_dict['backward'], log_dict['dp_allreduce'], log_dict['optimization']))
+
     def validation_step(self, batch):
         tokens, position_ids, labels, loss_mask = batch
         preds = self(tokens, position_ids)

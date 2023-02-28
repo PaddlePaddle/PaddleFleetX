@@ -176,6 +176,12 @@ class EagerEngine(BasicEngine):
 
         self._use_recompute = configs['Model']['use_recompute']
 
+        self._sequence_parallel = configs['Model']['sequence_parallel']
+        self._num_layers = configs['Model']['num_layers']
+
+        self._amp_level = configs['Engine']['mix_precision'].get('amp_level',
+                                                                 'O2')
+
         if self._use_pure_fp16:
             if mode == 'train':
                 self._scaler = paddle.amp.GradScaler(
@@ -184,7 +190,7 @@ class EagerEngine(BasicEngine):
             # Save dtype is the same as model dtype. Also can set save_dtype='float32' when 
             # training with pure fp16 strategy, but will cause the rise of memory.
             self._module.model = paddle.amp.decorate(
-                models=self._module.model, level='O2')
+                models=self._module.model, level=self._amp_level)
         else:
             self._scaler = None
 
@@ -200,6 +206,15 @@ class EagerEngine(BasicEngine):
         self._optimizer = build_optimizer(
             configs.Optimizer, self._module.model,
             self._lr_scheduler) if mode == 'train' else None
+
+        self._batch_stage_cost = {
+            'read_batch': 0.,
+            'split_batch': 0.,
+            'forward': 0.,
+            'backward': 0.,
+            'dp_allreduce': 0.,
+            'optimization': 0.,
+        }
 
         # distributed configs
         self._distributed = (dist.get_world_size() > 1)
@@ -305,7 +320,13 @@ class EagerEngine(BasicEngine):
         total_train_batch = len(train_data_loader)
         total_eval_batch = len(
             valid_data_loader) if valid_data_loader is not None else 0
+
+        read_batch_start = get_timestamp()
+
         for step, batch in enumerate(train_data_loader):
+
+            self._batch_stage_cost['read_batch'] += (
+                get_timestamp() - read_batch_start)
 
             if epoch_index == self._load_recovery['epoch']:
                 if step < self._load_recovery['step']:
@@ -317,6 +338,11 @@ class EagerEngine(BasicEngine):
             if (step + 1) % self._logging_freq == 0:
                 train_step_cost = get_timestamp() - train_step_start
                 numpy_losses = [float(loss) for loss in train_losses]
+
+                for k in self._batch_stage_cost.keys():
+                    self._batch_stage_cost[k] = self._batch_stage_cost[k] if step == 0 \
+                        else self._batch_stage_cost[k] / self._logging_freq
+
                 log_dict = {
                     'epoch': epoch_index,
                     'total_epoch': self._num_train_epochs,
@@ -327,10 +353,20 @@ class EagerEngine(BasicEngine):
                     'loss': sum(numpy_losses) / len(numpy_losses),
                     'lr': self._optimizer.get_lr()
                 }
+                log_dict.update(self._batch_stage_cost)
                 self._module.training_step_end(log_dict)
 
                 train_step_start = get_timestamp()
                 train_losses = []
+
+                self._batch_stage_cost = {
+                    'read_batch': 0.,
+                    'split_batch': 0.,
+                    'forward': 0.,
+                    'backward': 0.,
+                    'dp_allreduce': 0.,
+                    'optimization': 0.,
+                }
 
             if self._lr_scheduler is not None and self._lr_scheduler_mode == 'step':
                 self._lr_scheduler.step()
@@ -373,6 +409,8 @@ class EagerEngine(BasicEngine):
 
             if self.profiler:
                 self.profiler.step()
+
+            read_batch_start = get_timestamp()
 
     def fit(self, epoch=1, train_data_loader=None, valid_data_loader=None):
         """
@@ -440,6 +478,8 @@ class EagerEngine(BasicEngine):
                                                   paddle.DataParallel):
                 with self._module.model.no_sync():
                     loss = self._model_forward_backward(batch)
+
+                dp_allreduce_start = get_timestamp()
                 if not hasattr(self._optimizer, "all_fused_tensors"
                                ) or self._optimizer.all_fused_tensors is None:
                     try:
@@ -452,6 +492,8 @@ class EagerEngine(BasicEngine):
                 else:
                     all_reduce_parameters(self._optimizer.all_fused_tensors,
                                           self._dp_group)
+                self._batch_stage_cost['dp_allreduce'] += get_timestamp(
+                ) - dp_allreduce_start
             else:
                 loss = self._model_forward_backward(batch)
         else:
@@ -459,16 +501,23 @@ class EagerEngine(BasicEngine):
                     self._use_pure_fp16,
                     custom_black_list=self._custom_black_list,
                     custom_white_list=self._custom_white_list,
-                    level='O2'):
+                    level=self._amp_level):
                 batch = self._module.model._prepare_training(
                     batch, self._optimizer, self._lr_scheduler)
                 loss = self._module.model.forward_backward_pipeline(
                     batch, self._scaler)
 
+        train_optim_start = get_timestamp()
         self._optim_update_params()
+        self._batch_stage_cost['optimization'] += get_timestamp(
+        ) - train_optim_start
+
         return loss
 
     def _model_forward_backward(self, batch):
+
+        split_batch_start = get_timestamp()
+
         if self._accumulate_steps == 1 or self._pp_degree > 1:
             batches = [batch]
         else:
@@ -479,21 +528,31 @@ class EagerEngine(BasicEngine):
             for i in range(len(split_batches[0])):
                 micro_batch = [split_batch[i] for split_batch in split_batches]
                 batches.append(micro_batch)
+
+        self._batch_stage_cost['split_batch'] += get_timestamp(
+        ) - split_batch_start
+
         final_loss = None
         for micro_batch in batches:
             with paddle.amp.auto_cast(
                     self._use_pure_fp16,
                     custom_black_list=self._custom_black_list,
                     custom_white_list=self._custom_white_list,
-                    level='O2'):
+                    level=self._amp_level):
+                train_forward_start = get_timestamp()
                 loss = self._module.training_step(micro_batch)
+                self._batch_stage_cost['forward'] += get_timestamp(
+                ) - train_forward_start
 
+            train_backward_start = get_timestamp()
             loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
             if self._accumulate_steps > 1:
                 # div the loss for backward
                 loss_bw = loss_bw / self._accumulate_steps
 
             self._module.backward(loss_bw)
+            self._batch_stage_cost['backward'] += get_timestamp(
+            ) - train_backward_start
 
             detach_loss = loss.detach()
             if final_loss is None:
@@ -590,7 +649,7 @@ class EagerEngine(BasicEngine):
                 self._use_pure_fp16,
                 custom_black_list=self._custom_black_list,
                 custom_white_list=self._custom_white_list,
-                level='O2'):
+                level=self._amp_level):
             if self._pp_degree == 1:
                 loss = self._module.validation_step(batch)
             else:
@@ -646,7 +705,7 @@ class EagerEngine(BasicEngine):
                 self._use_pure_fp16,
                 custom_black_list=self._custom_black_list,
                 custom_white_list=self._custom_white_list,
-                level='O2'):
+                level=self._amp_level):
             if self._pp_degree == 1:
                 loss = self._module.test_step(batch)
             else:
@@ -740,6 +799,23 @@ class EagerEngine(BasicEngine):
                     if param.dtype != model_dict[name].dtype:
                         model_dict[name] = model_dict[name].cast(param.dtype)
 
+                if not self._sequence_parallel and \
+                   'column_sequence_parallel_linear_0.w_0' in model_dict:
+
+                    for i in range(self._num_layers):
+                        for j in range(2):
+                            model_dict['linear_{}.w_0'.format(4*i+2*j)] \
+                                = model_dict.pop('column_sequence_parallel_linear_{}.w_0'.format(2*i+j))
+
+                            model_dict['linear_{}.b_0'.format(4*i+2*j)] \
+                                = model_dict.pop('column_sequence_parallel_linear_{}.b_0'.format(2*i+j))
+
+                            model_dict['linear_{}.w_0'.format(4*i+2*j+1)] \
+                                = model_dict.pop('row_sequence_parallel_linear_{}.w_0'.format(2*i+j))
+
+                            model_dict['linear_{}.b_0'.format(4*i+2*j+1)] \
+                                = model_dict.pop('row_sequence_parallel_linear_{}.b_0'.format(2*i+j))
+
                 self._module.model.set_state_dict(model_dict)
             else:
                 raise ValueError("No optimizer checkpoint file found in %s." %
@@ -748,6 +824,55 @@ class EagerEngine(BasicEngine):
             if self.mode == 'train':
                 if os.path.exists(opt_path):
                     opt_dict = paddle.load(opt_path)
+
+                    if not self._sequence_parallel and \
+                       'column_sequence_parallel_linear_0.w_0_fp32_master_0_moment1_0' in opt_dict:
+
+                        for i in range(self._num_layers):
+                            for j in range(2):
+                                for suffix in [
+                                        'fp32_master_0_moment1_0',
+                                        'fp32_master_0_moment2_0',
+                                        'fp32_master_0_beta1_pow_acc_0',
+                                        'fp32_master_0_beta2_pow_acc_0'
+                                ]:
+
+                                    opt_dict['linear_{}.w_0_{}'.format(4*i+2*j, suffix)] \
+                                        = opt_dict.pop('column_sequence_parallel_linear_{}.w_0_{}'.format(2*i+j, suffix))
+
+                                    opt_dict['linear_{}.b_0_{}'.format(4*i+2*j, suffix)] \
+                                        = opt_dict.pop('column_sequence_parallel_linear_{}.b_0_{}'.format(2*i+j, suffix))
+
+                                    opt_dict['linear_{}.w_0_{}'.format(4*i+2*j+1, suffix)] \
+                                        = opt_dict.pop('row_sequence_parallel_linear_{}.w_0_{}'.format(2*i+j, suffix))
+
+                                    opt_dict['linear_{}.b_0_{}'.format(4*i+2*j+1, suffix)] \
+                                        = opt_dict.pop('row_sequence_parallel_linear_{}.b_0_{}'.format(2*i+j, suffix))
+
+                    if (not self._use_pure_fp16 or (self._use_pure_fp16 and self._amp_level == 'O1'))\
+                        and 'linear_0.w_0_fp32_master_0_moment1_0' in opt_dict:
+
+                        for suffix in [
+                                'fp32_master_0_moment1_0',
+                                'fp32_master_0_moment2_0',
+                                'fp32_master_0_beta1_pow_acc_0',
+                                'fp32_master_0_beta2_pow_acc_0'
+                        ]:
+
+                            opt_dict['embedding_0.w_0_{}'.format(suffix.replace('fp32_master_0_', ''))] \
+                                = opt_dict.pop('embedding_0.w_0_{}'.format(suffix))
+
+                            opt_dict['embedding_1.w_0_{}'.format(suffix.replace('fp32_master_0_', ''))] \
+                                = opt_dict.pop('embedding_1.w_0_{}'.format(suffix))
+
+                            for i in range(4 * self._num_layers):
+
+                                opt_dict['linear_{}.w_0_{}'.format(i, suffix.replace('fp32_master_0_', ''))] \
+                                    = opt_dict.pop('linear_{}.w_0_{}'.format(i, suffix))
+
+                                opt_dict['linear_{}.b_0_{}'.format(i, suffix.replace('fp32_master_0_', ''))] \
+                                    = opt_dict.pop('linear_{}.b_0_{}'.format(i, suffix))
+
                     self._optimizer.set_state_dict(opt_dict)
                 else:
                     raise ValueError(
