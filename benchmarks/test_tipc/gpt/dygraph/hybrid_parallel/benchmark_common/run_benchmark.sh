@@ -84,10 +84,10 @@ function _train(){
     train_cmd="-o Global.seed=1234 \
                -o Global.local_batch_size=${local_batch_size} \
                -o Global.micro_batch_size=${micro_batch_size} \
-               -o Global.max_steps=${max_iter} \
-               -o Global.eval_freq=${eval_freq} \
-               -o Global.mix_precision.use_pure_fp16=${use_pure_fp16} \
-               -o Global.save_load.save_steps=100000 \
+               -o Engine.max_steps=${max_iter} \
+               -o Engine.eval_freq=${eval_freq} \
+               -o Engine.mix_precision.use_pure_fp16=${use_pure_fp16} \
+               -o Engine.save_load.save_steps=100000 \
                -o Model.hidden_size=1024 \
                -o Model.num_layers=${num_layers} \
                -o Model.num_attention_heads=${num_attention_heads} \
@@ -112,26 +112,26 @@ function _train(){
     case ${run_mode} in
     DP1-MP1-PP1) echo "run run_mode: DP1-MP1-PP1"
         train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0 ${PADDLE_RANK_OPTION}\
-            ./pretrain/run.py -c ./pretrain/configs/pretrain_gpt_1.3B_dp8.yaml \
-            ${train_cmd}"
+              tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
+              ${train_cmd}" 
         workerlog_id=0
         ;;
     DP1-MP1-PP4|DP1-MP4-PP1) echo "run run_mode: ${run_mode}"
         train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3 ${PADDLE_RANK_OPTION}\
-            ./pretrain/run.py -c ./pretrain/configs/pretrain_gpt_1.3B_dp8.yaml \
+            tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml
             ${train_cmd}"
         workerlog_id=0
         ;;
     DP8-MP1-PP1|DP1-MP8-PP1|DP1-MP1-PP8|DP1-MP2-PP4|DP1-MP4-PP2|DP2-MP2-PP2| \
     DP2-MP8-PP2|DP4-MP8-PP1|DP1-MP8-PP4) echo "run run_mode: ${run_mode}"
         train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 ${PADDLE_RANK_OPTION}\
-            ./pretrain/run.py -c ./pretrain/configs/pretrain_gpt_1.3B_dp8.yaml \
+            tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml
             ${train_cmd}"
         workerlog_id=0
         ;;
     *) echo "choose run_mode "; exit 1;
     esac
-    cd ../examples/transformer/models/GPT/
+    cd ../
     echo "train_cmd: ${train_cmd}  log_file: ${log_file}"
     if [[ ${model_item} =~ "CE" ]];then # CE精度-不限制执行时间
         ${train_cmd} > ${log_file} 2>&1

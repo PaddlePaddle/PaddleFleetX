@@ -79,10 +79,10 @@ function _train(){
     if [ "fp16" = ${fp_item} ]; then use_pure_fp16=True; fi
     train_cmd="-o Global.local_batch_size=${local_batch_size} \
                -o Global.micro_batch_size=${micro_batch_size} \
-               -o Global.max_steps=${max_iter} \
-               -o Global.eval_freq=${eval_freq} \
-               -o Global.mix_precision.use_pure_fp16=${use_pure_fp16} \
-               -o Global.save_load.save_steps=100000 \
+               -o Engine.max_steps=${max_iter} \
+               -o Engine.eval_freq=${eval_freq} \
+               -o Engine.mix_precision.use_pure_fp16=${use_pure_fp16} \
+               -o Engine.save_load.save_steps=100000 \
                -o Model.use_recompute=${use_recompute} \
                -o Distributed.dp_degree=${dp_degree} \
                -o Distributed.mp_degree=${mp_degree} \
@@ -102,7 +102,7 @@ function _train(){
     case ${run_mode} in
     DP1-MP1-PP1-Sharding2) echo "run run_mode: DP1-MP1-PP1-Sharding2"
         train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1 ${PADDLE_RANK_OPTION}\
-            ./pretrain/run.py -c ./pretrain/configs/pretrain_gpt_1.3B_dp8.yaml \
+            ./tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
             -o Global.seed=1234 \
             -o Model.hidden_size=1024 \
             -o Model.num_layers=4 \
@@ -115,14 +115,14 @@ function _train(){
         ;;
     DP1-MP1-PP1-Sharding16) echo "run run_mode: ${run_mode}"
         train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 ${PADDLE_RANK_OPTION}\
-            ./pretrain/run.py -c ./pretrain/configs/pretrain_gpt_6.7B_sharding16.yaml \
+            ./tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_6.7B_sharding16.yaml \
             -o Global.logging_freq=1 \
             ${train_cmd}"
         workerlog_id=0
         ;;
     *) echo "choose run_mode "; exit 1;
     esac
-    cd ../examples/transformer/models/GPT/
+    cd ../
     echo "train_cmd: ${train_cmd}  log_file: ${log_file}"
     if [[ ${model_item} =~ "CE" ]];then # CE精度-不限制执行时间
         ${train_cmd} > ${log_file} 2>&1
