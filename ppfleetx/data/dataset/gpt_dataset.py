@@ -528,7 +528,7 @@ class LM_Eval_Dataset(paddle.io.Dataset):
 
         # the pad and eos tokens do not contribute the loss
         loss_mask = np.ones(seq_length, dtype="float32")
-        loss_mask[np.where(np.array(tokens) == self.pad_idx)] = 0.0
+        loss_mask[tokens == self.eos_id] = 0.0
         position_ids = np.arange(0, seq_length, dtype="int64")
 
         # -INF mask value as default
