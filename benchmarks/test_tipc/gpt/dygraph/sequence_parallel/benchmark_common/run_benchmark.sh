@@ -123,7 +123,7 @@ function _train(){
         ;;
     *) echo "choose run_mode "; exit 1;
     esac
-    cd ../examples/transformer/models/GPT/
+    cd ../
     echo "train_cmd: ${train_cmd}  log_file: ${log_file}"
     if [[ ${model_item} =~ "CE" ]];then # CE精度-不限制执行时间
         ${train_cmd} > ${log_file} 2>&1
