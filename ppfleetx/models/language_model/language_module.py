@@ -76,10 +76,10 @@ class LanguageModule(BasicModule):
             self.configs.Data.Train.dataset.max_seq_len
 
         logger.info(
-            "[train] epoch: %d, batch: %d, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
+            "[train] epoch: [%d/%d], batch: [%d/%d], loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
             "ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
-            % (log_dict['epoch'], log_dict['batch'], log_dict['loss'], log_dict['train_cost'], speed,
-               speed * default_global_tokens_num, speed * default_global_tokens_num / self.data_world_size, log_dict['lr']))
+            % (log_dict['epoch'], log_dict['total_epoch'], log_dict['batch'], log_dict['total_step'], log_dict['loss'],
+               log_dict['train_cost'], speed, speed * default_global_tokens_num, speed * default_global_tokens_num / self.data_world_size, log_dict['lr']))
 
     def validation_step(self, batch):
         tokens, position_ids, labels, loss_mask = batch
