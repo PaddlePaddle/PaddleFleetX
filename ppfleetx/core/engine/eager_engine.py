@@ -138,9 +138,9 @@ class EagerEngine(BasicEngine):
 
         self._amp_dtype = amp_config.get('dtype', 'float16')
         self._amp_level = amp_config.get('level', 'O2')
-        self._scale_loss = amp_config('scale_loss')
-        self._custom_black_list = amp_config('custom_black_list')
-        self._custom_white_list = amp_config('custom_white_list')
+        self._scale_loss = amp_config['scale_loss']
+        self._custom_black_list = amp_config['custom_black_list']
+        self._custom_white_list = amp_config['custom_white_list']
 
         self._save_steps = self._configs['save_load']['save_steps']
         self._save_epoch = self._configs['save_load']['save_epoch']
@@ -334,6 +334,8 @@ class EagerEngine(BasicEngine):
                     'loss': sum(numpy_losses) / len(numpy_losses),
                     'lr': self._optimizer.get_lr()
                 }
+                if self._use_pure_fp16:
+                    log_dict['loss_scale'] = self._scaler._scale
                 self._module.training_step_end(log_dict)
 
                 train_step_start = get_timestamp()

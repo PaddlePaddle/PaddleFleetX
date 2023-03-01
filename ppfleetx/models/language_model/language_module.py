@@ -75,11 +75,18 @@ class LanguageModule(BasicModule):
         default_global_tokens_num = self.configs.Global.global_batch_size * \
             self.configs.Data.Train.dataset.max_seq_len
 
-        logger.info(
-            "[train] epoch: %d, batch: %d, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
-            "ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
-            % (log_dict['epoch'], log_dict['batch'], log_dict['loss'], log_dict['train_cost'], speed,
-               speed * default_global_tokens_num, speed * default_global_tokens_num / self.data_world_size, log_dict['lr']))
+        if log_dict.get('loss_scale', None) is not None:
+            logger.info(
+                "[train] epoch: %d, batch: %d, loss: %.9f, loss_scale: %.2f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
+                "ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
+                % (log_dict['epoch'], log_dict['batch'], log_dict['loss'], log_dict['loss_scale'], log_dict['train_cost'], speed,
+                   speed * default_global_tokens_num, speed * default_global_tokens_num / self.data_world_size, log_dict['lr']))
+        else:
+            logger.info(
+                "[train] epoch: %d, batch: %d, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
+                "ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
+                % (log_dict['epoch'], log_dict['batch'], log_dict['loss'], log_dict['train_cost'], speed,
+                   speed * default_global_tokens_num, speed * default_global_tokens_num / self.data_world_size, log_dict['lr']))
 
     def validation_step(self, batch):
         tokens, position_ids, labels, loss_mask = batch
