@@ -14,7 +14,7 @@
 
 python -m pip install -r ../requirements.txt
 # get ckpt
-cd ../examples/transformer/models/GPT
+cd ../
 rm -rf ckpt
 mkdir -p ckpt
 wget -O ckpt/GPT_345M.tar.gz https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz
