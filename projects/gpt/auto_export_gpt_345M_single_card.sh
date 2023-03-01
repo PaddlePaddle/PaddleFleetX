@@ -20,4 +20,4 @@ rm -rf $log_dir
 python -m paddle.distributed.launch --log_dir $log_dir --devices "1" \
     ./tools/auto_export.py \
     -c ./ppfleetx/configs/nlp/gpt/auto/generation_gpt_345M_single_card.yaml \
-    -o Engine.save_load.ckpt_dir=./ckpt/PaddleFleetX_GPT_345M_220826/
+    -o Engine.save_load.ckpt_dir=./auto_infer/auto
