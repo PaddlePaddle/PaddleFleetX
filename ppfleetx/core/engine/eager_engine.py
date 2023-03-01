@@ -303,9 +303,13 @@ class EagerEngine(BasicEngine):
         # Note(GuoxiaWang): Do not use len(train_data_loader()),
         # it will cause a memory leak.
         total_train_batch = len(train_data_loader)
+        total_train_step = self._max_steps if self._run_mode == 'step' else total_train_batch * self._num_train_epochs
         total_eval_batch = len(
             valid_data_loader) if valid_data_loader is not None else 0
-        for step, batch in enumerate(train_data_loader):
+        valid_data_loader = valid_data_loader(
+        ) if valid_data_loader is not None else None
+        eval_finished_step = 0
+        for step, batch in enumerate(train_data_loader()):
 
             if epoch_index == self._load_recovery['epoch']:
                 if step < self._load_recovery['step']:
@@ -322,6 +326,7 @@ class EagerEngine(BasicEngine):
                     'total_epoch': self._num_train_epochs,
                     'batch': step,
                     'total_batch': total_train_batch,
+                    'total_step': total_train_step,
                     'train_cost': train_step_cost
                     if step == 0 else train_step_cost / self._logging_freq,
                     'loss': sum(numpy_losses) / len(numpy_losses),
@@ -344,6 +349,7 @@ class EagerEngine(BasicEngine):
                     eval_step_start = get_timestamp()
 
                     for eval_step, batch in enumerate(valid_data_loader):
+                        eval_finished_step += 1
                         loss = self._evaluate_impl(batch)
                         eval_losses.append(loss)
 
@@ -356,7 +362,7 @@ class EagerEngine(BasicEngine):
                     log_dict = {
                         'loss': float(eval_loss),
                         'epoch': epoch_index,
-                        'batch': eval_step,
+                        'batch': eval_finished_step,
                         'total_batch': total_eval_batch,
                         'eval_cost': eval_step_cost / self._logging_freq,
                     }
@@ -558,6 +564,8 @@ class EagerEngine(BasicEngine):
         eval_step_start = get_timestamp()
         eval_losses = []
         total_eval_batch = len(valid_data_loader)
+        valid_data_loader = valid_data_loader(
+        ) if valid_data_loader is not None else None
         for eval_step, batch in enumerate(valid_data_loader):
             loss = self._evaluate_impl(batch)
             eval_losses.append(float(loss))
@@ -614,6 +622,7 @@ class EagerEngine(BasicEngine):
 
         test_start = get_timestamp()
         test_losses = []
+        test_data_loader = test_data_loader()
         for test_step, batch in enumerate(test_data_loader):
             loss = self._predict_impl(batch)
 
