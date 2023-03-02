@@ -91,6 +91,7 @@ class MultiHeadAttention(nn.Layer):
                  weight_attr=None,
                  bias_attr=None,
                  fuse_attn_qkv=False,
+                 scale_qk_coeff=1.0,
                  fused_linear=False,
                  use_recompute=False,
                  recompute_granularity="full",
@@ -103,6 +104,7 @@ class MultiHeadAttention(nn.Layer):
         self.dropout = dropout
         self.need_weights = need_weights
         self.fuse_attn_qkv = fuse_attn_qkv
+        self.scale_qk_coeff = scale_qk_coeff
         self.use_recompute = use_recompute
         self.recompute_granularity = recompute_granularity
         self.do_recompute = do_recompute
@@ -221,8 +223,12 @@ class MultiHeadAttention(nn.Layer):
 
     def core_attn(self, q, k, v, attn_mask=None):
         # scale dot product attention
+        scale_qk_coeff = self.scale_qk_coeff * self.head_dim**0.5
         product = paddle.matmul(
-            x=q, y=k, transpose_y=True) * self.head_dim**-0.5
+            x=q.scale(1.0 / scale_qk_coeff), y=k, transpose_y=True)
+
+        if self.scale_qk_coeff != 1.0:
+            product = product.scale(self.scale_qk_coeff)
 
         if attn_mask is not None:
             product = product + attn_mask
@@ -403,6 +409,7 @@ class TransformerDecoderLayer(nn.Layer):
                  bias_attr=None,
                  fused_linear=False,
                  fuse_attn_qkv=False,
+                 scale_qk_coeff=1.0,
                  use_recompute=False,
                  recompute_granularity="full",
                  do_recompute=True,
@@ -434,13 +441,14 @@ class TransformerDecoderLayer(nn.Layer):
             bias_attr=bias_attrs[0],
             fused_linear=fused_linear,
             fuse_attn_qkv=fuse_attn_qkv,
+            scale_qk_coeff=scale_qk_coeff,
             use_recompute=use_recompute,
             recompute_granularity=recompute_granularity,
             do_recompute=do_recompute)
-            
+
         self.moe_mlp = None
         if self.num_experts > 1:
-            assert(topk==1, "Only support topk=1 currently.")
+            assert (topk == 1, "Only support topk=1 currently.")
             self.moe_mlp = MoE(
                 d_model,
                 ExpertLayer(d_model, dim_feedforward),
@@ -594,6 +602,7 @@ class GPTModel(nn.Layer):
                  enable_expert_tensor_parallelism=False,
                  fused_linear=False,
                  fuse_attn_qkv=False,
+                 scale_qk_by_layer_num=True,
                  recompute_granularity="full",
                  sequence_parallel=False,
                  no_recompute_layers=None,
@@ -651,6 +660,8 @@ class GPTModel(nn.Layer):
                     bias_attr=None,
                     fused_linear=fused_linear,
                     fuse_attn_qkv=fuse_attn_qkv,
+                    scale_qk_coeff=num_layers
+                    if scale_qk_by_layer_num else 1.0,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
                     do_recompute=i not in no_recompute_layers,
