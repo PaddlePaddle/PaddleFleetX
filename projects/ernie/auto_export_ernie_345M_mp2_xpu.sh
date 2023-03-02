@@ -1,21 +1,30 @@
+
+#! /bin/bash
+
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
-#
+# 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-#
+# 
 #     http://www.apache.org/licenses/LICENSE-2.0
-#
+# 
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-python -m pip install -r ../requirements.txt
-# get ckpt
-cd ../
-rm -rf ckpt
-mkdir -p ckpt
-wget -O ckpt/GPT_345M.tar.gz https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz
-tar -xzf ckpt/GPT_345M.tar.gz -C ckpt/
+
+log_dir=log_auto
+rm -rf $log_dir
+
+FILENAME=./ppfleetx/configs/nlp/ernie/auto/finetune_ernie_base.yaml
+sed -i "s/device: gpu/device: xpu/g" $FILENAME
+
+export BKCL_PCIE_RING=1
+# 345M mp2 export
+python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1" \
+    ./tools/auto_export.py \
+    -c ./ppfleetx/configs/nlp/ernie/auto/finetune_ernie_345M_single_card.yaml \
+    -o Distributed.mp_degree=2 \

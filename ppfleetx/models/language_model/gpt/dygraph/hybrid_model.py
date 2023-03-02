@@ -105,6 +105,7 @@ class MultiHeadAttention(nn.Layer):
                  weight_attr=None,
                  bias_attr=None,
                  fuse_attn_qkv=False,
+                 scale_qk_coeff=1.0,
                  num_partitions=1,
                  fused_linear=False,
                  use_recompute=False,
@@ -120,6 +121,7 @@ class MultiHeadAttention(nn.Layer):
         self.dropout = dropout
         self.need_weights = need_weights
         self.fuse_attn_qkv = fuse_attn_qkv
+        self.scale_qk_coeff = scale_qk_coeff
         self.use_recompute = use_recompute
         self.recompute_granularity = recompute_granularity
         self.do_recompute = do_recompute
@@ -301,8 +303,12 @@ class MultiHeadAttention(nn.Layer):
 
     def core_attn(self, q, k, v, attn_mask=None):
         # scale dot product attention
+        scale_qk_coeff = self.scale_qk_coeff * self.head_dim**0.5
         product = paddle.matmul(
-            x=q, y=k, transpose_y=True) * self.head_dim**-0.5
+            x=q.scale(1.0 / scale_qk_coeff), y=k, transpose_y=True)
+
+        if self.scale_qk_coeff != 1.0:
+            product = product.scale(self.scale_qk_coeff)
 
         # softmax_mask_fuse_upper_triangle is not supported sif paddle is not compiled with cuda/rocm
         if not paddle.is_compiled_with_cuda():
@@ -502,6 +508,7 @@ class TransformerDecoderLayer(nn.Layer):
                  num_partitions=1,
                  fused_linear=False,
                  fuse_attn_qkv=False,
+                 scale_qk_coeff=1.0,
                  moe_configs=None,
                  recompute_attn=False,
                  use_recompute=False,
@@ -550,6 +557,7 @@ class TransformerDecoderLayer(nn.Layer):
             num_partitions=num_partitions,
             fused_linear=fused_linear,
             fuse_attn_qkv=fuse_attn_qkv,
+            scale_qk_coeff=scale_qk_coeff,
             use_recompute=use_recompute,
             recompute_granularity=recompute_granularity,
             sequence_parallel=sequence_parallel,
@@ -742,6 +750,7 @@ class GPTModelHybrid(nn.Layer):
                  use_recompute=False,
                  fused_linear=False,
                  fuse_attn_qkv=False,
+                 scale_qk_by_layer_num=True,
                  recompute_granularity="full",
                  sequence_parallel=False,
                  no_recompute_layers=None,
@@ -796,6 +805,8 @@ class GPTModelHybrid(nn.Layer):
                     num_partitions=num_partitions,
                     fused_linear=fused_linear,
                     fuse_attn_qkv=fuse_attn_qkv,
+                    scale_qk_coeff=num_layers
+                    if scale_qk_by_layer_num else 1.0,
                     moe_configs=moe_configs,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
@@ -1052,12 +1063,14 @@ class GPTForPretrainingPipe(PipelineLayer):
                  use_recompute=False,
                  fused_linear=False,
                  fuse_attn_qkv=False,
+                 scale_qk_by_layer_num=True,
                  moe_configs=None,
                  recompute_granularity="full",
                  virtual_pp_degree=1,
                  sequence_parallel=False,
                  no_recompute_layers=None,
-                 pp_recompute_interval=1):
+                 pp_recompute_interval=1,
+                 use_flash_attn=False):
 
         # forward desc
         self.descs = []
@@ -1109,10 +1122,13 @@ class GPTForPretrainingPipe(PipelineLayer):
                     moe_configs=moe_configs,
                     fused_linear=fused_linear,
                     fuse_attn_qkv=fuse_attn_qkv,
+                    scale_qk_coeff=num_layers
+                    if scale_qk_by_layer_num else 1.0,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
                     sequence_parallel=sequence_parallel,
-                    do_recompute=i not in no_recompute_layers))
+                    do_recompute=i not in no_recompute_layers,
+                    use_flash_attn=use_flash_attn))
 
         self.descs.append(
             LayerDesc(
