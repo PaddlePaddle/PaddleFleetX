@@ -634,6 +634,7 @@ class GPTModel(nn.Layer):
             if flash_attention:
                 logger.info("Flash-attention enabled.")
             else:
+                use_flash_attn = False
                 logger.warning(
                     "Flash-attention is not support in this Paddle version.")
 
