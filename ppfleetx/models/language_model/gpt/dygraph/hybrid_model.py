@@ -202,8 +202,8 @@ class MultiHeadAttention(nn.Layer):
 
         if isinstance(cache, self.Cache):
             # for decoder self-attention in inference
-            k = tensor.concat([cache.k, k], axis=2)
-            v = tensor.concat([cache.v, v], axis=2)
+            k = tensor.concat([cache.k, k], axis=1)
+            v = tensor.concat([cache.v, v], axis=1)
         if use_cache is True:
             cache = self.Cache(k, v)
 
@@ -227,8 +227,8 @@ class MultiHeadAttention(nn.Layer):
 
         if isinstance(cache, self.Cache):
             # for decoder self-attention in inference
-            k = tensor.concat([cache.k, k], axis=2)
-            v = tensor.concat([cache.v, v], axis=2)
+            k = tensor.concat([cache.k, k], axis=1)
+            v = tensor.concat([cache.v, v], axis=1)
         if use_cache is True:
             cache = self.Cache(k, v)
 
