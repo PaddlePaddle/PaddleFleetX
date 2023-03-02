@@ -278,7 +278,13 @@ class MultiHeadAttention(nn.Layer):
             return self.Cache(key, value)
 
     def _flash_attention(self, q, k, v, attn_mask=None):
-        out, weights = flash_attention(q, k, v, self.dropout, True, True)
+        out, weights = flash_attention(
+            q,
+            k,
+            v,
+            self.dropout,
+            causal=True,
+            return_softmax=self.need_weights)
         out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
         return out, weights
 

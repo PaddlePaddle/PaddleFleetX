@@ -142,7 +142,6 @@ class MultiHeadAttention(nn.Layer):
     def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
         mix_layer = self.qkv_proj(query)
         mix_layer = paddle.reshape_(mix_layer, [0, 0, -1, 3 * self.head_dim])
-        mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
         q, k, v = paddle.split(mix_layer, num_or_sections=3, axis=-1)
 
         assert not isinstance(
@@ -167,7 +166,6 @@ class MultiHeadAttention(nn.Layer):
         """
         q = self.q_proj(query)
         q = tensor.reshape(x=q, shape=[0, 0, -1, self.head_dim])
-        q = tensor.transpose(x=q, perm=[0, 2, 1, 3])
 
         if isinstance(cache, self.StaticCache):
             # for encoder-decoder attention in inference and has cached
@@ -199,9 +197,7 @@ class MultiHeadAttention(nn.Layer):
         k = self.k_proj(key)
         v = self.v_proj(value)
         k = tensor.reshape(x=k, shape=[0, 0, -1, self.head_dim])
-        k = tensor.transpose(x=k, perm=[0, 2, 1, 3])
         v = tensor.reshape(x=v, shape=[0, 0, -1, self.head_dim])
-        v = tensor.transpose(x=v, perm=[0, 2, 1, 3])
         return k, v
 
     def gen_cache(self, key, value=None, type=Cache):
@@ -229,15 +225,23 @@ class MultiHeadAttention(nn.Layer):
             # incremental_state with initial value, mainly for usage like UniLM
             return self.Cache(key, value)
 
-    def _flash_attention(self, q, k, v):
-        q = tensor.transpose(x=q, perm=[0, 2, 1, 3])
-        k = tensor.transpose(x=k, perm=[0, 2, 1, 3])
-        v = tensor.transpose(x=v, perm=[0, 2, 1, 3])
-        out, weights = flash_attention(q, k, v, self.dropout, True, True)
+    def _flash_attention(self, q, k, v, attn_mask=None):
+        out, weights = flash_attention(
+            q,
+            k,
+            v,
+            self.dropout,
+            causal=True,
+            return_softmax=self.need_weights)
         out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
         return out, weights
 
     def core_attn(self, q, k, v, attn_mask=None):
+        perm = [0, 2, 1, 3]
+        q = tensor.transpose(x=q, perm=perm)
+        k = tensor.transpose(x=k, perm=perm)
+        v = tensor.transpose(x=v, perm=perm)
+
         # scale dot product attention
         scale_qk_coeff = self.scale_qk_coeff * self.head_dim**0.5
         product = paddle.matmul(
