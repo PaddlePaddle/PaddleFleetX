@@ -190,7 +190,7 @@ def fit_impl(config, batch, forward_func, **kwargs):
 def eval_impl(config, batch, model, loss_fn, eval_metric):
     model.eval()
 
-    use_fp16 = config.Global.mix_precision.use_pure_fp16
+    use_fp16 = config.Global.mix_precision.enable
     black_list = config.Global.mix_precision.custom_black_list
     white_list = config.Global.mix_precision.custom_white_list
 

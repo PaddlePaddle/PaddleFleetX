@@ -131,10 +131,10 @@ class EagerEngine(BasicEngine):
         self._accumulate_steps = self._configs['accumulate_steps']
 
         amp_config = self._configs['mix_precision']
-        self._use_pure_fp16 = amp_config['use_pure_fp16']
-        if mode == 'export' and self._use_pure_fp16:
-            logger.info("NOTE: disable use_pure_fp16 in export mode")
-            self._use_pure_fp16 = False
+        self._amp_enable = amp_config['enable']
+        if mode == 'export' and self._amp_enable:
+            logger.info("NOTE: disable mix_precision in export mode")
+            self._amp_enable = False
 
         self._amp_dtype = amp_config.get('dtype', 'float16')
         self._amp_level = amp_config.get('level', 'O2')
@@ -177,7 +177,7 @@ class EagerEngine(BasicEngine):
 
         self._use_recompute = configs['Model']['use_recompute']
 
-        if self._use_pure_fp16:
+        if self._amp_enable:
             if mode == 'train' and self._amp_dtype == "float16":
                 self._scaler = paddle.amp.GradScaler(
                     init_loss_scaling=self._scale_loss)
@@ -339,7 +339,7 @@ class EagerEngine(BasicEngine):
                     'loss': sum(numpy_losses) / len(numpy_losses),
                     'lr': self._optimizer.get_lr()
                 }
-                if self._use_pure_fp16:
+                if self._amp_enable:
                     log_dict['loss_scale'] = self._scaler._scale
                 self._module.training_step_end(log_dict)
 
@@ -471,7 +471,7 @@ class EagerEngine(BasicEngine):
                 loss = self._model_forward_backward(batch)
         else:
             with paddle.amp.auto_cast(
-                    enable=self._use_pure_fp16,
+                    enable=self._amp_enable,
                     custom_black_list=self._custom_black_list,
                     custom_white_list=self._custom_white_list,
                     dtype=self._amp_dtype,
@@ -498,14 +498,14 @@ class EagerEngine(BasicEngine):
         final_loss = None
         for micro_batch in batches:
             with paddle.amp.auto_cast(
-                    self._use_pure_fp16,
+                    self._amp_enable,
                     custom_black_list=self._custom_black_list,
                     custom_white_list=self._custom_white_list,
                     dtype=self._amp_dtype,
                     level=self._amp_level):
                 loss = self._module.training_step(micro_batch)
 
-            loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
+            loss_bw = self._scaler.scale(loss) if self._amp_enable else loss
             if self._accumulate_steps > 1:
                 # div the loss for backward
                 loss_bw = loss_bw / self._accumulate_steps
@@ -533,7 +533,7 @@ class EagerEngine(BasicEngine):
                     p.bw_storage.scale_(1.0 / self._dp_group.nranks)
                     dist.all_reduce(p.bw_storage, group=self._dp_group)
 
-        if self._use_pure_fp16:
+        if self._amp_enable:
             self._scaler.step(self._optimizer)
             self._scaler.update()
         else:
@@ -606,7 +606,7 @@ class EagerEngine(BasicEngine):
 
         batch = self._module.pretreating_batch(batch)
         with paddle.amp.auto_cast(
-                self._use_pure_fp16,
+                self._amp_enable,
                 custom_black_list=self._custom_black_list,
                 custom_white_list=self._custom_white_list,
                 dtype=self._amp_dtype,
@@ -664,7 +664,7 @@ class EagerEngine(BasicEngine):
         batch = self._module.pretreating_batch(batch)
 
         with paddle.amp.auto_cast(
-                self._use_pure_fp16,
+                self._amp_enable,
                 custom_black_list=self._custom_black_list,
                 custom_white_list=self._custom_white_list,
                 dtype=self._amp_dtype,

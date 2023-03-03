@@ -165,7 +165,7 @@ def process_engine_config(config):
     config.Engine['mix_precision'] = config.Engine.get('mix_precision', {})
     amp_cfg = config.Engine.mix_precision
 
-    amp_cfg['use_pure_fp16'] = amp_cfg.get('use_pure_fp16', False)
+    amp_cfg['enable'] = amp_cfg.get('enable', False)
     amp_cfg['scale_loss'] = amp_cfg.get('scale_loss', 32768)
     amp_cfg['custom_black_list'] = amp_cfg.get('custom_black_list', None)
     amp_cfg['custom_white_list'] = amp_cfg.get('custom_white_list', None)
@@ -518,7 +518,7 @@ def process_auto_strategy(config):
     amp_cfg = config.Engine.get('mix_precision', {})
     amp = strategy.amp
     amp.enable = amp_cfg.get('level', "") in ['o1', 'o2', 'o3']
-    amp.use_pure_fp16 = amp_cfg.get('level', "") in ['o2', 'o3']
+    amp.enable = amp_cfg.get('level', "") in ['o2', 'o3']
     amp.use_optimizer_fp16 = amp_cfg.get('level', "") in ['o3']
     amp.use_fp16_guard = amp_cfg.get('use_fp16_guard', False)
     amp.init_loss_scaling = amp_cfg.get('scale_loss', 32768)

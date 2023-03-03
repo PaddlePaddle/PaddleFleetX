@@ -102,7 +102,7 @@ cd .. # 回到 GPT 目录下
     eval_iters: 10
     test_iters:
     mix_precision:
-      use_pure_fp16: True
+      enable: True
       scale_loss: 32768.0
       custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
       custom_white_list: ["lookup_table", "lookup_table_v2"]
@@ -128,7 +128,7 @@ cd .. # 回到 GPT 目录下
 | eval_freq         | 模型评估间隔                               |
 | eval_iters        | 模型评估时训练评估测试集的轮数                      |
 | test_iters        | 模型测试或推理时的轮数                      |
-| use_pure_fp16     | 是否使用purefp16精度训练                     |
+| enable     | 是否使用purefp16精度训练                     |
 | scale_loss        | 使用fp16精度下，loss的放缩比例                  |
 | custom_black_list | 自定义算子黑名单。这个名单中的算子在支持float16计算时会被认为是数值危险的，它们的影响也可能会在下游操作中观察到。这些算子通常不会转为float16计算。 |
 | custom_white_list | 自定义算子白名单。这个名单中的算子在支持float16计算时会被认为是数值安全的，并且对性能至关重要。如果设置了白名单，该名单中的算子会使用float16计算。|

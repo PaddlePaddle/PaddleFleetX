@@ -16,7 +16,7 @@ Engine:
   eval_iters: 10
   test_iters:
   mix_precision:
-    use_pure_fp16: True
+    enable: True
     dtype: "float16"
     level: "O2"
     scale_loss: 32768.0

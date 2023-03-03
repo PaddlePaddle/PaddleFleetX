@@ -11,7 +11,7 @@ Engine:
   accumulate_steps: 1
   logging_freq: 10
   mix_precision:
-    use_pure_fp16: False
+    enable: False
     scale_loss: 32768.0
     custom_black_list: ["reduce_sum", "elementwise_div"]
     custom_white_list: []
