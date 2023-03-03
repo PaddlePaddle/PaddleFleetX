@@ -175,7 +175,6 @@ class EagerEngine(BasicEngine):
         self._broadcast_overlap = sharding_config['broadcast_overlap']
 
         self._use_recompute = configs['Model']['use_recompute']
-        self._use_flash_attn = configs['Model']['use_flash_attn']
 
         if self._use_pure_fp16:
             if mode == 'train':
