@@ -47,6 +47,11 @@ from ppfleetx.utils.log import logger
 
 import numpy as np
 
+try:
+    from paddle.nn.functional.flash_attention import flash_attention
+except:
+    flash_attention = None
+
 
 def get_attr(layer, name):
     if getattr(layer, name, None) is not None:
@@ -106,7 +111,8 @@ class MultiHeadAttention(nn.Layer):
                  use_recompute=False,
                  recompute_granularity="full",
                  sequence_parallel=False,
-                 do_recompute=True):
+                 do_recompute=True,
+                 use_flash_attn=False):
         super(MultiHeadAttention, self).__init__()
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
@@ -120,6 +126,7 @@ class MultiHeadAttention(nn.Layer):
         self.recompute_granularity = recompute_granularity
         self.do_recompute = do_recompute
         self.sequence_parallel = sequence_parallel
+        self.use_flash_attn = use_flash_attn if flash_attention else None
 
         if sequence_parallel:
             ColumnParallelLinear = ColumnSequenceParallelLinear
@@ -187,10 +194,6 @@ class MultiHeadAttention(nn.Layer):
     def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
         mix_layer = self.qkv_proj(query)
         mix_layer = paddle.reshape_(mix_layer, [0, 0, -1, 3 * self.head_dim])
-        if self.sequence_parallel:
-            mix_layer = paddle.transpose(mix_layer, [1, 2, 0, 3])
-        else:
-            mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
         q, k, v = paddle.split(mix_layer, num_or_sections=3, axis=-1)
 
         assert not isinstance(
@@ -199,12 +202,12 @@ class MultiHeadAttention(nn.Layer):
 
         if isinstance(cache, self.Cache):
             # for decoder self-attention in inference
-            k = tensor.concat([cache.k, k], axis=2)
-            v = tensor.concat([cache.v, v], axis=2)
+            k = tensor.concat([cache.k, k], axis=1)
+            v = tensor.concat([cache.v, v], axis=1)
         if use_cache is True:
             cache = self.Cache(k, v)
 
-        return (q, k, v) if use_cache is False else (q, k, v, cache)
+        return (q, k, v, cache) if use_cache else (q, k, v, None)
 
     def _prepare_qkv(self, query, key, value, use_cache=False, cache=None):
         r"""
@@ -215,10 +218,6 @@ class MultiHeadAttention(nn.Layer):
         """
         q = self.q_proj(query)
         q = tensor.reshape(x=q, shape=[0, 0, -1, self.head_dim])
-        if self.sequence_parallel:
-            q = tensor.transpose(x=q, perm=[1, 2, 0, 3])
-        else:
-            q = tensor.transpose(x=q, perm=[0, 2, 1, 3])
 
         if isinstance(cache, self.StaticCache):
             # for encoder-decoder attention in inference and has cached
@@ -228,12 +227,12 @@ class MultiHeadAttention(nn.Layer):
 
         if isinstance(cache, self.Cache):
             # for decoder self-attention in inference
-            k = tensor.concat([cache.k, k], axis=2)
-            v = tensor.concat([cache.v, v], axis=2)
+            k = tensor.concat([cache.k, k], axis=1)
+            v = tensor.concat([cache.v, v], axis=1)
         if use_cache is True:
             cache = self.Cache(k, v)
 
-        return (q, k, v) if use_cache is False else (q, k, v, cache)
+        return (q, k, v, cache) if use_cache else (q, k, v, None)
 
     def compute_kv(self, key, value):
         r"""
@@ -250,15 +249,7 @@ class MultiHeadAttention(nn.Layer):
         k = self.k_proj(key)
         v = self.v_proj(value)
         k = tensor.reshape(x=k, shape=[0, 0, -1, self.head_dim])
-        if self.sequence_parallel:
-            k = tensor.transpose(x=k, perm=[1, 2, 0, 3])
-        else:
-            k = tensor.transpose(x=k, perm=[0, 2, 1, 3])
         v = tensor.reshape(x=v, shape=[0, 0, -1, self.head_dim])
-        if self.sequence_parallel:
-            v = tensor.transpose(x=v, perm=[1, 2, 0, 3])
-        else:
-            v = tensor.transpose(x=v, perm=[0, 2, 1, 3])
         return k, v
 
     def gen_cache(self, key, value=None, type=Cache):
@@ -286,7 +277,23 @@ class MultiHeadAttention(nn.Layer):
             # incremental_state with initial value, mainly for usage like UniLM
             return self.Cache(key, value)
 
+    def _flash_attention(self, q, k, v, attn_mask=None):
+        out, weights = flash_attention(
+            q,
+            k,
+            v,
+            self.dropout,
+            causal=True,
+            return_softmax=self.need_weights)
+        out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
+        return out, weights
+
     def core_attn(self, q, k, v, attn_mask=None):
+        perm = [1, 2, 0, 3] if self.sequence_parallel else [0, 2, 1, 3]
+        q = tensor.transpose(x=q, perm=perm)
+        k = tensor.transpose(x=k, perm=perm)
+        v = tensor.transpose(x=v, perm=perm)
+
         # scale dot product attention
         scale_qk_coeff = self.scale_qk_coeff * self.head_dim**0.5
         product = paddle.matmul(
@@ -339,32 +346,29 @@ class MultiHeadAttention(nn.Layer):
         """
         key = query if key is None else key
         value = query if value is None else value
-        # if sequence_parallel is true, query, key, value shape are [s, b, h], 
+        # if sequence_parallel is true, query, key, value shape are [s, b, h],
         # else their shape are [b, s, h], n is mp parallelism.
         # no matter sequence_parallel is true or false,
         # after reshape, q, k, v shape should be [b, num_heads/n, s, head_dim]
         # compute q ,k ,v
-        if use_cache is False:
-            if self.fuse_attn_qkv:
-                q, k, v = self._fuse_prepare_qkv(query, use_cache, cache)
-            else:
-                q, k, v = self._prepare_qkv(query, key, value, use_cache,
-                                            cache)
+        if self.fuse_attn_qkv:
+            q, k, v, cache = self._fuse_prepare_qkv(query, use_cache, cache)
         else:
-            if self.fuse_attn_qkv:
-                q, k, v, cache = self._fuse_prepare_qkv(query, use_cache,
-                                                        cache)
-            else:
-                q, k, v, cache = self._prepare_qkv(query, key, value,
-                                                   use_cache, cache)
+            q, k, v, cache = self._prepare_qkv(query, key, value, use_cache,
+                                               cache)
+
+        if self.use_flash_attn and attn_mask is None:
+            attn_func = self._flash_attention
+        else:
+            attn_func = self.core_attn
 
         if self.use_recompute and self.recompute_granularity == "core_attn" and self.do_recompute:
-            out, weights = recompute(self.core_attn, q, k, v, attn_mask)
+            out, weights = recompute(attn_func, q, k, v, attn_mask)
         else:
-            out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
+            out, weights = attn_func(q, k, v, attn_mask=attn_mask)
 
         # project to output
-        # if sequence_parallel is true, out shape are [s/n, b, h], 
+        # if sequence_parallel is true, out shape are [s/n, b, h],
         # else their shape are [b, s, h], n is mp parallelism.
         out = self.out_proj(out)
 
@@ -405,7 +409,7 @@ class TransformerDecoder(nn.Layer):
         if norm == "LayerNorm":
             self.norm = nn.LayerNorm(hidden_size, epsilon=1e-5)
             # if sequence parallel is true,
-            # register hook to all_reduce gradient of weight, bias 
+            # register hook to all_reduce gradient of weight, bias
             if self.sequence_parallel:
                 mark_as_sequence_parallel_parameter(self.norm.weight)
                 mark_as_sequence_parallel_parameter(self.norm.bias)
@@ -498,7 +502,8 @@ class TransformerDecoderLayer(nn.Layer):
                  recompute_granularity="full",
                  sequence_parallel=False,
                  do_recompute=True,
-                 skip_quant_tensors=[]):
+                 skip_quant_tensors=[],
+                 use_flash_attn=False):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
@@ -543,7 +548,8 @@ class TransformerDecoderLayer(nn.Layer):
             use_recompute=use_recompute,
             recompute_granularity=recompute_granularity,
             sequence_parallel=sequence_parallel,
-            do_recompute=do_recompute)
+            do_recompute=do_recompute,
+            use_flash_attn=use_flash_attn)
 
         if self.expert_mode:
             experts_list = nn.LayerList([
@@ -591,7 +597,7 @@ class TransformerDecoderLayer(nn.Layer):
         self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
         if self.sequence_parallel:
-            # if sequence parallel is true, register hook to all_reduce gradient of bias 
+            # if sequence parallel is true, register hook to all_reduce gradient of bias
             mark_as_sequence_parallel_parameter(self.norm1.weight)
             mark_as_sequence_parallel_parameter(self.norm1.bias)
             mark_as_sequence_parallel_parameter(self.norm2.weight)
@@ -736,7 +742,8 @@ class GPTModelHybrid(nn.Layer):
                  sequence_parallel=False,
                  no_recompute_layers=None,
                  skip_tensor_map={},
-                 freeze_embedding=False):
+                 freeze_embedding=False,
+                 use_flash_attn=False):
 
         super(GPTModelHybrid, self).__init__()
 
@@ -746,9 +753,17 @@ class GPTModelHybrid(nn.Layer):
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
 
+        if use_flash_attn:
+            if flash_attention:
+                logger.info("Flash-attention enabled.")
+            else:
+                use_flash_attn = False
+                logger.warning(
+                    "Flash-attention is not support in this Paddle version.")
+
         hcg = env.get_hcg()
         mp_size = hcg.get_model_parallel_world_size()
-        if mp_size <= 1:
+        if use_flash_attn or mp_size <= 1:
             sequence_parallel = False
             logging.warning(
                 "If mp_size <= 1, sequence_parallel strategy will be turned off in GPTModelHybrid model."
@@ -786,7 +801,8 @@ class GPTModelHybrid(nn.Layer):
                     sequence_parallel=sequence_parallel,
                     do_recompute=i not in no_recompute_layers,
                     skip_quant_tensors=skip_tensor_map.get('block_{}'.format(
-                        i), [])))
+                        i), []),
+                    use_flash_attn=use_flash_attn))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
@@ -1041,7 +1057,8 @@ class GPTForPretrainingPipe(PipelineLayer):
                  virtual_pp_degree=1,
                  sequence_parallel=False,
                  no_recompute_layers=None,
-                 pp_recompute_interval=1):
+                 pp_recompute_interval=1,
+                 use_flash_attn=False):
 
         # forward desc
         self.descs = []
@@ -1053,9 +1070,17 @@ class GPTForPretrainingPipe(PipelineLayer):
                 assert len(no_recompute_layers) == 0, \
                     "for pp with full recompute, no_recompute_layers is not support"
 
+        if use_flash_attn:
+            if flash_attention:
+                logger.info("Flash-attention enabled.")
+            else:
+                use_flash_attn = False
+                logger.warning(
+                    "Flash-attention is not support in this Paddle version.")
+
         hcg = env.get_hcg()
         mp_size = hcg.get_model_parallel_world_size()
-        if mp_size <= 1:
+        if use_flash_attn or mp_size <= 1:
             sequence_parallel = False
             logging.warning(
                 "If mp_size <= 1, sequence_parallel strategy will be turned off in GPTForPretrainingPipe model."
@@ -1098,7 +1123,8 @@ class GPTForPretrainingPipe(PipelineLayer):
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
                     sequence_parallel=sequence_parallel,
-                    do_recompute=i not in no_recompute_layers))
+                    do_recompute=i not in no_recompute_layers,
+                    use_flash_attn=use_flash_attn))
 
         self.descs.append(
             LayerDesc(
@@ -1524,8 +1550,8 @@ class GPTForGenerationHybrid(nn.Layer):
         model_kwargs['cache'] = outputs[1] if isinstance(outputs,
                                                          tuple) else None
         while cur_len < max_length:
-            # Note(GuoxiaWang): Remove outputs = _forward_(**model_kwargs) 
-            # and change it to pass directly to _post_process_ to avoid 
+            # Note(GuoxiaWang): Remove outputs = _forward_(**model_kwargs)
+            # and change it to pass directly to _post_process_ to avoid
             # closed-loop problem of dynamic-to-static model
             input_ids, scores, unfinished_flag, model_kwargs = _post_process_(
                 _forward_(**model_kwargs), input_ids, cur_len, origin_len,
