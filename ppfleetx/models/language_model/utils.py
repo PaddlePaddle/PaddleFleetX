@@ -127,7 +127,7 @@ def process_optim_configs(config):
     process optim configs for hybrid parallel
     """
     config['Optimizer']['multi_precision'] = config['Engine']['mix_precision'][
-        'use_pure_fp16']
+        'enable']
 
     nranks = dist.get_world_size()
     dp_degree = config['Distributed']['dp_degree']
@@ -135,6 +135,12 @@ def process_optim_configs(config):
     if config['Optimizer']['tensor_fusion']:
         assert nranks == dp_degree * sharding_degree, \
             "tensor_fusion only support single card train or data/sharding parallel train"
+
+    if config['Optimizer']['lr']['decay_steps'] is None:
+        config['Optimizer']['lr']['decay_steps'] = config['Engine'][
+            'max_steps']
+    config['Optimizer']['lr']['decay_steps'] *= config['Global'][
+        'global_batch_size']
 
 
 def process_data_configs(config):

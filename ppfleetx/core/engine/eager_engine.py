@@ -23,14 +23,14 @@ import paddle.distributed as dist
 import paddle.distributed.fleet as fleet
 from paddle.optimizer.lr import LRScheduler
 
-from paddle.fluid.dygraph.parallel import sync_params_buffers
+from paddle.distributed.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 from paddle.profiler import SummaryView
 from paddle.distributed.fleet.meta_parallel import TensorParallel
 from paddle.distributed.sharding import group_sharded_parallel
 
 import paddleslim
-from ppfleetx.distributed.apis import env
+from ppfleetx.distributed.apis import env, amp
 from ppfleetx.optims import build_lr_scheduler, build_optimizer
 from ppfleetx.utils.log import logger, get_timestamp, convert_timestamp_to_data
 from ppfleetx.core.engine import BasicEngine, InferenceEngine, TensorRTConfig
@@ -208,6 +208,14 @@ class EagerEngine(BasicEngine):
             configs.Optimizer, self._module.model,
             self._lr_scheduler) if mode == 'train' else None
 
+        if self._amp_enable and self._amp_dtype in [
+                'float16', 'bfloat16'
+        ] and self._amp_level == 'O2':
+            self._module.model = amp.MixPrecisionLayer(
+                self._module.model, dtype=self._amp_dtype)
+            self._optimizer = amp.MixPrecisionOptimizer(self._optimizer)
+            self._scaler = amp.MixPrecisionScaler(self._scaler)
+
         # distributed configs
         self._distributed = (dist.get_world_size() > 1)
 
@@ -340,7 +348,7 @@ class EagerEngine(BasicEngine):
                     'lr': self._optimizer.get_lr()
                 }
                 if self._amp_enable:
-                    log_dict['loss_scale'] = self._scaler._scale
+                    log_dict['loss_scale'] = self._scaler._scale.numpy()[0]
                 self._module.training_step_end(log_dict)
 
                 train_step_start = get_timestamp()

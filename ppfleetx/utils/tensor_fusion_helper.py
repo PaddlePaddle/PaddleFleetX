@@ -92,7 +92,7 @@ def fused_parameters(parameters, use_sharding=False):
     other_params = []
 
     for param in parameters:
-        if not any(nd in param.name for nd in ["bias", "norm"]):
+        if not any(nd in param.name for nd in ["bias", "norm", "b_0"]):
             decay_params.append(param)
         else:
             other_params.append(param)

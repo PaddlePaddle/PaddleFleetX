@@ -75,9 +75,9 @@ class LanguageModule(BasicModule):
         default_global_tokens_num = self.configs.Global.global_batch_size * \
             self.configs.Data.Train.dataset.max_seq_len
 
-        loss_scale_str = "loss_scale: %.9f,".format(log_dict[
-            'loss_scale']) if log_dict.get('loss_scale',
-                                           None) is not None else ""
+        loss_scale_str = "loss_scale: %.9f," % (
+            log_dict['loss_scale']) if log_dict.get('loss_scale',
+                                                    None) is not None else ""
         logger.info(
             "[train] epoch: [%d/%d], batch: [%d/%d], loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
             "ips_total: %.0f tokens/s, ips: %.0f tokens/s, %s learning rate: %.5e"
