@@ -19,7 +19,6 @@ import numpy as np
 import paddle
 import paddle.nn as nn
 from paddle import _legacy_C_ops
-from paddle.distributed import fleet
 from paddle.fluid.dygraph import to_variable
 from paddle.fluid import framework
 from paddle.fluid.dygraph import base as imperative_base
@@ -40,30 +39,41 @@ class MixPrecisionLayer(nn.Layer):
         for param in self._layers.parameters():
             if not param.stop_gradient and not hasattr(param, "main_grad"):
                 setattr(param, "main_grad", None)
-                param._register_backward_hook(
-                    self._update_main_grad_hook(param))
+                param._register_grad_hook(self._update_main_grad_hook(param))
+                # TODO: remove _release_grad_hook after solving the issue in _update_main_grad_hook
+                param._register_backward_hook(self._release_grad_hook(param))
 
     def _update_main_grad_hook(self, param):
         """Create the update_main_grad hook for backprop."""
 
-        # Hook used for back-prop.
+        # Hook used for back-prop and grad-merge.
         @paddle.autograd.no_grad()
-        def param_hook(*_):
-            # Add the gradient to the buffer.
-            assert param.grad is not None and param.grad.value().get_tensor(
-            )._is_initialized()
-
+        def param_hook(tmp_grad):
+            # TODO: cancel the comments of the checking code
+            # assert param.grad is None, "param.grad is not None"
             if param.main_grad is None:
                 param.main_grad = core.eager.Tensor(
-                    value=param.grad.cast(paddle.float32).value(),
-                    place=param.grad.place,
+                    value=tmp_grad.cast(paddle.float32).value(),
+                    place=tmp_grad.place,
                     name="main_grad@" + param.name, )
             else:
-                param.main_grad.add_(param.grad.cast(paddle.float32))
+                param.main_grad.add_(tmp_grad.cast(paddle.float32))
 
+            # NOTE: It doesn't work.
             param.clear_gradient(False)
+            return None
 
         return param_hook
+
+    def _release_grad_hook(self, param):
+        """Create the release_main_grad hook for backprop."""
+
+        # Hook used for back-prop and grad-merge.
+        @paddle.autograd.no_grad()
+        def release_hook(*_):
+            param.clear_gradient(False)
+
+        return release_hook
 
     def forward(self, *inputs, **kwargs):
         outputs = self._layers(*inputs, **kwargs)
