@@ -23,7 +23,7 @@ import paddle.distributed as dist
 import paddle.distributed.fleet as fleet
 from paddle.optimizer.lr import LRScheduler
 
-from paddle.distributed.parallel import sync_params_buffers
+from paddle.fluid.dygraph.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 from paddle.profiler import SummaryView
 from paddle.distributed.fleet.meta_parallel import TensorParallel
@@ -115,6 +115,9 @@ class EagerEngine(BasicEngine):
         #         raise TypeError(
         #             "'loss_fn' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.loss_fn.__class__.__name__}."
         #         )
+
+        # global configs
+        self._global_batch_size = configs['Global']['global_batch_size']
 
         # engine configs
         self._configs = configs['Engine']
@@ -366,7 +369,9 @@ class EagerEngine(BasicEngine):
                 train_losses = []
 
             if self._lr_scheduler is not None and self._lr_scheduler_mode == 'step':
-                self._lr_scheduler.step()
+                # TODO: if update_successful
+                if self._scaler is None or self._scaler._found_inf == 0:
+                    self._lr_scheduler.step(epoch=self._global_batch_size)
 
             self._optimizer.clear_grad()
 
@@ -529,7 +534,10 @@ class EagerEngine(BasicEngine):
                     level=self._amp_level):
                 loss = self._module.training_step(micro_batch)
 
-            loss_bw = self._scaler.scale(loss) if self._amp_enable else loss
+            if self._amp_enable and self._amp_dtype == "float16":
+                loss_bw = self._scaler.scale(loss)
+            else:
+                loss_bw = loss
             if self._accumulate_steps > 1:
                 # div the loss for backward
                 loss_bw = loss_bw / self._accumulate_steps
@@ -557,7 +565,7 @@ class EagerEngine(BasicEngine):
                     p.bw_storage.scale_(1.0 / self._dp_group.nranks)
                     dist.all_reduce(p.bw_storage, group=self._dp_group)
 
-        if self._amp_enable:
+        if self._amp_enable and self._amp_dtype == "float16":
             self._scaler.step(self._optimizer)
             self._scaler.update()
         else:

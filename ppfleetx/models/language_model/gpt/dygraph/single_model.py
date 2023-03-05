@@ -18,6 +18,7 @@ import collections
 import logging
 from distutils.util import strtobool
 import os
+import numpy as np
 
 import paddle
 import paddle.nn as nn
@@ -36,6 +37,9 @@ from .processor import (
 
 from ppfleetx.models.language_model.moe import MoELayer
 from ppfleetx.models.language_model.moe_exp.layer import MoE
+
+idx = 0
+save_intermediate = False
 
 from ppfleetx.utils.log import logger
 try:
@@ -142,9 +146,45 @@ class MultiHeadAttention(nn.Layer):
             embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
 
     def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
+        # NOTE : save and check attention qkv
+
+        #print("attention qkv debug: ", [{
+        #    "sum": x.abs().sum().item(),
+        #    "mean": x.abs().mean().item()
+        #} for x in [
+        #    query,
+        #    self.qkv_proj.weight,
+        #    self.qkv_proj.bias,
+        #]])
+        if save_intermediate:
+            np.save("check_precision/002query%04d" % idx,
+                    paddle.cast(query, 'float32').numpy())
+            query.register_hook(lambda grad: np.save("check_precision/grad002query%04d"%idx, paddle.cast(grad, 'float32').numpy()))
+
         mix_layer = self.qkv_proj(query)
+
+        if save_intermediate:
+            np.save("check_precision/003mix_layer%04d" % idx,
+                    paddle.cast(mix_layer, 'float32').numpy())
+            mix_layer.register_hook(lambda grad: np.save("check_precision/grad003mix_layer%04d"%idx, paddle.cast(grad, 'float32').numpy()))
+
+        # NOTE : save and check mix_layer
+        #print("attention mix_layer", [{
+        #    "sum": x.abs().sum().item(),
+        #    "mean": x.abs().mean().item()
+        #} for x in [mix_layer, ]])
         mix_layer = paddle.reshape_(mix_layer, [0, 0, -1, 3 * self.head_dim])
+        mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
+        if save_intermediate:
+            np.save("check_precision/004mix_layer_trans%04d" % idx,
+                    paddle.cast(mix_layer, 'float32').numpy())
+            mix_layer.register_hook(lambda grad: np.save("check_precision/grad004mix_layer_trans%04d"%idx, paddle.cast(grad, 'float32').numpy()))
+        # NOTE : save and check mix_layer after reshape and transpose
         q, k, v = paddle.split(mix_layer, num_or_sections=3, axis=-1)
+        # NOTE : save and check q, k, v
+        #np.save("check_precision/q_split%04d"%idx, q.numpy())
+        #np.save("check_precision/k_split%04d"%idx, k.numpy())
+        #np.save("check_precision/v_split%04d"%idx, v.numpy())
 
         assert not isinstance(
             cache, self.StaticCache
@@ -167,13 +207,17 @@ class MultiHeadAttention(nn.Layer):
 
         """
         q = self.q_proj(query)
+        # NOTE : save and check q
         q = tensor.reshape(x=q, shape=[0, 0, -1, self.head_dim])
+        q = tensor.transpose(x=q, perm=[0, 2, 1, 3])
+        # NOTE : save and check q after reshape and transpose
 
         if isinstance(cache, self.StaticCache):
             # for encoder-decoder attention in inference and has cached
             k, v = cache.k, cache.v
         else:
             k, v = self.compute_kv(key, value)
+            # NOTE : save and check k/v
 
         if isinstance(cache, self.Cache):
             # for decoder self-attention in inference
@@ -197,9 +241,15 @@ class MultiHeadAttention(nn.Layer):
 
         """
         k = self.k_proj(key)
+        # NOTE : save and check k
         v = self.v_proj(value)
+        # NOTE : save and check v
         k = tensor.reshape(x=k, shape=[0, 0, -1, self.head_dim])
+        k = tensor.transpose(x=k, perm=[0, 2, 1, 3])
+        # NOTE : save and check k after reshape and transpose
         v = tensor.reshape(x=v, shape=[0, 0, -1, self.head_dim])
+        v = tensor.transpose(x=v, perm=[0, 2, 1, 3])
+        # NOTE : save and check v after reshape and transpose
         return k, v
 
     def gen_cache(self, key, value=None, type=Cache):
@@ -249,12 +299,17 @@ class MultiHeadAttention(nn.Layer):
         product = paddle.matmul(
             x=q.scale(1.0 / scale_qk_coeff), y=k, transpose_y=True)
 
+        # NOTE : save and check product after matmul
+
         if self.scale_qk_coeff != 1.0:
             product = product.scale(self.scale_qk_coeff)
+            # NOTE : save and check product after scale
 
         if attn_mask is not None:
             product = product + attn_mask
+            # NOTE : save and check product after adding attn_mask
             weights = F.softmax(product)
+            # NOTE : save and check weights after softmax
         else:
             weights = incubate.softmax_mask_fuse_upper_triangle(product)
 
@@ -266,10 +321,12 @@ class MultiHeadAttention(nn.Layer):
                 mode="upscale_in_train")
 
         out = paddle.matmul(weights, v)
+        # NOTE : save and check out after matmul
 
         # combine heads
         out = tensor.transpose(out, perm=[0, 2, 1, 3])
         out = tensor.reshape(x=out, shape=[0, 0, -1])
+        # NOTE : save and check out after transpose/reshape
 
         return out, weights
 
@@ -287,12 +344,30 @@ class MultiHeadAttention(nn.Layer):
         key = query if key is None else key
         value = query if value is None else value
         # compute q ,k ,v
-        if self.fuse_attn_qkv:
-            q, k, v, cache = self._fuse_prepare_qkv(query, use_cache, cache)
+        if use_cache is False:
+            if self.fuse_attn_qkv:
+                q, k, v = self._fuse_prepare_qkv(query, use_cache, cache)
+                # NOTE : save and check q/k/v
+            else:
+                q, k, v = self._prepare_qkv(query, key, value, use_cache,
+                                            cache)
+                # NOTE : save and check q/k/v
         else:
-            q, k, v, cache = self._prepare_qkv(query, key, value, use_cache,
-                                               cache)
+            if self.fuse_attn_qkv:
+                q, k, v, cache = self._fuse_prepare_qkv(query, use_cache,
+                                                        cache)
+            else:
+                q, k, v, cache = self._prepare_qkv(query, key, value,
+                                                   use_cache, cache)
 
+        if save_intermediate:
+            np.save("check_precision/005attention_q_layer%04d" % idx,
+                    paddle.cast(q, 'float32').numpy())
+            q.register_hook(lambda grad: np.save("check_precision/grad005attention_q_layer%04d"%idx, paddle.cast(grad, 'float32').numpy()))
+        #print("attention q_layer", [{
+        #    "sum": x.abs().sum().item(),
+        #    "mean": x.abs().mean().item()
+        #} for x in [q, ]])
         if self.use_recompute and self.recompute_granularity == "core_attn" and self.do_recompute:
             out, weights = recompute(self.core_attn, q, k, v, attn_mask)
         elif self.use_flash_attn and attn_mask is None:
@@ -300,8 +375,19 @@ class MultiHeadAttention(nn.Layer):
         else:
             out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
 
+        if save_intermediate:
+            np.save("check_precision/006core_attn_out%04d" % idx,
+                    paddle.cast(out, 'float32').numpy())
+            out.register_hook(lambda grad: np.save("check_precision/grad006core_attn_out%04d"%idx, paddle.cast(grad, 'float32').numpy()))
+        # NOTE : save and check out after core_attn
+        #print("core_attn out", [{
+        #    "sum": x.abs().sum().item(),
+        #    "mean": x.abs().mean().item()
+        #} for x in [out, ]])
+
         # project to output
         out = self.out_proj(out)
+        # NOTE : save and check out after out_proj
 
         outs = [out]
         if self.need_weights:
@@ -379,8 +465,9 @@ class TransformerDecoder(nn.Layer):
                                         cache=cache[i])
                 new_caches.append(new_cache)
 
-        if self.norm is not None:
-            output = self.norm(output)
+        #if self.norm is not None:
+        #    output = self.norm(output)
+        # NOTE : save and check output after norm
         return output if use_cache is False else (output, new_caches)
 
     def gen_cache(self, memory, do_zip=False):
@@ -510,8 +597,29 @@ class TransformerDecoderLayer(nn.Layer):
     def forward(self, tgt, memory, tgt_mask=None, use_cache=False, cache=None):
         residual = tgt
 
-        if self.normalize_before:
-            tgt = self.norm1(tgt)
+        #self.linear1.weight.register_hook(lambda grad: np.save("check_precision/linear1_weight_grad%04d"%idx, grad.numpy()))
+        #self.linear2.weight.register_hook(lambda grad: np.save("check_precision/linear2_weight_grad%04d"%idx, grad.numpy()))
+        if save_intermediate:
+            np.save("check_precision/000hidden_states_start%04d" % idx,
+                    paddle.cast(tgt, 'float32').numpy())
+            tgt.register_hook(lambda grad: np.save("check_precision/grad000hidden_states_start%04d"%idx, paddle.cast(grad, 'float32').numpy()))
+        #print("hidden_states start", [{
+        #    "sum": x.abs().sum().item(),
+        #    "mean": x.abs().mean().item()
+        #} for x in [tgt, ]])
+        # if self.normalize_before:
+        #     tgt = self.norm1(tgt)
+        # NOTE : save and check tgt after norm1
+
+        # print(self.norm1, self.norm1.weight, self.norm1.bias)
+        if save_intermediate:
+            np.save("check_precision/001hidden_norm_before%04d" % idx,
+                    paddle.cast(tgt, 'float32').numpy())
+            tgt.register_hook(lambda grad: np.save("check_precision/grad001hidden_norm_before%04d"%idx, paddle.cast(grad, 'float32').numpy()))
+        #print("hidden norm before", [{
+        #    "sum": x.abs().sum().item(),
+        #    "mean": x.abs().mean().item()
+        #} for x in [tgt, ]])
 
         if use_cache is False:
             if self.use_recompute and self.recompute_granularity == "full_attn" and self.do_recompute:
@@ -522,27 +630,84 @@ class TransformerDecoderLayer(nn.Layer):
         else:
             tgt, incremental_cache = self.self_attn(tgt, tgt, tgt, tgt_mask,
                                                     use_cache, cache)
-        tgt = residual + self.dropout1(tgt)
-        if not self.normalize_before:
-            tgt = self.norm1(tgt)
+        # NOTE : save and check attention_output
+        if save_intermediate:
+            np.save("check_precision/007attention_output%04d" % idx,
+                    paddle.cast(tgt, 'float32').numpy())
+            tgt.register_hook(lambda grad: np.save("check_precision/grad007atteition_output%04d"%idx, paddle.cast(grad, 'float32').numpy()))
+        #print("attention_output", [{
+        #    "sum": x.abs().sum().item(),
+        #    "mean": x.abs().mean().item()
+        #} for x in [tgt, ]])
 
+        tgt_dropout = self.dropout1(tgt)
+        if save_intermediate:
+            np.save("check_precision/008dropout1%04d" % idx,
+                    paddle.cast(tgt_dropout, 'float32').numpy())
+            tgt_dropout.register_hook(lambda grad: np.save("check_precision/grad008dropout1%04d"%idx, paddle.cast(grad, 'float32').numpy()))
+        tgt = residual + tgt_dropout
+
+        #tgt = residual + self.dropout1(tgt)
+        # NOTE : save and check tgt after add_dropout
+
+        #if not self.normalize_before:
+        #    tgt = self.norm1(tgt)
+
+        if save_intermediate:
+            np.save("check_precision/0081tgt_norm2%04d" % idx,
+                    paddle.cast(tgt, 'float32').numpy())
+            tgt.register_hook(lambda grad:np.save("check_precision/grad0081tgt_norm2%04d"%idx, paddle.cast(grad, 'float32').numpy()))
         residual = tgt
-        if self.normalize_before:
-            tgt = self.norm2(tgt)
+        #if self.normalize_before:
+        #    tgt = self.norm2(tgt)
+        #    np.save("check_precision/009tgt_norm2%04d"%idx, paddle.cast(tgt, 'float32').numpy())
+        #    tgt.register_hook(lambda grad: np.save("check_precision/grad009tgt_norm2%04d"%idx, paddle.cast(grad, 'float32').numpy()))
+
+        # NOTE : save and check tgt after norm2
 
         # if self.expert_mode:
         #     tgt = self.moe_mlp(tgt)
         if self.num_experts > 1:
             tgt = self.moe_mlp(tgt)
         else:
-            tgt = self.dropout2(
-                self.linear2(self.activation(self.linear1(tgt))))
+            #tgt = self.dropout2(
+            #    self.linear2(self.activation(self.linear1(tgt))))
+            tgt = self.linear1(tgt)
+            if save_intermediate:
+                np.save("check_precision/009zzlinear1%04d" % idx,
+                        paddle.cast(tgt, 'float32').numpy())
+                tgt.register_hook(lambda grad: np.save("check_precision/grad009zzlinear1%04d"%idx, paddle.cast(grad, 'float32').numpy()))
+            tgt = self.activation(tgt)
+            if save_intermediate:
+                np.save("check_precision/009zzzactivation%04d" % idx,
+                        paddle.cast(tgt, 'float32').numpy())
+                tgt.register_hook(lambda grad: np.save("check_precision/grad009zzzactivation%04d"%idx, paddle.cast(grad, 'float32').numpy()))
+            tgt = self.linear2(tgt)
+            if save_intermediate:
+                np.save("check_precision/0091mlp_output%04d" % idx,
+                        paddle.cast(tgt, 'float32').numpy())
+                tgt.register_hook(lambda grad: np.save("check_precision/grad0091mlp_output%04d"%idx, paddle.cast(grad, 'float32').numpy()))
+            tgt = self.dropout2(tgt)
+            if save_intermediate:
+                np.save("check_precision/0092dropout2%04d" % idx,
+                        paddle.cast(tgt, 'float32').numpy())
+                tgt.register_hook(lambda grad: np.save("check_precision/grad0092dropout2%04d"%idx, paddle.cast(grad, 'float32').numpy()))
+            # NOTE : divide the operations and save/check separately
+            # NOTE : out = self.linear1(tgt)
+            # NOTE : out = self.activation(out)
+            # NOTE : out = self.linear2(out)
+            # NOTE : tgt = self.dropout2(out)
 
         tgt = residual + tgt
+        # NOTE : save and check tgt after add_op
 
-        if not self.normalize_before:
-            tgt = self.norm2(tgt)
+        #if not self.normalize_before:
+        #    tgt = self.norm2(tgt)
 
+        if save_intermediate:
+            np.save("check_precision/010output%04d" % idx,
+                    paddle.cast(tgt, 'float32').numpy())
+            tgt.register_hook(lambda grad: np.save("check_precision/grad010output%04d"%idx, paddle.cast(grad, 'float32').numpy()))
         return tgt if use_cache is False else (tgt, incremental_cache)
 
     def gen_cache(self, memory):
@@ -589,10 +754,15 @@ class GPTEmbeddings(nn.Layer):
             seq_length = paddle.cumsum(ones, axis=-1)
             position_ids = seq_length - ones
 
+        # NOTE : save and check input_ids
         input_embedings = self.word_embeddings(input_ids)
+        # NOTE : save and check input_embedings
         position_embeddings = self.position_embeddings(position_ids)
+        # NOTE : save and check position_embeddings
         embeddings = input_embedings + position_embeddings
+        # NOTE : save and check embeddings
         embeddings = self.dropout(embeddings)
+        # no dropout
         return embeddings
 
 
@@ -712,6 +882,9 @@ class GPTModel(nn.Layer):
                 use_cache=False,
                 cache=None):
 
+        global idx
+        idx += 1
+
         if position_ids is None:
             past_length = 0
             if cache is not None:
@@ -723,10 +896,24 @@ class GPTModel(nn.Layer):
             position_ids = position_ids.unsqueeze(0)
             # .expand_as(input_ids)
             position_ids = paddle.expand_as(position_ids, input_ids)
+
+        # NOTE : save and check input_ids/positon ids
+        #np.save("check_precision/input_ids", input_ids.numpy())
+        #print("input_ids", [{
+        #    "sum": x.abs().sum().item(),
+        #    "mean": x.abs().mean().item()
+        #} for x in [input_ids, ]])
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
 
-        # fused_soiftmax_with_triangular is only suppported on GPU/DCU.
+        #np.save("check_precision/embedding_output",embedding_output.numpy())
+        #print("*****%d*****"%idx)
+        #np.save("check_precision/embedding_output%d"%idx,embedding_output.numpy())
+        #print("embedding_output", [{
+        #    "sum": x.abs().sum().item(),
+        #    "mean": x.abs().mean().item()
+        #} for x in [embedding_output, ]])
+
         fused_softmax_with_triangular = strtobool(
             os.getenv("fused_softmax_with_triangular", True))
         # fused_softmax_with_triangular is only suppported on GPU/DCU.
@@ -748,6 +935,8 @@ class GPTModel(nn.Layer):
             # The tensor returned by triu not in static graph.
             attention_mask.stop_gradient = True
 
+        # NOTE : save and check attention_mask
+
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
@@ -756,6 +945,8 @@ class GPTModel(nn.Layer):
             else attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
+
+        # NOTE : save and check encoder_outputs
 
         return encoder_outputs
 
@@ -795,7 +986,13 @@ class GPTForPretraining(nn.Layer):
             encoder_outputs,
             get_attr(self.gpt.embeddings.word_embeddings, "weight"),
             transpose_y=True)
+        # NOTE : save and check logits after matmul_op
 
+        #global idx
+        if save_intermediate:
+            np.save("check_precision/011gpt_output%04d" % idx,
+                    paddle.cast(logits, 'float32').numpy())
+            logits.register_hook(lambda grad: np.save("check_precision/grad011gpt_output%04d"%idx, paddle.cast(grad, 'float32').numpy()))
         if use_cache:
             return logits, cached_kvs
         else:
@@ -830,12 +1027,17 @@ class GPTPretrainingCriterion(nn.Layer):
             Tensor: The pretraining loss. Its data type should be float32 and its shape is [1].
 
         """
+        #global idx
+        #idx += 1
+        if idx == 20000:
+            exit(0)
         masked_lm_loss = self.loss_func(prediction_scores,
                                         masked_lm_labels.unsqueeze(2))
 
         loss_mask = loss_mask.reshape([-1])
         masked_lm_loss = paddle.sum(masked_lm_loss.reshape([-1]) * loss_mask)
         loss = masked_lm_loss / loss_mask.sum()
+        breakpoint()
         return loss
 
 
