@@ -138,6 +138,7 @@ class EagerEngine(BasicEngine):
 
         self._amp_dtype = amp_config.get('dtype', 'float16')
         self._amp_level = amp_config.get('level', 'O2')
+        self._use_main_grad = amp_config.get('use_main_grad', True)
         self._scale_loss = amp_config['scale_loss']
         self._custom_black_list = amp_config['custom_black_list']
         self._custom_white_list = amp_config['custom_white_list']
@@ -210,7 +211,7 @@ class EagerEngine(BasicEngine):
 
         if self._amp_enable and self._amp_dtype in [
                 'float16', 'bfloat16'
-        ] and self._amp_level == 'O2':
+        ] and self._amp_level == 'O2' and self._use_main_grad:
             self._module.model = amp.MixPrecisionLayer(
                 self._module.model, dtype=self._amp_dtype)
             self._optimizer = amp.MixPrecisionOptimizer(self._optimizer)
@@ -300,7 +301,17 @@ class EagerEngine(BasicEngine):
                 self._broadcast_overlap, layers=origin_model, num_groups=2)
 
     def _wrap_3D_parallel(self):
-        self._module.model = fleet.distributed_model(self._module.model)
+        if isinstance(self._module.model, amp.MixPrecisionLayer):
+            if dist.get_world_size() == self._dp_degree:
+                sync_params_buffers(
+                    self._module.model,
+                    comm_group=self._dp_group,
+                    src_rank=self._dp_group.ranks[0])
+            elif self._pp_degree > 1:
+                self._module.model = fleet.distributed_model(
+                    self._module.model._layers)
+        else:
+            self._module.model = fleet.distributed_model(self._module.model)
         self._optimizer = fleet.distributed_optimizer(self._optimizer)
         self._scaler = fleet.distributed_scaler(
             self._scaler) if self._scaler is not None else self._scaler
@@ -475,6 +486,11 @@ class EagerEngine(BasicEngine):
                 else:
                     all_reduce_parameters(self._optimizer.all_fused_tensors,
                                           self._dp_group)
+            elif isinstance(self._module.model, amp.MixPrecisionLayer) \
+                and self._distributed and dist.get_world_size() == self._dp_degree:
+                loss = self._model_forward_backward(batch)
+                fused_allreduce_gradients(
+                    list(self._module.model.parameters()), None)
             else:
                 loss = self._model_forward_backward(batch)
         else:

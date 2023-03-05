@@ -60,7 +60,7 @@ class MixPrecisionLayer(nn.Layer):
                 param.main_grad.add_(tmp_grad.cast(paddle.float32))
 
             # NOTE: It doesn't work.
-            param.clear_gradient(False)
+            # param.clear_gradient(False)
             return None
 
         return param_hook
@@ -126,7 +126,6 @@ class MixPrecisionOptimizer:
             for param in self._parameter_list:
                 if param.stop_gradient:
                     continue
-                assert param._grad_ivar() is None
                 grad_var = param.main_grad
                 if framework.in_dygraph_mode():
                     if (hasattr(grad_var, "is_selected_rows") and
@@ -153,7 +152,6 @@ class MixPrecisionOptimizer:
                 for param in param_group['params']:
                     if param.stop_gradient:
                         continue
-                    assert param._grad_ivar() is None
                     grad_var = param.main_grad
                     if framework.in_dygraph_mode():
                         if (hasattr(grad_var, "is_selected_rows") and
@@ -192,14 +190,13 @@ class MixPrecisionOptimizer:
                         param_list.append(p)
 
         for p in param_list:
-            if hasattr(p, "main_grad"):
-                assert p.main_grad is not None
+            if hasattr(p, "main_grad") and p.main_grad is not None:
                 if set_to_zero:
                     p.main_grad.zero_()
                 else:
                     p.main_grad._clear()
                     p.main_grad = None
-            else:
+            elif not hasattr(p, "main_grad"):
                 p.clear_gradient(set_to_zero)
 
     def __getattr__(self, item):
@@ -214,13 +211,11 @@ def unscale_method(self, optimizer):
             optimizer._param_groups[0], dict):
         for group in optimizer._param_groups:
             for param in group['params']:
-                assert param._grad_ivar() is None
                 if param.main_grad is not None:
                     assert param.main_grad.dtype == core.VarDesc.VarType.FP32
                     param_grads.append(param.main_grad)
     else:
         for param in optimizer._parameter_list:
-            assert param._grad_ivar() is None
             if param.main_grad is not None:
                 assert param.main_grad.dtype == core.VarDesc.VarType.FP32
                 param_grads.append(param.main_grad)
