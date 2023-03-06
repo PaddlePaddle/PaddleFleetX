@@ -16,7 +16,7 @@ import paddle
 import paddle.distributed as dist
 import paddle.distributed.fleet as fleet
 
-from paddle.fluid.dygraph.parallel import sync_params_buffers
+from paddle.distributed.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 from paddle.distributed.fleet.meta_parallel import TensorParallel
 from paddle.distributed.sharding import group_sharded_parallel
