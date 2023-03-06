@@ -17,6 +17,11 @@ sh projects/ernie/auto_export_ernie_345M_mp1.sh
 sh projects/ernie/auto_export_ernie_345M_mp2.sh
 ```
 
+导出多卡`ERNIE(345M)`模型(XPU)：
+```bash
+sh projects/ernie/auto_export_ernie_345M_mp2_xpu.sh
+```
+
 ## 2. 推理部署
 
 模型导出后，可通过`tasks/ernie/inference.py`脚本进行推理部署。
@@ -24,6 +29,16 @@ sh projects/ernie/auto_export_ernie_345M_mp2.sh
 `ERNIE(345M)` 推理
 ```bash
 bash projects/ernie/run_inference.sh
+```
+
+`ERNIE(345M)` 多卡推理
+```bash
+bash projects/ernie/run_inference_mp2.sh
+```
+
+`ERNIE(345M)` 多卡推理(XPU)
+```bash
+bash projects/ernie/run_inference_mp2_xpu.sh
 ```
 
 ## 3. Benchmark

@@ -1,18 +1,16 @@
 Global:
   device: gpu
-  seed: 1024
+  seed: 1234
 
   global_batch_size: 
   local_batch_size: 1
   micro_batch_size: 1
 
-
-Engine:
   max_steps: 500000
   num_train_epochs: 1
   accumulate_steps:
   logging_freq: 1
-  eval_freq: 500
+  eval_freq: 1000
   eval_iters: 10
   test_iters:
   mix_precision:
@@ -28,13 +26,11 @@ Engine:
 
 
 Model:
-  module: "GPTModule"
   name: "GPT"
   fused_linear: False
   fuse_attn_qkv: True
-  scale_qk_by_layer_num: True
   sequence_parallel: False
-  use_flash_attn: False
+  no_recompute_layers:
 
 
 Data:
@@ -71,16 +67,16 @@ Data:
 
 Optimizer:
   name: FusedAdamW
-  weight_decay: 0.01
+  weight_decay: 0.1
   beta1: 0.9
-  beta2: 0.999
+  beta2: 0.95
   epsilon: 1.0e-8
   lr:
     name: CosineAnnealingWithWarmupDecay
-    decay_steps: 360000
+    decay_steps: 20000
     warmup_rate: 0.01
-    max_lr: 5.0e-5
-    min_lr: 1.0e-5
+    max_lr: 4.5e-4
+    min_lr: 4.5e-6
   grad_clip:
     name: "ClipGradByGlobalNorm"
     clip_norm: 1.0

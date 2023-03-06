@@ -16,13 +16,12 @@ import os
 import sys
 import copy
 
+import numpy as np
+
 import paddle
 import paddle.distributed as dist
 from paddle.optimizer.lr import LRScheduler
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
-
-__dir__ = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../../../')))
 
 from ppfleetx.utils.log import logger
 from ppfleetx.distributed.apis import env
@@ -37,16 +36,33 @@ MODEL_CLASSES = {
 }
 
 
-def _get_model_size(l, h, v, s):
+def _get_model_size(l, h, v, s, ne, ei):
+    assert len(ne) == 1 or len(ne) == l // ei, \
+            'num_experts must be either a single value or a list of the same length as the number of MoE layers'
     P = 0
     # embedding
     P += (v + s) * h
-    # attention
-    P += (4 * h * h + 4 * h) * l
-    # layer_norm of decoder
-    P += (2 * (2 * h)) * l
-    # FFN Layer
-    P += (8 * h * h + 5 * h) * l
+    logger.info(f'vs: {v} {s}')
+    moe_mode = True
+    if len(ne) == 1:
+        if ne[0] == 1:
+            moe_mode = False
+        ne = ne * (l // ei)
+    for i in range(l):
+        # attention
+        P += 4 * h * h + 4 * h
+        # layer_norm of decoder
+        P += 2 * (2 * h)
+        # MoE Layer
+        if ((i + 1) % ei == 0) and moe_mode:
+            nei = ne[i // ei]
+            # gate
+            P += (h * nei + nei)
+            # experts
+            P += nei * (8 * h * h + 5 * h) 
+        # FFN Layer
+        else:
+            P += 8 * h * h + 5 * h
     # layer_norm of transformer
     P += 2 * h
     logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 / 1000.0))
@@ -66,13 +82,16 @@ def build_model(config):
     l = model_setting['num_layers']
     h = model_setting['hidden_size']
     v = model_setting['vocab_size']
-    s = config.Data.Train.dataset.max_seq_len
-    _get_model_size(l, h, v, s)
+    s = model_setting['max_position_embeddings']
+    ne = model_setting['num_experts']
+    ei = model_setting['expert_interval']
+    _get_model_size(l, h, v, s, ne, ei)
 
     model_name = model_setting.pop("name")
     tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
     tokenizer = tokenizer_class.from_pretrained(pretrained_name)
 
+    model_setting.pop("balance_loss_weight")
     if nranks == 1:
         model_setting.pop("sequence_parallel")
         model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
@@ -105,6 +124,8 @@ def model_forward_backward(config, batch, forward_func, **kwargs):
     black_list = config.Global.mix_precision.custom_black_list
     white_list = config.Global.mix_precision.custom_white_list
 
+    # HACK： add 'expand' to black_list (put_along_axis_)
+    black_list.append('expand_v2')
     # train with pipeline strategy
     if config.Distributed.pp_degree > 1:
         tokens, position_ids, labels, loss_mask = batch
@@ -148,6 +169,19 @@ def model_forward_backward(config, batch, forward_func, **kwargs):
             loss = forward_func(micro_batch, kwargs['model'],
                                 kwargs['loss_fn'])
 
+        # calculate auxiliary loss to balance experts' load
+        if max(config.Model.
+               num_experts) > 1 and config.Model.balance_loss_weight:
+            aux_loss_list = [
+                l.moe_mlp.fleetx_moe.get_loss()
+                for l in kwargs['model'].gpt.decoder.layers
+                if l.moe_mlp is not None
+            ]
+            bal_loss = paddle.concat(aux_loss_list)
+            if bal_loss.dtype == paddle.float16:
+                bal_loss = paddle.cast(bal_loss, dtype=paddle.float32)
+            bal_loss = bal_loss.mean()
+            loss += bal_loss * config.Model.balance_loss_weight
         loss_bw = kwargs['scaler'].scale(loss) if use_fp16 else loss
         loss_bw = loss_bw / acc_steps if acc_steps > 1 else loss_bw
         loss_bw.backward()

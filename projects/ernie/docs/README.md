@@ -28,6 +28,7 @@ Learnt by ERNIE：[mask] [mask] [mask] 是黑龙江的省会，国际 [mask] [ma
 │   └── README.md
 ├── auto_export_ernie_345M_mp1.sh           # 345M ernie-base模型，自动切分单卡导出
 ├── auto_export_ernie_345M_mp2.sh           # 345M ernie-base模型，自动切分多卡导出
+├── auto_export_ernie_345M_mp2_xpu.sh       # 345M ernie-base模型，自动切分多卡导出（XPU）
 ├── export_ernie_345M_single_card.sh        # 345M ernie-base模型，单卡导出
 ├── finetune_ernie_345M_single_card.sh      # 345M ernie-base模型，单卡finetune训练
 ├── inference.py                            # ernie推理代码
@@ -35,8 +36,11 @@ Learnt by ERNIE：[mask] [mask] [mask] 是黑龙江的省会，国际 [mask] [ma
 ├── pretrain_ernie_base_3D.sh               # ci测试
 ├── pretrain_ernie_base_6.7B_sharding16.sh  # 6.7B ernie-base模型，sharding16
 ├── pretrain_ernie_base.sh                  # 345M ernie-base模型，单卡
-└── pretrain_ernie_large.sh                 # ernie-large模型，单卡  
-└── run_inference.sh                        # ernie推理运行脚本    
+├── pretrain_ernie_large.sh                 # ernie-large模型，单卡
+├── run_inference.sh                        # ernie 推理运行脚本 
+├── run_inference_mp2.sh                    # ernie 多卡推理运行脚本 
+└── run_inference_mp2_xpu.sh                # ernie 多卡推理运行脚本（XPU)
+
 ```
 
 
