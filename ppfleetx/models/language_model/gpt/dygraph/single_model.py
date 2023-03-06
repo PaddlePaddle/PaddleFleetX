@@ -174,7 +174,7 @@ class MultiHeadAttention(nn.Layer):
         #    "mean": x.abs().mean().item()
         #} for x in [mix_layer, ]])
         mix_layer = paddle.reshape_(mix_layer, [0, 0, -1, 3 * self.head_dim])
-        mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
+        # mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
         if save_intermediate:
             np.save("check_precision/004mix_layer_trans%04d" % idx,
                     paddle.cast(mix_layer, 'float32').numpy())
@@ -209,7 +209,7 @@ class MultiHeadAttention(nn.Layer):
         q = self.q_proj(query)
         # NOTE : save and check q
         q = tensor.reshape(x=q, shape=[0, 0, -1, self.head_dim])
-        q = tensor.transpose(x=q, perm=[0, 2, 1, 3])
+        # q = tensor.transpose(x=q, perm=[0, 2, 1, 3])
         # NOTE : save and check q after reshape and transpose
 
         if isinstance(cache, self.StaticCache):
@@ -245,10 +245,10 @@ class MultiHeadAttention(nn.Layer):
         v = self.v_proj(value)
         # NOTE : save and check v
         k = tensor.reshape(x=k, shape=[0, 0, -1, self.head_dim])
-        k = tensor.transpose(x=k, perm=[0, 2, 1, 3])
+        # k = tensor.transpose(x=k, perm=[0, 2, 1, 3])
         # NOTE : save and check k after reshape and transpose
         v = tensor.reshape(x=v, shape=[0, 0, -1, self.head_dim])
-        v = tensor.transpose(x=v, perm=[0, 2, 1, 3])
+        # v = tensor.transpose(x=v, perm=[0, 2, 1, 3])
         # NOTE : save and check v after reshape and transpose
         return k, v
 
@@ -346,11 +346,12 @@ class MultiHeadAttention(nn.Layer):
         # compute q ,k ,v
         if use_cache is False:
             if self.fuse_attn_qkv:
-                q, k, v = self._fuse_prepare_qkv(query, use_cache, cache)
+                q, k, v, cache = self._fuse_prepare_qkv(query, use_cache,
+                                                        cache)
                 # NOTE : save and check q/k/v
             else:
-                q, k, v = self._prepare_qkv(query, key, value, use_cache,
-                                            cache)
+                q, k, v, cache = self._prepare_qkv(query, key, value,
+                                                   use_cache, cache)
                 # NOTE : save and check q/k/v
         else:
             if self.fuse_attn_qkv:
@@ -465,7 +466,7 @@ class TransformerDecoder(nn.Layer):
                                         cache=cache[i])
                 new_caches.append(new_cache)
 
-        #if self.norm is not None:
+        # if self.norm is not None:
         #    output = self.norm(output)
         # NOTE : save and check output after norm
         return output if use_cache is False else (output, new_caches)
@@ -607,10 +608,11 @@ class TransformerDecoderLayer(nn.Layer):
         #    "sum": x.abs().sum().item(),
         #    "mean": x.abs().mean().item()
         #} for x in [tgt, ]])
+
         # if self.normalize_before:
         #     tgt = self.norm1(tgt)
-        # NOTE : save and check tgt after norm1
 
+        # NOTE : save and check tgt after norm1
         # print(self.norm1, self.norm1.weight, self.norm1.bias)
         if save_intermediate:
             np.save("check_precision/001hidden_norm_before%04d" % idx,
@@ -650,7 +652,7 @@ class TransformerDecoderLayer(nn.Layer):
         #tgt = residual + self.dropout1(tgt)
         # NOTE : save and check tgt after add_dropout
 
-        #if not self.normalize_before:
+        # if not self.normalize_before:
         #    tgt = self.norm1(tgt)
 
         if save_intermediate:
@@ -658,7 +660,7 @@ class TransformerDecoderLayer(nn.Layer):
                     paddle.cast(tgt, 'float32').numpy())
             tgt.register_hook(lambda grad:np.save("check_precision/grad0081tgt_norm2%04d"%idx, paddle.cast(grad, 'float32').numpy()))
         residual = tgt
-        #if self.normalize_before:
+        # if self.normalize_before:
         #    tgt = self.norm2(tgt)
         #    np.save("check_precision/009tgt_norm2%04d"%idx, paddle.cast(tgt, 'float32').numpy())
         #    tgt.register_hook(lambda grad: np.save("check_precision/grad009tgt_norm2%04d"%idx, paddle.cast(grad, 'float32').numpy()))
@@ -701,7 +703,7 @@ class TransformerDecoderLayer(nn.Layer):
         tgt = residual + tgt
         # NOTE : save and check tgt after add_op
 
-        #if not self.normalize_before:
+        # if not self.normalize_before:
         #    tgt = self.norm2(tgt)
 
         if save_intermediate:
@@ -1037,7 +1039,6 @@ class GPTPretrainingCriterion(nn.Layer):
         loss_mask = loss_mask.reshape([-1])
         masked_lm_loss = paddle.sum(masked_lm_loss.reshape([-1]) * loss_mask)
         loss = masked_lm_loss / loss_mask.sum()
-        breakpoint()
         return loss
 
 
