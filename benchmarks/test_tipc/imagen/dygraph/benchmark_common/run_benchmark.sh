@@ -34,12 +34,11 @@ function _set_params(){
     keyword="speed:"                 # (必选)解析日志，筛选出性能数据所在行的关键字
     convergence_key="loss:"        # (可选)解析日志，筛选出收敛数据所在行的关键字 如：convergence_key="loss:"
     max_iter=${11:-1000}                      # （可选）需保证模型执行时间在5分钟内，需要修改代码提前中断的直接提PR 合入套件；或使用max_epoch参数
-    logging_freq=${12:-1}
     num_workers=0                  # (可选)
     base_batch_size=$global_batch_size
-    sharding_degree=${13:-"1"}      # (可选)
-    sharding_stage=${14:-"1"}       # (可选)sharding case
-    sharding_offload=${15:-"False"} # (可选)
+    sharding_degree=${12:-"1"}      # (可选)
+    sharding_stage=${13:-"1"}       # (可选)sharding case
+    sharding_offload=${14:-"False"} # (可选)
     # 以下为通用执行命令，无特殊可不用修改
     model_name=${model_item}_bs${global_batch_size}_${fp_item}_${run_mode}  # (必填) 且格式不要改动,与竞品名称对齐
     device=${CUDA_VISIBLE_DEVICES//,/ }
@@ -76,7 +75,6 @@ function _train(){
 
     local_batch_size=`expr ${global_batch_size} / ${dp_degree} / ${sharding_degree}`
     train_cmd="-o Engine.max_steps=${max_iter} \
-               -o Engine.logging_freq=${logging_freq} \
                -o Global.local_batch_size=${local_batch_size} \
                -o Global.micro_batch_size=${micro_batch_size} \
                -o Distributed.dp_degree=${dp_degree} \
@@ -114,7 +112,7 @@ function _train(){
     if [[ ${model_item} =~ "CE" ]];then # CE精度-不限制执行时间
         ${train_cmd} > ${log_file} 2>&1
     else
-        timeout 40m ${train_cmd} > ${log_file} 2>&1
+        timeout 30m ${train_cmd} > ${log_file} 2>&1
     fi
     if [ $? -ne 0 ];then
         echo -e "${model_name}, FAIL"

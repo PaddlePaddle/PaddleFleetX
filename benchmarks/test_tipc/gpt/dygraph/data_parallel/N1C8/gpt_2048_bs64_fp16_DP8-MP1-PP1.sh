@@ -12,10 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-python -m pip install -r ../requirements.txt
-# get ckpt
-cd ../
-rm -rf ckpt
-mkdir -p ckpt
-wget -O ckpt/GPT_345M.tar.gz https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M.tar.gz
-tar -xzf ckpt/GPT_345M.tar.gz -C ckpt/
+model_item=gpt_2048
+dp_degree=8
+mp_degree=1
+pp_degree=1
+bs_item=64
+fp_item=fp16
+run_mode=DP8-MP1-PP1
+device_num=N1C8
+yaml_path=./ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml
+
+model=gpt
+micro_bs=8
+
+cd ./benchmarks
+bash ./test_tipc/gpt/dygraph/data_parallel/benchmark_common/prepare.sh
+# run
+bash ./test_tipc/gpt/dygraph/data_parallel/benchmark_common/run_benchmark.sh ${model_item} ${fp_item} ${dp_degree} ${mp_degree} ${pp_degree} ${micro_bs} ${bs_item} ${run_mode} ${device_num} \
+${yaml_path} 2>&1;
