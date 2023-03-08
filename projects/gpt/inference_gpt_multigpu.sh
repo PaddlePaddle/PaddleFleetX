@@ -20,4 +20,4 @@ rm -rf $log_dir
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 export MP=8
 
-python  projects/gpt/inference.py --mp_degree ${MP} --model_dir output
+python -m paddle.distributed.launch --devices "0,1,2,3,4,5,6,7" projects/gpt/inference.py --mp_degree ${MP} --model_dir output
