@@ -17,4 +17,5 @@
 log_dir=log_mp1
 rm -rf $log_dir
 
-python  projects/gpt/inference.py --mp_degree 1 --model_dir output
+export CUDA_VISIBLE_DEVICES=0
+python -m paddle.distributed.launch --devices "0"  projects/gpt/inference.py --mp_degree 1 --model_dir output

@@ -1190,7 +1190,7 @@ class GPTForGeneration(nn.Layer):
                         shape=[paddle.shape(probs)[0]],
                         fill_value=top_p,
                         dtype=probs.dtype)
-                    next_tokens = topp_sampling(probs, top_ps_tensor)
+                    _, next_tokens = topp_sampling(probs, top_ps_tensor, random_seed=100)
                 else:
                     probs = TopPProcess(probs, top_p, min_tokens_to_keep)
 
