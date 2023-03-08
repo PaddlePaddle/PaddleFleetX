@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import sys
 import copy
@@ -127,6 +128,16 @@ class LanguageModule(BasicModule):
         logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 /
                                                   1000.0))
 
+    def vocab_size_with_padding(self, vocab_size, div_unit, mp_degree):
+        padded_size = vocab_size
+        multiple = div_unit * mp_degree
+        while (padded_size % multiple) != 0:
+            padded_size += 1
+        logging.warning(' > padded vocab (size: {}) with {} dummy tokens '
+                        '(new size: {})'.format(vocab_size, padded_size -
+                                                vocab_size, padded_size))
+        return padded_size
+
     def training_epoch_end(self, log_dict):
         logger.info("[Training] epoch: %d, total time: %.5f sec" %
                     (log_dict['epoch'], log_dict['train_cost']))
@@ -150,15 +161,20 @@ class GPTModule(LanguageModule):
             model_setting['freeze_embedding'] = freeze_embedding
         model_setting.pop("module")
 
+        model_name = model_setting.pop("name")
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
+        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
+
+        model_setting['vocab_size'] = self.vocab_size_with_padding(
+            model_setting.get('vocab_size', self.tokenizer.vocab_size),
+            model_setting.pop('vocab_size_divisible_unit'),
+            self.configs.Distributed.get('mp_degree', 1))
+
         l = model_setting['num_layers']
         h = model_setting['hidden_size']
         v = model_setting['vocab_size']
         s = self.configs.Data.Train.dataset.max_seq_len
         self.get_model_size(l, h, v, s)
-
-        model_name = model_setting.pop("name")
-        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
-        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
 
         if self.nranks == 1:
             model_setting.pop("sequence_parallel")
