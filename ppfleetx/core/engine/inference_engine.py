@@ -180,7 +180,6 @@ class InferenceEngine(object):
         return config_fname
 
     def _init_predictor(self):
-        device_id = int(os.environ.get('FLAGS_selected_gpus', 0))
         if self.auto:
             self.model_file = os.path.join(
                 self.model_dir, 'auto_dist{}.pdmodel'.format(self.rank))
@@ -190,7 +189,13 @@ class InferenceEngine(object):
 
         config.enable_memory_optim()
         config.switch_ir_optim(True)
-        config.enable_use_gpu(100, device_id)
+        if paddle.fluid.core.is_compiled_with_cuda():
+            device_id = int(os.environ.get('FLAGS_selected_gpus', 0))
+            config.enable_use_gpu(100, device_id)
+        elif paddle.fluid.core.is_compiled_with_xpu():
+            device_id = int(os.environ.get('FLAGS_selected_xpus', 0))
+            config.enable_xpu()
+            config.set_xpu_device_id(device_id)
 
         # distributed config
         if self.mp_degree > 1:
@@ -243,7 +248,7 @@ class InferenceEngine(object):
                     raise ValueError()
                 for d, name in zip(data, self.input_names()):
                     handle = self.predictor.get_input_handle(name)
-                    handle.copy_from_cpu(np.array(d))
+                    handle.copy_from_cpu(np.array(d.copy()))
             elif isinstance(data, Mapping):
                 # key check
                 for k, v in data.items():

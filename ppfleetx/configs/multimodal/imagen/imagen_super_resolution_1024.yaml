@@ -8,32 +8,56 @@ Global:
 
 Model:
   name: imagen_SR1024
-  text_encoder_name: t5/t5-11b
-  text_embed_dim: 1024 
+  text_encoder_name: None 
+  text_embed_dim: 
   timesteps: 1000 
-  in_chans: 3
+  channels: 3
   cond_drop_prob: 0.1
   noise_schedules: cosine
   pred_objectives: noise
+  lowres_cond: True 
   lowres_noise_schedule: linear
   lowres_sample_noise_level: 0.2
   per_sample_random_aug_noise_level: False
-  condition_on_text: True
+  condition_on_text: False 
   auto_normalize_img: True
   p2_loss_weight_gamma: 0.5
   dynamic_thresholding: True,
   dynamic_thresholding_percentile: 0.95
   only_train_unet_number: 1 
-  use_recompute: False
+  is_sr: True
+  use_recompute: True 
+  recompute_granularity:
+
+Engine:
+  max_steps: 2500000
+  num_train_epochs: 1
+  accumulate_steps: 1
+  logging_freq: 10
+  eval_freq: 10000000
+  eval_iters: 10000000
+  mix_precision:
+    use_pure_fp16: False 
+    scale_loss: 32768.0
+    custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
+    custom_white_list: ["lookup_table", "lookup_table_v2"]
+    fp16_dtype: "bfloat16"
+  save_load:
+    save_steps: 10000
+    output_dir: ./output
+    ckpt_dir:
 
 Data:
   Train:
     dataset:
       name: ImagenDataset
-      input_path: ./projects/imagen/filelist/cc12m_base64.lst
+      input_path: ./projects/imagen/filelist/laion_400M/train
       shuffle: True
-      input_resolution: 1024 
-      max_seq_len: 128 
+      image_format: base64 
+      image_size: 1024 
+      text_max_len: 128 
+      filter_image_resolution: 1024 
+      sr: True
     loader:
       num_workers: 8
       shuffle: True

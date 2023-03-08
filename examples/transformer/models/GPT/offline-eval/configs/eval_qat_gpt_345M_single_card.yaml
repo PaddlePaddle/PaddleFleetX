@@ -12,6 +12,14 @@ Compress:
     activation_bits: 8
     quantizable_layer_type: ['Linear', 'ColumnParallelLinear', 'RowParallelLinear']
     onnx_format: True
+    skip_tensor_map: 
+      block_3: ['linear2']
+      block_5: ['linear1']
+      block_6: ['linear2']
+      block_7: ['linear2']
+      block_10: ['linear2']
+      block_20: ['linear2']
+      block_21: ['linear2']
 
 
 Offline_Eval:

@@ -160,7 +160,7 @@ if __name__ == "__main__":
 
         for eval_step, batch in enumerate(valid_data_loader):
             loss = impls.eval_impl(config, batch, model)
-            eval_losses.append(loss.numpy()[0])
+            eval_losses.append(float(loss))
 
             if eval_step > 0 and eval_step % config.Global.logging_freq == 0:
                 eval_step_cost = log.get_timestamp() - eval_step_start

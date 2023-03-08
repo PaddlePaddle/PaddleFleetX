@@ -35,14 +35,11 @@ class MultiModalModule(BasicModule):
         configs = process_configs(configs)
         return configs
 
-    def forward(self, samples, text_embeds, text_masks):
-        return self.model(
-            samples, text_embeds=text_embeds, text_masks=text_masks)
+    def forward(self, batch):
+        return self.model(**batch)
 
     def training_step(self, batch):
-        samples, text_embeds, text_masks = batch
-        preds, targets, log_snr, p2_loss_weight_gamma = self(
-            samples, text_embeds, text_masks)
+        preds, targets, log_snr, p2_loss_weight_gamma = self(batch)
         loss = self.loss_fn(preds, targets, log_snr, p2_loss_weight_gamma)
         return loss
 

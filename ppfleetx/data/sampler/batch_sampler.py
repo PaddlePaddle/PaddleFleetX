@@ -128,16 +128,20 @@ class GPTBatchSampler(paddle.io.BatchSampler):
     def __iter__(self):
         assert self.consumed_samples % self.nranks == 0, \
             "The consumed_samples should be divided by nranks. consumed_samples=%d, nranks=%s" % (
-            self.consumed_samples, nranks)
+            self.consumed_samples, self.nranks)
         self.remain_num_samples = int(
             math.ceil((len(self.dataset) - self.consumed_samples) * 1.0 /
                       self.nranks))
         self.remain_total_size = self.remain_num_samples * self.nranks
         self.batch_size_times_rank_size = self.batch_size * self.nranks
 
+        num_samples = len(self.dataset)
         batch_indices = []
         for idx in range(self.consumed_samples, self.total_size):
-            batch_indices.append(idx)
+            if idx >= num_samples:
+                batch_indices.append(idx - num_samples)
+            else:
+                batch_indices.append(idx)
             if len(batch_indices) == self.batch_size_times_rank_size:
                 start_idx, end_idx = self.get_start_end_idx()
                 yield batch_indices[start_idx:end_idx]

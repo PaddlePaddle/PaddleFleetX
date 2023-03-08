@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -81,7 +81,7 @@ function _train(){
 
 
     local_batch_size=`expr ${global_batch_size} / ${dp_degree} / ${sharding_degree}`
-    
+
     train_cmd="${dataset}"
 
 
@@ -90,12 +90,12 @@ function _train(){
     # hybrid_parallelism case
     case ${run_mode} in
     DP1-MP1-PP1) echo "run run_mode: DP1-MP1-PP1"
-        train_cmd="bash finetune/run_task.sh \
+        train_cmd="bash projects/gpt/finetune_gpt_345M_single_card.sh \
             ${train_cmd}"
         ;;
     *) echo "choose run_mode "; exit 1;
     esac
-    cd ../examples/transformer/models/GPT
+    cd ../
     echo "train_cmd: ${train_cmd}  log_file: ${log_file}"
 
     workerlog_id=0
