@@ -82,8 +82,8 @@ function _train(){
     if [ ${mp_degree} -lt 8 -a ${pp_degree} -lt 8 ]; then num_layers=4; fi #"gpt2-small-en"
     use_pure_fp16=False
     if [ "fp16" = ${fp_item} ]; then use_pure_fp16=True; fi
-    train_cmd="-o Global.max_steps=${max_iter} \
-               -o Global.eval_iters=${eval_freq} \
+    train_cmd="-o Engine.max_steps=${max_iter} \
+               -o Engine.eval_iters=${eval_freq} \
                -o Distributed.dp_degree=${dp_degree} \
                -o Distributed.mp_degree=${mp_degree} \
                -o Distributed.pp_degree=${pp_degree} \
@@ -105,25 +105,25 @@ function _train(){
     case ${run_mode} in
     DP1-MP1-PP1) echo "run run_mode: DP1-MP1-PP1"
         train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0 ${PADDLE_RANK_OPTION}\
-            ./pretrain/run.py -c ./pretrain/configs/pretrain_gpt_1.3B_dp8.yaml \
+            tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
             ${train_cmd}"
         workerlog_id=0
         ;;
     DP1-MP8-PP1) echo "run run_mode: ${run_mode}"
         train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 ${PADDLE_RANK_OPTION}\
-            ./pretrain/run.py -c ./pretrain/configs/pretrain_gpt_1.3B_dp8.yaml \
+            tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
             ${train_cmd}"
         workerlog_id=0
         ;;
     DP2-MP8-PP2) echo "run run_mode: ${run_mode}"
         train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 ${PADDLE_RANK_OPTION}\
-            ./pretrain/run.py -c ./pretrain/configs/pretrain_gpt_6.7B_sharding16.yaml \
+            tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_6.7B_sharding16.yaml \
             ${train_cmd}"
         workerlog_id=0
         ;;
     *) echo "choose run_mode "; exit 1;
     esac
-    cd ../examples/transformer/models/GPT/
+    cd ../
     echo "train_cmd: ${train_cmd}  log_file: ${log_file}"
     if [[ ${model_item} =~ "CE" ]];then # CE精度-不限制执行时间
         ${train_cmd} > ${log_file} 2>&1

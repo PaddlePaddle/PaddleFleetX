@@ -17,7 +17,6 @@
 log_dir=log_345m_mp1
 rm -rf $log_dir
 
-
 DIRECTORY=./pretrained
 if [ ! -d "$DIRECTORY" ]; then
   echo "start download ckpt"

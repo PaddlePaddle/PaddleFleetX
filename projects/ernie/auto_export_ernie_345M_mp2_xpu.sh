@@ -1,3 +1,4 @@
+
 #! /bin/bash
 
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
@@ -14,8 +15,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-log_dir=log_mp1
+
+log_dir=log_auto
 rm -rf $log_dir
 
-export CUDA_VISIBLE_DEVICES=0
-python -m paddle.distributed.launch --devices "0"  projects/gpt/inference.py --mp_degree 1 --model_dir output
+FILENAME=./ppfleetx/configs/nlp/ernie/auto/finetune_ernie_base.yaml
+sed -i "s/device: gpu/device: xpu/g" $FILENAME
+
+export BKCL_PCIE_RING=1
+# 345M mp2 export
+python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1" \
+    ./tools/auto_export.py \
+    -c ./ppfleetx/configs/nlp/ernie/auto/finetune_ernie_345M_single_card.yaml \
+    -o Distributed.mp_degree=2 \
