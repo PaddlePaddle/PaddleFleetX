@@ -1,30 +1,32 @@
-#! /bin/bash
-
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-log_dir=log_345m_mp1
-rm -rf $log_dir
+model_item=gpt_1024
+dp_degree=8
+mp_degree=1
+pp_degree=1
+bs_item=64
+fp_item=fp16
+run_mode=DP8-MP1-PP1
+device_num=N1C8
+yaml_path=./ppfleetx/configs/nlp/gpt/pretrain_gpt_345M_single_card.yaml
 
-DIRECTORY=./auto_infer
-if [ ! -d "$DIRECTORY" ]; then
-  echo "start download ckpt"
-  wget -O https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_auto_345M.tar.gz
-  tar -zxvf GPT_auto_345M.tar.gz
-fi
+model=gpt
+micro_bs=8
 
-python -m paddle.distributed.launch --log_dir $log_dir --devices "1" \
-    ./tools/auto_export.py \
-    -c ./ppfleetx/configs/nlp/gpt/auto/generation_gpt_345M_single_card.yaml \
-    -o Engine.save_load.ckpt_dir=./auto_infer/auto
+cd ./benchmarks
+bash ./test_tipc/gpt/dygraph/data_parallel/benchmark_common/prepare.sh
+# run
+bash ./test_tipc/gpt/dygraph/data_parallel/benchmark_common/run_benchmark.sh ${model_item} ${fp_item} ${dp_degree} ${mp_degree} ${pp_degree} ${micro_bs} ${bs_item} ${run_mode} ${device_num} \
+${yaml_path} 2>&1;
