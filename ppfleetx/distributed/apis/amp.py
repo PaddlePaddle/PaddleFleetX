@@ -40,8 +40,6 @@ class MixPrecisionLayer(nn.Layer):
             if not param.stop_gradient and not hasattr(param, "main_grad"):
                 setattr(param, "main_grad", None)
                 param._register_grad_hook(self._update_main_grad_hook(param))
-                # TODO: remove _release_grad_hook after solving the issue in _update_main_grad_hook
-                param._register_backward_hook(self._release_grad_hook(param))
 
     def _update_main_grad_hook(self, param):
         """Create the update_main_grad hook for backprop."""
@@ -49,8 +47,8 @@ class MixPrecisionLayer(nn.Layer):
         # Hook used for back-prop and grad-merge.
         @paddle.autograd.no_grad()
         def param_hook(tmp_grad):
-            # TODO: cancel the comments of the checking code
-            # assert param.grad is None, "param.grad is not None"
+            assert param.grad is None, \
+                "In main_grad node, param.grad should be None, but find param[{}] has grad.".format(param.name)
             if param.main_grad is None:
                 param.main_grad = core.eager.Tensor(
                     value=tmp_grad.cast(paddle.float32).value(),
@@ -59,21 +57,10 @@ class MixPrecisionLayer(nn.Layer):
             else:
                 param.main_grad.add_(tmp_grad.cast(paddle.float32))
 
-            # NOTE: It doesn't work.
-            # param.clear_gradient(False)
+            tmp_grad._clear_data()
             return None
 
         return param_hook
-
-    def _release_grad_hook(self, param):
-        """Create the release_main_grad hook for backprop."""
-
-        # Hook used for back-prop and grad-merge.
-        @paddle.autograd.no_grad()
-        def release_hook(*_):
-            param.clear_gradient(False)
-
-        return release_hook
 
     def forward(self, *inputs, **kwargs):
         outputs = self._layers(*inputs, **kwargs)

@@ -16,6 +16,7 @@ import os
 import time
 import sys
 import logging
+from tokenize import group
 
 import paddle
 import paddle.nn as nn
@@ -331,7 +332,8 @@ class EagerEngine(BasicEngine):
         skip_first = True
         # Note(GuoxiaWang): Do not use len(train_data_loader()),
         # it will cause a memory leak.
-        total_train_batch = len(train_data_loader)
+        total_train_batch = self._max_steps if self._run_mode == 'step' else len(
+            train_data_loader)
         total_train_step = self._max_steps if self._run_mode == 'step' else total_train_batch * self._num_train_epochs
         total_eval_batch = len(
             valid_data_loader) if valid_data_loader is not None else 0
@@ -347,6 +349,11 @@ class EagerEngine(BasicEngine):
             loss = self._fit_impl(batch)
             train_losses.append(loss)
 
+            if self._lr_scheduler is not None and self._lr_scheduler_mode == 'step':
+                # TODO: if update_successful
+                if self._scaler is None or self._scaler._found_inf == 0:
+                    self._lr_scheduler.step(epoch=self._global_batch_size)
+
             if (step + 1) % self._logging_freq == 0:
                 train_step_cost = get_timestamp() - train_step_start
                 numpy_losses = [float(loss) for loss in train_losses]
@@ -359,7 +366,9 @@ class EagerEngine(BasicEngine):
                     'train_cost': train_step_cost
                     if step == 0 else train_step_cost / self._logging_freq,
                     'loss': sum(numpy_losses) / len(numpy_losses),
-                    'lr': self._optimizer.get_lr()
+                    'lr': self._optimizer.get_lr(),
+                    'found_inf': self._scaler._found_inf
+                    if self._scaler is not None else 0,
                 }
                 if self._amp_enable:
                     log_dict['loss_scale'] = self._scaler._scale.numpy()[0]
@@ -367,11 +376,6 @@ class EagerEngine(BasicEngine):
 
                 train_step_start = get_timestamp()
                 train_losses = []
-
-            if self._lr_scheduler is not None and self._lr_scheduler_mode == 'step':
-                # TODO: if update_successful
-                if self._scaler is None or self._scaler._found_inf == 0:
-                    self._lr_scheduler.step(epoch=self._global_batch_size)
 
             self._optimizer.clear_grad()
 
