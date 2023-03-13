@@ -94,6 +94,12 @@ def process_dist_config(configs):
     if 'fuse_sequence_parallel_allreduce' not in config:
         config['fuse_sequence_parallel_allreduce'] = False
 
+    if 'use_main_grad' in config and config['use_main_grad'] is True:
+        logger.warning(
+            "If use_main_grad is True, fuse_sequence_parallel_allreduce will be forced to False"
+        )
+        config['fuse_sequence_parallel_allreduce'] = False
+
 
 def process_global_configs(config):
     """
