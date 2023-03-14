@@ -273,6 +273,11 @@ class GPTFinetuneModule(BasicModule):
         num_classes = model_setting.pop("num_classes", 2)
         assert pretrained is not None
 
+        model_setting['vocab_size'] = self.vocab_size_with_padding(
+            model_setting.get('vocab_size', self.tokenizer.vocab_size),
+            model_setting.pop('vocab_size_divisible_unit'),
+            self.configs.Distributed.get('mp_degree', 1))
+
         l = model_setting['num_layers']
         h = model_setting['hidden_size']
         v = model_setting['vocab_size']
@@ -512,6 +517,11 @@ class GPTGenerationModule(BasicModule):
         tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
         self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
 
+        model_setting['vocab_size'] = self.vocab_size_with_padding(
+            model_setting.get('vocab_size', self.tokenizer.vocab_size),
+            model_setting.pop('vocab_size_divisible_unit'),
+            self.configs.Distributed.get('mp_degree', 1))
+
         if self.nranks == 1:
             model = gpt.GPTForGeneration(
                 gpt.GPTModel(**model_setting), self.generation_cfgs)
@@ -632,7 +642,15 @@ class GPTEvalModule(LanguageModule):
             model_setting['skip_tensor_map'] = skip_tensor_map
             model_setting['freeze_embedding'] = freeze_embedding
         model_setting.pop("module")
-        model_setting.pop("name")
+
+        model_name = model_setting.pop("name")
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
+        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
+
+        model_setting['vocab_size'] = self.vocab_size_with_padding(
+            model_setting.get('vocab_size', self.tokenizer.vocab_size),
+            model_setting.pop('vocab_size_divisible_unit'),
+            self.configs.Distributed.get('mp_degree', 1))
 
         if self.nranks == 1:
             model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
