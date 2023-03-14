@@ -142,7 +142,7 @@ class EagerEngine(BasicEngine):
 
         self._amp_dtype = amp_config.get('dtype', 'float16')
         self._amp_level = amp_config.get('level', 'O2')
-        self._use_main_grad = amp_config.get('use_main_grad', True)
+        self._use_main_grad = amp_config.get('use_main_grad', False)
         self._scale_loss = amp_config['scale_loss']
         self._custom_black_list = amp_config['custom_black_list']
         self._custom_white_list = amp_config['custom_white_list']
