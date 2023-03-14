@@ -179,7 +179,7 @@ def advertise():
 
 
 def get_timestamp():
-    paddle.device.cuda.synchronize()
+    # paddle.device.cuda.synchronize()
     return time.time()
 
 
