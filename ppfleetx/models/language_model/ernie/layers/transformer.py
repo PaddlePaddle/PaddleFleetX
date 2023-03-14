@@ -28,6 +28,7 @@ from paddle.fluid import layers
 from paddle import ParamAttr
 from paddle.fluid.data_feeder import convert_dtype
 from .model_outputs import BaseModelOutputWithPastAndCrossAttentions
+from paddle.distributed.fleet.utils import recompute
 
 __all__ = []
 
@@ -417,7 +418,7 @@ class MultiHeadAttention(Layer):
                 training=self.training,
                 mode="upscale_in_train")
 
-        out = tensor.matmul(weights, v)
+        out = paddle.matmul(weights, v)
 
         # combine heads
         out = tensor.transpose(out, perm=[0, 2, 1, 3])
@@ -758,18 +759,7 @@ class TransformerEncoder(Layer):
                 all_hidden_states[-1] = output
 
         if not return_dict:
-            outputs = tuple(
-                tuple(v) if isinstance(v, list) else v
-                for v in [
-                    output,
-                    new_caches,
-                    all_hidden_states,
-                    all_attentions,
-                ] if v is not None)
-            if len(outputs) == 1:
-                return output
-            else:
-                return outputs
+            return output
 
         return BaseModelOutputWithPastAndCrossAttentions(
             last_hidden_state=output,

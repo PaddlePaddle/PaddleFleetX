@@ -25,13 +25,12 @@ PaddleFleetX旨在打造一套简单易用、性能领先、且功能强大的�
 ## 教程
 
 * [快速开始](./docs/quick_start.md)
-* 训练
+* 模型
   * [GPT](projects/gpt/docs/README.md)
   * [VIT](projects/vit/)
   * [MoCo](projects/moco/)
   * [Imagen](projects/imagen/)
   * [Ernie](projects/ernie/)
-* [推理](./docs/inference.md)
 * [开发规范](./docs/standard.md)
 * [集群部署](./docs/cluster_deployment.md)
 * [部署常见问题](./docs/deployment_faq.md)
@@ -59,6 +58,8 @@ git clone https://github.com/PaddlePaddle/PaddleFleetX.git
 相对于业界主流套件Megatron-LM<sup>1</sup>与Megatron-DeepSpeed<sup>2</sup>，PaddleFleetX可以达到更高的训练吞吐。下表列出了在同等模型规模下，在多台拥有八张**A100-SXM4-40GB GPU**的服务器上（CUDA Version为11.6），PaddleFleetX与两者的性能对比。其中，0.35B、1.3B以及175B模型使用Megatron-LM套件。6.7B模型使用Megatron-DeepSpeed套件。
 
 <img src="./docs/images/throughput_compare.png">
+
+<img src="./docs/images/throughput_compare_graph.png">
 
 *<font size=2>1. Megatron-LM commit id: 0bb597b42c53355a567aba2a1357cc34b9d99ddd (Commit on Jul 21, 2022)</font>*
 

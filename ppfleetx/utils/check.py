@@ -22,7 +22,7 @@ import sys
 import paddle
 from paddle import is_compiled_with_cuda
 from .log import logger
-
+from .device import get_device_and_mapping
 
 def check_version():
     """
@@ -40,15 +40,21 @@ def check_version():
         sys.exit(1)
 
 
-def check_gpu():
+def check_device(device):
     """
     Log error and exit when using paddlepaddle cpu version.
     """
-    err = "You are using paddlepaddle cpu version! Please try to " \
-          "install paddlepaddle-gpu to run model on GPU."
+    err = "You are using paddlepaddle %s version! Please try to \n" \
+          "1. install paddlepaddle-%s to run model on %s \nor 2. set the config option 'Global.device' to %s."
 
+    d, supported_device_map = get_device_and_mapping()
+
+    assert device in supported_device_map, \
+        f"the device({device}) to check is not supported by now.Now the paddle only supports: {supported_device_map.keys()}"
+    err = err % (d, device, device, d)
+    
     try:
-        assert is_compiled_with_cuda()
+        assert supported_device_map[device]
     except AssertionError:
         logger.error(err)
         sys.exit(1)

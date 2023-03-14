@@ -1,11 +1,11 @@
 # Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,11 +22,14 @@ import paddle.nn as nn
 import paddle.distributed as dist
 import paddle.distributed.fleet as fleet
 from paddle.optimizer.lr import LRScheduler
-from paddle.distributed.sharding import group_sharded_parallel
-from paddle.fluid.dygraph.parallel import sync_params_buffers
+
+from paddle.distributed.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 from paddle.profiler import SummaryView
+from paddle.distributed.fleet.meta_parallel import TensorParallel
+from paddle.distributed.sharding import group_sharded_parallel
 
+import paddleslim
 from ppfleetx.distributed.apis import env
 from ppfleetx.optims import build_lr_scheduler, build_optimizer
 from ppfleetx.utils.log import logger, get_timestamp, convert_timestamp_to_data
@@ -35,11 +38,14 @@ from ppfleetx.core.module import BasicModule
 from ppfleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from ppfleetx.utils.version import version_check
 from ppfleetx.utils.export import export_inference_model
+from paddle.incubate.distributed.utils.io import save_for_auto_inference
+from ppfleetx.utils.device import synchronize as device_synchronize
+from ppfleetx.utils.compression_helper import prune_model, quant_model
 
 
 class EagerEngine(BasicEngine):
     """
-    The common engine for all models that support single-card and distributed 
+    The common engine for all models that support single-card and distributed
     training, validation and test. Only used in eager dygraph mode.
     """
 
@@ -49,13 +55,13 @@ class EagerEngine(BasicEngine):
 
         Args:
 
-            module(BasicModule): user-defined module. After assigning computations 
-                and configurations of model/optimizers/lr Schedulers, engine can 
+            module(BasicModule): user-defined module. After assigning computations
+                and configurations of model/optimizers/lr Schedulers, engine can
                 support the whole loop of training/validation/test.
-            
-            configs(dict): the configurations that engine needs for training/validation/test 
+
+            configs(dict): the configurations that engine needs for training/validation/test
                 loop. Such as mix precision strategy, save&load and the infos of steps/epoches.
-        
+
         Return:
 
             An instance of `EagerEngine`.
@@ -141,6 +147,20 @@ class EagerEngine(BasicEngine):
         self._output_dir = self._configs['save_load']['output_dir']
         self._ckpt_dir = self._configs['save_load']['ckpt_dir']
 
+        self._compress_configs = None
+        self.prune_configs = None
+        self.quant_configs = None
+        self._quant_mode = False
+        if 'Compress' in configs:
+            self.mode = 'compress'
+            self._compress_configs = configs['Compress']
+            if "Prune" in self._compress_configs:
+                self.prune_configs = self._compress_configs["Prune"]
+            if "Quantization" in self._compress_configs:
+                self.quant_configs = self._compress_configs["Quantization"]
+                self._quant_mode = True
+            self.compress_model()
+
         # TODO(haohongxiang): Remove there extra configs after reconstruct of Fleet API
         self._dist_configs = configs['Distributed']
         self._dp_degree = self._dist_configs['dp_degree']
@@ -161,17 +181,19 @@ class EagerEngine(BasicEngine):
                 self._scaler = paddle.amp.GradScaler(
                     init_loss_scaling=self._scale_loss)
 
-            # Save dtype is the same as model dtype. Also can set save_dtype='float32' when 
+            # Save dtype is the same as model dtype. Also can set save_dtype='float32' when
             # training with pure fp16 strategy, but will cause the rise of memory.
             self._module.model = paddle.amp.decorate(
                 models=self._module.model, level='O2')
         else:
             self._scaler = None
 
-        self._lr_scheduler_mode = configs.Optimizer.lr.pop('run_mode', 'step')
-        assert self._lr_scheduler_mode in [
-            'epoch', 'step'
-        ], 'lr.run_mode must be epoch or step'
+        if mode == 'train':
+            self._lr_scheduler_mode = configs.Optimizer.lr.pop('run_mode',
+                                                               'step')
+            assert self._lr_scheduler_mode in [
+                'epoch', 'step'
+            ], 'lr.run_mode must be epoch or step'
         self._lr_scheduler = build_lr_scheduler(
             configs.Optimizer.lr) if mode == 'train' else None
 
@@ -229,7 +251,7 @@ class EagerEngine(BasicEngine):
 
     def _wrap_with_fleet(self):
         if self._sharding_stage in [2, 3]:
-            assert self._mp_degree == self._pp_degree == 1, "sharding stage2/3 will support hybrid parallel later"
+            assert self._pp_degree == 1, "sharding stage2/3 will support pipeline parallel later"
             self._wrap_sharding_2_3()
         else:
             self._wrap_3D_parallel()
@@ -240,6 +262,11 @@ class EagerEngine(BasicEngine):
                 self._module.model,
                 comm_group=self._dp_group,
                 src_rank=self._dp_group.ranks[0])
+
+        if self._mp_degree > 1:
+            assert self._sharding_stage == 2, "only support mp + sharding stage2 hybrid parallel now."
+            self._module.model = TensorParallel(
+                self._module.model, self._hcg, strategy=None)
 
         level = "p_g_os" if self._sharding_stage == 3 else "os_g"
         origin_model = self._module.model
@@ -276,9 +303,13 @@ class EagerEngine(BasicEngine):
         # Note(GuoxiaWang): Do not use len(train_data_loader()),
         # it will cause a memory leak.
         total_train_batch = len(train_data_loader)
+        total_train_step = self._max_steps if self._run_mode == 'step' else total_train_batch * self._num_train_epochs
         total_eval_batch = len(
             valid_data_loader) if valid_data_loader is not None else 0
-        for step, batch in enumerate(train_data_loader):
+        valid_data_loader = valid_data_loader(
+        ) if valid_data_loader is not None else None
+        eval_finished_step = 0
+        for step, batch in enumerate(train_data_loader()):
 
             if epoch_index == self._load_recovery['epoch']:
                 if step < self._load_recovery['step']:
@@ -289,12 +320,13 @@ class EagerEngine(BasicEngine):
 
             if (step + 1) % self._logging_freq == 0:
                 train_step_cost = get_timestamp() - train_step_start
-                numpy_losses = [loss.numpy()[0] for loss in train_losses]
+                numpy_losses = [float(loss) for loss in train_losses]
                 log_dict = {
                     'epoch': epoch_index,
                     'total_epoch': self._num_train_epochs,
                     'batch': step,
                     'total_batch': total_train_batch,
+                    'total_step': total_train_step,
                     'train_cost': train_step_cost
                     if step == 0 else train_step_cost / self._logging_freq,
                     'loss': sum(numpy_losses) / len(numpy_losses),
@@ -317,6 +349,7 @@ class EagerEngine(BasicEngine):
                     eval_step_start = get_timestamp()
 
                     for eval_step, batch in enumerate(valid_data_loader):
+                        eval_finished_step += 1
                         loss = self._evaluate_impl(batch)
                         eval_losses.append(loss)
 
@@ -327,16 +360,16 @@ class EagerEngine(BasicEngine):
                     eval_loss = sum(eval_losses) / len(eval_losses)
 
                     log_dict = {
-                        'loss': eval_loss.numpy()[0],
+                        'loss': float(eval_loss),
                         'epoch': epoch_index,
-                        'batch': eval_step,
+                        'batch': eval_finished_step,
                         'total_batch': total_eval_batch,
                         'eval_cost': eval_step_cost / self._logging_freq,
                     }
                     self._module.validation_step_end(log_dict)
 
                 if self._save_steps > 0 and step % self._save_steps == 0:
-                    paddle.device.cuda.synchronize()
+                    device_synchronize()
                     self.save(epoch=epoch_index, step=step)
             else:
                 skip_first = False
@@ -354,7 +387,7 @@ class EagerEngine(BasicEngine):
         Args:
 
             epoch(int): the epoch index.
-            
+
             train_data_loader(DataLoader, None): a collection of :class:`paddle.io.DataLoader`, specifying training samples.
 
             valid_data_loader(DataLoader, None): a collection of :class:`paddle.io.DataLoader`, specifying validation samples.
@@ -415,8 +448,13 @@ class EagerEngine(BasicEngine):
                     loss = self._model_forward_backward(batch)
                 if not hasattr(self._optimizer, "all_fused_tensors"
                                ) or self._optimizer.all_fused_tensors is None:
-                    fused_allreduce_gradients(
-                        list(self._module.model.parameters()), None)
+                    try:
+                        fused_allreduce_gradients(
+                            list(self._module.model.parameters()), None)
+                    except:
+                        m = self._module.model.state_dict()
+                        fused_allreduce_gradients(
+                            list(self._module.model.parameters()), None)
                 else:
                     all_reduce_parameters(self._optimizer.all_fused_tensors,
                                           self._dp_group)
@@ -460,7 +498,9 @@ class EagerEngine(BasicEngine):
             if self._accumulate_steps > 1:
                 # div the loss for backward
                 loss_bw = loss_bw / self._accumulate_steps
+
             self._module.backward(loss_bw)
+
             detach_loss = loss.detach()
             if final_loss is None:
                 final_loss = detach_loss
@@ -524,9 +564,11 @@ class EagerEngine(BasicEngine):
         eval_step_start = get_timestamp()
         eval_losses = []
         total_eval_batch = len(valid_data_loader)
+        valid_data_loader = valid_data_loader(
+        ) if valid_data_loader is not None else None
         for eval_step, batch in enumerate(valid_data_loader):
             loss = self._evaluate_impl(batch)
-            eval_losses.append(loss.numpy()[0])
+            eval_losses.append(float(loss))
 
             if eval_step % self._logging_freq == 0:
                 eval_step_cost = get_timestamp() - eval_step_start
@@ -572,7 +614,7 @@ class EagerEngine(BasicEngine):
         Args:
 
             epoch(int): the epoch index.
-            
+
             test_data_loader(DataLoader, None): a collection of :class:`paddle.io.DataLoader`, specifying test samples.
 
         """
@@ -580,10 +622,11 @@ class EagerEngine(BasicEngine):
 
         test_start = get_timestamp()
         test_losses = []
+        test_data_loader = test_data_loader()
         for test_step, batch in enumerate(test_data_loader):
             loss = self._predict_impl(batch)
 
-            test_losses.append(loss.numpy()[0])
+            test_losses.append(float(loss))
 
             if test_step % self._logging_freq == 0:
                 test_cost = get_timestamp() - test_start
@@ -653,8 +696,31 @@ class EagerEngine(BasicEngine):
             }
             paddle.save(meta_dict, os.path.join(save_dir, "meta_state.pdopt"))
 
+            save_auto_dir = os.path.join(output_dir, "auto_infer")
+            save_for_auto_inference(
+                os.path.join(save_auto_dir, "auto"), self._module.model)
+
         else:
             raise TypeError("`save` requires a valid value of `output_dir`.")
+
+    def compress_model(self):
+        if self._compress_configs is None: return
+        self._distributed = (dist.get_world_size() > 1)
+        # Load pretrained model before compression
+        if 'pretrained' in self._compress_configs and self._compress_configs[
+                'pretrained'] is not None:
+            self._ckpt_dir = self._compress_configs['pretrained']
+            self.load()
+            # Avoid loading again
+            self._configs['save_load']['ckpt_dir'] = None
+
+        if self.prune_configs is not None and self.prune_configs.enable:
+            prune_model(self._module.model, self.prune_configs,
+                        self._module.input_spec())
+        #NOTE(minghaoBD): We haven't fully tested Prune+Quantization, so an "else if" is put here for separation.
+        elif self.quant_configs is not None and self.quant_configs.enable:
+            self._module.model, self.quanter = quant_model(self._module.model,
+                                                           self.quant_configs)
 
     def load(self):
         """
@@ -663,9 +729,12 @@ class EagerEngine(BasicEngine):
         if self._ckpt_dir and isinstance(self._ckpt_dir, str):
             logger.info("Try to load checkpoint from %s " % self._ckpt_dir)
 
-            load_dir = "{}/mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}".format(
-                self._ckpt_dir, self._mp_rank, self._sharding_rank,
-                self._pp_rank) if self._distributed else self._ckpt_dir
+            if self._quant_mode:
+                load_dir = self._ckpt_dir
+            else:
+                load_dir = "{}/mp_{:0>2d}_sharding_{:0>2d}_pp_{:0>2d}".format(
+                    self._ckpt_dir, self._mp_rank, self._sharding_rank,
+                    self._pp_rank) if self._distributed else self._ckpt_dir
             model_path = os.path.join(load_dir, "model.pdparams")
             opt_path = os.path.join(load_dir, "model_state.pdopt")
             meta_path = os.path.join(load_dir, "meta_state.pdopt")
@@ -715,8 +784,19 @@ class EagerEngine(BasicEngine):
 
         save_dir = os.path.join(self._output_dir,
                                 "rank_{}".format(self._dp_rank))
-        export_inference_model(self._module.model, input_spec, save_dir,
-                               'model')
+
+        if not self._quant_mode:
+            export_inference_model(self._module.model, input_spec, save_dir,
+                                   'model')
+        else:
+            logger.info("export quantized model.")
+            export_inference_model(
+                self._module.model,
+                input_spec,
+                save_dir,
+                'model',
+                export_quant_model=True,
+                quanter=self.quanter)
 
     def inference(self, data):
         if self._inference_engine is None:

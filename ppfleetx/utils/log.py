@@ -177,11 +177,13 @@ def advertise():
         "=={}==".format(website.center(AD_LEN)),
         "=" * (AD_LEN + 4), ))
 
-
+from .device import synchronize
 def get_timestamp():
-    # paddle.device.cuda.synchronize()
+    if synchronize():
+        return time.time()
+    else:
+        logger.warning(f"Device synchronizing failed, which may result uncorrect time")
     return time.time()
-
 
 def convert_timestamp_to_data(timeStamp):
     return str(datetime.timedelta(seconds=int(timeStamp)))

@@ -26,7 +26,9 @@ unzip wiki2019zh_corpus.zip    -d  clue_corpus_small_14g/wiki2019zh_corpus
 ```
 将txt文件转换为jsonl格式
 ```
-python trans_to_json.py  --input_path ./clue_corpus_small_14g --output_path clue_corpus_small_14g.jsonl
+cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
+
+python ./ppfleetx/data/data_tools/ernie/preprocess/trans_to_json.py  --input_path ./clue_corpus_small_14g --output_path clue_corpus_small_14g.jsonl
 ```
 现在我们得到了jsonl格式的数据集。
 
@@ -35,7 +37,7 @@ python trans_to_json.py  --input_path ./clue_corpus_small_14g --output_path clue
 下面是针对训练任务的数据集应用，此处以ernie为例。
 
 ```
-python -u  create_pretraining_data.py \
+python -u ./ppfleetx/data/data_tools/ernie/preprocess/create_pretraining_data.py \
     --model_name ernie-1.0-base-zh \
     --tokenizer_name ErnieTokenizer \
     --input_path clue_corpus_small_14g.jsonl \

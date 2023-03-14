@@ -18,7 +18,7 @@ Engine:
   save_load:
     save_epoch: 1
     output_dir: ./output
-    ckpt_dir:
+    ckpt_dir: 
 
 Distributed:
   dp_degree:

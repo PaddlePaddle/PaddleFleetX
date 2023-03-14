@@ -32,7 +32,14 @@ from .processor import (
     HammingDiversityLogitsProcessor, RepetitionPenaltyLogitsProcessor,
     ForcedBOSTokenLogitsProcessor, ForcedEOSTokenLogitsProcessor)
 
-from ppfleetx.distributed.moe import MoELayer
+from ppfleetx.models.language_model.moe import MoELayer
+from ppfleetx.models.language_model.moe_exp.layer import MoE
+
+from ppfleetx.utils.log import logger
+try:
+    from paddle.nn.functional.flash_attention import flash_attention
+except:
+    flash_attention = None
 
 
 def get_attr(layer, name):
@@ -46,12 +53,16 @@ class ExpertLayer(nn.Layer):
     def __init__(self, d_model, d_hidden, name=None):
         super(ExpertLayer, self).__init__()
 
-        self.htoh4 = nn.Linear(d_model, d_hidden, \
-            weight_attr=nn.initializer.KaimingUniform(), \
-             bias_attr=nn.initializer.Constant(value=0.0))
-        self.h4toh = nn.Linear(d_hidden, d_model, \
-            weight_attr=nn.initializer.KaimingUniform(), \
-             bias_attr=nn.initializer.Constant(value=0.0))
+        self.htoh4 = nn.Linear(
+            d_model,
+            d_hidden,
+            weight_attr=nn.initializer.KaimingUniform(),
+            bias_attr=nn.initializer.Constant(value=0.0))
+        self.h4toh = nn.Linear(
+            d_hidden,
+            d_model,
+            weight_attr=nn.initializer.KaimingUniform(),
+            bias_attr=nn.initializer.Constant(value=0.0))
 
         self.htoh4.weight.name = "expert_" + self.htoh4.weight.name
         self.h4toh.weight.name = "expert_" + self.h4toh.weight.name
@@ -86,10 +97,12 @@ class MultiHeadAttention(nn.Layer):
                  weight_attr=None,
                  bias_attr=None,
                  fuse_attn_qkv=False,
+                 scale_qk_coeff=1.0,
                  fused_linear=False,
                  use_recompute=False,
                  recompute_granularity="full",
-                 do_recompute=True):
+                 do_recompute=True,
+                 use_flash_attn=False):
         super(MultiHeadAttention, self).__init__()
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
@@ -98,12 +111,15 @@ class MultiHeadAttention(nn.Layer):
         self.dropout = dropout
         self.need_weights = need_weights
         self.fuse_attn_qkv = fuse_attn_qkv
+        self.scale_qk_coeff = scale_qk_coeff
         self.use_recompute = use_recompute
         self.recompute_granularity = recompute_granularity
         self.do_recompute = do_recompute
+        self.use_flash_attn = use_flash_attn if flash_attention else None
 
         self.head_dim = embed_dim // num_heads
-        assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
+        assert self.head_dim * \
+            num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
 
         Linear = FusedLinear if fused_linear else nn.Linear
 
@@ -119,14 +135,13 @@ class MultiHeadAttention(nn.Layer):
                 self.kdim, embed_dim, weight_attr, bias_attr=bias_attr)
             self.v_proj = Linear(
                 self.vdim, embed_dim, weight_attr, bias_attr=bias_attr)
+
         self.out_proj = Linear(
             embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
 
     def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
         mix_layer = self.qkv_proj(query)
-        mix_layer = paddle.reshape_(mix_layer,
-                                    [0, 0, self.num_heads, 3 * self.head_dim])
-        mix_layer = paddle.transpose(mix_layer, [0, 2, 1, 3])
+        mix_layer = paddle.reshape_(mix_layer, [0, 0, -1, 3 * self.head_dim])
         q, k, v = paddle.split(mix_layer, num_or_sections=3, axis=-1)
 
         assert not isinstance(
@@ -135,12 +150,12 @@ class MultiHeadAttention(nn.Layer):
 
         if isinstance(cache, self.Cache):
             # for decoder self-attention in inference
-            k = tensor.concat([cache.k, k], axis=2)
-            v = tensor.concat([cache.v, v], axis=2)
+            k = tensor.concat([cache.k, k], axis=1)
+            v = tensor.concat([cache.v, v], axis=1)
         if use_cache is True:
             cache = self.Cache(k, v)
 
-        return (q, k, v) if use_cache is False else (q, k, v, cache)
+        return (q, k, v, cache) if use_cache else (q, k, v, None)
 
     def _prepare_qkv(self, query, key, value, use_cache=False, cache=None):
         r"""
@@ -150,8 +165,7 @@ class MultiHeadAttention(nn.Layer):
 
         """
         q = self.q_proj(query)
-        q = tensor.reshape(x=q, shape=[0, 0, self.num_heads, self.head_dim])
-        q = tensor.transpose(x=q, perm=[0, 2, 1, 3])
+        q = tensor.reshape(x=q, shape=[0, 0, -1, self.head_dim])
 
         if isinstance(cache, self.StaticCache):
             # for encoder-decoder attention in inference and has cached
@@ -161,12 +175,12 @@ class MultiHeadAttention(nn.Layer):
 
         if isinstance(cache, self.Cache):
             # for decoder self-attention in inference
-            k = tensor.concat([cache.k, k], axis=2)
-            v = tensor.concat([cache.v, v], axis=2)
+            k = tensor.concat([cache.k, k], axis=1)
+            v = tensor.concat([cache.v, v], axis=1)
         if use_cache is True:
             cache = self.Cache(k, v)
 
-        return (q, k, v) if use_cache is False else (q, k, v, cache)
+        return (q, k, v, cache) if use_cache else (q, k, v, None)
 
     def compute_kv(self, key, value):
         r"""
@@ -182,10 +196,8 @@ class MultiHeadAttention(nn.Layer):
         """
         k = self.k_proj(key)
         v = self.v_proj(value)
-        k = tensor.reshape(x=k, shape=[0, 0, self.num_heads, self.head_dim])
-        k = tensor.transpose(x=k, perm=[0, 2, 1, 3])
-        v = tensor.reshape(x=v, shape=[0, 0, self.num_heads, self.head_dim])
-        v = tensor.transpose(x=v, perm=[0, 2, 1, 3])
+        k = tensor.reshape(x=k, shape=[0, 0, -1, self.head_dim])
+        v = tensor.reshape(x=v, shape=[0, 0, -1, self.head_dim])
         return k, v
 
     def gen_cache(self, key, value=None, type=Cache):
@@ -213,10 +225,30 @@ class MultiHeadAttention(nn.Layer):
             # incremental_state with initial value, mainly for usage like UniLM
             return self.Cache(key, value)
 
+    def _flash_attention(self, q, k, v, attn_mask=None):
+        out, weights = flash_attention(
+            q,
+            k,
+            v,
+            self.dropout,
+            causal=True,
+            return_softmax=self.need_weights)
+        out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
+        return out, weights
+
     def core_attn(self, q, k, v, attn_mask=None):
+        perm = [0, 2, 1, 3]
+        q = tensor.transpose(x=q, perm=perm)
+        k = tensor.transpose(x=k, perm=perm)
+        v = tensor.transpose(x=v, perm=perm)
+
         # scale dot product attention
-        product = layers.matmul(
-            x=q, y=k, transpose_y=True, alpha=self.head_dim**-0.5)
+        scale_qk_coeff = self.scale_qk_coeff * self.head_dim**0.5
+        product = paddle.matmul(
+            x=q.scale(1.0 / scale_qk_coeff), y=k, transpose_y=True)
+
+        if self.scale_qk_coeff != 1.0:
+            product = product.scale(self.scale_qk_coeff)
 
         if attn_mask is not None:
             product = product + attn_mask
@@ -231,11 +263,11 @@ class MultiHeadAttention(nn.Layer):
                 training=self.training,
                 mode="upscale_in_train")
 
-        out = tensor.matmul(weights, v)
+        out = paddle.matmul(weights, v)
 
         # combine heads
         out = tensor.transpose(out, perm=[0, 2, 1, 3])
-        out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
+        out = tensor.reshape(x=out, shape=[0, 0, -1])
 
         return out, weights
 
@@ -253,22 +285,16 @@ class MultiHeadAttention(nn.Layer):
         key = query if key is None else key
         value = query if value is None else value
         # compute q ,k ,v
-        if use_cache is False:
-            if self.fuse_attn_qkv:
-                q, k, v = self._fuse_prepare_qkv(query, use_cache, cache)
-            else:
-                q, k, v = self._prepare_qkv(query, key, value, use_cache,
-                                            cache)
+        if self.fuse_attn_qkv:
+            q, k, v, cache = self._fuse_prepare_qkv(query, use_cache, cache)
         else:
-            if self.fuse_attn_qkv:
-                q, k, v, cache = self._fuse_prepare_qkv(query, use_cache,
-                                                        cache)
-            else:
-                q, k, v, cache = self._prepare_qkv(query, key, value,
-                                                   use_cache, cache)
+            q, k, v, cache = self._prepare_qkv(query, key, value, use_cache,
+                                               cache)
 
         if self.use_recompute and self.recompute_granularity == "core_attn" and self.do_recompute:
             out, weights = recompute(self.core_attn, q, k, v, attn_mask)
+        elif self.use_flash_attn and attn_mask is None:
+            out, weights = self._flash_attention(q, k, v)
         else:
             out, weights = self.core_attn(q, k, v, attn_mask=attn_mask)
 
@@ -380,19 +406,29 @@ class TransformerDecoderLayer(nn.Layer):
                  d_model,
                  nhead,
                  dim_feedforward,
+                 num_experts=1,
                  dropout=0.1,
                  activation="gelu",
                  attn_dropout=None,
                  act_dropout=None,
                  normalize_before=True,
+                 topk=1,
+                 moe_use_residual=False,
+                 moe_train_capacity_factor=1.0,
+                 moe_eval_capacity_factor=1.0,
+                 moe_min_capacity=4,
+                 moe_token_dropping=True,
+                 enable_expert_tensor_parallelism=False,
                  weight_attr=None,
                  bias_attr=None,
                  fused_linear=False,
                  fuse_attn_qkv=False,
-                 moe_configs=None,
+                 scale_qk_coeff=1.0,
                  use_recompute=False,
                  recompute_granularity="full",
-                 do_recompute=True):
+                 do_recompute=True,
+                 skip_quant_tensors=[],
+                 use_flash_attn=False):
         self._config = locals()
         self._config.pop("self")
         self._config.pop("__class__", None)  # py3
@@ -405,13 +441,7 @@ class TransformerDecoderLayer(nn.Layer):
         self.recompute_granularity = recompute_granularity
         self.do_recompute = do_recompute
 
-        self.expert_mode = False
-        # moe config
-        if moe_configs is not None:
-            self.gate = moe_configs.get('gate', 'gshard')
-            self.top_k = moe_configs.get('top_k', 2)
-            self.num_experts = moe_configs.get('num_experts', 1)
-            self.expert_mode = moe_configs.get('expert_mode', False)
+        self.num_experts = num_experts
 
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
@@ -426,22 +456,28 @@ class TransformerDecoderLayer(nn.Layer):
             bias_attr=bias_attrs[0],
             fused_linear=fused_linear,
             fuse_attn_qkv=fuse_attn_qkv,
+            scale_qk_coeff=scale_qk_coeff,
             use_recompute=use_recompute,
             recompute_granularity=recompute_granularity,
-            do_recompute=do_recompute)
+            do_recompute=do_recompute,
+            use_flash_attn=use_flash_attn)
 
-        if self.expert_mode:
-            experts_list = nn.LayerList([
-                ExpertLayer(d_model, dim_feedforward)
-                for e in range(self.num_experts)
-            ])
-
-            self.moe_mlp = MoELayer(
-                d_model=d_model,
-                experts=experts_list,
-                gate=self.gate,
-                top_k=self.top_k,
-                recompute_interval=int(self.use_recompute))
+        self.moe_mlp = None
+        if self.num_experts > 1:
+            assert (topk == 1, "Only support topk=1 currently.")
+            self.moe_mlp = MoE(
+                d_model,
+                ExpertLayer(d_model, dim_feedforward),
+                self.num_experts,
+                ep_size=1,
+                k=topk,
+                use_residual=moe_use_residual,
+                capacity_factor=moe_train_capacity_factor,
+                eval_capacity_factor=moe_eval_capacity_factor,
+                min_capacity=moe_min_capacity,
+                drop_tokens=moe_token_dropping,
+                enable_expert_tensor_parallelism=enable_expert_tensor_parallelism
+            )
         else:
             self.linear1 = Linear(
                 d_model,
@@ -453,6 +489,12 @@ class TransformerDecoderLayer(nn.Layer):
                 d_model,
                 weight_attrs[2],
                 bias_attr=bias_attrs[2])
+
+            if 'linear1' in skip_quant_tensors:
+                self.linear1.skip_quant = True
+
+            if 'linear2' in skip_quant_tensors:
+                self.linear2.skip_quant = True
 
         self.norm1 = nn.LayerNorm(d_model, epsilon=1e-5)
         self.norm2 = nn.LayerNorm(d_model, epsilon=1e-5)
@@ -486,7 +528,9 @@ class TransformerDecoderLayer(nn.Layer):
         if self.normalize_before:
             tgt = self.norm2(tgt)
 
-        if self.expert_mode:
+        # if self.expert_mode:
+        #     tgt = self.moe_mlp(tgt)
+        if self.num_experts > 1:
             tgt = self.moe_mlp(tgt)
         else:
             tgt = self.dropout2(
@@ -516,7 +560,8 @@ class GPTEmbeddings(nn.Layer):
                  hidden_dropout_prob=0.1,
                  max_position_embeddings=512,
                  type_vocab_size=16,
-                 initializer_range=0.02):
+                 initializer_range=0.02,
+                 freeze_embedding=False):
         super(GPTEmbeddings, self).__init__()
         self.word_embeddings = nn.Embedding(
             vocab_size,
@@ -529,6 +574,10 @@ class GPTEmbeddings(nn.Layer):
             hidden_size,
             weight_attr=paddle.ParamAttr(initializer=nn.initializer.Normal(
                 mean=0.0, std=initializer_range)))
+
+        if freeze_embedding:
+            self.word_embeddings.weight.learning_rate = 0.0
+            self.position_embeddings.weight.learning_rate = 0.0
 
         self.dropout = nn.Dropout(hidden_dropout_prob)
 
@@ -558,12 +607,24 @@ class GPTModel(nn.Layer):
                  type_vocab_size=16,
                  use_recompute=False,
                  initializer_range=0.02,
-                 moe_configs=None,
+                 num_experts=[1],
+                 expert_interval=2,
+                 topk=1,
+                 moe_use_residual=False,
+                 moe_train_capacity_factor=1.0,
+                 moe_eval_capacity_factor=1.0,
+                 moe_min_capacity=4,
+                 moe_token_dropping=True,
+                 enable_expert_tensor_parallelism=False,
                  fused_linear=False,
                  fuse_attn_qkv=False,
+                 scale_qk_by_layer_num=True,
                  recompute_granularity="full",
                  sequence_parallel=False,
-                 no_recompute_layers=None):
+                 no_recompute_layers=None,
+                 skip_tensor_map={},
+                 freeze_embedding=False,
+                 use_flash_attn=False):
 
         super(GPTModel, self).__init__()
 
@@ -573,31 +634,65 @@ class GPTModel(nn.Layer):
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
 
+        if use_flash_attn:
+            if flash_attention:
+                logger.info("Flash-attention enabled.")
+            else:
+                use_flash_attn = False
+                logger.warning(
+                    "Flash-attention is not support in this Paddle version.")
+
         self.embeddings = GPTEmbeddings(
             vocab_size, hidden_size, hidden_dropout_prob,
-            max_position_embeddings, type_vocab_size, self.initializer_range)
+            max_position_embeddings, type_vocab_size, self.initializer_range,
+            freeze_embedding)
+
+        assert len(num_experts) == 1 or len(num_experts) == num_layers // expert_interval, \
+            'num_experts must be either a single value or a list of the same length as the number of MoE layers'
+
+        # Expand the list of MoE experts num to MoE layers num
+        if len(num_experts) == 1:
+            num_experts = num_experts * (num_layers // expert_interval)
 
         decoder_layers = nn.LayerList()
         for i in range(num_layers):
+            # TODO: original layer_num = i + 1 + offset here
+            layer_num = i + 1
+            if layer_num % expert_interval == 0:
+                n_e = num_experts[(layer_num - 1) // expert_interval]
+            else:
+                n_e = 1
             decoder_layers.append(
                 TransformerDecoderLayer(
                     d_model=hidden_size,
                     nhead=num_attention_heads,
                     dim_feedforward=ffn_hidden_size,
+                    num_experts=n_e,
                     dropout=hidden_dropout_prob,
                     activation="gelu",
                     attn_dropout=attention_probs_dropout_prob,
                     act_dropout=hidden_dropout_prob,
+                    topk=topk,
+                    moe_use_residual=moe_use_residual,
+                    moe_train_capacity_factor=moe_train_capacity_factor,
+                    moe_eval_capacity_factor=moe_eval_capacity_factor,
+                    moe_min_capacity=moe_min_capacity,
+                    moe_token_dropping=moe_token_dropping,
+                    enable_expert_tensor_parallelism=enable_expert_tensor_parallelism,
                     weight_attr=paddle.ParamAttr(
                         initializer=nn.initializer.Normal(
                             mean=0.0, std=self.initializer_range)),
                     bias_attr=None,
                     fused_linear=fused_linear,
                     fuse_attn_qkv=fuse_attn_qkv,
-                    moe_configs=moe_configs,
+                    scale_qk_coeff=num_layers
+                    if scale_qk_by_layer_num else 1.0,
                     use_recompute=use_recompute,
                     recompute_granularity=recompute_granularity,
-                    do_recompute=i not in no_recompute_layers))
+                    do_recompute=i not in no_recompute_layers,
+                    skip_quant_tensors=skip_tensor_map.get('block_{}'.format(
+                        i), []),
+                    use_flash_attn=use_flash_attn))
 
         self.decoder = TransformerDecoder(
             decoder_layers,
@@ -618,19 +713,20 @@ class GPTModel(nn.Layer):
         if position_ids is None:
             past_length = 0
             if cache is not None:
-                past_length = paddle.shape(cache[0].k)[-2]
+                past_length = paddle.shape(attention_mask)[-1] - 1
             position_ids = paddle.arange(
                 past_length,
                 paddle.shape(input_ids)[-1] + past_length,
                 dtype=input_ids.dtype)
             position_ids = position_ids.unsqueeze(0)
             # .expand_as(input_ids)
-            position_ids = paddle.fluid.layers.expand_as(position_ids,
-                                                         input_ids)
+            position_ids = paddle.expand_as(position_ids, input_ids)
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
 
-        if self.training == False:
+        # fused_soiftmax_with_triangular is only suppported on GPU/DCU.
+        # If on non-GPU devices, we use user defined mask and non-fused softmax.
+        if self.training == False or not paddle.is_compiled_with_cuda():
             # TODO, use registered buffer
             causal_mask = paddle.tensor.triu(
                 paddle.ones(
@@ -649,8 +745,8 @@ class GPTModel(nn.Layer):
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
-            tgt_mask=None if self.training else
-            attention_mask,  # use softmax_mask_fuse_upper_triangle
+            tgt_mask=None if self.training and paddle.is_compiled_with_cuda()
+            else attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
 
@@ -745,7 +841,7 @@ class GPTForSequenceClassification(nn.Layer):
             An instance of GPTModel.
         num_classes (int, optional):
             The number of classes. Defaults to `2`.
-            
+
     """
 
     def __init__(self, gpt, num_classes=2):
@@ -799,6 +895,8 @@ class GPTForGeneration(nn.Layer):
         self.temperature = self.configs.get('temperature', 1.0)
         self.top_k = self.configs.get('top_k', 0)
         self.top_p = self.configs.get('top_p', 1.0)
+        self.use_topp_sampling = self.configs.get('use_topp_sampling', False)
+        self.inference = self.configs.get('inference', False)
         self.repetition_penalty = self.configs.get('repetition_penalty', 1.0)
         self.num_beams = self.configs.get('num_beams', 1)
         self.num_beam_groups = self.configs.get('num_beam_groups', 1)
@@ -942,10 +1040,6 @@ class GPTForGeneration(nn.Layer):
             if "int" in paddle.common_ops_import.convert_dtype(
                     attention_mask.dtype):
                 attention_mask = (1.0 - attention_mask) * -1e4
-        if cache is not None:
-            input_ids = input_ids[:, -1].unsqueeze(-1)
-            if position_ids is not None:
-                position_ids = position_ids[:, -1].unsqueeze(-1)
         return {
             "input_ids": input_ids,
             "position_ids": position_ids,
@@ -954,6 +1048,7 @@ class GPTForGeneration(nn.Layer):
         }
 
     def update_model_kwargs_for_generation(self,
+                                           next_tokens,
                                            outputs,
                                            model_kwargs,
                                            is_encoder_decoder=False):
@@ -978,8 +1073,7 @@ class GPTForGeneration(nn.Layer):
         if "position_ids" in model_kwargs and model_kwargs[
                 "position_ids"] is not None:
             position_ids = model_kwargs["position_ids"]
-            model_kwargs["position_ids"] = paddle.concat(
-                [position_ids, position_ids[:, -1:] + 1], axis=-1)
+            model_kwargs["position_ids"] = position_ids[:, -1:] + 1
 
         # update attention_mask
         if not is_encoder_decoder and "attention_mask" in model_kwargs:
@@ -1015,6 +1109,9 @@ class GPTForGeneration(nn.Layer):
             role_ids = model_kwargs["role_ids"]
             model_kwargs["role_ids"] = paddle.concat(
                 [role_ids, role_ids[:, -1:]], axis=-1)
+
+        model_kwargs['res'] = paddle.concat(
+            [model_kwargs['res'], next_tokens], axis=1)
 
         return model_kwargs
 
@@ -1067,10 +1164,19 @@ class GPTForGeneration(nn.Layer):
             return probs
 
         batch_size, cur_len = input_ids.shape
+        # used for compute on gpu, avoid memcpy D2H
+        cur_len_gpu = paddle.full([1], cur_len, dtype='int64')
+
         origin_len = input_ids.shape[1]
+        # used for compute on gpu, avoid memcpy D2H
+        origin_len_gpu = paddle.full([1], origin_len, dtype='int64')
+
         unfinished_flag = paddle.full([batch_size, 1], True, dtype='bool')
         scores = paddle.full(
             [batch_size, 1], 0.0, dtype=paddle.get_default_dtype())
+
+        res = paddle.assign(input_ids)
+        model_kwargs['res'] = res
 
         # use_cache is immutable, we split it off other mutable kwargs.
         assert 'use_cache' in model_kwargs
@@ -1100,15 +1206,33 @@ class GPTForGeneration(nn.Layer):
 
             # sample
             origin_probs = F.softmax(logits)
-            origin_probs = paddle.log(origin_probs)
-            if temperature is not None and temperature != 1.0:
+            if temperature is None or temperature == 1.0:
+                probs = paddle.assign(origin_probs)
+                origin_probs = paddle.log(origin_probs)
+            else:
+                origin_probs = paddle.log(origin_probs)
                 logits = logits / temperature
-            probs = F.softmax(logits)
+                probs = F.softmax(logits)
             if top_k is not None and top_k != 0:
                 probs = TopKProcess(probs, top_k, min_tokens_to_keep)
             if top_p is not None and top_p < 1.0:
-                probs = TopPProcess(probs, top_p, min_tokens_to_keep)
-            next_tokens = paddle.multinomial(probs)
+                if self.use_topp_sampling:
+                    try:
+                        from ppfleetx_ops import topp_sampling
+                    except ImportError:
+                        raise ImportError(
+                            "please install ppfleetx_ops by 'cd ppfleetx/ops && python setup_cuda.py install'!"
+                        )
+                    top_ps_tensor = paddle.full(
+                        shape=[paddle.shape(probs)[0]],
+                        fill_value=top_p,
+                        dtype=probs.dtype)
+                    _, next_tokens = topp_sampling(probs, top_ps_tensor, random_seed=100)
+                else:
+                    probs = TopPProcess(probs, top_p, min_tokens_to_keep)
+
+            if not self.use_topp_sampling:
+                next_tokens = paddle.multinomial(probs)
 
             next_scores = paddle.index_sample(origin_probs, next_tokens)
 
@@ -1120,13 +1244,14 @@ class GPTForGeneration(nn.Layer):
             scores = self.update_scores_for_generation(
                 scores, next_scores, cur_len - origin_len, unfinished_flag)
 
-            input_ids = paddle.concat([input_ids, next_tokens], axis=1)
+            input_ids = next_tokens
 
             if eos_token_id is not None:
                 unfinished_flag = paddle.logical_and(
                     unfinished_flag, next_tokens != eos_token_id)
 
             model_kwargs = self.update_model_kwargs_for_generation(
+                next_tokens,
                 outputs,
                 model_kwargs,
                 is_encoder_decoder=self.is_encoder_decoder)
@@ -1138,9 +1263,14 @@ class GPTForGeneration(nn.Layer):
         outputs = _forward_(**model_kwargs)
 
         input_ids, scores, unfinished_flag, model_kwargs = _post_process_(
-            outputs, input_ids, cur_len, origin_len, scores, unfinished_flag,
-            model_kwargs)
-        cur_len += 1
+            outputs, input_ids, cur_len_gpu, origin_len_gpu, scores,
+            unfinished_flag, model_kwargs)
+        if not self.inference:
+            cur_len += 1
+        else:
+            # Note(ZhenyuLi): Avoid the synchronization caused by scale in dy2static
+            paddle.increment(cur_len)
+        paddle.increment(cur_len_gpu)
 
         attn_mask = model_kwargs['attention_mask']
         # make the shape of attention_mask = (-1, -1, -1, -1) in dy2static.
@@ -1149,18 +1279,23 @@ class GPTForGeneration(nn.Layer):
         model_kwargs['cache'] = outputs[1] if isinstance(outputs,
                                                          tuple) else None
         while cur_len < max_length:
-            # Note(GuoxiaWang): Remove outputs = _forward_(**model_kwargs) 
-            # and change it to pass directly to _post_process_ to avoid 
+            # Note(GuoxiaWang): Remove outputs = _forward_(**model_kwargs)
+            # and change it to pass directly to _post_process_ to avoid
             # closed-loop problem of dynamic-to-static model
             input_ids, scores, unfinished_flag, model_kwargs = _post_process_(
-                _forward_(**model_kwargs), input_ids, cur_len, origin_len,
-                scores, unfinished_flag, model_kwargs)
-            cur_len += 1
+                _forward_(**model_kwargs), input_ids, cur_len_gpu,
+                origin_len_gpu, scores, unfinished_flag, model_kwargs)
+            if not self.inference:
+                cur_len += 1
+            else:
+                # Note(ZhenyuLi): Avoid the synchronization caused by scale in dy2static
+                paddle.increment(cur_len)
+            paddle.increment(cur_len_gpu)
 
             if not paddle.any(unfinished_flag):
                 break
 
-        return input_ids[:, origin_len:], scores
+        return model_kwargs['res'][:, origin_len:], scores
 
     def forward(self, input_ids=None, **model_kwargs):
 
@@ -1214,16 +1349,31 @@ class GPTForGeneration(nn.Layer):
             model_kwargs[
                 "attention_mask"] = self.prepare_attention_mask_for_generation(
                     input_ids, pad_token_id, eos_token_id)
+
+        if model_kwargs.get("position_ids", None) is None:
+            model_kwargs['position_ids'] = paddle.arange(
+                0,
+                paddle.shape(model_kwargs['attention_mask'])[-1],
+                dtype=input_ids.dtype).unsqueeze(0)
+
         self.is_encoder_decoder = False
 
         model_kwargs["use_cache"] = use_cache
 
-        max_length += input_ids.shape[-1]
-        min_length += input_ids.shape[-1]
+        if self.inference:
+            # Note(ZhenyuLi): Avoid the synchronization caused by scale in dy2static
+            min_len = input_ids.shape[-1]
+            max_len = input_ids.shape[-1]
+            paddle.increment(min_len, min_length)
+            paddle.increment(max_len, max_length)
+        else:
+            input_len = input_ids.shape[-1]
+            max_len = max_length + input_len
+            min_len = min_length + input_len
 
         logits_processors = self.get_logits_processor(
-            min_length=min_length,
-            max_length=max_length,
+            min_length=min_len,
+            max_length=max_len,
             eos_token_id=eos_token_id,
             forced_bos_token_id=forced_bos_token_id,
             forced_eos_token_id=forced_eos_token_id,
@@ -1239,7 +1389,7 @@ class GPTForGeneration(nn.Layer):
                     expand_size=num_return_sequences,
                     **model_kwargs)
 
-            ret = self.sample(input_ids, logits_processors, max_length,
+            ret = self.sample(input_ids, logits_processors, max_len,
                               pad_token_id, eos_token_id, top_k, top_p,
                               temperature, **model_kwargs)
         else:

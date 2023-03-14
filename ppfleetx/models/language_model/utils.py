@@ -31,7 +31,7 @@ from ppfleetx.utils.log import logger
 
 def is_fused_matmul_bias_supported():
     if paddle.is_compiled_with_cuda() and not paddle.is_compiled_with_rocm():
-        return hasattr(core.ops, 'fused_gemm_epilogue')
+        return hasattr(core.eager.ops.legacy, 'fused_gemm_epilogue')
     else:
         return False
 
@@ -94,11 +94,17 @@ def process_model_configs(config):
         virtual_pp_degree = configs['virtual_pp_degree']
         num_layers = configs.num_layers
 
-        assert (num_layers %
-            (virtual_pp_degree * pp_degree)) == 0, \
-            "The num_layers of the model should be divisible of pp_degree * virtual_pp_degree." \
-            "Receive num_layers: {}, pp_degree: {}, virtual_pp_degree: {}.".format(
-            num_layers, pp_degree, virtual_pp_degree)
+        if not (num_layers % (virtual_pp_degree * pp_degree)) == 0:
+            assert virtual_pp_degree == 1, "virtual pp doesn't support uneven layer split."
+            logger.warning(
+                "The num_layers of the model is not divisible by pp_degree." \
+                "Receive num_layers: {}, pp_degree: {}.".format(num_layers, pp_degree))
+        else:
+            assert (num_layers %
+                (virtual_pp_degree * pp_degree)) == 0, \
+                "The num_layers of the model should be divisible of pp_degree * virtual_pp_degree." \
+                "Receive num_layers: {}, pp_degree: {}, virtual_pp_degree: {}.".format(
+                num_layers, pp_degree, virtual_pp_degree)
 
         if virtual_pp_degree > 1:
             local_batch_size = config.Global.local_batch_size

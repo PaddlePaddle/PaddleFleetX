@@ -92,19 +92,28 @@ class GPTDataset(paddle.io.Dataset):
 
         input_prefix = input_dir[0]
 
-        for suffix in ["_ids.npy", "_idx.npz"]:
-            if not os.path.isfile(input_prefix + suffix):
-                raise ValueError("File Not found, %s" %
-                                 (input_prefix + suffix))
+        if os.path.isfile(input_prefix + "_ids.npz"):
+            logger.warning(
+                "You are using compatible dataset, please make new dataset as the readme!"
+            )
+            process_data = np.load(
+                input_prefix + "_ids.npz", mmap_mode="r+", allow_pickle=True)
+            sample_ids = process_data["ids"]
+            sample_lens = process_data["lens"].astype("int32")
+        else:
+            for suffix in ["_ids.npy", "_idx.npz"]:
+                if not os.path.isfile(input_prefix + suffix):
+                    raise ValueError("File Not found, %s" %
+                                     (input_prefix + suffix))
 
-        sample_ids = np.load(
-            input_prefix + "_ids.npy", mmap_mode="r", allow_pickle=True)
-        # All documment ids, extend as 1-D array.
+            sample_ids = np.load(
+                input_prefix + "_ids.npy", mmap_mode="r", allow_pickle=True)
+            # All documment ids, extend as 1-D array.
 
-        process_data = np.load(input_prefix + "_idx.npz")
-        # The len(sample_lens) num of docs
-        # The sum(sample_lens) should equal len(sample_ids)
-        sample_lens = process_data["lens"]
+            process_data = np.load(input_prefix + "_idx.npz")
+            # The len(sample_lens) num of docs
+            # The sum(sample_lens) should equal len(sample_ids)
+            sample_lens = process_data["lens"]
 
         splits = get_train_valid_test_split_(split, len(sample_lens))
         assert len(sample_lens) >= splits[
@@ -151,7 +160,7 @@ class GPTDataset(paddle.io.Dataset):
         #  seq_length))
         # The pad and eos tokens do not contribute the loss
         loss_mask = np.ones(seq_length, dtype="float32")
-        loss_mask[np.where(np.array(tokens) == self.eos_id)] = 0.0
+        loss_mask[tokens == self.eos_id] = 0.0
         position_ids = np.arange(0, seq_length, dtype="int64")
 
         labels = np.array(labels).astype("int64")
@@ -412,6 +421,7 @@ def _build_doc_idx(documents, num_epochs, np_rng, separate_last_epoch):
         # The documents repeat num_epochs times.
         doc_idx = doc_idx.reshape(-1)
         doc_idx = doc_idx.astype(np.int32)
+        np_rng.shuffle(doc_idx)
         return doc_idx
 
     doc_idx_first = _build_doc_idx(documents, num_epochs - 1, np_rng, False)
@@ -518,7 +528,7 @@ class LM_Eval_Dataset(paddle.io.Dataset):
 
         # the pad and eos tokens do not contribute the loss
         loss_mask = np.ones(seq_length, dtype="float32")
-        loss_mask[np.where(np.array(tokens) == self.pad_idx)] = 0.0
+        loss_mask[tokens == self.pad_idx] = 0.0
         position_ids = np.arange(0, seq_length, dtype="int64")
 
         # -INF mask value as default

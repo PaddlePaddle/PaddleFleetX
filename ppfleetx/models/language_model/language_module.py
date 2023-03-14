@@ -28,7 +28,6 @@ import ppfleetx.models.language_model.gpt as gpt
 from ppfleetx.models.language_model.gpt.dygraph.sequence_parallel_utils import register_sequence_parallel_allreduce_hooks
 from ppfleetx.distributed.apis import env
 from ppfleetx.utils.log import logger
-import paddleslim
 from .utils import process_configs
 from ppfleetx.data.tokenizers import GPTTokenizer
 from .metrics import *
@@ -77,10 +76,10 @@ class LanguageModule(BasicModule):
             self.configs.Data.Train.dataset.max_seq_len
 
         logger.info(
-            "[train] epoch: %d, batch: %d, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
+            "[train] epoch: [%d/%d], batch: [%d/%d], loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
             "ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
-            % (log_dict['epoch'], log_dict['batch'], log_dict['loss'], log_dict['train_cost'], speed,
-               speed * default_global_tokens_num, speed * default_global_tokens_num / self.data_world_size, log_dict['lr']))
+            % (log_dict['epoch'], log_dict['total_epoch'], log_dict['batch'], log_dict['total_step'], log_dict['loss'],
+               log_dict['train_cost'], speed, speed * default_global_tokens_num, speed * default_global_tokens_num / self.data_world_size, log_dict['lr']))
 
     def validation_step(self, batch):
         tokens, position_ids, labels, loss_mask = batch
@@ -92,9 +91,9 @@ class LanguageModule(BasicModule):
     def validation_step_end(self, log_dict):
         speed = 1. / log_dict['eval_cost']
         logger.info(
-            "[eval] epoch: %d, batch: %d, loss: %.9f, avg_eval_cost: %.5f sec, speed: %.2f step/s"
-            % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
-               log_dict['eval_cost'], speed))
+            "[eval] epoch: %d, batch: %d/%d, loss: %.9f, avg_eval_cost: %.5f sec, speed: %.2f step/s"
+            % (log_dict['epoch'], log_dict['batch'], log_dict['total_batch'],
+               log_dict['loss'], log_dict['eval_cost'], speed))
 
     def test_step(self, batch):
         tokens, position_ids, labels, loss_mask = batch
@@ -110,13 +109,18 @@ class LanguageModule(BasicModule):
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
                log_dict['test_cost'], speed))
 
-    def qat_model(self, model):
-        quanter = paddleslim.dygraph.quant.QAT(
-            config=self.configs.Quantization)
-        return quanter.quantize(model)
-
     def get_model_size(self, l, h, v, s):
-        P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
+        P = 0
+        # embedding
+        P += (v + s) * h
+        # attention
+        P += (4 * h * h + 4 * h) * l
+        # layer_norm of decoder
+        P += (2 * (2 * h)) * l
+        # FFN Layer
+        P += (8 * h * h + 5 * h) * l
+        # layer_norm of transformer
+        P += 2 * h
         logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 /
                                                   1000.0))
 
@@ -135,6 +139,12 @@ class GPTModule(LanguageModule):
 
     def get_model(self):
         model_setting = copy.deepcopy(self.configs.Model)
+        if 'Compress' in self.configs and 'Quantization' in self.configs.Compress:
+            quant_setting = copy.deepcopy(self.configs.Compress.Quantization)
+            skip_tensor_map = quant_setting.get('skip_tensor_map', {})
+            freeze_embedding = quant_setting.get('freeze_embedding', False)
+            model_setting['skip_tensor_map'] = skip_tensor_map
+            model_setting['freeze_embedding'] = freeze_embedding
         model_setting.pop("module")
 
         l = model_setting['num_layers']
@@ -146,11 +156,6 @@ class GPTModule(LanguageModule):
         model_name = model_setting.pop("name")
         tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
         self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
-
-        moe_configs = model_setting.get('moe_configs', {'expert_mode': False})
-        assert not moe_configs[
-            'expert_mode'], "Not support expert mode in GPT model!"
-        model_setting["moe_configs"] = moe_configs
 
         if self.nranks == 1:
             model_setting.pop("sequence_parallel")
@@ -164,10 +169,6 @@ class GPTModule(LanguageModule):
                     gpt.GPTModelHybrid(**model_setting))
             else:
                 model = gpt.GPTForPretrainingPipe(**model_setting)
-
-        if 'Quantization' in self.configs.keys(
-        ) and self.configs.Quantization.enable:
-            model = self.qat_model(model)
 
         return model
 
@@ -479,6 +480,12 @@ class GPTGenerationModule(BasicModule):
 
     def get_model(self):
         model_setting = copy.deepcopy(self.configs.Model)
+        if 'Compress' in self.configs and 'Quantization' in self.configs.Compress:
+            quant_setting = copy.deepcopy(self.configs.Compress.Quantization)
+            skip_tensor_map = quant_setting.get('skip_tensor_map', {})
+            freeze_embedding = quant_setting.get('freeze_embedding', False)
+            model_setting['skip_tensor_map'] = skip_tensor_map
+            model_setting['freeze_embedding'] = freeze_embedding
         model_setting.pop("module")
 
         model_name = model_setting.pop("name")
@@ -598,6 +605,12 @@ class GPTEvalModule(LanguageModule):
 
     def get_model(self):
         model_setting = copy.deepcopy(self.configs.Model)
+        if 'Compress' in self.configs and 'Quantization' in self.configs.Compress:
+            quant_setting = copy.deepcopy(self.configs.Compress.Quantization)
+            skip_tensor_map = quant_setting.get('skip_tensor_map', {})
+            freeze_embedding = quant_setting.get('freeze_embedding', False)
+            model_setting['skip_tensor_map'] = skip_tensor_map
+            model_setting['freeze_embedding'] = freeze_embedding
         model_setting.pop("module")
         model_setting.pop("name")
 
@@ -678,6 +691,13 @@ class GPTEvalModule(LanguageModule):
 
         logger.info(string)
 
+    def input_spec(self):
+        return [
+            InputSpec(
+                shape=[None, None], name="tokens", dtype='int64'), InputSpec(
+                    shape=[None, None], name="ids", dtype='int64')
+        ]
+
 
 class MoEModule(LanguageModule):
     def __init__(self, configs):
@@ -696,9 +716,6 @@ class MoEModule(LanguageModule):
         v = model_setting['vocab_size']
         s = self.configs.Data.Train.dataset.max_seq_len
         self.get_model_size(l, h, v, s)
-
-        moe_configs = model_setting.get('moe_configs', {'expert_mode': False})
-        model_setting["moe_configs"] = moe_configs
 
         if self.nranks == 1:
             model_setting.pop("sequence_parallel")
@@ -738,8 +755,8 @@ class MoEModule(LanguageModule):
         loss = self.loss_fn(preds, labels, loss_mask)
 
         with paddle.amp.auto_cast(enable=False):
-            if self.configs.Model.moe_configs.gate != "naive" and \
-                self.configs.Engine.balance_loss_weight:
+            if self.configs.Model.gate != "naive" and \
+                self.configs.Model.balance_loss_weight:
 
                 gpt_layer = self.model._layers.gpt if isinstance(
                     self.model, paddle.DataParallel) else self.model.gpt

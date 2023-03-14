@@ -18,6 +18,7 @@ import os
 import sys
 import numbers
 import numpy as np
+from dataclasses import dataclass
 
 try:
     from collections.abc import Sequence, Mapping
@@ -145,29 +146,66 @@ class ErnieCollateData():
             return all_data
 
 
-def imagen_collate_fn(batch):
+@dataclass
+class DataCollatorWithPadding:
+    """
+    Data collator that will dynamically pad the inputs to the longest sequence in the batch.
+
+    Args:
+        tokenizer_type (str): The type of tokenizer used for encoding the data.
+    """
+
+    def __init__(self,
+                 tokenizer_type,
+                 padding=True,
+                 max_length=None,
+                 pad_to_multiple_of=None,
+                 return_tensors="pd",
+                 return_attention_mask=None):
+        from ppfleetx.data.tokenizers import get_ernie_tokenizer
+        self.tokenizer = get_ernie_tokenizer(tokenizer_type)
+        self.padding = padding
+        self.max_length = max_length
+        self.pad_to_multiple_of = pad_to_multiple_of
+        self.return_tensors = return_tensors
+        self.return_attention_mask = return_attention_mask
+
+    def __call__(self, features):
+        batch = self.tokenizer.pad(
+            features,
+            padding=self.padding,
+            max_length=self.max_length,
+            pad_to_multiple_of=self.pad_to_multiple_of,
+            return_tensors=self.return_tensors,
+            return_attention_mask=self.return_attention_mask)
+        if "label" in batch:
+            batch["labels"] = batch["label"]
+            del batch["label"]
+        if "label_ids" in batch:
+            batch["labels"] = batch["label_ids"]
+            del batch["label_ids"]
+        return batch
+
+
+def imagen_collate_fn(samples):
     """ collate for imagen base64 """
-    text_embs = []
-    images = []
-    attn_masks = []
-    max_len = 0
-    for image, text_emb, attn_mask in batch:
-        if text_emb is None:
-            return [None] * 3
-        text_len, dim = text_emb.shape
-        if text_len > max_len:
-            max_len = text_emb.shape[0]
+    tmp = []
+    for i in samples:
+        if i and len(i['image']):
+            tmp.append(i)
+    samples = tmp
 
-        images.append(image)
-        text_embs.append(text_emb)
-        attn_masks.append(attn_mask)
-    bsz = len(images)
-    dim = text_embs[0].shape[-1]
-    text_embeds = paddle.zeros(shape=[bsz, max_len, dim], dtype=np.float32)
-    text_masks = paddle.zeros(shape=[bsz, max_len], dtype=np.int64)
-    images = paddle.stack(images)
-    for i, (emb, mask) in enumerate(zip(text_embs, attn_masks)):
-        text_embeds[i, :emb.shape[0], :] = emb
-        text_masks[i, :mask.shape[0]] = mask
+    if len(samples) == 0:
+        return None
 
-    return images, text_embeds, text_masks
+    pad_idx = 0
+    text_items = [sample['caption'] for sample in samples]
+    image_items = [sample['image'] for sample in samples]
+    text_lengths = [len(cap) for cap in text_items]
+
+    bsz = len(text_items)
+    text_input = text_items
+
+    image_input = paddle.stack(image_items, axis=0)
+    _input = {'images': image_input, 'texts': text_input}
+    return _input

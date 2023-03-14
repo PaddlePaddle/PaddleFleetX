@@ -1,0 +1,62 @@
+_base_: ./imagen_base.yaml
+
+Global:
+  global_batch_size:
+  local_batch_size: 1
+  micro_batch_size: 1
+
+
+Model:
+  name: imagen_SR256
+  text_encoder_name: None  # We do not use text conditoin during training.
+  text_embed_dim: 
+  timesteps: 1000 
+  channels: 3
+  cond_drop_prob: 0.1
+  noise_schedules: cosine
+  pred_objectives: noise
+  lowres_cond: True 
+  lowres_noise_schedule: linear
+  lowres_sample_noise_level: 0.2
+  per_sample_random_aug_noise_level: False
+  condition_on_text: False 
+  auto_normalize_img: True
+  p2_loss_weight_gamma: 0.5
+  dynamic_thresholding: True,
+  dynamic_thresholding_percentile: 0.95
+  only_train_unet_number: 1 
+  is_sr: True
+  use_recompute: True 
+  recompute_granularity:
+
+Data:
+  Train:
+    dataset:
+      name: ImagenDataset
+      input_path: ./projects/imagen/filelist/laion_400M/train
+      shuffle: True
+      image_format: base64 
+      image_size: 256 
+      text_max_len: 128 
+      filter_image_resolution: 256 
+      sr: True
+    loader:
+      num_workers: 8
+      shuffle: True
+      batch_size: 6 
+      drop_last: True
+      collate_fn: imagen_collate_fn
+  
+
+Loss:
+  name: mse_loss
+  p2_loss_weight_k: 1.0
+
+Distributed:
+  dp_degree: 1
+  mp_degree: 1
+  pp_degree: 1
+  sharding:
+    sharding_degree: 1
+    sharding_stage: 1
+    sharding_offload: False

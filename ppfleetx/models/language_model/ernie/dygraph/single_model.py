@@ -23,7 +23,11 @@ import paddle.nn as nn
 from paddle.nn import functional as F
 from dataclasses import dataclass, field
 
-from ..layers.model_outputs import BaseModelOutputWithPoolingAndCrossAttentions, ModelOutput
+from ..layers.model_outputs import (
+    BaseModelOutputWithPoolingAndCrossAttentions,
+    ModelOutput,
+    ErnieForPreTrainingOutput,
+    SequenceClassifierOutput, )
 from ..layers.transformer import TransformerEncoderLayer, TransformerEncoder
 
 
@@ -128,10 +132,7 @@ class ErnieModel(nn.Layer):
     r"""
     The bare ERNIE Model transformer outputting raw hidden-states.
 
-    This model inherits from :class:`~paddlenlp.transformers.model_utils.PretrainedModel`.
-    Refer to the superclass documentation for the generic methods.
-
-    This model is also a Paddle `paddle.nn.Layer <https://www.paddlepaddle.org.cn/documentation
+    This model is a Paddle `paddle.nn.Layer <https://www.paddlepaddle.org.cn/documentation
     /docs/en/api/paddle/fluid/dygraph/layers/Layer_en.html>`__ subclass. Use it as a regular Paddle Layer
     and refer to the Paddle documentation for all matter related to general usage and behavior.
 
@@ -205,6 +206,7 @@ class ErnieModel(nn.Layer):
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
         self.hidden_act = hidden_act
+        self.hidden_dropout_prob = hidden_dropout_prob
 
         weight_attr = paddle.ParamAttr(
             initializer=nn.initializer.TruncatedNormal(
@@ -302,27 +304,14 @@ class ErnieModel(nn.Layer):
                 Whether to return the attentions tensors of all attention layers.
                 Defaults to `False`.
             return_dict (bool, optional):
-                Whether to return a :class:`~paddlenlp.transformers.model_outputs.ModelOutput` object. If `False`, the output
-                will be a tuple of tensors. Defaults to `False`.
+                Whether to return a :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.ModelOutput` object. 
+                If `False`, the output will be a tuple of tensors. Defaults to `False`.
 
         Returns:
-            An instance of :class:`~paddlenlp.transformers.model_outputs.BaseModelOutputWithPoolingAndCrossAttentions` if
+            An instance of :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.BaseModelOutputWithPoolingAndCrossAttentions` if
             `return_dict=True`. Otherwise it returns a tuple of tensors corresponding
             to ordered and not None (depending on the input arguments) fields of
-            :class:`~paddlenlp.transformers.model_outputs.BaseModelOutputWithPoolingAndCrossAttentions`.
-
-        Example:
-            .. code-block::
-
-                import paddle
-                from paddlenlp.transformers import ErnieModel, ErnieTokenizer
-
-                tokenizer = ErnieTokenizer.from_pretrained('ernie-1.0')
-                model = ErnieModel.from_pretrained('ernie-1.0')
-
-                inputs = tokenizer("Welcome to use PaddlePaddle and PaddleNLP!")
-                inputs = {k:paddle.to_tensor([v]) for (k, v) in inputs.items()}
-                sequence_output, pooled_output = model(**inputs)
+            :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.BaseModelOutputWithPoolingAndCrossAttentions`.
 
         """
         if input_ids is not None and inputs_embeds is not None:
@@ -445,7 +434,7 @@ class ErnieLMPredictionHead(nn.Layer):
         hidden_states = self.transform(hidden_states)
         hidden_states = self.activation(hidden_states)
         hidden_states = self.layer_norm(hidden_states)
-        hidden_states = paddle.tensor.matmul(
+        hidden_states = paddle.matmul(
             hidden_states, self.decoder_weight,
             transpose_y=True) + self.decoder_bias
         return hidden_states
@@ -535,15 +524,16 @@ class ErnieForPretraining(nn.Layer):
                 Whether to return the attentions tensors of all attention layers.
                 Defaults to `False`.
             return_dict (bool, optional):
-                Whether to return a :class:`~paddlenlp.transformers.bert.ErnieForPreTrainingOutput` object. If
+                Whether to return a :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.ErnieForPreTrainingOutput` object. If
                 `False`, the output will be a tuple of tensors. Defaults to `False`.
 
         Returns:
-            An instance of :class:`~paddlenlp.transformers.bert.ErnieForPreTrainingOutput` if `return_dict=True`.
+            An instance of :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.ErnieForPreTrainingOutput` if `return_dict=True`.
             Otherwise it returns a tuple of tensors corresponding to ordered and
-            not None (depending on the input arguments) fields of :class:`~paddlenlp.transformers.bert.ErnieForPreTrainingOutput`.
+            not None (depending on the input arguments) fields of :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.ErnieForPreTrainingOutput`.
 
         """
+
         # with paddle.static.amp.fp16_guard():
         outputs = self.ernie(
             input_ids,
@@ -596,37 +586,6 @@ class ErnieForPretraining(nn.Layer):
                         shape=layer.weight.shape))
         elif isinstance(layer, nn.LayerNorm):
             layer._epsilon = 1e-12
-
-
-@dataclass
-class ErnieForPreTrainingOutput(ModelOutput):
-    """
-    Output type of [`ErnieForPreTraining`].
-    Args:
-        loss (*optional*, returned when `labels` is provided, `paddle.Tensor` of shape `(1,)`):
-            Total loss as the sum of the masked language modeling loss and the next sequence prediction
-            (classification) loss.
-        prediction_logits (`paddle.Tensor` of shape `(batch_size, sequence_length, config.vocab_size)`):
-            Prediction scores of the language modeling head (scores for each vocabulary token before SoftMax).
-        seq_relationship_logits (`paddle.Tensor` of shape `(batch_size, 2)`):
-            Prediction scores of the next sequence prediction (classification) head (scores of True/False continuation
-            before SoftMax).
-        hidden_states (`tuple(paddle.Tensor)`, *optional*, returned when `output_hidden_states=True` is passed or when `config.output_hidden_states=True`):
-            Tuple of `paddle.Tensor` (one for the output of the embeddings + one for the output of each layer) of
-            shape `(batch_size, sequence_length, hidden_size)`.
-            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
-        attentions (`tuple(paddle.Tensor)`, *optional*, returned when `output_attentions=True` is passed or when `config.output_attentions=True`):
-            Tuple of `paddle.Tensor` (one for each layer) of shape `(batch_size, num_heads, sequence_length,
-            sequence_length)`.
-            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
-            heads.
-    """
-
-    loss = None
-    prediction_logits = None
-    seq_relationship_logits = None
-    hidden_states = None
-    attentions = None
 
 
 class ErniePretrainingCriterion(paddle.nn.Layer):
@@ -683,3 +642,124 @@ class ErniePretrainingCriterion(paddle.nn.Layer):
             next_sentence_loss = F.cross_entropy(
                 seq_relationship_score, next_sentence_labels, reduction='none')
             return paddle.mean(masked_lm_loss), paddle.mean(next_sentence_loss)
+
+
+class ErnieForSequenceClassification(nn.Layer):
+    """
+    Ernie Model with a linear layer on top of the output layer,
+    designed for sequence classification/regression tasks like GLUE tasks.
+
+    Args:
+        ernie (:class:`ErnieModel`):
+            An instance of ErnieModel.
+        num_classes (int, optional):
+            The number of classes. Defaults to `2`.
+        dropout (float, optional):
+            The dropout probability for output of ERNIE.
+            If None, use the same value as `hidden_dropout_prob` of `ErnieModel`
+            instance `ernie`. Defaults to None.
+    """
+
+    def __init__(self, ernie, num_classes=2, dropout=None):
+        super(ErnieForSequenceClassification, self).__init__()
+        self.num_classes = num_classes
+        self.ernie = ernie  # allow ernie to be config
+        self.dropout = nn.Dropout(dropout if dropout is not None else
+                                  self.ernie.hidden_dropout_prob)
+        self.classifier = nn.Linear(self.ernie.hidden_size, num_classes)
+        self.apply(self.init_weights)
+
+    def forward(self,
+                input_ids,
+                token_type_ids=None,
+                position_ids=None,
+                attention_mask=None,
+                labels=None,
+                output_hidden_states=False,
+                output_attentions=False,
+                return_dict=False):
+        r"""
+        The ErnieForSequenceClassification forward method, overrides the __call__() special method.
+
+        Args:
+            input_ids (Tensor):
+                See :class:`ErnieModel`.
+            token_type_ids (Tensor, optional):
+                See :class:`ErnieModel`.
+            position_ids(Tensor, optional):
+                See :class:`ErnieModel`.
+            attention_mask (Tensor, optional):
+                See :class:`ErnieModel`.
+            labels (Tensor of shape `(batch_size,)`, optional):
+                Labels for computing the sequence classification/regression loss.
+                Indices should be in `[0, ..., num_classes - 1]`. If `num_classes == 1`
+                a regression loss is computed (Mean-Square loss), If `num_classes > 1`
+                a classification loss is computed (Cross-Entropy).
+            output_hidden_states (bool, optional):
+                Whether to return the hidden states of all layers.
+                Defaults to `False`.
+            output_attentions (bool, optional):
+                Whether to return the attentions tensors of all attention layers.
+                Defaults to `False`.
+            return_dict (bool, optional):
+                Whether to return a :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.SequenceClassifierOutput` object. If
+                `False`, the output will be a tuple of tensors. Defaults to `False`.
+
+        Returns:
+            An instance of :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.SequenceClassifierOutput` if `return_dict=True`.
+            Otherwise it returns a tuple of tensors corresponding to ordered and
+            not None (depending on the input arguments) fields of :class:`~ppfleetx.models.language_model.ernie.layers.model_outputs.SequenceClassifierOutput`.
+
+        """
+
+        outputs = self.ernie(
+            input_ids,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            attention_mask=attention_mask,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict)
+        pooled_output = outputs[1]
+
+        pooled_output = self.dropout(pooled_output)
+        logits = self.classifier(pooled_output)
+
+        loss = None
+        if labels is not None:
+            if self.num_classes == 1:
+                loss_fct = paddle.nn.MSELoss()
+                loss = loss_fct(logits, labels)
+            elif labels.dtype == paddle.int64 or labels.dtype == paddle.int32:
+                loss_fct = paddle.nn.CrossEntropyLoss()
+                loss = loss_fct(
+                    logits.reshape((-1, self.num_classes)),
+                    labels.reshape((-1, )))
+            else:
+                loss_fct = paddle.nn.BCEWithLogitsLoss()
+                loss = loss_fct(logits, labels)
+
+        if not return_dict:
+            output = (logits, ) + outputs[2:]
+            return ((loss, ) + output) if loss is not None else (
+                output[0] if len(output) == 1 else output)
+
+        return SequenceClassifierOutput(
+            loss=loss,
+            logits=logits,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions, )
+
+    def init_weights(self, layer):
+        """ Initialization hook """
+        if isinstance(layer, (nn.Linear, nn.Embedding)):
+            if isinstance(layer.weight, paddle.Tensor):
+                layer.weight.set_value(
+                    paddle.tensor.normal(
+                        mean=0.0,
+                        std=self.initializer_range
+                        if hasattr(self, "initializer_range") else
+                        self.ernie.initializer_range,
+                        shape=layer.weight.shape))
+        elif isinstance(layer, nn.LayerNorm):
+            layer._epsilon = 1e-12

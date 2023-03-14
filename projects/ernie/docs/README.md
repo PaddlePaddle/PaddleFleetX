@@ -24,12 +24,23 @@ Learnt by ERNIE：[mask] [mask] [mask] 是黑龙江的省会，国际 [mask] [ma
 ```text
 .
 ├── docs
+│   └── inference.md
 │   └── README.md
+├── auto_export_ernie_345M_mp1.sh           # 345M ernie-base模型，自动切分单卡导出
+├── auto_export_ernie_345M_mp2.sh           # 345M ernie-base模型，自动切分多卡导出
+├── auto_export_ernie_345M_mp2_xpu.sh       # 345M ernie-base模型，自动切分多卡导出（XPU）
+├── export_ernie_345M_single_card.sh        # 345M ernie-base模型，单卡导出
+├── finetune_ernie_345M_single_card.sh      # 345M ernie-base模型，单卡finetune训练
+├── inference.py                            # ernie推理代码
 ├── pretrain_ernie_base_175B_mp8_pp16.sh    # 175B ernie-base模型，3D混合并行
 ├── pretrain_ernie_base_3D.sh               # ci测试
 ├── pretrain_ernie_base_6.7B_sharding16.sh  # 6.7B ernie-base模型，sharding16
 ├── pretrain_ernie_base.sh                  # 345M ernie-base模型，单卡
-└── pretrain_ernie_large.sh                 # ernie-large模型，单卡     
+├── pretrain_ernie_large.sh                 # ernie-large模型，单卡
+├── run_inference.sh                        # ernie 推理运行脚本 
+├── run_inference_mp2.sh                    # ernie 多卡推理运行脚本 
+└── run_inference_mp2_xpu.sh                # ernie 多卡推理运行脚本（XPU)
+
 ```
 
 
@@ -107,7 +118,7 @@ clue_corpus_small_14g_20220104_idx.npz
 cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 # 345M
-python tools/train.py -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_single_card.yaml 
+python tools/train.py -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_345M_single_card.yaml 
 ```
 
 - 混合并行
@@ -116,8 +127,40 @@ python tools/train.py -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_single_c
 cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
 
 # 175B run_pretrain
+log_dir=log_175B
 python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
     ./tools/train.py \
     -c ./ppfleetx/configs/nlp/ernie/pretrain_ernie_base_175B_mp8_pp16.yaml
 
 ```
+
+## 3.下游任务微调
+基于训练中产出的checkpoint，用户可以快速对当前模型效果进行评估。PaddleFleetX已经适配了主流下游任务 —— 序列分类，用户可以根据自己的需求，评估自己所需的数据集。
+
+#### 运行实例
+
+- 单卡训练
+
+```
+cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
+
+python tools/train.py -c ppfleetx/configs/nlp/ernie/finetune_ernie_345M_single_card.yaml
+```
+
+
+- 数据并行
+
+```
+cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
+
+log_dir=log_dp8
+python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
+    ./tools/train.py \
+    -c ./ppfleetx/configs/nlp/ernie/finetune_ernie_345M_single_card.yaml \
+    -o Model.use_recompute=True
+```
+</details>
+
+## 3. 推理部署
+
+[推理部署](inference.md)

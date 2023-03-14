@@ -21,7 +21,6 @@ from ppfleetx.core.module.basic_module import BasicModule
 import ppfleetx.models.multimodal_model.imagen as imagen
 from ppfleetx.utils.log import logger
 
-import paddleslim
 from .utils import process_configs
 
 
@@ -36,14 +35,11 @@ class MultiModalModule(BasicModule):
         configs = process_configs(configs)
         return configs
 
-    def forward(self, samples, text_embeds, text_masks):
-        return self.model(
-            samples, text_embeds=text_embeds, text_masks=text_masks)
+    def forward(self, batch):
+        return self.model(**batch)
 
     def training_step(self, batch):
-        samples, text_embeds, text_masks = batch
-        preds, targets, log_snr, p2_loss_weight_gamma = self(
-            samples, text_embeds, text_masks)
+        preds, targets, log_snr, p2_loss_weight_gamma = self(batch)
         loss = self.loss_fn(preds, targets, log_snr, p2_loss_weight_gamma)
         return loss
 
@@ -82,11 +78,6 @@ class MultiModalModule(BasicModule):
             "[test] epoch: %d, batch: %d, loss: %.9f, avg_test_cost: %.5f sec, speed: %.2f step/s"
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
                1. / speed, speed))
-
-    def qat_model(self):
-        quanter = paddleslim.dygraph.quant.QAT(
-            config=self.configs.Quantization)
-        self.model = quanter.quantize(self.model)
 
     def input_spec(self):
         return [

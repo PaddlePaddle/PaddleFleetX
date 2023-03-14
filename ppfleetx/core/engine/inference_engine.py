@@ -55,7 +55,7 @@ class TensorRTConfig(object):
 
     def __init__(self,
                  max_batch_size=1,
-                 workspace_size=1<<30,
+                 workspace_size=1 << 30,
                  min_subgraph_size=3,
                  precision='fp16',
                  use_static=False,
@@ -115,6 +115,12 @@ class InferenceEngine(object):
         self.model_dir = model_dir
         self.mp_degree = mp_degree
         self.tensorrt_config = tensorrt_config
+        self.auto = False
+
+        for fname in os.listdir(model_dir):
+            if "auto" in fname:
+                self.auto = True
+                break
 
         if mp_degree == 1:
             self.nranks = 1
@@ -123,7 +129,8 @@ class InferenceEngine(object):
             self.nranks = fleet.worker_num()
             self.rank = fleet.worker_index()
 
-        self._check_model()
+        if not self.auto:
+            self._check_model()
 
         self._static_guard = _StaticGuard()
         with self._static_guard:
@@ -173,12 +180,22 @@ class InferenceEngine(object):
         return config_fname
 
     def _init_predictor(self):
-        device_id = int(os.environ.get('FLAGS_selected_gpus', 0))
+        if self.auto:
+            self.model_file = os.path.join(
+                self.model_dir, 'auto_dist{}.pdmodel'.format(self.rank))
+            self.param_file = os.path.join(
+                self.model_dir, 'auto_dist{}.pdiparams'.format(self.rank))
         config = paddle.inference.Config(self.model_file, self.param_file)
 
         config.enable_memory_optim()
         config.switch_ir_optim(True)
-        config.enable_use_gpu(100, device_id)
+        if paddle.fluid.core.is_compiled_with_cuda():
+            device_id = int(os.environ.get('FLAGS_selected_gpus', 0))
+            config.enable_use_gpu(100, device_id)
+        elif paddle.fluid.core.is_compiled_with_xpu():
+            device_id = int(os.environ.get('FLAGS_selected_xpus', 0))
+            config.enable_xpu()
+            config.set_xpu_device_id(device_id)
 
         # distributed config
         if self.mp_degree > 1:
@@ -190,28 +207,30 @@ class InferenceEngine(object):
             dist_config.set_endpoints(trainer_endpoints, current_endpoint)
             dist_config.enable_dist_model(True)
 
-            config_fname = self._generate_comm_init_config(self.rank,
-                                                           self.nranks)
+            if self.auto:
+                config_fname = os.path.join(self.model_dir, "rank_mapping.csv")
+            else:
+                config_fname = self._generate_comm_init_config(self.rank,
+                                                               self.nranks)
             dist_config.set_comm_init_config(config_fname)
             config.set_dist_config(dist_config)
 
         # TensorRT config
         if self.tensorrt_config:
             config.enable_tensorrt_engine(
-                    max_batch_size=self.tensorrt_config.max_batch_size,
-                    workspace_size=self.tensorrt_config.workspace_size,
-                    min_subgraph_size=self.tensorrt_config.min_subgraph_size,
-                    precision_mode=self.tensorrt_config.precision,
-                    use_static=self.tensorrt_config.use_static,
-                    use_calib_mode=self.tensorrt_config.use_calib_mode)
+                max_batch_size=self.tensorrt_config.max_batch_size,
+                workspace_size=self.tensorrt_config.workspace_size,
+                min_subgraph_size=self.tensorrt_config.min_subgraph_size,
+                precision_mode=self.tensorrt_config.precision,
+                use_static=self.tensorrt_config.use_static,
+                use_calib_mode=self.tensorrt_config.use_calib_mode)
 
             if self.tensorrt_config.collect_shape:
                 config.collect_shape_range_info(
-                        self.tensorrt_config.shape_range_info_filename)
+                    self.tensorrt_config.shape_range_info_filename)
             else:
                 config.enable_tuned_tensorrt_dynamic_shape(
-                        self.tensorrt_config.shape_range_info_filename,
-                        True)
+                    self.tensorrt_config.shape_range_info_filename, True)
 
         self.predictor = paddle.inference.create_predictor(config)
 
@@ -229,7 +248,7 @@ class InferenceEngine(object):
                     raise ValueError()
                 for d, name in zip(data, self.input_names()):
                     handle = self.predictor.get_input_handle(name)
-                    handle.copy_from_cpu(np.array(d))
+                    handle.copy_from_cpu(np.array(d.copy()))
             elif isinstance(data, Mapping):
                 # key check
                 for k, v in data.items():

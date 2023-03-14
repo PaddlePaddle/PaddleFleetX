@@ -1,6 +1,6 @@
-# PaddleNLP 预训练数据流程
+# PaddleFleetX 预训练数据准备流程
 
-本示例致力于打造基于PaddleNLP预训练模型的最佳实践。
+本示例致力于打造基于PaddleFleetX预训练模型的最佳实践。
 
 
 我们将预训练数据过程划分为以下部分
@@ -65,7 +65,7 @@
 
 ## 数据教程汇总
 
-针对目前开源的数据集，PaddleNLP提供了详细的数据教程，点击对应数据集的链接，即可开始进行数据制作：
+针对目前开源的数据集，PaddleFleetX提供了详细的数据教程，点击对应数据集的链接，即可开始进行数据制作：
 
 | 名称 | 文本类型 | 纯文本大小 | 适配模型
 |-|-|-|-|
@@ -81,7 +81,9 @@
 ### 原始数据
 首先下载样例数据：
 ```
-mkdir data && cd data
+cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
+
+mkdir preprocess && cd preprocess
 wget https://bj.bcebos.com/paddlenlp/models/transformers/data_tools/baike.txt
 cd ..
 ```
@@ -117,7 +119,9 @@ optional arguments:
 ```
 根据说明，我们使用下面简单命令，可以得到`baike_sample.jsonl`文件。此处，我们对文章所有doc进行了shuffle。
 ```shell
-python trans_to_json.py  --input_path ./data --output_path baike_sample
+cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
+
+python ./ppfleetx/data/data_tools/ernie/preprocess/trans_to_json.py  --input_path ./preprocess --output_path preprocess/baike_sample
 
 #查看数据
 head -1 baike_sample.jsonl
@@ -181,14 +185,16 @@ common config:
 ```
 通过下面脚本转化，我们可以得到处理好的预训练数据，token ids:`baike_sample_ids.npy`, 文章索引信息`baike_sample_idx.npz`.
 ```
-python -u  create_pretraining_data.py \
+cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
+
+python -u  ./ppfleetx/data/data_tools/ernie/preprocess/create_pretraining_data.py \
     --model_name ernie-1.0-base-zh \
     --tokenizer_name ErnieTokenizer \
-    --input_path baike_sample.jsonl \
+    --input_path preprocess/baike_sample.jsonl \
     --split_sentences\
     --chinese \
     --cn_whole_word_segment \
-    --output_prefix baike_sample  \
+    --output_prefix preprocess/baike_sample  \
     --workers 1 \
     --log_interval 5
 ```
@@ -197,18 +203,20 @@ python -u  create_pretraining_data.py \
 
 
 ### ERNIE 预训练开始
-得到了处理好的训练数据，就可以开始ERNIE模型的预训练了。ERNIE预训练的代码在`model_zoo/ernie-1.0`。
-简单将预处理好的数据，拷贝到data目录，即可开始ERNIE模型预训练。
+得到了处理好的训练数据，拷贝到data目录，即可开始ERNIE模型预训练。
 ```
+cd PaddleFleetX # 如果已在 PaddleFleetX 根目录下，则忽略
+
 mkdir data
 mv ./preprocess/baike_sample* ./data
-sh run_static.sh
-# 建议修改 run_static.sh 中的配置，将max_steps设置小一些。
+
+sh ./projects/ernie/pretrain_ernie_base.sh
+# 建议修改 pretrain_ernie_base.sh 中的配置，将max_steps设置小一些。
 ```
 代码说明：
 
-- ernie预训练使用的 dataset 代码文件在 `./data_tools/ernie_dataset.py`
-- 数据集index生成，动态mask相关代码实现在`./data_tools/dataset_utils.py`
+- ernie预训练使用的 dataset 代码文件在 `ernie_dataset.py`
+- 数据集index生成，动态mask相关代码实现在`dataset_utils.py`
 
 用户可以根据自己的需求，灵活修改mask方式。具体可以参考`dataset_utils.py`中`create_masked_lm_predictions`函数。
 可以自定义的选项有do_whole_word_mask, favor_longer_ngram, do_permutation, geometric_dist等，
