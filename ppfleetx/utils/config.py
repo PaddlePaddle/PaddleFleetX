@@ -524,8 +524,6 @@ def process_auto_strategy(config):
     amp.custom_black_list = amp_cfg.get('custom_black_list', [])
     amp.custom_white_list = amp_cfg.get('custom_white_list', [])
     amp.use_fp16_guard = amp_cfg.get('use_fp16_guard', False)
-    amp.custom_bf16_list = amp_cfg.get('custom_fp16_list', [])
-    amp.custom_bf32_list = amp_cfg.get('custom_fp32_list', [])
     amp.use_bf16_guard = amp_cfg.get('use_bf16_guard', False)
 
     # recompute config
