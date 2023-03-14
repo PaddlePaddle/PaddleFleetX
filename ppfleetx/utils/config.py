@@ -517,13 +517,16 @@ def process_auto_strategy(config):
     # amp config
     amp_cfg = config.Engine.get('mix_precision', {})
     amp = strategy.amp
-    amp.enable = amp_cfg.get('level', "") in ['o1', 'o2', 'o3']
-    amp.use_pure_fp16 = amp_cfg.get('level', "") in ['o2', 'o3']
-    amp.use_optimizer_fp16 = amp_cfg.get('level', "") in ['o3']
-    amp.use_fp16_guard = amp_cfg.get('use_fp16_guard', False)
+    amp.enable = amp_cfg.get('dtype', "") in ['float16', 'bfloat16']
+    amp.dtype = amp_cfg.get('dtype', "float16")
+    amp.level = amp_cfg.get('level', "o1")
     amp.init_loss_scaling = amp_cfg.get('scale_loss', 32768)
     amp.custom_black_list = amp_cfg.get('custom_black_list', [])
     amp.custom_white_list = amp_cfg.get('custom_white_list', [])
+    amp.use_fp16_guard = amp_cfg.get('use_fp16_guard', False)
+    amp.custom_bf16_list = amp_cfg.get('custom_fp16_list', [])
+    amp.custom_bf32_list = amp_cfg.get('custom_fp32_list', [])
+    amp.use_bf16_guard = amp_cfg.get('use_bf16_guard', False)
 
     # recompute config
     if config.get('Model', None) is not None:
