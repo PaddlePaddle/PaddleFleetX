@@ -773,7 +773,7 @@ class GPTModelHybrid(nn.Layer):
 
         hcg = env.get_hcg()
         mp_size = hcg.get_model_parallel_world_size()
-        if use_flash_attn or mp_size <= 1:
+        if mp_size <= 1:
             sequence_parallel = False
             logging.warning(
                 "If mp_size <= 1, sequence_parallel strategy will be turned off in GPTModelHybrid model."
