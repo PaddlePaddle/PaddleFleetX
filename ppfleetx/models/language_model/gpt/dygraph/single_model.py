@@ -728,7 +728,7 @@ class GPTModel(nn.Layer):
             input_ids=input_ids, position_ids=position_ids)
 
         fused_softmax_with_triangular = strtobool(
-            os.getenv("fused_softmax_with_triangular", True))
+            os.getenv("fused_softmax_with_triangular", 'True'))
         # fused_softmax_with_triangular is only suppported on GPU/DCU.
         # If on non-GPU devices, we use user defined mask and non-fused softmax.
         if not fused_softmax_with_triangular or not paddle.is_compiled_with_cuda(
