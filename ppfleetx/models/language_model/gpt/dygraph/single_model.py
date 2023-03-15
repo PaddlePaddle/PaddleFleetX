@@ -626,7 +626,8 @@ class GPTModel(nn.Layer):
                  no_recompute_layers=None,
                  skip_tensor_map={},
                  freeze_embedding=False,
-                 use_flash_attn=False):
+                 use_flash_attn=False,
+                 fused_softmax_with_triangular=False):
 
         super(GPTModel, self).__init__()
 
@@ -635,6 +636,7 @@ class GPTModel(nn.Layer):
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
+        self.fused_softmax_with_triangular = fused_softmax_with_triangular
 
         if use_flash_attn:
             if flash_attention:
@@ -727,11 +729,9 @@ class GPTModel(nn.Layer):
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
 
-        fused_softmax_with_triangular = strtobool(
-            os.getenv("fused_softmax_with_triangular", 'True'))
         # fused_softmax_with_triangular is only suppported on GPU/DCU.
         # If on non-GPU devices, we use user defined mask and non-fused softmax.
-        if not fused_softmax_with_triangular or not paddle.is_compiled_with_cuda(
+        if not self.fused_softmax_with_triangular or not paddle.is_compiled_with_cuda(
         ):
             # TODO, use registered buffer
             causal_mask = paddle.tensor.triu(
@@ -751,7 +751,7 @@ class GPTModel(nn.Layer):
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
-            tgt_mask=None if (fused_softmax_with_triangular and
+            tgt_mask=None if (self.fused_softmax_with_triangular and
                               self.training and paddle.is_compiled_with_cuda())
             else attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
@@ -1234,7 +1234,8 @@ class GPTForGeneration(nn.Layer):
                         shape=[paddle.shape(probs)[0]],
                         fill_value=top_p,
                         dtype=probs.dtype)
-                    _, next_tokens = topp_sampling(probs, top_ps_tensor, random_seed=100)
+                    _, next_tokens = topp_sampling(
+                        probs, top_ps_tensor, random_seed=100)
                 else:
                     probs = TopPProcess(probs, top_p, min_tokens_to_keep)
 

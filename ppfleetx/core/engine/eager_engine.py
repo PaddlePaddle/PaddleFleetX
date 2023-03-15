@@ -201,6 +201,8 @@ class EagerEngine(BasicEngine):
             self._scaler = None
 
         if mode == 'train':
+            self._use_increments = configs.Optimizer.lr.pop('use_increments',
+                                                            False)
             self._lr_scheduler_mode = configs.Optimizer.lr.pop('run_mode',
                                                                'step')
             assert self._lr_scheduler_mode in [
@@ -350,9 +352,9 @@ class EagerEngine(BasicEngine):
             train_losses.append(loss)
 
             if self._lr_scheduler is not None and self._lr_scheduler_mode == 'step':
-                # TODO: if update_successful
                 if self._scaler is None or self._scaler._found_inf == 0:
-                    self._lr_scheduler.step(epoch=self._global_batch_size)
+                    self._lr_scheduler.step(epoch=self._global_batch_size
+                                            if self._use_increments else None)
 
             if (step + 1) % self._logging_freq == 0:
                 train_step_cost = get_timestamp() - train_step_start
