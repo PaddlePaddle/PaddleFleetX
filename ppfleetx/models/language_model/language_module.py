@@ -169,7 +169,7 @@ class GPTModule(LanguageModule):
 
         model_setting['vocab_size'] = vocab_size_with_padding(
             model_setting.get('vocab_size', self.tokenizer.vocab_size),
-            model_setting.pop('vocab_size_divisible_unit'),
+            model_setting.pop('vocab_size_divisible_unit', 128),
             self.configs.Distributed.get('mp_degree', 1))
 
         l = model_setting['num_layers']
@@ -280,7 +280,7 @@ class GPTFinetuneModule(BasicModule):
 
         model_setting['vocab_size'] = vocab_size_with_padding(
             model_setting.get('vocab_size', self.tokenizer.vocab_size),
-            model_setting.pop('vocab_size_divisible_unit'),
+            model_setting.pop('vocab_size_divisible_unit', 128),
             self.configs.Distributed.get('mp_degree', 1))
 
         l = model_setting['num_layers']
@@ -515,7 +515,7 @@ class GPTGenerationModule(BasicModule):
 
         model_setting['vocab_size'] = vocab_size_with_padding(
             model_setting.get('vocab_size', self.tokenizer.vocab_size),
-            model_setting.pop('vocab_size_divisible_unit'),
+            model_setting.pop('vocab_size_divisible_unit', 128),
             self.configs.Distributed.get('mp_degree', 1))
 
         if self.nranks == 1:
@@ -645,7 +645,7 @@ class GPTEvalModule(LanguageModule):
 
         model_setting['vocab_size'] = vocab_size_with_padding(
             model_setting.get('vocab_size', self.tokenizer.vocab_size),
-            model_setting.pop('vocab_size_divisible_unit'),
+            model_setting.pop('vocab_size_divisible_unit', 128),
             self.configs.Distributed.get('mp_degree', 1))
 
         if self.nranks == 1:
