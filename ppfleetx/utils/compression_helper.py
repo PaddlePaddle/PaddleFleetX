@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import paddle
-import paddleslim
+# import paddleslim
 
 
 def get_pruned_params(model):

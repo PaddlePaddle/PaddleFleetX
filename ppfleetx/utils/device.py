@@ -9,7 +9,7 @@ def get_device_and_mapping():
         "gpu": paddle.is_compiled_with_cuda(),
         "xpu": paddle.is_compiled_with_xpu(),
         "rocm": paddle.is_compiled_with_rocm(),
-        "npu": paddle.is_compiled_with_npu(),
+        "npu": paddle.is_compiled_with_npu() or  paddle.is_compiled_with_custom_device("npu"),
         "cpu": True
     }
     for d, v in suppoted_device_map.items():
@@ -35,6 +35,9 @@ def synchronize():
         return True
     elif device == "xpu":
         paddle.device.xpu.synchronize()
+        return True
+    elif device in paddle.device.get_all_custom_device_type():
+        paddle.device.synchronize()
         return True
     else:
         logger.warning("The synchronization is only supported on cuda and xpu now.")
