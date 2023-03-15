@@ -1072,7 +1072,8 @@ class GPTForPretrainingPipe(PipelineLayer):
                  sequence_parallel=False,
                  no_recompute_layers=None,
                  pp_recompute_interval=1,
-                 use_flash_attn=False):
+                 use_flash_attn=False,
+                 fused_softmax_with_triangular=False):
 
         # forward desc
         self.descs = []
