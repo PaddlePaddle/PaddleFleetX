@@ -274,6 +274,10 @@ class GPTFinetuneModule(BasicModule):
         num_classes = model_setting.pop("num_classes", 2)
         assert pretrained is not None
 
+        model_name = model_setting.pop("name")
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
+        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
+
         model_setting['vocab_size'] = vocab_size_with_padding(
             model_setting.get('vocab_size', self.tokenizer.vocab_size),
             model_setting.pop('vocab_size_divisible_unit'),
@@ -285,10 +289,6 @@ class GPTFinetuneModule(BasicModule):
         num_heads = model_setting['num_attention_heads']
         s = self.configs.Data.Train.dataset.max_length
         get_model_size(l, h, v, s)
-
-        model_name = model_setting.pop("name")
-        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
-        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
 
         if self.nranks == 1:
             model = gpt.GPTForSequenceClassification(
