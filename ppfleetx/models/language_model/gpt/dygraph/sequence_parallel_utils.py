@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
 import paddle
 from paddle import framework
 from paddle import distributed as dist
@@ -169,18 +170,19 @@ def create_fused_allreduce_gradient_hook(parameter_list, accumulation_steps):
     return __impl__
 
 
-def create_non_fused_allreduce_gradient_hook(accumulation_steps):
+def create_non_fused_allreduce_gradient_hook(param, accumulation_steps):
     hcg = env.get_hcg()
     pg = hcg.get_model_parallel_group().process_group
-
     step = [0]
 
-    def __impl__(grad):
+    @paddle.autograd.no_grad()
+    def __impl__():
         step[0] += 1
-        if step[0] == accumulation_steps:
-            step[0] = 0
-            pg.allreduce(grad).wait()
-        return grad
+        if (step[0] % accumulation_steps) == 0:
+            if hasattr(param, "main_grad"):
+                pg.allreduce(param.main_grad).wait()
+            else:
+                pg.allreduce(param.grad).wait()
 
     return __impl__
 
@@ -202,11 +204,12 @@ def register_sequence_parallel_allreduce_hooks(
     if fuse_sequence_parallel_allreduce:
         hook = create_fused_allreduce_gradient_hook(params, accumulation_steps)
         for p in params:
-            p.register_hook(hook)
+            p._register_backward_hook(hook)
     else:
         for p in params:
-            p.register_hook(
-                create_non_fused_allreduce_gradient_hook(accumulation_steps))
+            hook = create_non_fused_allreduce_gradient_hook(p,
+                                                            accumulation_steps)
+            p._register_backward_hook(hook)
 
 
 def is_fused_matmul_bias_supported():

@@ -278,6 +278,11 @@ class MultiHeadAttention(nn.Layer):
             return self.Cache(key, value)
 
     def _flash_attention(self, q, k, v, attn_mask=None):
+        if self.sequence_parallel:
+            perm = [1, 0, 2, 3]
+            q = tensor.transpose(x=q, perm=perm)
+            k = tensor.transpose(x=k, perm=perm)
+            v = tensor.transpose(x=v, perm=perm)
         out, weights = flash_attention(
             q,
             k,
@@ -286,6 +291,9 @@ class MultiHeadAttention(nn.Layer):
             causal=True,
             return_softmax=self.need_weights)
         out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
+        if self.sequence_parallel:
+            perm = [1, 0, 2]
+            out = tensor.transpose(x=out, perm=perm)
         return out, weights
 
     def core_attn(self, q, k, v, attn_mask=None):
@@ -763,7 +771,7 @@ class GPTModelHybrid(nn.Layer):
 
         hcg = env.get_hcg()
         mp_size = hcg.get_model_parallel_world_size()
-        if use_flash_attn or mp_size <= 1:
+        if mp_size <= 1:
             sequence_parallel = False
             logging.warning(
                 "If mp_size <= 1, sequence_parallel strategy will be turned off in GPTModelHybrid model."
@@ -1080,7 +1088,7 @@ class GPTForPretrainingPipe(PipelineLayer):
 
         hcg = env.get_hcg()
         mp_size = hcg.get_model_parallel_world_size()
-        if use_flash_attn or mp_size <= 1:
+        if mp_size <= 1:
             sequence_parallel = False
             logging.warning(
                 "If mp_size <= 1, sequence_parallel strategy will be turned off in GPTForPretrainingPipe model."
