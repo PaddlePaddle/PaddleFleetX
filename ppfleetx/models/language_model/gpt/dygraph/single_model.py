@@ -19,6 +19,7 @@ import logging
 from distutils.util import strtobool
 import os
 import numpy as np
+import math
 
 import paddle
 import paddle.nn as nn
@@ -99,6 +100,7 @@ class MultiHeadAttention(nn.Layer):
                  need_weights=False,
                  weight_attr=None,
                  bias_attr=None,
+                 output_layer_weight_attr=None,
                  fuse_attn_qkv=False,
                  scale_qk_coeff=1.0,
                  fused_linear=False,
@@ -140,7 +142,10 @@ class MultiHeadAttention(nn.Layer):
                 self.vdim, embed_dim, weight_attr, bias_attr=bias_attr)
 
         self.out_proj = Linear(
-            embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
+            embed_dim,
+            embed_dim,
+            output_layer_weight_attr,
+            bias_attr=bias_attr)
 
     def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
         mix_layer = self.qkv_proj(query)
@@ -424,6 +429,7 @@ class TransformerDecoderLayer(nn.Layer):
                  enable_expert_tensor_parallelism=False,
                  weight_attr=None,
                  bias_attr=None,
+                 output_layer_weight_attr=None,
                  fused_linear=False,
                  fuse_attn_qkv=False,
                  scale_qk_coeff=1.0,
@@ -448,6 +454,8 @@ class TransformerDecoderLayer(nn.Layer):
 
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
+        output_layer_weight_attrs = _convert_param_attr_to_list(
+            output_layer_weight_attr, 3)
 
         Linear = FusedLinear if fused_linear else nn.Linear
 
@@ -457,6 +465,7 @@ class TransformerDecoderLayer(nn.Layer):
             dropout=attn_dropout,
             weight_attr=weight_attrs[0],
             bias_attr=bias_attrs[0],
+            output_layer_weight_attr=output_layer_weight_attrs[0],
             fused_linear=fused_linear,
             fuse_attn_qkv=fuse_attn_qkv,
             scale_qk_coeff=scale_qk_coeff,
@@ -490,7 +499,7 @@ class TransformerDecoderLayer(nn.Layer):
             self.linear2 = Linear(
                 dim_feedforward,
                 d_model,
-                weight_attrs[2],
+                output_layer_weight_attrs[2],
                 bias_attr=bias_attrs[2])
 
             if 'linear1' in skip_quant_tensors:
@@ -686,6 +695,11 @@ class GPTModel(nn.Layer):
                     weight_attr=paddle.ParamAttr(
                         initializer=nn.initializer.Normal(
                             mean=0.0, std=self.initializer_range)),
+                    output_layer_weight_attr=paddle.ParamAttr(
+                        initializer=nn.initializer.Normal(
+                            mean=0.0,
+                            std=self.initializer_range / math.sqrt(
+                                2.0 * num_layers))),
                     bias_attr=None,
                     fused_linear=fused_linear,
                     fuse_attn_qkv=fuse_attn_qkv,
