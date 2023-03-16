@@ -42,6 +42,8 @@ def set_default_flags(flags):
 
 
 if __name__ == "__main__":
+    # set_default_flags({'FLAGS_enable_cublas_tensor_op_math': True, })
+    paddle.set_device("npu")
     args = config.parse_args()
     cfg = config.get_config(args.config, overrides=args.override, show=False)
 
