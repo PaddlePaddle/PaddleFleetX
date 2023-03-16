@@ -44,7 +44,9 @@ def build_lr_scheduler(lr_config):
 def build_grad_clip(grad_clip_config):
     if grad_clip_config is not None:
         grad_clip_name = grad_clip_config.pop('name', 'ClipGradByGlobalNorm')
-        grad_clip = eval(grad_clip_name)(**grad_clip_config)
+        clip_norm = grad_clip_config.get('clip_norm', 1.0)
+        grad_clip = eval(grad_clip_name)(
+            **grad_clip_config) if clip_norm != 0. else None
         return grad_clip
     else:
         return None
@@ -54,6 +56,10 @@ def build_optimizer(config, model, lr_scheduler=None):
     config = copy.deepcopy(config)
     if lr_scheduler is not None:
         config.pop('lr')
+
+    multi_precision = config.get('multi_precision', False)
+    if multi_precision:
+        paddle.nn.clip._clip_by_global_norm_using_mp_type(True)
 
     grad_clip_config = config.pop('grad_clip', None)
     grad_clip = build_grad_clip(grad_clip_config)

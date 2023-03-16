@@ -135,7 +135,7 @@ class MoCo(nn.Layer):
     @paddle.no_grad()
     def _update_momentum_encoder(self):
         """Momentum update of the momentum encoder"""
-        #Note(GuoxiaWang): disable auto cast when use use_pure_fp16
+        #Note(GuoxiaWang): disable auto cast when use mix_precision
         with paddle.amp.auto_cast(False):
             for param_b, param_m in zip(self.base_encoder.parameters(),
                                         self.momentum_encoder.parameters()):

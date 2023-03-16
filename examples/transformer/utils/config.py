@@ -413,7 +413,7 @@ def process_global_configs(config):
     global_cfg['mix_precision'] = global_cfg.get('mix_precision', {})
     amp_cfg = global_cfg.mix_precision
 
-    amp_cfg['use_pure_fp16'] = amp_cfg.get('use_pure_fp16', False)
+    amp_cfg['enable'] = amp_cfg.get('enable', False)
     amp_cfg['scale_loss'] = amp_cfg.get('scale_loss', 32768)
     amp_cfg['custom_black_list'] = amp_cfg.get('custom_black_list', None)
     amp_cfg['custom_white_list'] = amp_cfg.get('custom_white_list', None)

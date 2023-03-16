@@ -51,8 +51,8 @@ if __name__ == "__main__":
     cfg.process_configs(config)
     cfg.print_config(config)
 
-    if config.Global.mix_precision.use_pure_fp16:
-        logger.info("NOTE: disable use_pure_fp16 in export mode")
+    if config.Global.mix_precision.enable:
+        logger.info("NOTE: disable mix_precision in export mode")
 
     # build GPT model
     model, _, _ = impls.build_model(config)
