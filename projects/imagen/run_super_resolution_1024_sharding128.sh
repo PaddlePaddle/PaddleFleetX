@@ -22,6 +22,6 @@ python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,
     -c ./ppfleetx/configs/multimodal/imagen/imagen_super_resolution_1024.yaml \
     -o Distributed.sharding.sharding_stage=2 \
     -o Distributed.sharding.sharding_degree=8 \
-    -o Engine.mix_precision.use_pure_fp16=False \
+    -o Engine.mix_precision.enable=False \
     -o Data.Train.loader.batch_size=1 \
     -o Model.use_recompute=True \

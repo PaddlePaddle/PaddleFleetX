@@ -42,6 +42,12 @@ def set_seed(seed):
     else:
         mp_rank, pp_rank, data_world_rank, data_world_size = 0, 0, 0, 1
 
+    # NOTE: the commented seeds are set only for precision validation
+    # seed += 100 * pp_rank
+    # random.seed(seed)
+    # np.random.seed(seed)
+    # paddle.seed(seed)
+
     random.seed(seed + data_world_rank)
     np.random.seed(seed + data_world_rank)
     paddle.seed(seed + data_world_rank)

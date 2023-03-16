@@ -16,6 +16,9 @@
 
 import collections
 import logging
+from distutils.util import strtobool
+import os
+import math
 
 import paddle
 import paddle.nn as nn
@@ -103,6 +106,7 @@ class MultiHeadAttention(nn.Layer):
                  vdim=None,
                  need_weights=False,
                  weight_attr=None,
+                 output_layer_weight_attr=None,
                  bias_attr=None,
                  fuse_attn_qkv=False,
                  scale_qk_coeff=1.0,
@@ -186,7 +190,7 @@ class MultiHeadAttention(nn.Layer):
             embed_dim,
             embed_dim,
             mp_group=env.get_hcg().get_model_parallel_group(),
-            weight_attr=weight_attr,
+            weight_attr=output_layer_weight_attr,
             has_bias=True,
             input_is_parallel=True,
             fuse_matmul_bias=fused_linear)
@@ -499,6 +503,7 @@ class TransformerDecoderLayer(nn.Layer):
                  act_dropout=None,
                  normalize_before=True,
                  weight_attr=None,
+                 output_layer_weight_attr=None,
                  bias_attr=None,
                  num_partitions=1,
                  fused_linear=False,
@@ -542,6 +547,8 @@ class TransformerDecoderLayer(nn.Layer):
 
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
+        output_layer_weight_attrs = _convert_param_attr_to_list(
+            output_layer_weight_attr, 3)
 
         self.self_attn = MultiHeadAttention(
             d_model,
@@ -549,6 +556,7 @@ class TransformerDecoderLayer(nn.Layer):
             dropout=attn_dropout,
             weight_attr=weight_attrs[0],
             bias_attr=bias_attrs[0],
+            output_layer_weight_attr=output_layer_weight_attrs[0],
             num_partitions=num_partitions,
             fused_linear=fused_linear,
             fuse_attn_qkv=fuse_attn_qkv,
@@ -591,7 +599,7 @@ class TransformerDecoderLayer(nn.Layer):
                 dim_feedforward,
                 d_model,
                 mp_group=env.get_hcg().get_model_parallel_group(),
-                weight_attr=weight_attrs[2],
+                weight_attr=output_layer_weight_attrs[2],
                 input_is_parallel=True,
                 has_bias=True,
                 fuse_matmul_bias=fused_linear)
@@ -751,7 +759,8 @@ class GPTModelHybrid(nn.Layer):
                  no_recompute_layers=None,
                  skip_tensor_map={},
                  freeze_embedding=False,
-                 use_flash_attn=False):
+                 use_flash_attn=False,
+                 fused_softmax_with_triangular=False):
 
         super(GPTModelHybrid, self).__init__()
 
@@ -760,6 +769,7 @@ class GPTModelHybrid(nn.Layer):
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
+        self.fused_softmax_with_triangular = fused_softmax_with_triangular
 
         if use_flash_attn:
             if flash_attention:
@@ -797,6 +807,11 @@ class GPTModelHybrid(nn.Layer):
                     weight_attr=paddle.ParamAttr(
                         initializer=nn.initializer.Normal(
                             mean=0.0, std=self.initializer_range)),
+                    output_layer_weight_attr=paddle.ParamAttr(
+                        initializer=nn.initializer.Normal(
+                            mean=0.0,
+                            std=self.initializer_range / math.sqrt(
+                                2.0 * num_layers))),
                     bias_attr=None,
                     num_partitions=num_partitions,
                     fused_linear=fused_linear,
@@ -845,9 +860,10 @@ class GPTModelHybrid(nn.Layer):
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
 
-        # fused_soiftmax_with_triangular is only suppported on GPU/DCU.
+        # fused_softmax_with_triangular is only suppported on GPU/DCU.
         # If on non-GPU devices, we use user defined mask and non-fused softmax.
-        if self.training == False or not paddle.is_compiled_with_cuda():
+        if not self.fused_softmax_with_triangular or not paddle.is_compiled_with_cuda(
+        ):
             # TODO, use registered buffer
             causal_mask = paddle.tensor.triu(
                 paddle.ones(
@@ -866,7 +882,8 @@ class GPTModelHybrid(nn.Layer):
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
-            tgt_mask=None if self.training and paddle.is_compiled_with_cuda()
+            tgt_mask=None if (self.fused_softmax_with_triangular and
+                              self.training and paddle.is_compiled_with_cuda())
             else attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
@@ -1066,7 +1083,8 @@ class GPTForPretrainingPipe(PipelineLayer):
                  sequence_parallel=False,
                  no_recompute_layers=None,
                  pp_recompute_interval=1,
-                 use_flash_attn=False):
+                 use_flash_attn=False,
+                 fused_softmax_with_triangular=False):
 
         # forward desc
         self.descs = []
@@ -1121,6 +1139,10 @@ class GPTForPretrainingPipe(PipelineLayer):
                     weight_attr=paddle.ParamAttr(
                         initializer=nn.initializer.Normal(
                             mean=0.0, std=initializer_range)),
+                    output_layer_weight_attr=paddle.
+                    ParamAttr(initializer=nn.initializer.Normal(
+                        mean=0.0,
+                        std=initializer_range / math.sqrt(2.0 * num_layers))),
                     bias_attr=None,
                     num_partitions=num_partitions,
                     moe_configs=moe_configs,

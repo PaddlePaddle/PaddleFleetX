@@ -7,7 +7,7 @@ Global:
   max_steps: 20000
   logging_freq: 10
   mix_precision:
-    use_pure_fp16: True
+    enable: True
 
 Data:
   Train:

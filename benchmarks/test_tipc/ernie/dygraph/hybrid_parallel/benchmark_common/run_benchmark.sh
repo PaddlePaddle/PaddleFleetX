@@ -87,7 +87,7 @@ function _train(){
                -o Global.micro_batch_size=${micro_batch_size} \
                -o Engine.max_steps=${max_iter} \
                -o Engine.eval_freq=${eval_freq} \
-               -o Engine.mix_precision.use_pure_fp16=${use_pure_fp16} \
+               -o Engine.mix_precision.enable=${use_pure_fp16} \
                -o Engine.save_load.save_steps=100000 \
                -o Model.hidden_size=1024 \
                -o Model.num_hidden_layers=${num_layers} \

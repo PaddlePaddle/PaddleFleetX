@@ -43,7 +43,7 @@ class FusedAdamW(paddle.optimizer.AdamW):
         else:
             decay_params = [
                 p.name for p in parameters
-                if not any(nd in p.name for nd in ["bias", "norm"])
+                if not any(nd in p.name for nd in ["bias", "norm", "b_0"])
             ]
 
         apply_decay_param_fun = lambda x: x in decay_params
