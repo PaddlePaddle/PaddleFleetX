@@ -16,6 +16,10 @@
 
 import collections
 import logging
+from distutils.util import strtobool
+import os
+import numpy as np
+import math
 
 import paddle
 import paddle.nn as nn
@@ -96,6 +100,7 @@ class MultiHeadAttention(nn.Layer):
                  need_weights=False,
                  weight_attr=None,
                  bias_attr=None,
+                 output_layer_weight_attr=None,
                  fuse_attn_qkv=False,
                  scale_qk_coeff=1.0,
                  fused_linear=False,
@@ -137,7 +142,10 @@ class MultiHeadAttention(nn.Layer):
                 self.vdim, embed_dim, weight_attr, bias_attr=bias_attr)
 
         self.out_proj = Linear(
-            embed_dim, embed_dim, weight_attr, bias_attr=bias_attr)
+            embed_dim,
+            embed_dim,
+            output_layer_weight_attr,
+            bias_attr=bias_attr)
 
     def _fuse_prepare_qkv(self, query, use_cache=False, cache=None):
         mix_layer = self.qkv_proj(query)
@@ -377,8 +385,8 @@ class TransformerDecoder(nn.Layer):
                                         cache=cache[i])
                 new_caches.append(new_cache)
 
-        if self.norm is not None:
-            output = self.norm(output)
+        # if self.norm is not None:
+        #    output = self.norm(output)
         return output if use_cache is False else (output, new_caches)
 
     def gen_cache(self, memory, do_zip=False):
@@ -421,6 +429,7 @@ class TransformerDecoderLayer(nn.Layer):
                  enable_expert_tensor_parallelism=False,
                  weight_attr=None,
                  bias_attr=None,
+                 output_layer_weight_attr=None,
                  fused_linear=False,
                  fuse_attn_qkv=False,
                  scale_qk_coeff=1.0,
@@ -445,6 +454,8 @@ class TransformerDecoderLayer(nn.Layer):
 
         weight_attrs = _convert_param_attr_to_list(weight_attr, 3)
         bias_attrs = _convert_param_attr_to_list(bias_attr, 3)
+        output_layer_weight_attrs = _convert_param_attr_to_list(
+            output_layer_weight_attr, 3)
 
         Linear = FusedLinear if fused_linear else nn.Linear
 
@@ -454,6 +465,7 @@ class TransformerDecoderLayer(nn.Layer):
             dropout=attn_dropout,
             weight_attr=weight_attrs[0],
             bias_attr=bias_attrs[0],
+            output_layer_weight_attr=output_layer_weight_attrs[0],
             fused_linear=fused_linear,
             fuse_attn_qkv=fuse_attn_qkv,
             scale_qk_coeff=scale_qk_coeff,
@@ -487,7 +499,7 @@ class TransformerDecoderLayer(nn.Layer):
             self.linear2 = Linear(
                 dim_feedforward,
                 d_model,
-                weight_attrs[2],
+                output_layer_weight_attrs[2],
                 bias_attr=bias_attrs[2])
 
             if 'linear1' in skip_quant_tensors:
@@ -508,8 +520,8 @@ class TransformerDecoderLayer(nn.Layer):
     def forward(self, tgt, memory, tgt_mask=None, use_cache=False, cache=None):
         residual = tgt
 
-        if self.normalize_before:
-            tgt = self.norm1(tgt)
+        # if self.normalize_before:
+        #     tgt = self.norm1(tgt)
 
         if use_cache is False:
             if self.use_recompute and self.recompute_granularity == "full_attn" and self.do_recompute:
@@ -521,12 +533,11 @@ class TransformerDecoderLayer(nn.Layer):
             tgt, incremental_cache = self.self_attn(tgt, tgt, tgt, tgt_mask,
                                                     use_cache, cache)
         tgt = residual + self.dropout1(tgt)
-        if not self.normalize_before:
-            tgt = self.norm1(tgt)
-
+        # if not self.normalize_before:
+        #    tgt = self.norm1(tgt)
         residual = tgt
-        if self.normalize_before:
-            tgt = self.norm2(tgt)
+        # if self.normalize_before:
+        #    tgt = self.norm2(tgt)
 
         # if self.expert_mode:
         #     tgt = self.moe_mlp(tgt)
@@ -538,8 +549,8 @@ class TransformerDecoderLayer(nn.Layer):
 
         tgt = residual + tgt
 
-        if not self.normalize_before:
-            tgt = self.norm2(tgt)
+        # if not self.normalize_before:
+        #    tgt = self.norm2(tgt)
 
         return tgt if use_cache is False else (tgt, incremental_cache)
 
@@ -624,7 +635,8 @@ class GPTModel(nn.Layer):
                  no_recompute_layers=None,
                  skip_tensor_map={},
                  freeze_embedding=False,
-                 use_flash_attn=False):
+                 use_flash_attn=False,
+                 fused_softmax_with_triangular=False):
 
         super(GPTModel, self).__init__()
 
@@ -633,6 +645,7 @@ class GPTModel(nn.Layer):
         self.initializer_range = initializer_range
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
+        self.fused_softmax_with_triangular = fused_softmax_with_triangular
 
         if use_flash_attn:
             if flash_attention:
@@ -682,6 +695,11 @@ class GPTModel(nn.Layer):
                     weight_attr=paddle.ParamAttr(
                         initializer=nn.initializer.Normal(
                             mean=0.0, std=self.initializer_range)),
+                    output_layer_weight_attr=paddle.ParamAttr(
+                        initializer=nn.initializer.Normal(
+                            mean=0.0,
+                            std=self.initializer_range / math.sqrt(
+                                2.0 * num_layers))),
                     bias_attr=None,
                     fused_linear=fused_linear,
                     fuse_attn_qkv=fuse_attn_qkv,
@@ -721,12 +739,14 @@ class GPTModel(nn.Layer):
             position_ids = position_ids.unsqueeze(0)
             # .expand_as(input_ids)
             position_ids = paddle.expand_as(position_ids, input_ids)
+
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids)
 
-        # fused_soiftmax_with_triangular is only suppported on GPU/DCU.
+        # fused_softmax_with_triangular is only suppported on GPU/DCU.
         # If on non-GPU devices, we use user defined mask and non-fused softmax.
-        if self.training == False or not paddle.is_compiled_with_cuda():
+        if not self.fused_softmax_with_triangular or not paddle.is_compiled_with_cuda(
+        ):
             # TODO, use registered buffer
             causal_mask = paddle.tensor.triu(
                 paddle.ones(
@@ -745,7 +765,8 @@ class GPTModel(nn.Layer):
         encoder_outputs = self.decoder(
             embedding_output,
             memory=None,
-            tgt_mask=None if self.training and paddle.is_compiled_with_cuda()
+            tgt_mask=None if (self.fused_softmax_with_triangular and
+                              self.training and paddle.is_compiled_with_cuda())
             else attention_mask,  # use softmax_mask_fuse_upper_triangle
             use_cache=use_cache,
             cache=cache)
@@ -1227,7 +1248,8 @@ class GPTForGeneration(nn.Layer):
                         shape=[paddle.shape(probs)[0]],
                         fill_value=top_p,
                         dtype=probs.dtype)
-                    next_tokens = topp_sampling(probs, top_ps_tensor)
+                    _, next_tokens = topp_sampling(
+                        probs, top_ps_tensor, random_seed=100)
                 else:
                     probs = TopPProcess(probs, top_p, min_tokens_to_keep)
 

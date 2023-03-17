@@ -1,6 +1,6 @@
 #! /bin/bash
 
-# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
+# Copyright (c) 2023 PaddlePaddle Authors. All Rights Reserved.
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,17 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-log_dir=log_345m_mp1
+log_dir=log_mp1
 rm -rf $log_dir
 
-DIRECTORY=./auto_infer
-if [ ! -d "$DIRECTORY" ]; then
-  echo "start download ckpt"
-  wget -O https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_auto_345M.tar.gz
-  tar -zxvf GPT_auto_345M.tar.gz
-fi
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+export MP=8
 
-python -m paddle.distributed.launch --log_dir $log_dir --devices "1" \
-    ./tools/auto_export.py \
-    -c ./ppfleetx/configs/nlp/gpt/auto/generation_gpt_345M_single_card.yaml \
-    -o Engine.save_load.ckpt_dir=./auto_infer/auto
+python -m paddle.distributed.launch --devices "0,1,2,3,4,5,6,7" projects/gpt/inference.py --mp_degree ${MP} --model_dir output

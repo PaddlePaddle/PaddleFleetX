@@ -62,7 +62,7 @@ if __name__ == "__main__":
     # build GPT model
     model, tokenizer, train_loss_fn, eval_loss_fn = impls.build_model(config)
 
-    if config.Global.mix_precision.use_pure_fp16:
+    if config.Global.mix_precision.enable:
         scaler = paddle.amp.GradScaler(
             init_loss_scaling=config.Global.mix_precision.scale_loss)
         # Note: Save dtype is the same as model dtype. Also can set save_dtype='float32' when 
@@ -98,14 +98,14 @@ if __name__ == "__main__":
 
     if 'multi_precision' in config.Optimizer:
         assert config.Optimizer.pop('multi_precision') \
-            == config.Global.mix_precision.use_pure_fp16
+            == config.Global.mix_precision.enable
 
     lr_scheduler = cpn.build_lr_scheduler(config.Optimizer.lr)
     optimizer = cpn.build_optimizer(
         config.Optimizer,
         model,
         lr_scheduler,
-        multi_precision=config.Global.mix_precision.use_pure_fp16)
+        multi_precision=config.Global.mix_precision.enable)
 
     # call fleet wrapper
     if nranks > 1:

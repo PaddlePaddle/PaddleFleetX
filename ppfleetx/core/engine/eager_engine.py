@@ -16,6 +16,7 @@ import os
 import time
 import sys
 import logging
+from tokenize import group
 
 import paddle
 import paddle.nn as nn
@@ -30,7 +31,7 @@ from paddle.distributed.fleet.meta_parallel import TensorParallel
 from paddle.distributed.sharding import group_sharded_parallel
 
 import paddleslim
-from ppfleetx.distributed.apis import env
+from ppfleetx.distributed.apis import env, amp
 from ppfleetx.optims import build_lr_scheduler, build_optimizer
 from ppfleetx.utils.log import logger, get_timestamp, convert_timestamp_to_data
 from ppfleetx.core.engine import BasicEngine, InferenceEngine, TensorRTConfig
@@ -116,6 +117,9 @@ class EagerEngine(BasicEngine):
         #             "'loss_fn' must be sub classes of `paddle.nn.Layer` or any callable function, but got: {module.loss_fn.__class__.__name__}."
         #         )
 
+        # global configs
+        self._global_batch_size = configs['Global']['global_batch_size']
+
         # engine configs
         self._configs = configs['Engine']
 
@@ -130,16 +134,18 @@ class EagerEngine(BasicEngine):
         self._num_train_epochs = self._configs['num_train_epochs']
         self._accumulate_steps = self._configs['accumulate_steps']
 
-        self._use_pure_fp16 = self._configs['mix_precision']['use_pure_fp16']
-        if mode == 'export' and self._use_pure_fp16:
-            logger.info("NOTE: disable use_pure_fp16 in export mode")
-            self._use_pure_fp16 = False
+        amp_config = self._configs['mix_precision']
+        self._amp_enable = amp_config['enable']
+        if mode == 'export' and self._amp_enable:
+            logger.info("NOTE: disable mix_precision in export mode")
+            self._amp_enable = False
 
-        self._scale_loss = self._configs['mix_precision']['scale_loss']
-        self._custom_black_list = self._configs['mix_precision'][
-            'custom_black_list']
-        self._custom_white_list = self._configs['mix_precision'][
-            'custom_white_list']
+        self._amp_dtype = amp_config.get('dtype', 'float16')
+        self._amp_level = amp_config.get('level', 'O2')
+        self._use_main_grad = amp_config.get('use_main_grad', False)
+        self._scale_loss = amp_config['scale_loss']
+        self._custom_black_list = amp_config['custom_black_list']
+        self._custom_white_list = amp_config['custom_white_list']
 
         self._save_steps = self._configs['save_load']['save_steps']
         self._save_epoch = self._configs['save_load']['save_epoch']
@@ -176,19 +182,27 @@ class EagerEngine(BasicEngine):
 
         self._use_recompute = configs['Model']['use_recompute']
 
-        if self._use_pure_fp16:
-            if mode == 'train':
+        if self._amp_enable:
+            if mode == 'train' and self._amp_dtype == "float16":
                 self._scaler = paddle.amp.GradScaler(
                     init_loss_scaling=self._scale_loss)
+            else:  # bfloat16
+                self._scaler = paddle.amp.GradScaler(
+                    init_loss_scaling=1, use_dynamic_loss_scaling=False)
 
             # Save dtype is the same as model dtype. Also can set save_dtype='float32' when
             # training with pure fp16 strategy, but will cause the rise of memory.
-            self._module.model = paddle.amp.decorate(
-                models=self._module.model, level='O2')
+            if self._amp_level == "O2":
+                self._module.model = paddle.amp.decorate(
+                    models=self._module.model,
+                    dtype=self._amp_dtype,
+                    level=self._amp_level)
         else:
             self._scaler = None
 
         if mode == 'train':
+            self._use_increments = configs.Optimizer.lr.pop('use_increments',
+                                                            False)
             self._lr_scheduler_mode = configs.Optimizer.lr.pop('run_mode',
                                                                'step')
             assert self._lr_scheduler_mode in [
@@ -200,6 +214,14 @@ class EagerEngine(BasicEngine):
         self._optimizer = build_optimizer(
             configs.Optimizer, self._module.model,
             self._lr_scheduler) if mode == 'train' else None
+
+        if self._amp_enable and self._amp_dtype in [
+                'float16', 'bfloat16'
+        ] and self._amp_level == 'O2' and self._use_main_grad:
+            self._module.model = amp.MixPrecisionLayer(
+                self._module.model, dtype=self._amp_dtype)
+            self._optimizer = amp.MixPrecisionOptimizer(self._optimizer)
+            self._scaler = amp.MixPrecisionScaler(self._scaler)
 
         # distributed configs
         self._distributed = (dist.get_world_size() > 1)
@@ -285,7 +307,17 @@ class EagerEngine(BasicEngine):
                 self._broadcast_overlap, layers=origin_model, num_groups=2)
 
     def _wrap_3D_parallel(self):
-        self._module.model = fleet.distributed_model(self._module.model)
+        if isinstance(self._module.model, amp.MixPrecisionLayer):
+            if dist.get_world_size() == self._dp_degree:
+                sync_params_buffers(
+                    self._module.model,
+                    comm_group=self._dp_group,
+                    src_rank=self._dp_group.ranks[0])
+            elif self._pp_degree > 1:
+                self._module.model = fleet.distributed_model(
+                    self._module.model._layers)
+        else:
+            self._module.model = fleet.distributed_model(self._module.model)
         self._optimizer = fleet.distributed_optimizer(self._optimizer)
         self._scaler = fleet.distributed_scaler(
             self._scaler) if self._scaler is not None else self._scaler
@@ -302,7 +334,8 @@ class EagerEngine(BasicEngine):
         skip_first = True
         # Note(GuoxiaWang): Do not use len(train_data_loader()),
         # it will cause a memory leak.
-        total_train_batch = len(train_data_loader)
+        total_train_batch = self._max_steps if self._run_mode == 'step' else len(
+            train_data_loader)
         total_train_step = self._max_steps if self._run_mode == 'step' else total_train_batch * self._num_train_epochs
         total_eval_batch = len(
             valid_data_loader) if valid_data_loader is not None else 0
@@ -318,6 +351,11 @@ class EagerEngine(BasicEngine):
             loss = self._fit_impl(batch)
             train_losses.append(loss)
 
+            if self._lr_scheduler is not None and self._lr_scheduler_mode == 'step':
+                if self._scaler is None or self._scaler._found_inf == 0:
+                    self._lr_scheduler.step(epoch=self._global_batch_size
+                                            if self._use_increments else None)
+
             if (step + 1) % self._logging_freq == 0:
                 train_step_cost = get_timestamp() - train_step_start
                 numpy_losses = [float(loss) for loss in train_losses]
@@ -330,15 +368,16 @@ class EagerEngine(BasicEngine):
                     'train_cost': train_step_cost
                     if step == 0 else train_step_cost / self._logging_freq,
                     'loss': sum(numpy_losses) / len(numpy_losses),
-                    'lr': self._optimizer.get_lr()
+                    'lr': self._optimizer.get_lr(),
+                    'found_inf': self._scaler._found_inf
+                    if self._scaler is not None else 0,
                 }
+                if self._amp_enable:
+                    log_dict['loss_scale'] = self._scaler._scale.numpy()[0]
                 self._module.training_step_end(log_dict)
 
                 train_step_start = get_timestamp()
                 train_losses = []
-
-            if self._lr_scheduler is not None and self._lr_scheduler_mode == 'step':
-                self._lr_scheduler.step()
 
             self._optimizer.clear_grad()
 
@@ -458,14 +497,20 @@ class EagerEngine(BasicEngine):
                 else:
                     all_reduce_parameters(self._optimizer.all_fused_tensors,
                                           self._dp_group)
+            elif isinstance(self._module.model, amp.MixPrecisionLayer) \
+                and self._distributed and dist.get_world_size() == self._dp_degree:
+                loss = self._model_forward_backward(batch)
+                fused_allreduce_gradients(
+                    list(self._module.model.parameters()), None)
             else:
                 loss = self._model_forward_backward(batch)
         else:
             with paddle.amp.auto_cast(
-                    self._use_pure_fp16,
+                    enable=self._amp_enable,
                     custom_black_list=self._custom_black_list,
                     custom_white_list=self._custom_white_list,
-                    level='O2'):
+                    dtype=self._amp_dtype,
+                    level=self._amp_level):
                 batch = self._module.model._prepare_training(
                     batch, self._optimizer, self._lr_scheduler)
                 loss = self._module.model.forward_backward_pipeline(
@@ -488,13 +533,17 @@ class EagerEngine(BasicEngine):
         final_loss = None
         for micro_batch in batches:
             with paddle.amp.auto_cast(
-                    self._use_pure_fp16,
+                    self._amp_enable,
                     custom_black_list=self._custom_black_list,
                     custom_white_list=self._custom_white_list,
-                    level='O2'):
+                    dtype=self._amp_dtype,
+                    level=self._amp_level):
                 loss = self._module.training_step(micro_batch)
 
-            loss_bw = self._scaler.scale(loss) if self._use_pure_fp16 else loss
+            if self._amp_enable and self._amp_dtype == "float16":
+                loss_bw = self._scaler.scale(loss)
+            else:
+                loss_bw = loss
             if self._accumulate_steps > 1:
                 # div the loss for backward
                 loss_bw = loss_bw / self._accumulate_steps
@@ -522,7 +571,7 @@ class EagerEngine(BasicEngine):
                     p.bw_storage.scale_(1.0 / self._dp_group.nranks)
                     dist.all_reduce(p.bw_storage, group=self._dp_group)
 
-        if self._use_pure_fp16:
+        if self._amp_enable and self._amp_dtype == "float16":
             self._scaler.step(self._optimizer)
             self._scaler.update()
         else:
@@ -595,10 +644,11 @@ class EagerEngine(BasicEngine):
 
         batch = self._module.pretreating_batch(batch)
         with paddle.amp.auto_cast(
-                self._use_pure_fp16,
+                self._amp_enable,
                 custom_black_list=self._custom_black_list,
                 custom_white_list=self._custom_white_list,
-                level='O2'):
+                dtype=self._amp_dtype,
+                level=self._amp_level):
             if self._pp_degree == 1:
                 loss = self._module.validation_step(batch)
             else:
@@ -652,10 +702,11 @@ class EagerEngine(BasicEngine):
         batch = self._module.pretreating_batch(batch)
 
         with paddle.amp.auto_cast(
-                self._use_pure_fp16,
+                self._amp_enable,
                 custom_black_list=self._custom_black_list,
                 custom_white_list=self._custom_white_list,
-                level='O2'):
+                dtype=self._amp_dtype,
+                level=self._amp_level):
             if self._pp_degree == 1:
                 loss = self._module.test_step(batch)
             else:

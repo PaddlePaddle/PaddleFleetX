@@ -94,6 +94,12 @@ def process_dist_config(configs):
     if 'fuse_sequence_parallel_allreduce' not in config:
         config['fuse_sequence_parallel_allreduce'] = False
 
+    if 'use_main_grad' in config and config['use_main_grad'] is True:
+        logger.warning(
+            "If use_main_grad is True, fuse_sequence_parallel_allreduce will be forced to False"
+        )
+        config['fuse_sequence_parallel_allreduce'] = False
+
 
 def process_global_configs(config):
     """
@@ -165,7 +171,7 @@ def process_engine_config(config):
     config.Engine['mix_precision'] = config.Engine.get('mix_precision', {})
     amp_cfg = config.Engine.mix_precision
 
-    amp_cfg['use_pure_fp16'] = amp_cfg.get('use_pure_fp16', False)
+    amp_cfg['enable'] = amp_cfg.get('enable', False)
     amp_cfg['scale_loss'] = amp_cfg.get('scale_loss', 32768)
     amp_cfg['custom_black_list'] = amp_cfg.get('custom_black_list', None)
     amp_cfg['custom_white_list'] = amp_cfg.get('custom_white_list', None)

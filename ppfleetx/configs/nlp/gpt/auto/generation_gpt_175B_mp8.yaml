@@ -19,6 +19,8 @@ Generation:
   use_topp_sampling: True
   num_return_sequences: 1
   decode_strategy: "sampling"
+  use_topp_sampling: True
+  early_finish: True
 
 
 Model:

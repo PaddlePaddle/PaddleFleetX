@@ -59,7 +59,7 @@ def _get_model_size(l, h, v, s, ne, ei):
             # gate
             P += (h * nei + nei)
             # experts
-            P += nei * (8 * h * h + 5 * h) 
+            P += nei * (8 * h * h + 5 * h)
         # FFN Layer
         else:
             P += 8 * h * h + 5 * h
@@ -120,7 +120,7 @@ def build_model(config):
 
 def model_forward_backward(config, batch, forward_func, **kwargs):
     acc_steps = config.Global.accumulate_steps
-    use_fp16 = config.Global.mix_precision.use_pure_fp16
+    use_fp16 = config.Global.mix_precision.enable
     black_list = config.Global.mix_precision.custom_black_list
     white_list = config.Global.mix_precision.custom_white_list
 
@@ -199,7 +199,7 @@ def model_forward_backward(config, batch, forward_func, **kwargs):
 
 def optim_update_params(config, **kwargs):
     hcg = env.get_hcg()
-    use_fp16 = config.Global.mix_precision.use_pure_fp16
+    use_fp16 = config.Global.mix_precision.enable
 
     dp_degree = config.Distributed.dp_degree
     sharding_stage = config.Distributed.sharding.sharding_stage
@@ -255,7 +255,7 @@ def fit_impl(config, batch, forward_func, **kwargs):
 def eval_impl(config, batch, model, loss_fn):
     model.eval()
 
-    use_fp16 = config.Global.mix_precision.use_pure_fp16
+    use_fp16 = config.Global.mix_precision.enable
     black_list = config.Global.mix_precision.custom_black_list
     white_list = config.Global.mix_precision.custom_white_list
 

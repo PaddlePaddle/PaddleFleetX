@@ -112,7 +112,7 @@ def process_optim_configs(config):
     process optim configs for hybrid parallel
     """
     config['Optimizer']['multi_precision'] = config['Engine']['mix_precision'][
-        'use_pure_fp16']
+        'enable']
 
 
 def process_engine_configs(config):

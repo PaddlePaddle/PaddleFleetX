@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import sys
 import copy
@@ -41,6 +42,32 @@ MODEL_CLASSES = {
     "MoE": (GPTTokenizer, "gpt2"),
     "GPT-cn": (GPTChineseTokenizer, "gpt-cpm-large-cn"),
 }
+
+
+def get_model_size(l, h, v, s):
+    P = 0
+    # embedding
+    P += (v + s) * h
+    # attention
+    P += (4 * h * h + 4 * h) * l
+    # layer_norm of decoder
+    P += (2 * (2 * h)) * l
+    # FFN Layer
+    P += (8 * h * h + 5 * h) * l
+    # layer_norm of transformer
+    P += 2 * h
+    logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 / 1000.0))
+
+
+def vocab_size_with_padding(vocab_size, div_unit, mp_degree):
+    padded_size = vocab_size
+    multiple = div_unit * mp_degree
+    while (padded_size % multiple) != 0:
+        padded_size += 1
+    logging.warning(' > padded vocab (size: {}) with {} dummy tokens '
+                    '(new size: {})'.format(vocab_size, padded_size -
+                                            vocab_size, padded_size))
+    return padded_size
 
 
 class LanguageModule(BasicModule):
@@ -75,11 +102,15 @@ class LanguageModule(BasicModule):
         default_global_tokens_num = self.configs.Global.global_batch_size * \
             self.configs.Data.Train.dataset.max_seq_len
 
+        loss_scale_str = "loss_scale: %.9f," % (
+            log_dict['loss_scale']) if log_dict.get('loss_scale',
+                                                    None) is not None else ""
         logger.info(
             "[train] epoch: [%d/%d], batch: [%d/%d], loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
-            "ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
+            "ips_total: %.0f tokens/s, ips: %.0f tokens/s, %s learning rate: %.5e, found_inf: %.0f"
             % (log_dict['epoch'], log_dict['total_epoch'], log_dict['batch'], log_dict['total_step'], log_dict['loss'],
-               log_dict['train_cost'], speed, speed * default_global_tokens_num, speed * default_global_tokens_num / self.data_world_size, log_dict['lr']))
+               log_dict['train_cost'], speed, speed * default_global_tokens_num, speed * default_global_tokens_num / self.data_world_size, \
+               loss_scale_str, log_dict['lr'], log_dict['found_inf']))
 
     def validation_step(self, batch):
         tokens, position_ids, labels, loss_mask = batch
@@ -109,21 +140,6 @@ class LanguageModule(BasicModule):
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
                log_dict['test_cost'], speed))
 
-    def get_model_size(self, l, h, v, s):
-        P = 0
-        # embedding
-        P += (v + s) * h
-        # attention
-        P += (4 * h * h + 4 * h) * l
-        # layer_norm of decoder
-        P += (2 * (2 * h)) * l
-        # FFN Layer
-        P += (8 * h * h + 5 * h) * l
-        # layer_norm of transformer
-        P += 2 * h
-        logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 /
-                                                  1000.0))
-
     def training_epoch_end(self, log_dict):
         logger.info("[Training] epoch: %d, total time: %.5f sec" %
                     (log_dict['epoch'], log_dict['train_cost']))
@@ -147,15 +163,20 @@ class GPTModule(LanguageModule):
             model_setting['freeze_embedding'] = freeze_embedding
         model_setting.pop("module")
 
+        model_name = model_setting.pop("name")
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
+        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
+
+        model_setting['vocab_size'] = vocab_size_with_padding(
+            model_setting.get('vocab_size', self.tokenizer.vocab_size),
+            model_setting.pop('vocab_size_divisible_unit', 128),
+            self.configs.Distributed.get('mp_degree', 1))
+
         l = model_setting['num_layers']
         h = model_setting['hidden_size']
         v = model_setting['vocab_size']
         s = self.configs.Data.Train.dataset.max_seq_len
-        self.get_model_size(l, h, v, s)
-
-        model_name = model_setting.pop("name")
-        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
-        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
+        get_model_size(l, h, v, s)
 
         if self.nranks == 1:
             model_setting.pop("sequence_parallel")
@@ -253,16 +274,21 @@ class GPTFinetuneModule(BasicModule):
         num_classes = model_setting.pop("num_classes", 2)
         assert pretrained is not None
 
+        model_name = model_setting.pop("name")
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
+        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
+
+        model_setting['vocab_size'] = vocab_size_with_padding(
+            model_setting.get('vocab_size', self.tokenizer.vocab_size),
+            model_setting.pop('vocab_size_divisible_unit', 128),
+            self.configs.Distributed.get('mp_degree', 1))
+
         l = model_setting['num_layers']
         h = model_setting['hidden_size']
         v = model_setting['vocab_size']
         num_heads = model_setting['num_attention_heads']
         s = self.configs.Data.Train.dataset.max_length
-        self.get_model_size(l, h, v, s)
-
-        model_name = model_setting.pop("name")
-        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
-        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
+        get_model_size(l, h, v, s)
 
         if self.nranks == 1:
             model = gpt.GPTForSequenceClassification(
@@ -431,11 +457,6 @@ class GPTFinetuneModule(BasicModule):
             % (log_dict['epoch'], log_dict['batch'], log_dict['loss'],
                log_dict['test_cost'], speed))
 
-    def get_model_size(self, l, h, v, s):
-        P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
-        logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 /
-                                                  1000.0))
-
     def training_epoch_end(self, log_dict):
         logger.info("[Training] epoch: %d, total time: %.5f sec" %
                     (log_dict['epoch'], log_dict['train_cost']))
@@ -491,6 +512,11 @@ class GPTGenerationModule(BasicModule):
         model_name = model_setting.pop("name")
         tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
         self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
+
+        model_setting['vocab_size'] = vocab_size_with_padding(
+            model_setting.get('vocab_size', self.tokenizer.vocab_size),
+            model_setting.pop('vocab_size_divisible_unit', 128),
+            self.configs.Distributed.get('mp_degree', 1))
 
         if self.nranks == 1:
             model = gpt.GPTForGeneration(
@@ -612,7 +638,15 @@ class GPTEvalModule(LanguageModule):
             model_setting['skip_tensor_map'] = skip_tensor_map
             model_setting['freeze_embedding'] = freeze_embedding
         model_setting.pop("module")
-        model_setting.pop("name")
+
+        model_name = model_setting.pop("name")
+        tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
+        self.tokenizer = tokenizer_class.from_pretrained(pretrained_name)
+
+        model_setting['vocab_size'] = vocab_size_with_padding(
+            model_setting.get('vocab_size', self.tokenizer.vocab_size),
+            model_setting.pop('vocab_size_divisible_unit', 128),
+            self.configs.Distributed.get('mp_degree', 1))
 
         if self.nranks == 1:
             model = gpt.GPTForPretraining(gpt.GPTModel(**model_setting))
@@ -715,7 +749,7 @@ class MoEModule(LanguageModule):
         h = model_setting['hidden_size']
         v = model_setting['vocab_size']
         s = self.configs.Data.Train.dataset.max_seq_len
-        self.get_model_size(l, h, v, s)
+        get_model_size(l, h, v, s)
 
         if self.nranks == 1:
             model_setting.pop("sequence_parallel")
@@ -738,11 +772,6 @@ class MoEModule(LanguageModule):
         else:
             loss_fn = gpt.GPTPretrainingCriterionHybird()
         return loss_fn
-
-    def get_model_size(self, l, h, v, s):
-        P = 12 * l * h * h * (1 + 13 / (12 * h) + (v + s) / (12 * l * h))
-        logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 /
-                                                  1000.0))
 
     def training_step(self, batch):
         tokens, position_ids, labels, loss_mask = batch
