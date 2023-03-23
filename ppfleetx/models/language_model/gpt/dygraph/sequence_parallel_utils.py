@@ -21,7 +21,7 @@ from paddle import distributed as dist
 from paddle.nn import functional as F
 from paddle.autograd import PyLayer
 from paddle.fluid import core
-from paddle.fluid.dygraph.layers import Layer
+from paddle.nn.layer.layers import Layer
 from paddle.distributed import fleet
 from paddle.distributed.fleet.base import topology as tp
 from paddle.distributed.fleet.meta_parallel import get_rng_state_tracker
