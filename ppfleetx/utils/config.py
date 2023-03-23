@@ -523,13 +523,9 @@ def process_auto_strategy(config):
     # amp config
     amp_cfg = config.Engine.get('mix_precision', {})
     amp = strategy.amp
-    amp_dtype = amp_cfg.get('dtype', "")
-    if amp_dtype not in ["", "float16", "bfloat16"]:
-        raise ValueError(
-            "amp.dtype should be one of ['', 'float16', 'bfloat16']]")
-    amp.enable = amp_dtype in ['float16', 'bfloat16']
+    amp.enable = amp_cfg.get('enable', False)
     amp.dtype = amp_cfg.get('dtype', "float16")
-    amp.level = amp_cfg.get('level', "o1")
+    amp.level = amp_cfg.get('level', "o2")
     amp.init_loss_scaling = amp_cfg.get('scale_loss', 32768)
     amp.custom_black_list = amp_cfg.get('custom_black_list', [])
     amp.custom_white_list = amp_cfg.get('custom_white_list', [])
