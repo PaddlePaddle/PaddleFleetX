@@ -80,8 +80,8 @@ function _train(){
     if [ ${mp_degree} -lt 8 -a ${pp_degree} -lt 8 ]; then num_attention_heads=4; fi #"gpt2-small-en"
     num_layers=24 #"gpt2-medium-en"
     if [ ${mp_degree} -lt 8 -a ${pp_degree} -lt 8 ]; then num_layers=4; fi #"gpt2-small-en"
-    use_pure_fp16="" # fp32
-    if [ "fp16" = ${fp_item} ]; then use_pure_fp16="o2"; fi
+    use_pure_fp16=False # fp32
+    if [ "fp16" = ${fp_item} ]; then use_pure_fp16=True; fi
     train_cmd="-o Global.seed=1234 \
                -o Global.local_batch_size=${local_batch_size} \
                -o Global.micro_batch_size=${micro_batch_size} \
