@@ -116,7 +116,7 @@ function _train(){
     DP1-MP1-PP1-Sharding16) echo "run run_mode: ${run_mode}"
         train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 ${PADDLE_RANK_OPTION}\
             ./tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_6.7B_sharding16.yaml \
-            -o Global.logging_freq=1 \
+            -o Engine.logging_freq=1 \
             ${train_cmd}"
         workerlog_id=0
         ;;
