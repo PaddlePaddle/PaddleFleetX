@@ -261,7 +261,7 @@ class MultiHeadAttention(Layer):
                 and `[batch_size, n_head, sequence_length, d_value]` separately, \
                 and their data types are same as inputs.
         """
-        q = self.q_proj(query)
+        q = self.q_proj(query.clone())
         q = tensor.reshape(x=q, shape=[0, 0, self.num_heads, self.head_dim])
         q = tensor.transpose(x=q, perm=[0, 2, 1, 3])
 
@@ -269,7 +269,7 @@ class MultiHeadAttention(Layer):
             # for encoder-decoder attention in inference and has cached
             k, v = cache.k, cache.v
         else:
-            k, v = self.compute_kv(key, value)
+            k, v = self.compute_kv(key.clone(), value.clone())
 
         if isinstance(cache, self.Cache):
             # for decoder self-attention in inference
