@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import gc
 import numpy as np
 import paddle
 import paddle.nn as nn
@@ -286,6 +287,9 @@ class MSARowAttentionWithPairBias(nn.Layer):
 
         # [B, head, N_res//dap_size, N_res] => [B, head, N_res, N_res]
         nonbatched_bias = dap.all_gather(nonbatched_bias_before, axis=2)
+        if not self.training:
+            del nonbatched_bias_before
+            gc.collect()
         nonbatched_bias = dap.all_gather_opp(nonbatched_bias, axis=2)
 
         # [B, N_seq, N_res] => [B, N_seq//dap_size, N_res]
@@ -465,6 +469,9 @@ class TriangleAttention(nn.Layer):
 
         # # [B, head, N_res//dap_size, N_res] => [B, head, N_res, N_res]
         nonbatched_bias = dap.all_gather(nonbatched_bias_before, axis=2)
+        if not self.training:
+            del nonbatched_bias_before
+            gc.collect()
         nonbatched_bias = dap.all_gather_opp(nonbatched_bias, axis=2)
 
         if not self.training:
@@ -556,20 +563,33 @@ class TriangleMultiplication(nn.Layer):
         # Incoming [B, N_res, N_res//dap_size, c_z]
         act = self.layer_norm_input(act)  # line 1
 
-        # Outgoing [B, N_res//dap_size, N_res, c_z] => [B, N_res//dap_size, N_res, num_intermediate_channel]
-        # Incoming [B, N_res, N_res//dap_size, c_z] => [B, N_res, N_res//dap_size, num_intermediate_channel]
-        left_proj_act = mask * self.left_projection(act)
-        right_proj_act = mask * self.right_projection(act)
+        if not self.training:
+            # Note(GuoxiaWang): using inplace version to save memory(low_mem=True).
+            left_proj_act = self.left_gate(act)
+            left_proj_act.sigmoid_()
+            left_proj_act.multiply_(self.left_projection(act))
+            left_proj_act.multiply_(mask)
 
-        # Outgoing [B, N_res//dap_size, N_res, c_z] => [B, N_res//dap_size, N_res, num_intermediate_channel]
-        # Incoming [B, N_res, N_res//dap_size, c_z] => [B, N_res, N_res//dap_size, num_intermediate_channel]
-        left_gate_values = nn.functional.sigmoid(self.left_gate(act))
-        right_gate_values = nn.functional.sigmoid(self.right_gate(act))
+            right_proj_act_before = self.right_gate(act)
+            right_proj_act_before.sigmoid_()
+            right_proj_act_before.multiply_(self.right_projection(act))
+            right_proj_act_before.multiply_(mask)
 
-        # Outgoing [B, N_res//dap_size, N_res, num_intermediate_channel]
-        # Incoming [B, N_res, N_res//dap_size, num_intermediate_channel]
-        left_proj_act = left_proj_act * left_gate_values
-        right_proj_act_before = right_proj_act * right_gate_values
+        else:
+            # Outgoing [B, N_res//dap_size, N_res, c_z] => [B, N_res//dap_size, N_res, num_intermediate_channel]
+            # Incoming [B, N_res, N_res//dap_size, c_z] => [B, N_res, N_res//dap_size, num_intermediate_channel]
+            left_proj_act = mask * self.left_projection(act)
+            right_proj_act = mask * self.right_projection(act)
+
+            # Outgoing [B, N_res//dap_size, N_res, c_z] => [B, N_res//dap_size, N_res, num_intermediate_channel]
+            # Incoming [B, N_res, N_res//dap_size, c_z] => [B, N_res, N_res//dap_size, num_intermediate_channel]
+            left_gate_values = nn.functional.sigmoid(self.left_gate(act))
+            right_gate_values = nn.functional.sigmoid(self.right_gate(act))
+
+            # Outgoing [B, N_res//dap_size, N_res, num_intermediate_channel]
+            # Incoming [B, N_res, N_res//dap_size, num_intermediate_channel]
+            left_proj_act = left_proj_act * left_gate_values
+            right_proj_act_before = right_proj_act * right_gate_values
 
         # "Outgoing" edges equation: 'ikc,jkc->ijc'
         # "Incoming" edges equation: 'kjc,kic->ijc'
@@ -582,16 +602,27 @@ class TriangleMultiplication(nn.Layer):
             # Outgoing
             # [B, N_res//dap_size, N_res, num_intermediate_channel] => [B, N_res, N_res, num_intermediate_channel]
             right_proj_act = dap.all_gather(right_proj_act_before, axis=1)
+            if not self.training:
+                del right_proj_act_before
+                gc.collect()
         elif self.config.equation == 'kjc,kic->ijc':
             # Incoming
             # [B, N_res, N_res//dap_size, num_intermediate_channel] => [B, N_res, N_res, num_intermediate_channel]
             right_proj_act = dap.all_gather(right_proj_act_before, axis=2)
+            if not self.training:
+                del right_proj_act_before
+                gc.collect()
         else:
             raise ValueError('unknown equation.')
 
         # Outgoing [B, N_res//dap_size, N_res, c_z]
         # Incoming [B, N_res, N_res//dap_size, c_z]        
-        gate_values = nn.functional.sigmoid(self.gating_linear(act))  # line 3
+
+        if not self.training:
+            gate_values = self.gating_linear(act).sigmoid_()  # line 3
+        else:
+            gate_values = nn.functional.sigmoid(
+                self.gating_linear(act))  # line 3
 
         if self.config.equation == 'ikc,jkc->ijc':
             # Outgoing
