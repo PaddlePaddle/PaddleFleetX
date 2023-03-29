@@ -215,7 +215,7 @@ class EvoformerIteration(nn.Layer):
         # [B, N_res//dap_size, N_res, c_z]
         residual = self.outer_product_mean(msa_act, msa_mask)
         outer_product_mean = self.outer_product_mean_dropout(residual)
-        if not self.training: # for inference
+        if not self.training:  # for inference
             pair_act.add_(outer_product_mean)
             del outer_product_mean
             gc.collect()
@@ -235,7 +235,7 @@ class EvoformerIteration(nn.Layer):
         residual = self.triangle_multiplication_outgoing(pair_act,
                                                          pair_mask_row)
         residual = self.triangle_outgoing_dropout(residual)
-        if not self.training: # for inference
+        if not self.training:  # for inference
             pair_act.add_(residual)
             del residual
             gc.collect()
@@ -248,7 +248,7 @@ class EvoformerIteration(nn.Layer):
         residual = self.triangle_multiplication_incoming(pair_act,
                                                          pair_mask_col)
         residual = self.triangle_incoming_dropout(residual)
-        if not self.training: # for inference
+        if not self.training:  # for inference
             pair_act.add_(residual)
             del residual
             gc.collect()
@@ -261,7 +261,7 @@ class EvoformerIteration(nn.Layer):
         residual = self.triangle_attention_starting_node(pair_act,
                                                          pair_mask_row)
         residual = self.triangle_starting_dropout(residual)
-        if not self.training: # for inference
+        if not self.training:  # for inference
             pair_act.add_(residual)
             del residual
             gc.collect()
@@ -273,7 +273,7 @@ class EvoformerIteration(nn.Layer):
         # [B, N_res, N_res//dap_size, c_z]
         residual = self.triangle_attention_ending_node(pair_act, pair_mask_col)
         residual = self.triangle_ending_dropout(residual)
-        if not self.training: # for inference
+        if not self.training:  # for inference
             pair_act.add_(residual)
             del residual
             gc.collect()
@@ -282,7 +282,7 @@ class EvoformerIteration(nn.Layer):
 
         residual = self.pair_transition(pair_act, pair_mask)
         residual = self.pair_transition_dropout(residual)
-        if not self.training: # for inference
+        if not self.training:  # for inference
             pair_act.add_(residual)
             del residual
             gc.collect()
@@ -677,7 +677,7 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
             left_single, axis=2)  # 1, n_res, 128 -> 1, n_res, 1, 128
         pair_activations = left_single + right_single
 
-        if not self.training: # for inference
+        if not self.training:  # for inference
             del left_single
             del right_single
             gc.collect()
@@ -697,7 +697,7 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
                                                     batch['prev_pos'], None)
             dgram = dgram_from_positions(prev_pseudo_beta,
                                          **self.config.prev_pos)
-            if not self.training: # for inference
+            if not self.training:  # for inference
                 dgram = dap.scatter(dgram, axis=1)
                 pair_activations += self.prev_pos_linear(dgram)
                 del dgram
@@ -718,13 +718,13 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
                 msa_first_row = paddle.unsqueeze(msa_first_row, axis=1)
                 msa_activations = paddle.concat(
                     [msa_first_row, msa_activations[:, 1:, :]], axis=1)
-                if not self.training: # for inference
+                if not self.training:  # for inference
                     del prev_msa_first_row
                     del msa_first_row
                     gc.collect()
 
             if 'prev_pair' in batch:
-                if not self.training: # for inference
+                if not self.training:  # for inference
                     prev_pair = batch['prev_pair']
                     prev_pair_gpu = prev_pair.cuda()
                     prev_pair_gpu = dap.scatter(prev_pair_gpu, axis=1)
@@ -748,7 +748,7 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
                     max=2 * self.config.max_relative_feature),
                 2 * self.config.max_relative_feature + 1)
 
-            if not self.training: # for inference
+            if not self.training:  # for inference
                 rel_pos = dap.scatter(rel_pos, axis=1)
                 rel_pos_bias = self.pair_activiations(rel_pos)
                 pair_activations += rel_pos_bias
@@ -774,7 +774,7 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
         # Jumper et al. (2021) Suppl. Alg. 2 "Inference" lines 14-16
         extra_msa_feat = self._create_extra_msa_feature(batch)
         extra_msa_activations = self.extra_msa_activations(extra_msa_feat)
-        if not self.training: # for inference
+        if not self.training:  # for inference
             del extra_msa_feat
             gc.collect()
 
@@ -783,7 +783,7 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
         # Jumper et al. (2021) Suppl. Alg. 18 "ExtraMsaStack"
         # ==================================================
 
-        if not self.training: # for inference
+        if not self.training:  # for inference
             # scatter if using dap, otherwise do nothing
             # [B, N_seq, N_res, c_m] => [B, N_seq//dap_size, N_res, c_m]
             extra_msa_activations = dap.scatter(extra_msa_activations, axis=1)
@@ -795,7 +795,7 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
             'pair': pair_activations,
         }
 
-        if not self.training: # for inference
+        if not self.training:  # for inference
             del pair_activations
             gc.collect()
 
@@ -846,7 +846,7 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
             'pair': mask_2d,
         }
 
-        if not self.training: # for inference
+        if not self.training:  # for inference
             del extra_msa_stack_input
             del extra_msa_stack_output
             gc.collect()
@@ -906,9 +906,11 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
         if self.training:
             # scatter if using dap, otherwise do nothing
             # [B, N_seq, N_res, c_m] => [B, N_seq//dap_size, N_res, c_m]
-            evoformer_input['msa'] = dap.scatter(evoformer_input['msa'], axis=1)
+            evoformer_input['msa'] = dap.scatter(
+                evoformer_input['msa'], axis=1)
             # [B, N_res, N_res, c_z] => [B, N_res//dap_size, N_res, c_z]
-            evoformer_input['pair'] = dap.scatter(evoformer_input['pair'], axis=1)
+            evoformer_input['pair'] = dap.scatter(
+                evoformer_input['pair'], axis=1)
 
         # ==================================================
         #  Main MSA Stack
@@ -937,7 +939,7 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
         msa_activations = evoformer_output['msa']
         pair_activations = evoformer_output['pair']
 
-        if not self.training: # for inference
+        if not self.training:  # for inference
             pair_activations_cpu = pair_activations.cpu()
             del pair_activations
         single_activations = self.single_activations(msa_activations[:, 0])
@@ -945,7 +947,8 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
         num_seq = batch['msa_feat'].shape[1]
         output = {
             'single': single_activations,
-            'pair': pair_activations_cpu if not self.training else pair_activations,
+            'pair': pair_activations_cpu
+            if not self.training else pair_activations,
             # Crop away template rows such that they are not used
             # in MaskedMsaHead.
             'msa': msa_activations[:, :num_seq],
