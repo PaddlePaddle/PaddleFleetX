@@ -24,7 +24,7 @@ from paddle.static import InputSpec
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../../../')))
 
-from ppfleetx.distributed.apis import env, strategy, io
+from ppfleetx.distributed.apis import env, strategy, io, amp
 from ppfleetx.utils.log import logger
 from ppfleetx.utils import device, log
 from examples.transformer.utils import qat
@@ -83,12 +83,19 @@ if __name__ == "__main__":
         ]
         model, quanter = qat.compress_model(config, model, input_spec)
 
-    if config.Global.mix_precision.use_pure_fp16:
-        scaler = paddle.amp.GradScaler(
-            init_loss_scaling=config.Global.mix_precision.scale_loss)
+    amp_config = config.Global.mix_precision
+    if amp_config.enable:
+        if amp_config.dtype == "float16":
+            scaler = paddle.amp.GradScaler(
+                init_loss_scaling=amp_config.scale_loss)
+        elif amp_config.dtype == "bfloat16":
+            scaler = paddle.amp.GradScaler(
+                init_loss_scaling=1, use_dynamic_loss_scaling=False)
+
         # Note: Save dtype is the same as model dtype. Also can set save_dtype='float32' when 
         # training with pure fp16 strategy, but will cause the rise of memory.
-        model = paddle.amp.decorate(models=model, level='O2')
+        model = paddle.amp.decorate(
+            models=model, level=amp_config.level, dtype=amp_config.dtype)
     else:
         scaler = None
 
@@ -98,13 +105,22 @@ if __name__ == "__main__":
         'total_steps': config.Global.max_steps,
     })
 
+    use_increments = config.Optimizer.lr.pop('use_increments', False)
+
     # build lr and optim
     lr_scheduler = cpn.build_lr_scheduler(config.Optimizer.lr)
     optimizer = cpn.build_optimizer(
         config.Optimizer,
         model,
         lr_scheduler,
-        multi_precision=config.Global.mix_precision.use_pure_fp16)
+        multi_precision=amp_config.use_pure_fp16)
+
+    if amp_config.enable and amp_config.dtype in [
+            'float16', 'bfloat16'
+    ] and amp_config.level == 'O2' and amp_config.get('use_main_grad', False):
+        model = amp.MixPrecisionLayer(model, dtype=amp_config.dtype)
+        optimizer = amp.MixPrecisionOptimizer(optimizer)
+        scaler = amp.MixPrecisionScaler(scaler)
 
     # call fleet wrapper
     if nranks > 1:
@@ -140,9 +156,13 @@ if __name__ == "__main__":
         # Note(GuoxiaWang): Do not use len(train_data_loader()),
         # it will cause a memory leak.
         total_train_batch = len(train_data_loader)
+        total_train_step = config.Global.max_steps
         total_eval_batch = len(
             valid_data_loader) if valid_data_loader is not None else 0
-        for step, batch in enumerate(train_data_loader):
+        valid_data_loader = valid_data_loader(
+        ) if valid_data_loader is not None else None
+        eval_finished_step = 0
+        for step, batch in enumerate(train_data_loader()):
             if epoch_index == load_recovery['epoch']:
                 if step <= load_recovery['step']:
                     continue
@@ -183,10 +203,14 @@ if __name__ == "__main__":
                 ips_total = speed * default_global_tokens_num
                 ips = ips_total / env.get_data_world_size()
 
+                loss_scale_str = "loss_scale: %.9f," % (
+                    log_dict['loss_scale']) if log_dict.get(
+                        'loss_scale', None) is not None else ""
+
                 logger.info(
-                    "[train] epoch: %d, batch: %d, loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
+                    "[train] epoch: [%d/%d], batch: [%d/%d], loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
                     "ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
-                    % (epoch_index, step, sum(numpy_losses) / len(numpy_losses), train_cost, speed, ips_total, ips, optimizer.get_lr()))
+                    % (epoch_index, config.Global.num_train_epochs, step, total_train_step, sum(numpy_losses) / len(numpy_losses), train_cost, speed, ips_total, ips, optimizer.get_lr()))
 
                 train_step_start = log.get_timestamp()
                 train_losses = []
@@ -202,6 +226,7 @@ if __name__ == "__main__":
                 eval_step_start = log.get_timestamp()
 
                 for eval_step, batch in enumerate(valid_data_loader):
+                    eval_finished_step += 1
                     loss = impls.eval_impl(config, batch, model, loss_fn)
                     eval_losses.append(loss)
 
@@ -213,9 +238,9 @@ if __name__ == "__main__":
                 eval_cost = eval_step_cost / config.Global.logging_freq
 
                 logger.info(
-                    "[eval] epoch: %d, batch: %d, loss: %.9f, avg_eval_cost: %.5f sec, speed: %.2f step/s"
-                    % (epoch_index, eval_step, float(eval_loss), eval_cost,
-                       1. / eval_cost))
+                    "[eval] epoch: %d, batch: %d/%d, loss: %.9f, avg_eval_cost: %.5f sec, speed: %.2f step/s"
+                    % (epoch_index, eval_step, eval_finished_step,
+                       float(eval_loss), eval_cost, 1. / eval_cost))
 
             if step > 0 and config.Global.save_load.save_steps > 0 and \
                 step % config.Global.save_load.save_steps == 0:

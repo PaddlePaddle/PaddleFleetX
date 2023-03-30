@@ -16,12 +16,12 @@ import paddle
 import paddle.distributed as dist
 import paddle.distributed.fleet as fleet
 
-from paddle.fluid.dygraph.parallel import sync_params_buffers
+from paddle.distributed.parallel import sync_params_buffers
 from paddle.distributed.fleet.utils.hybrid_parallel_util import fused_allreduce_gradients
 from paddle.distributed.fleet.meta_parallel import TensorParallel
 from paddle.distributed.sharding import group_sharded_parallel
 
-from ppfleetx.distributed.apis import env
+from ppfleetx.distributed.apis import env, amp
 from ppfleetx.utils.tensor_fusion_helper import all_reduce_parameters
 
 
@@ -71,7 +71,18 @@ def wrap_sharding_2_3(dist_config, model, optimizer=None, scaler=None):
 
 
 def wrap_3D_parallel(dist_config, model, optimizer=None, scaler=None):
-    model = fleet.distributed_model(model)
+    hcg = env.get_hcg()
+    dp_group = hcg.get_data_parallel_group()
+
+    if isinstance(model, amp.MixPrecisionLayer):
+        if dist.get_world_size() == dist_config.dp_degree:
+            sync_params_buffers(
+                model, comm_group=dp_group, src_rank=dp_group.ranks[0])
+        elif dist_config.pp_degree > 1:
+            model = fleet.distributed_model(model._layers)
+    else:
+        model = fleet.distributed_model(model)
+
     optimizer = fleet.distributed_optimizer(
         optimizer) if optimizer is not None else optimizer
     scaler = fleet.distributed_scaler(scaler) if scaler is not None else scaler

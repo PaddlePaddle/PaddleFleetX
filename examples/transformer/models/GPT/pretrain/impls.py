@@ -52,6 +52,17 @@ def _get_model_size(l, h, v, s):
     logger.info('Model Size: {:.2f} B'.format(P / 1000.0 / 1000.0 / 1000.0))
 
 
+def _vocab_size_with_padding(vocab_size, div_unit, mp_degree):
+    padded_size = vocab_size
+    multiple = div_unit * mp_degree
+    while (padded_size % multiple) != 0:
+        padded_size += 1
+    logger.warning(' > padded vocab (size: {}) with {} dummy tokens '
+                   '(new size: {})'.format(vocab_size, padded_size -
+                                           vocab_size, padded_size))
+    return padded_size
+
+
 def build_model(config):
     nranks = dist.get_world_size()
     model_setting = copy.deepcopy(config.Model)
@@ -63,15 +74,20 @@ def build_model(config):
         model_setting['freeze_embedding'] = quant_setting.get(
             'freeze_embedding', False)
 
+    model_name = model_setting.pop("name")
+    tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
+    tokenizer = tokenizer_class.from_pretrained(pretrained_name)
+
+    model_setting['vocab_size'] = _vocab_size_with_padding(
+        model_setting.get('vocab_size', tokenizer.vocab_size),
+        model_setting.pop('vocab_size_divisible_unit', 128),
+        config.Distributed.get('mp_degree', 1))
+
     l = model_setting['num_layers']
     h = model_setting['hidden_size']
     v = model_setting['vocab_size']
     s = config.Data.Train.dataset.max_seq_len
     _get_model_size(l, h, v, s)
-
-    model_name = model_setting.pop("name")
-    tokenizer_class, pretrained_name = MODEL_CLASSES[model_name]
-    tokenizer = tokenizer_class.from_pretrained(pretrained_name)
 
     if nranks == 1:
         model_setting.pop("sequence_parallel")
@@ -101,7 +117,7 @@ def build_model(config):
 
 def model_forward_backward(config, batch, forward_func, **kwargs):
     acc_steps = config.Global.accumulate_steps
-    use_fp16 = config.Global.mix_precision.use_pure_fp16
+    use_fp16 = config.Global.mix_precision.enable
     black_list = config.Global.mix_precision.custom_black_list
     white_list = config.Global.mix_precision.custom_white_list
 
@@ -165,7 +181,7 @@ def model_forward_backward(config, batch, forward_func, **kwargs):
 
 def optim_update_params(config, **kwargs):
     hcg = env.get_hcg()
-    use_fp16 = config.Global.mix_precision.use_pure_fp16
+    use_fp16 = config.Global.mix_precision.enable
 
     dp_degree = config.Distributed.dp_degree
     sharding_stage = config.Distributed.sharding.sharding_stage
@@ -221,7 +237,7 @@ def fit_impl(config, batch, forward_func, **kwargs):
 def eval_impl(config, batch, model, loss_fn):
     model.eval()
 
-    use_fp16 = config.Global.mix_precision.use_pure_fp16
+    use_fp16 = config.Global.mix_precision.enable
     black_list = config.Global.mix_precision.custom_black_list
     white_list = config.Global.mix_precision.custom_white_list
 
