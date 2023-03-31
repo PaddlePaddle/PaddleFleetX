@@ -169,7 +169,7 @@ if __name__ == "__main__":
         eval_finished_step = 0
         for step, batch in enumerate(train_data_loader()):
             if epoch_index == load_recovery['epoch']:
-                if step <= load_recovery['step']:
+                if step < load_recovery['step']:
                     continue
 
             model.train()
