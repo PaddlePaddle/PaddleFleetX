@@ -16,7 +16,9 @@ Engine:
   eval_iters: 10
   test_iters:
   mix_precision:
-    use_pure_fp16: True
+    enable: True
+    dtype: "float16"
+    level: "O2"
     scale_loss: 32768.0
     custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div"]
     custom_white_list: ["lookup_table", "lookup_table_v2"]
@@ -30,9 +32,13 @@ Engine:
 Model:
   module: "GPTModule"
   name: "GPT"
+  vocab_size_divisible_unit: 128
   fused_linear: False
   fuse_attn_qkv: True
+  scale_qk_by_layer_num: True
   sequence_parallel: False
+  use_flash_attn: False
+  fused_softmax_with_triangular: True
 
 
 Data:
@@ -40,7 +46,7 @@ Data:
     dataset:
       name: GPTDataset
       input_dir: ./data/
-      split: [949, 50, 1]
+      split: [969, 30, 1]
       max_seq_len: 1024
     sampler:
       name: GPTBatchSampler
@@ -55,7 +61,7 @@ Data:
     dataset:
       name: GPTDataset
       input_dir: ./data/
-      split: [949, 50, 1]
+      split: [969, 30, 1]
       max_seq_len: 1024
     sampler:
       name: GPTBatchSampler
@@ -79,6 +85,7 @@ Optimizer:
     warmup_rate: 0.01
     max_lr: 5.0e-5
     min_lr: 1.0e-5
+    use_increments: True
   grad_clip:
     name: "ClipGradByGlobalNorm"
     clip_norm: 1.0
@@ -90,6 +97,7 @@ Profiler:
   scheduler: [1, 5]
   profiler_log: profiler_log
   detailed: False
+
 
 Distributed:
   fuse_sequence_parallel_allreduce: False

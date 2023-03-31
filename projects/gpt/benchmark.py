@@ -69,7 +69,7 @@ def main():
     args = parse_args()
 
     fleet.init(is_collective=True)
-    infer_engine = InferenceEngine(args.model_dir, args.mp_size)
+    infer_engine = InferenceEngine(args.model_dir, args.mp_degree)
     ids = [100] * args.seq_len
 
     # run test

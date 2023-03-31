@@ -25,7 +25,7 @@ __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../../../../../')))
 
 from ppfleetx.utils.log import logger
-from ppfleetx.distributed.apis import env
+from ppfleetx.distributed.apis import env, amp
 import ppfleetx.models.language_model.gpt as gpt
 from ppfleetx.utils.tensor_fusion_helper import all_reduce_parameters
 from ppfleetx.data.tokenizers import GPTTokenizer, GPTChineseTokenizer
@@ -117,7 +117,9 @@ def build_model(config):
 
 def model_forward_backward(config, batch, forward_func, **kwargs):
     acc_steps = config.Global.accumulate_steps
-    use_fp16 = config.Global.mix_precision.enable
+    amp_enable = config.Global.mix_precision.enable
+    amp_dtype = config.Global.mix_precision.dtype
+    amp_level = config.Global.mix_precision.level
     black_list = config.Global.mix_precision.custom_black_list
     white_list = config.Global.mix_precision.custom_white_list
 
@@ -129,10 +131,11 @@ def model_forward_backward(config, batch, forward_func, **kwargs):
         batches = [batch]
 
         with paddle.amp.auto_cast(
-                use_fp16,
+                amp_enable,
                 custom_black_list=black_list,
                 custom_white_list=white_list,
-                level='O2'):
+                dtype=amp_dtype,
+                level=amp_level):
 
             batch = kwargs['model']._prepare_training(
                 batch, kwargs['optimizer'], None)
@@ -155,16 +158,18 @@ def model_forward_backward(config, batch, forward_func, **kwargs):
     final_loss = None
     for micro_batch in batches:
         with paddle.amp.auto_cast(
-                use_fp16,
+                amp_enable,
                 custom_black_list=black_list,
                 custom_white_list=white_list,
-                level='O2'):
+                dtype=amp_dtype,
+                level=amp_level):
 
             # forward in training step
             loss = forward_func(micro_batch, kwargs['model'],
                                 kwargs['loss_fn'])
 
-        loss_bw = kwargs['scaler'].scale(loss) if use_fp16 else loss
+        loss_bw = kwargs['scaler'].scale(
+            loss) if amp_enable and amp_dtype == "float16" else loss
         loss_bw = loss_bw / acc_steps if acc_steps > 1 else loss_bw
         loss_bw.backward()
 
@@ -181,7 +186,8 @@ def model_forward_backward(config, batch, forward_func, **kwargs):
 
 def optim_update_params(config, **kwargs):
     hcg = env.get_hcg()
-    use_fp16 = config.Global.mix_precision.enable
+    amp_enable = config.Global.mix_precision.enable
+    amp_dtype = config.Global.mix_precision.dtype
 
     dp_degree = config.Distributed.dp_degree
     sharding_stage = config.Distributed.sharding.sharding_stage
@@ -195,6 +201,9 @@ def optim_update_params(config, **kwargs):
             dp_group = hcg.get_data_parallel_group()
             all_reduce_parameters(kwargs['optimizer'].all_fused_tensors,
                                   dp_group)
+    elif isinstance(kwargs['model'], amp.MixPrecisionLayer) \
+        and dist.get_world_size() > 1 and dist.get_world_size() == dp_degree:
+        fused_allreduce_gradients(list(kwargs['model'].parameters()), None)
 
     if sharding_stage == 3 and dp_degree > 1:
         dp_group = hcg.get_data_parallel_group()
@@ -206,7 +215,7 @@ def optim_update_params(config, **kwargs):
                 p.bw_storage.scale_(1.0 / dp_group.nranks)
                 dist.all_reduce(p.bw_storage, group=dp_group)
 
-    if use_fp16:
+    if amp_enable and amp_dtype == 'float16':
         kwargs['scaler'].step(kwargs['optimizer'])
         kwargs['scaler'].update()
     else:
@@ -237,15 +246,18 @@ def fit_impl(config, batch, forward_func, **kwargs):
 def eval_impl(config, batch, model, loss_fn):
     model.eval()
 
-    use_fp16 = config.Global.mix_precision.enable
+    amp_enable = config.Global.mix_precision.enable
+    amp_dtype = config.Global.mix_precision.dtype
+    amp_level = config.Global.mix_precision.level
     black_list = config.Global.mix_precision.custom_black_list
     white_list = config.Global.mix_precision.custom_white_list
 
     with paddle.amp.auto_cast(
-            use_fp16,
+            amp_enable,
             custom_black_list=black_list,
             custom_white_list=white_list,
-            level='O2'):
+            dtype=amp_dtype,
+            level=amp_level):
         tokens, position_ids, labels, loss_mask = batch
 
         if config.Distributed.pp_degree == 1:

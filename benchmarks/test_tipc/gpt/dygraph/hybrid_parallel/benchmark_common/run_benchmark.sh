@@ -86,7 +86,7 @@ function _train(){
                -o Global.micro_batch_size=${micro_batch_size} \
                -o Engine.max_steps=${max_iter} \
                -o Engine.eval_freq=${eval_freq} \
-               -o Engine.mix_precision.use_pure_fp16=${use_pure_fp16} \
+               -o Engine.mix_precision.enable=${use_pure_fp16} \
                -o Engine.save_load.save_steps=100000 \
                -o Model.hidden_size=1024 \
                -o Model.num_layers=${num_layers} \
@@ -118,14 +118,14 @@ function _train(){
         ;;
     DP1-MP1-PP4|DP1-MP4-PP1) echo "run run_mode: ${run_mode}"
         train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3 ${PADDLE_RANK_OPTION}\
-            tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml
+            tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
             ${train_cmd}"
         workerlog_id=0
         ;;
     DP8-MP1-PP1|DP1-MP8-PP1|DP1-MP1-PP8|DP1-MP2-PP4|DP1-MP4-PP2|DP2-MP2-PP2| \
     DP2-MP8-PP2|DP4-MP8-PP1|DP1-MP8-PP4) echo "run run_mode: ${run_mode}"
         train_cmd="python -m paddle.distributed.launch --log_dir=./mylog --devices=0,1,2,3,4,5,6,7 ${PADDLE_RANK_OPTION}\
-            tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml
+            tools/train.py -c ppfleetx/configs/nlp/gpt/pretrain_gpt_1.3B_dp8.yaml \
             ${train_cmd}"
         workerlog_id=0
         ;;

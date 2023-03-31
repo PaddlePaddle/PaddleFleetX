@@ -84,18 +84,23 @@ if __name__ == "__main__":
         model, quanter = qat.compress_model(config, model, input_spec)
 
     amp_config = config.Global.mix_precision
-    if amp_config.enable:
-        if amp_config.dtype == "float16":
-            scaler = paddle.amp.GradScaler(
-                init_loss_scaling=amp_config.scale_loss)
-        elif amp_config.dtype == "bfloat16":
+    amp_enable = amp_config['enable']
+    amp_dtype = amp_config.get('dtype', 'float16')
+    amp_level = amp_config.get('level', 'O2')
+    amp_use_main_grad = amp_config.get('use_main_grad', False)
+    amp_scale_loss = amp_config.get('scale_loss', 32768)
+
+    if amp_enable:
+        if amp_dtype == "float16":
+            scaler = paddle.amp.GradScaler(init_loss_scaling=amp_scale_loss)
+        elif amp_dtype == "bfloat16":
             scaler = paddle.amp.GradScaler(
                 init_loss_scaling=1, use_dynamic_loss_scaling=False)
 
         # Note: Save dtype is the same as model dtype. Also can set save_dtype='float32' when 
         # training with pure fp16 strategy, but will cause the rise of memory.
         model = paddle.amp.decorate(
-            models=model, level=amp_config.level, dtype=amp_config.dtype)
+            models=model, level=amp_level, dtype=amp_dtype)
     else:
         scaler = None
 
@@ -113,12 +118,12 @@ if __name__ == "__main__":
         config.Optimizer,
         model,
         lr_scheduler,
-        multi_precision=amp_config.use_pure_fp16)
+        multi_precision=config.Global.mix_precision.enable)
 
-    if amp_config.enable and amp_config.dtype in [
+    if amp_enable and amp_dtype in [
             'float16', 'bfloat16'
-    ] and amp_config.level == 'O2' and amp_config.get('use_main_grad', False):
-        model = amp.MixPrecisionLayer(model, dtype=amp_config.dtype)
+    ] and amp_level == 'O2' and amp_use_main_grad:
+        model = amp.MixPrecisionLayer(model, dtype=amp_dtype)
         optimizer = amp.MixPrecisionOptimizer(optimizer)
         scaler = amp.MixPrecisionScaler(scaler)
 
@@ -190,6 +195,11 @@ if __name__ == "__main__":
             loss = impls.fit_impl(config, batch, forward_func, **fit_kwargs)
             train_losses.append(loss)
 
+            if lr_scheduler is not None:
+                if scaler is None or scaler._found_inf == 0:
+                    lr_scheduler.step(epoch=config.Global.global_batch_size
+                                      if use_increments else None)
+
             # training step log
             if (step + 1) % config.Global.logging_freq == 0:
                 train_step_cost = log.get_timestamp() - train_step_start
@@ -203,20 +213,16 @@ if __name__ == "__main__":
                 ips_total = speed * default_global_tokens_num
                 ips = ips_total / env.get_data_world_size()
 
-                loss_scale_str = "loss_scale: %.9f," % (
-                    log_dict['loss_scale']) if log_dict.get(
-                        'loss_scale', None) is not None else ""
+                loss_scale_str = " loss_scale: %.9f," % (
+                    scaler._scale.numpy()[0]) if scaler is not None else ""
 
                 logger.info(
                     "[train] epoch: [%d/%d], batch: [%d/%d], loss: %.9f, avg_batch_cost: %.5f sec, speed: %.2f step/s, " \
-                    "ips_total: %.0f tokens/s, ips: %.0f tokens/s, learning rate: %.5e"
-                    % (epoch_index, config.Global.num_train_epochs, step, total_train_step, sum(numpy_losses) / len(numpy_losses), train_cost, speed, ips_total, ips, optimizer.get_lr()))
+                    "ips_total: %.0f tokens/s, ips: %.0f tokens/s,%s learning rate: %.5e, found_inf: %d"
+                    % (epoch_index, config.Global.num_train_epochs, step, total_train_step, sum(numpy_losses) / len(numpy_losses), train_cost, speed, ips_total, ips, loss_scale_str, optimizer.get_lr(), scaler._found_inf if scaler is not None else 0))
 
                 train_step_start = log.get_timestamp()
                 train_losses = []
-
-            if lr_scheduler is not None:
-                lr_scheduler.step()
 
             optimizer.clear_grad()
 

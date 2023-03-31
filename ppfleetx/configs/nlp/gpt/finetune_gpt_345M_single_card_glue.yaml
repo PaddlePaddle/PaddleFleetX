@@ -13,7 +13,7 @@ Engine:
   logging_freq: 10
   eval_freq: 1
   mix_precision:
-    use_pure_fp16: True
+    enable: True
     scale_loss: 32768.0
     custom_black_list: ["reduce_sum", "c_softmax_with_cross_entropy", "elementwise_div", "reduce_mean"]
     custom_white_list: ["lookup_table", "lookup_table_v2"]

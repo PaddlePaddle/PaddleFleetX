@@ -741,6 +741,7 @@ class GPTForGenerationAuto(nn.Layer):
         self.max_length = self.configs.get('max_dec_len', 20)
         self.min_length = self.configs.get('min_dec_len', 0)
         self.decode_strategy = self.configs.get('decode_strategy', 'sampling')
+        self.early_finish = self.configs.get('early_finish', True)
         self.temperature = self.configs.get('temperature', 1.0)
         self.top_k = self.configs.get('top_k', 0)
         self.top_p = self.configs.get('top_p', 1.0)
@@ -1088,7 +1089,9 @@ class GPTForGenerationAuto(nn.Layer):
                         shape=[paddle.shape(probs)[0]],
                         fill_value=top_p,
                         dtype=probs.dtype)
-                    next_tokens = topp_sampling(probs, top_ps_tensor)
+                    # TODO fake random seed here
+                    # Users should set the random seed dynamically when inference
+                    _,  next_tokens = topp_sampling(probs, top_ps_tensor, random_seed=100)
                 else:
                     probs = TopPProcess(probs, top_p, min_tokens_to_keep)
 
@@ -1154,7 +1157,9 @@ class GPTForGenerationAuto(nn.Layer):
                 paddle.increment(cur_len)
             paddle.increment(cur_len_gpu)
 
-            if not paddle.any(unfinished_flag):
+            # early finish should be True in generation scenes,
+            # If users want to test the inference speed, you can just set it False.
+            if self.early_finish and not paddle.any(unfinished_flag):
                 break
 
         return model_kwargs['res'][:, origin_len:], scores

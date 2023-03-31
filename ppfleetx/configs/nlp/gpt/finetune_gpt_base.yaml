@@ -24,3 +24,6 @@ Profiler:
   scheduler: [1, 5]
   profiler_log: profiler_log
   detailed: False
+
+Model:
+  use_flash_attn: False

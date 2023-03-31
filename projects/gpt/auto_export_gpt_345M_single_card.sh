@@ -17,7 +17,14 @@
 log_dir=log_345m_mp1
 rm -rf $log_dir
 
+DIRECTORY=./pretrained
+if [ ! -d "$DIRECTORY" ]; then
+  echo "start download ckpt"
+  wget https://paddlefleetx.bj.bcebos.com/model/nlp/gpt/GPT_345M_FP16.tar.gz
+  tar -zxvf GPT_345M_FP16.tar.gz
+fi
+
 python -m paddle.distributed.launch --log_dir $log_dir --devices "1" \
     ./tools/auto_export.py \
     -c ./ppfleetx/configs/nlp/gpt/auto/generation_gpt_345M_single_card.yaml \
-    -o Engine.save_load.ckpt_dir=./ckpt/PaddleFleetX_GPT_345M_220826/
+    -o Engine.save_load.ckpt_dir=./pretrained/auto

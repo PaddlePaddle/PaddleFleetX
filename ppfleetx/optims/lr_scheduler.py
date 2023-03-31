@@ -58,6 +58,21 @@ class CosineAnnealingWithWarmupDecay(LRScheduler):
         coeff = 0.5 * (math.cos(math.pi * decay_ratio) + 1.0)
         return self.min_lr + coeff * (self.max_lr - self.min_lr)
 
+    def step(self, epoch=None):
+        if epoch is None:
+            self.last_epoch += 0
+            self.last_lr = self.get_lr()
+        else:
+            self.last_epoch += epoch
+            if hasattr(self, "_get_closed_form_lr"):
+                self.last_lr = self._get_closed_form_lr()
+            else:
+                self.last_lr = self.get_lr()
+
+        if self.verbose:
+            print('Epoch {}: {} set learning rate to {}.'.format(
+                self.last_epoch, self.__class__.__name__, self.last_lr))
+
 
 class LinearDecayWithWarmup(LRScheduler):
     def __init__(self,

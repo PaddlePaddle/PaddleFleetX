@@ -94,6 +94,12 @@ def process_dist_config(configs):
     if 'fuse_sequence_parallel_allreduce' not in config:
         config['fuse_sequence_parallel_allreduce'] = False
 
+    if 'use_main_grad' in config and config['use_main_grad'] is True:
+        logger.warning(
+            "If use_main_grad is True, fuse_sequence_parallel_allreduce will be forced to False"
+        )
+        config['fuse_sequence_parallel_allreduce'] = False
+
 
 def process_global_configs(config):
     """
@@ -165,7 +171,7 @@ def process_engine_config(config):
     config.Engine['mix_precision'] = config.Engine.get('mix_precision', {})
     amp_cfg = config.Engine.mix_precision
 
-    amp_cfg['use_pure_fp16'] = amp_cfg.get('use_pure_fp16', False)
+    amp_cfg['enable'] = amp_cfg.get('enable', False)
     amp_cfg['scale_loss'] = amp_cfg.get('scale_loss', 32768)
     amp_cfg['custom_black_list'] = amp_cfg.get('custom_black_list', None)
     amp_cfg['custom_white_list'] = amp_cfg.get('custom_white_list', None)
@@ -517,13 +523,14 @@ def process_auto_strategy(config):
     # amp config
     amp_cfg = config.Engine.get('mix_precision', {})
     amp = strategy.amp
-    amp.enable = amp_cfg.get('level', "") in ['o1', 'o2', 'o3']
-    amp.use_pure_fp16 = amp_cfg.get('level', "") in ['o2', 'o3']
-    amp.use_optimizer_fp16 = amp_cfg.get('level', "") in ['o3']
-    amp.use_fp16_guard = amp_cfg.get('use_fp16_guard', False)
+    amp.enable = amp_cfg.get('enable', False)
+    amp.dtype = amp_cfg.get('dtype', "float16")
+    amp.level = amp_cfg.get('level', "o2")
     amp.init_loss_scaling = amp_cfg.get('scale_loss', 32768)
     amp.custom_black_list = amp_cfg.get('custom_black_list', [])
     amp.custom_white_list = amp_cfg.get('custom_white_list', [])
+    amp.use_fp16_guard = amp_cfg.get('use_fp16_guard', False)
+    amp.use_bf16_guard = amp_cfg.get('use_bf16_guard', False)
 
     # recompute config
     if config.get('Model', None) is not None:
@@ -590,7 +597,8 @@ def process_auto_ckpt_dir(config):
         return
 
     assert os.path.isdir(ckpt_dir) == False, "Wrong setting of ckpt_dir!ckpt_dir can't be a folder,"\
-        "but {} is a folder".format(ckpt_dir)
+        "but {} is a folder. Your `ckpt_dir` should be `dirname/prefix` like `output/auto`"\
+            " if your model path is `output/auto_dist0.pdparams`".format(ckpt_dir)
 
     assert os.path.exists(ckpt_dir) == False, "Wrong setting of ckpt_dir,"\
         "if you want to load weight,you should set ckpt_dir like this!"\
