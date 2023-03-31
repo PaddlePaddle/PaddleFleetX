@@ -513,6 +513,12 @@ def process_optim_configs(config):
         assert nranks == dp_degree * sharding_degree, \
             "tensor_fusion only support single card train or data/sharding parallel train"
 
+    if config['Optimizer']['lr']['decay_steps'] is None:
+        config['Optimizer']['lr']['decay_steps'] = config['Engine'][
+            'max_steps']
+    config['Optimizer']['lr']['decay_steps'] *= config['Global'][
+        'global_batch_size']
+
 
 def process_data_configs(config):
     """
