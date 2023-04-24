@@ -287,7 +287,8 @@ class MSARowAttentionWithPairBias(nn.Layer):
 
         # [B, head, N_res//dap_size, N_res] => [B, head, N_res, N_res]
         nonbatched_bias = dap.all_gather(nonbatched_bias_before, axis=2)
-        if not self.training:
+        # if not self.training:
+        if not self.training and self.global_config.low_memory is True:
             del nonbatched_bias_before
             gc.collect()
         nonbatched_bias = dap.all_gather_opp(nonbatched_bias, axis=2)
@@ -469,7 +470,8 @@ class TriangleAttention(nn.Layer):
 
         # # [B, head, N_res//dap_size, N_res] => [B, head, N_res, N_res]
         nonbatched_bias = dap.all_gather(nonbatched_bias_before, axis=2)
-        if not self.training:
+        # if not self.training:
+        if not self.training and self.global_config.low_memory is True:
             del nonbatched_bias_before
             gc.collect()
         nonbatched_bias = dap.all_gather_opp(nonbatched_bias, axis=2)
@@ -563,7 +565,8 @@ class TriangleMultiplication(nn.Layer):
         # Incoming [B, N_res, N_res//dap_size, c_z]
         act = self.layer_norm_input(act)  # line 1
 
-        if not self.training:
+        # if not self.training:
+        if not self.training and self.global_config.low_memory is True:
             # Note(GuoxiaWang): using inplace version to save memory(low_mem=True).
             left_proj_act = self.left_gate(act)
             left_proj_act.sigmoid_()
@@ -602,14 +605,16 @@ class TriangleMultiplication(nn.Layer):
             # Outgoing
             # [B, N_res//dap_size, N_res, num_intermediate_channel] => [B, N_res, N_res, num_intermediate_channel]
             right_proj_act = dap.all_gather(right_proj_act_before, axis=1)
-            if not self.training:
+            # if not self.training:
+            if not self.training and self.global_config.low_memory is True:
                 del right_proj_act_before
                 gc.collect()
         elif self.config.equation == 'kjc,kic->ijc':
             # Incoming
             # [B, N_res, N_res//dap_size, num_intermediate_channel] => [B, N_res, N_res, num_intermediate_channel]
             right_proj_act = dap.all_gather(right_proj_act_before, axis=2)
-            if not self.training:
+            # if not self.training:
+            if not self.training and self.global_config.low_memory is True:
                 del right_proj_act_before
                 gc.collect()
         else:
@@ -618,7 +623,8 @@ class TriangleMultiplication(nn.Layer):
         # Outgoing [B, N_res//dap_size, N_res, c_z]
         # Incoming [B, N_res, N_res//dap_size, c_z]        
 
-        if not self.training:
+        # if not self.training:
+        if not self.training and self.global_config.low_memory is True:
             gate_values = self.gating_linear(act).sigmoid_()  # line 3
         else:
             gate_values = nn.functional.sigmoid(
