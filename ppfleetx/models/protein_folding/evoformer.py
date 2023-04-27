@@ -1,11 +1,12 @@
-#   Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
-#
+"""evoformer.py."""
+# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
+# 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-#
+# 
 #     http://www.apache.org/licenses/LICENSE-2.0
-#
+# 
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -163,6 +164,8 @@ class EvoformerIteration(nn.Layer):
             if not self.global_config.use_dropout_nd else Dropout(dropout_rate, axis=dropout_axis)
 
     def _parse_dropout_params(self, module):
+        """tbd."""
+
         dropout_rate = 0.0 if self.global_config.deterministic else \
             module.config.dropout_rate
         dropout_axis = None
@@ -175,6 +178,7 @@ class EvoformerIteration(nn.Layer):
         return dropout_rate, dropout_axis
 
     def outer_product_mean_origin(self, msa_act, pair_act, masks):
+        """tbd."""
 
         assert bp.get_world_size(
         ) == 1, "Branch Parallel degree must be 1 for outer_product_mean_origin"
@@ -301,10 +305,14 @@ class EvoformerIteration(nn.Layer):
         return msa_act, pair_act
 
     def outer_product_mean_first(self, msa_act, pair_act, masks):
+        """tbd."""
+
         raise NotImplementedError(
             "BP or DAP does not support outer_product_mean_first")
 
     def outer_product_mean_end(self, msa_act, pair_act, masks):
+        """tbd."""
+
         msa_mask, pair_mask = masks['msa'], masks['pair']
 
         if bp.get_world_size() > 1:
@@ -497,6 +505,7 @@ class EvoformerIteration(nn.Layer):
             return msa_act, pair_act
 
     def forward(self, msa_act, pair_act, masks):
+        """tbd."""
 
         if self.global_config.outer_product_mean_position in [
                 'origin', 'middle'
@@ -620,6 +629,8 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
                                             self.config.seq_channel)
 
     def _pseudo_beta_fn(self, aatype, all_atom_positions, all_atom_masks):
+        """tbd."""
+
         gly_id = paddle.ones_like(aatype) * residue_constants.restype_order[
             'G']
         is_gly = paddle.equal(aatype, gly_id)
@@ -655,6 +666,8 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
             return pseudo_beta
 
     def _create_extra_msa_feature(self, batch):
+        """tbd."""
+
         # 23: 20aa + unknown + gap + bert mask
         msa_1hot = nn.functional.one_hot(batch['extra_msa'], 23)
         msa_feat = [
@@ -665,6 +678,8 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
         return paddle.concat(msa_feat, axis=-1)
 
     def forward(self, batch):
+        """tbd."""
+
         # InputEmbedder
         # Jumper et al. (2021) Suppl. Alg. 2 "Inference" line 5
         # Jumper et al. (2021) Suppl. Alg. 3 "InputEmbedder"
@@ -959,7 +974,7 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
             pair_activations_cpu = pair_activations.cpu()
             del pair_activations
         single_activations = self.single_activations(msa_activations[:, 0])
-        
+
         # if not self.training and self.global_config.low_memory is True:
         #     pair_act_out = pair_activations_cpu
         # else:
@@ -968,8 +983,8 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
         num_seq = batch['msa_feat'].shape[1]
         output = {
             'single': single_activations,
-            'pair': pair_activations_cpu 
-            if not self.training and self.global_config.low_memory is True else pair_activations,
+            'pair': pair_activations_cpu if not self.training and
+            self.global_config.low_memory is True else pair_activations,
             # Crop away template rows such that they are not used
             # in MaskedMsaHead.
             'msa': msa_activations[:, :num_seq],
