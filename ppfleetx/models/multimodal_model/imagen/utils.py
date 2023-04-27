@@ -293,7 +293,7 @@ def rearrange_many(tensors, pattern: str, h: int=-1, x: int=-1, y: int=-1):
 def repeat(tensor, pattern: str, h: int=-1, b: int=-1):
     if pattern == '1 -> b':
         if b > 1:
-            b = paddle.to_tensor(b)
+            b = paddle.to_tensor([b])
             return paddle.tile(tensor, repeat_times=b)
         else:
             return tensor
