@@ -818,7 +818,6 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
                 extra_msa_stack_input['msa'], 0)
 
         # if self.training:
-        # if not self.global_config.low_memory:
         if not self.training and self.global_config.low_memory is True:
             pass
         else:
@@ -849,7 +848,6 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
             }
 
         # if self.training:
-        # if not self.global_config.low_memory:
         if not self.training and self.global_config.low_memory is True:
             pass
         else:
@@ -927,7 +925,6 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
                 evoformer_input['msa'], 0)
 
         # if self.training:
-        # if not self.global_config.low_memory:
         if not self.training and self.global_config.low_memory is True:
             pass
         else:
@@ -966,8 +963,8 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
         msa_activations = evoformer_output['msa']
         pair_activations = evoformer_output['pair']
 
-        if not self.training:  # for inference
-        # if not self.training and self.global_config.low_memory is True:
+        # if not self.training:  # for inference
+        if not self.training and self.global_config.low_memory is True:
             pair_activations_cpu = pair_activations.cpu()
             del pair_activations
         single_activations = self.single_activations(msa_activations[:, 0])
@@ -975,7 +972,7 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
         num_seq = batch['msa_feat'].shape[1]
         output = {
             'single': single_activations,
-            'pair': pair_activations_cpu if not self.training else pair_activations,
+            'pair': pair_activations_cpu if not self.training and self.global_config.low_memory is True else pair_activations,
             # Crop away template rows such that they are not used
             # in MaskedMsaHead.
             'msa': msa_activations[:, :num_seq],
