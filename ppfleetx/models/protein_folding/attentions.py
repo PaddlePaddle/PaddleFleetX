@@ -1,11 +1,12 @@
-#   Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
-#
+"""attentions.py."""
+# Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
+# 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-#
+# 
 #     http://www.apache.org/licenses/LICENSE-2.0
-#
+# 
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -106,12 +107,13 @@ class Attention(nn.Layer):
 
     def forward(self, q_data, m_data, bias, nonbatched_bias=None):
         """Builds Attention module.
-        Arguments:
-            q_data: A tensor of queries, shape [batch, row_size, N_queries, q_channels].
-            m_data: A tensor of memories from which the keys and values are
+        
+        Args:
+            q_data (float): A tensor of queries, shape [batch, row_size, N_queries, q_channels].
+            m_data (float): A tensor of memories from which the keys and values are
                 projected, shape [batch, row_size, N_keys, m_channels].
-            bias: A bias for the attention, shape [batch, row_size, num_head, N_queries, N_keys].
-            nonbatched_bias: Shared bias, shape [N_queries, N_keys].
+            bias (float): A bias for the attention, shape [batch, row_size, num_head, N_queries, N_keys].
+            nonbatched_bias (float): Shared bias, shape [N_queries, N_keys].
 
         Returns:
             A float32 tensor of shape [batch_size, row_size, N_queries, output_dim].
@@ -209,6 +211,18 @@ class GlobalAttention(nn.Layer):
             default_initializer=nn.initializer.Constant(0.0))
 
     def forward(self, q_data, m_data, q_mask):
+        """Builds Attention module.
+        
+        Args:
+            q_data (float): A tensor of queries, shape [batch, row_size, N_queries, q_channels].
+            m_data (float): A tensor of memories from which the keys and values are
+                projected, shape [batch, row_size, N_keys, m_channels].
+            q_mask (float): A tensor of mask.
+
+        Returns:
+            A float32 tensor of output.
+        """
+
         k = paddle.einsum('nbka,ac->nbkc', m_data, self.key_w)
         v = paddle.einsum('nbka,ac->nbkc', m_data, self.value_w)
 
@@ -278,6 +292,16 @@ class MSARowAttentionWithPairBias(nn.Layer):
                                        msa_channel, msa_channel, msa_channel)
 
     def forward(self, msa_act, msa_mask, pair_act):
+        """MSARowAttention with masks.
+        
+        Args:
+            msa_act (float): A tensor of msa_act.
+            msa_mask (float): A tensor of msa_mask.
+            pair_act (float): A tensor of pair_act.
+
+        Returns:
+            A float32 tensor of msa_act.
+        """
 
         pair_act = self.feat_2d_norm(pair_act)
 
@@ -339,6 +363,16 @@ class MSAColumnGlobalAttention(nn.Layer):
                                          extra_msa_channel)
 
     def forward(self, msa_act, msa_mask):
+        """MSAColumnGlobalAttention.
+        
+        Args:
+            msa_act (float): A tensor of msa_act.
+            msa_mask (float): A tensor of msa_mask.
+
+        Returns:
+            A float32 tensor of msa_act.
+        """
+
         # scatter if using dap, otherwise do nothing
         # [B, N_seq, N_res] => [B, N_seq, N_res//dap_size]
         msa_mask = dap.scatter(msa_mask, axis=2)
@@ -386,6 +420,16 @@ class MSAColumnAttention(nn.Layer):
                                    msa_channel, msa_channel, msa_channel)
 
     def forward(self, msa_act, msa_mask):
+        """MSAColumnAttention.
+        
+        Args:
+            msa_act (float): A tensor of msa_act.
+            msa_mask (float): A tensor of msa_mask.
+
+        Returns:
+            A float32 tensor of msa_act.
+        """
+
         # scatter if using dap, otherwise do nothing
         # [B, N_seq, N_res] => [B, N_seq, N_res//dap_size]
         msa_mask = dap.scatter(msa_mask, axis=2)
@@ -446,12 +490,12 @@ class TriangleAttention(nn.Layer):
     def forward(self, pair_act, pair_mask):
         """Builds TriangleAttention module.
 
-        Arguments:
-        pair_act: [batch, N_res, N_res, c_z] pair activations tensor
-        pair_mask: [batch, N_res, N_res] mask of non-padded regions in the tensor.
+        Args:
+            pair_act (float): [batch, N_res, N_res, c_z] pair activations tensor
+            pair_mask (float): [batch, N_res, N_res] mask of non-padded regions in the tensor.
 
         Returns:
-        Update to pair_act, shape [batch, N_res, N_res, c_z].
+            Update to pair_act, shape [batch, N_res, N_res, c_z].
         """
         if self.config.orientation == 'per_column':
             pair_act = pair_act.transpose([0, 2, 1, 3])
@@ -550,12 +594,12 @@ class TriangleMultiplication(nn.Layer):
     def forward(self, act, mask):
         """Builds TriangleMultiplication module.
 
-        Arguments:
-        act: Pair activations, shape [batch, N_res, N_res, c_z]
-        mask: Pair mask, shape [batch, N_res, N_res].
+        Args:
+            act (float): Pair activations, shape [batch, N_res, N_res, c_z]
+            mask (float): Pair mask, shape [batch, N_res, N_res].
 
         Returns:
-        Outputs, same shape/type as act.
+            Outputs, same shape/type as act.
         """
         # Outgoing [batch, N_res//dap_size, N_res] => [batch, N_res//dap_size, N_res, 1]
         # Incoming [batch, N_res, N_res//dap_size] => [batch, N_res, N_res//dap_size, 1] 
