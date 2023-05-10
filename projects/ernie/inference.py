@@ -35,15 +35,15 @@ def parse_args():
     parser.add_argument(
         '-mp', '--mp_degree', type=int, default=1, help='mp degree')
     parser.add_argument(
-        '-d', '--device', type=str, default='', help='device type'
-    )
+        '-d', '--device', type=str, default='', help='device type')
     args = parser.parse_args()
     return args
 
 
 def main(args):
     fleet.init(is_collective=True)
-    infer_engine = InferenceEngine(args.model_dir, args.mp_degree, device=args.device)
+    infer_engine = InferenceEngine(
+        args.model_dir, args.mp_degree, device=args.device)
     tokenizer = GPTTokenizer.from_pretrained("gpt2")
     text = 'Hi ERNIE. Tell me who Jack Ma is.'
     inputs = tokenizer(text, padding=True, return_attention_mask=True)

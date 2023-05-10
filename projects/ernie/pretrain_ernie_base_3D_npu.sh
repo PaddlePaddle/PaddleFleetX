@@ -15,13 +15,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+log_dir=log_hybrid
+rm -rf $log_dir
 export PADDLE_P2P_SYNC_SEND=1
 
-python -m paddle.distributed.launch \
-        --device 0,1,2,3 tools/train.py \
-        -c ppfleetx/configs/nlp/ernie/pretrain_ernie_large_single_card.yaml \
-        -o Global.device=npu \
-        -o Distributed.mp_degree=2 \
-        -o Distributed.dp_degree=1 \
-        -o Distributed.pp_degree=2 \
-        -o Model.use_recompute=True
+python -m paddle.distributed.launch --log_dir $log_dir --devices "0,1,2,3,4,5,6,7" \
+    ./tools/train.py \
+    -c ppfleetx/configs/nlp/ernie/pretrain_ernie_base_3D.yaml \
+    -o Data.Train.dataset.input_dir=./dataset/ernie \
+    -o Data.Eval.dataset.input_dir=./dataset/ernie \
+    -o Engine.max_steps=10 \
+    -o Global.device=npu

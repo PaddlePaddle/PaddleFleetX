@@ -111,7 +111,11 @@ class InferenceEngine(object):
         tensorrt_config (TensorRTConfig): configurations for TensorRT inference
     """
 
-    def __init__(self, model_dir, mp_degree=1, tensorrt_config=None, device=None):
+    def __init__(self,
+                 model_dir,
+                 mp_degree=1,
+                 tensorrt_config=None,
+                 device=None):
         self.model_dir = model_dir
         self.mp_degree = mp_degree
         self.tensorrt_config = tensorrt_config
@@ -191,7 +195,8 @@ class InferenceEngine(object):
         config.enable_memory_optim()
         config.switch_ir_optim(True)
         if self.device:
-            device_id = int(os.environ.get(f'FLAGS_selected_{self.device}s', 0))
+            device_id = int(
+                os.environ.get(f'FLAGS_selected_{self.device}s', 0))
             config.enable_custom_device(self.device, device_id)
         elif paddle.fluid.core.is_compiled_with_cuda():
             device_id = int(os.environ.get('FLAGS_selected_gpus', 0))

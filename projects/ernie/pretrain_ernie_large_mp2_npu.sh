@@ -15,6 +15,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-python -m paddle.distributed.launch --device 0,1 tools/train.py -c ppfleetx/configs/nlp/ernie/pretrain_ernie_large_single_card.yaml \
-        -o Global.device=npu -o Distributed.mp_degree=2 -o Distributed.dp_degree=1 -o Distributed.pp_degree=1 \
+python -m paddle.distributed.launch \
+        --device 0,1 tools/train.py \
+        -c ppfleetx/configs/nlp/ernie/pretrain_ernie_large_single_card.yaml \
+        -o Global.device=npu \
+        -o Distributed.mp_degree=2 \
+        -o Distributed.dp_degree=1 \
+        -o Distributed.pp_degree=1 \
         -o Model.use_recompute=Fasle
