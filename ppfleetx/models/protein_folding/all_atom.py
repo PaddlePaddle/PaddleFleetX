@@ -79,7 +79,9 @@ def atom37_to_torsion_angles(
 
     # Map aatype > 20 to 'Unknown' (20).
     aatype = paddle.minimum(
-        aatype.astype('int'), paddle.to_tensor([20]).astype('int'))
+        aatype.astype('int'),
+        paddle.full(
+            shape=[1], fill_value=20, dtype='int'))
 
     num_batch, num_temp, num_res = aatype.shape
 
@@ -165,9 +167,10 @@ def atom37_to_torsion_angles(
     # Shape (B, T, N, torsions=7, atoms=4, xyz=3)
     torsions_atom_pos = paddle.concat(
         [
-            pre_omega_atom_pos[:, :, :, None, :, :],
-            phi_atom_pos[:, :, :, None, :, :],
-            psi_atom_pos[:, :, :, None, :, :], chis_atom_pos
+            pre_omega_atom_pos.unsqueeze(axis=-3),  # [:, :, :, None, :, :]
+            phi_atom_pos.unsqueeze(axis=-3),  # [:, :, :, None, :, :]
+            psi_atom_pos.unsqueeze(axis=-3),  # [:, :, :, None, :, :]
+            chis_atom_pos
         ],
         axis=3)
 
@@ -175,8 +178,10 @@ def atom37_to_torsion_angles(
     # shape (B, T, N, torsions=7)
     torsion_angles_mask = paddle.concat(
         [
-            pre_omega_mask[..., None], phi_mask[..., None],
-            psi_mask[..., None], chis_mask
+            pre_omega_mask.unsqueeze(axis=-1),  # [..., None]
+            phi_mask.unsqueeze(axis=-1),  # [..., None]
+            psi_mask.unsqueeze(axis=-1),  # [..., None]
+            chis_mask
         ],
         axis=-1)
 
@@ -208,7 +213,8 @@ def atom37_to_torsion_angles(
 
     # Mirror psi, because we computed it from the Oxygen-atom.
     torsion_angles_sin_cos *= paddle.to_tensor(
-        [1., 1., -1., 1., 1., 1., 1.])[None, None, None, :, None]
+        [1., 1., -1., 1., 1., 1., 1.]).reshape(
+            [1, 1, 1, 7, 1])  # [None, None, None, :, None]
 
     # Create alternative angles for ambiguous atom names.
     chi_is_ambiguous = batched_gather(
@@ -221,8 +227,8 @@ def atom37_to_torsion_angles(
         ],
         axis=-1)
     # mirror_torsion_angles (B, T, N, torsions=7)
-    alt_torsion_angles_sin_cos = (torsion_angles_sin_cos *
-                                  mirror_torsion_angles[:, :, :, :, None])
+    alt_torsion_angles_sin_cos = torsion_angles_sin_cos * mirror_torsion_angles.unsqueeze(
+        axis=-1)  # [:, :, :, :, None]
 
     if placeholder_for_undefined:
         # Add placeholder torsions in place of undefined torsion angles
@@ -233,12 +239,12 @@ def atom37_to_torsion_angles(
                 paddle.zeros(torsion_angles_sin_cos.shape[:-1])
             ],
             axis=-1)
-        torsion_angles_sin_cos = torsion_angles_sin_cos * torsion_angles_mask[
-            ..., None] + placeholder_torsions * (
-                1 - torsion_angles_mask[..., None])
-        alt_torsion_angles_sin_cos = alt_torsion_angles_sin_cos * torsion_angles_mask[
-            ..., None] + placeholder_torsions * (
-                1 - torsion_angles_mask[..., None])
+        torsion_angles_sin_cos = torsion_angles_sin_cos * torsion_angles_mask.unsqueeze(
+            axis=-1) + placeholder_torsions * (
+                1 - torsion_angles_mask.unsqueeze(axis=-1))
+        alt_torsion_angles_sin_cos = alt_torsion_angles_sin_cos * torsion_angles_mask.unsqueeze(
+            axis=-1) + placeholder_torsions * (
+                1 - torsion_angles_mask.unsqueeze(axis=-1))
 
     return {
         'torsion_angles_sin_cos': torsion_angles_sin_cos,  # (B, T, N, 7, 2)

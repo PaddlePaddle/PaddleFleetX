@@ -202,8 +202,9 @@ class SingleTemplateEmbedding(nn.Layer):
         dtype = query_embedding.dtype
         num_res = batch['template_aatype'].shape[1]
         template_mask = batch['template_pseudo_beta_mask']
-        template_mask_2d = template_mask[..., None] * template_mask[...,
-                                                                    None, :]
+        # template_mask[..., None] * template_mask[..., None, :]
+        template_mask_2d = template_mask.unsqueeze(
+            axis=-1) * template_mask.unsqueeze(axis=-2)
         template_mask_2d = template_mask_2d.astype(dtype)
 
         template_dgram = dgram_from_positions(batch['template_pseudo_beta'],
@@ -213,10 +214,15 @@ class SingleTemplateEmbedding(nn.Layer):
         aatype = nn.functional.one_hot(batch['template_aatype'], 22)
         aatype = aatype.astype(dtype)
 
-        to_concat = [template_dgram, template_mask_2d[..., None]]
+        to_concat = [template_dgram, template_mask_2d.unsqueeze(axis=-1)]
         to_concat.append(
-            paddle.tile(aatype[..., None, :, :], [1, num_res, 1, 1]))
-        to_concat.append(paddle.tile(aatype[..., None, :], [1, 1, num_res, 1]))
+            paddle.tile(
+                aatype.unsqueeze(axis=-3),  # aatype[..., None, :, :]
+                [1, num_res, 1, 1]))
+        to_concat.append(
+            paddle.tile(
+                aatype.unsqueeze(axis=-2),  # aatype[..., None, :]
+                [1, 1, num_res, 1]))
 
         n, ca, c = [residue_constants.atom_order[a] for a in ('N', 'CA', 'C')]
         rot, trans = quat_affine.make_transform_from_reference(
@@ -242,12 +248,13 @@ class SingleTemplateEmbedding(nn.Layer):
         template_mask = (batch['template_all_atom_masks'][..., n] *
                          batch['template_all_atom_masks'][..., ca] *
                          batch['template_all_atom_masks'][..., c])
-        template_mask_2d = template_mask[..., None] * template_mask[...,
-                                                                    None, :]
+        # template_mask[..., None] * template_mask[..., None, :]
+        template_mask_2d = template_mask.unsqueeze(
+            axis=-1) * template_mask.unsqueeze(axis=-2)
         inv_distance_scalar *= template_mask_2d.astype(
             inv_distance_scalar.dtype)
 
-        unit_vector = [(x * inv_distance_scalar)[..., None]
+        unit_vector = [(x * inv_distance_scalar).unsqueeze(axis=-1)
                        for x in affine_vec]
         unit_vector = [x.astype(dtype) for x in unit_vector]
         if not self.config.use_template_unit_vector:
@@ -255,12 +262,12 @@ class SingleTemplateEmbedding(nn.Layer):
         to_concat.extend(unit_vector)
 
         template_mask_2d = template_mask_2d.astype(dtype)
-        to_concat.append(template_mask_2d[..., None])
+        to_concat.append(template_mask_2d.unsqueeze(axis=-1))
 
         act = paddle.concat(to_concat, axis=-1)
         # Mask out non-template regions so we don't get arbitrary values in the
         # distogram for these regions.
-        act *= template_mask_2d[..., None]
+        act *= template_mask_2d.unsqueeze(axis=-1)
 
         act = self.embedding2d(act)
 

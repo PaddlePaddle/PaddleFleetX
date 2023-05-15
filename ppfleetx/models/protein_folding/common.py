@@ -306,9 +306,10 @@ class Dropout(nn.Layer):
 def dgram_from_positions(positions, num_bins, min_bin, max_bin):
     lower_breaks = paddle.linspace(min_bin, max_bin, num_bins)
     lower_breaks = paddle.square(lower_breaks)
-    upper_breaks = paddle.concat(
-        [lower_breaks[1:], paddle.to_tensor(
-            [1e8], dtype='float32')])
+    upper_breaks = paddle.concat([
+        lower_breaks[1:], paddle.full(
+            shape=[1], fill_value=1e8, dtype='float32')
+    ])
 
     def _squared_difference(x, y):
         return paddle.square(x - y)
