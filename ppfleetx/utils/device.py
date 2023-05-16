@@ -25,6 +25,7 @@ def get_device_and_mapping():
         "xpu": paddle.is_compiled_with_xpu(),
         "rocm": paddle.is_compiled_with_rocm(),
         "npu": paddle.is_compiled_with_custom_device("npu"),
+        "mlu": 'mlu' in paddle.device.get_all_custom_device_type(),
         "cpu": True
     }
     for d, v in suppoted_device_map.items():
