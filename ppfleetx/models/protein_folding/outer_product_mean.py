@@ -37,15 +37,17 @@ class OuterProductMean(nn.Layer):
         self.config = config
         self.global_config = global_config
 
+        Linear = paddle.incubate.nn.FusedLinear if self.global_config.fuse_linear else paddle.nn.Linear
+
         if is_extra_msa:
             c_m = channel_num['extra_msa_channel']
         else:
             c_m = channel_num['msa_channel']
 
         self.layer_norm_input = nn.LayerNorm(c_m, name='layer_norm_input')
-        self.left_projection = nn.Linear(
+        self.left_projection = Linear(
             c_m, self.config.num_outer_channel, name='left_projection')
-        self.right_projection = nn.Linear(
+        self.right_projection = Linear(
             c_m, self.config.num_outer_channel, name='right_projection')
 
         if self.global_config.zero_init:

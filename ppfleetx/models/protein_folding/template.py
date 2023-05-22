@@ -173,9 +173,11 @@ class SingleTemplateEmbedding(nn.Layer):
         self.channel_num = channel_num
         self.global_config = global_config
 
-        self.embedding2d = nn.Linear(channel_num['template_pair'],
-                                     self.config.template_pair_stack.
-                                     triangle_attention_ending_node.value_dim)
+        Linear = paddle.incubate.nn.FusedLinear if self.global_config.fuse_linear else paddle.nn.Linear
+
+        self.embedding2d = Linear(channel_num['template_pair'],
+                                  self.config.template_pair_stack.
+                                  triangle_attention_ending_node.value_dim)
 
         self.template_pair_stack = nn.LayerList()
         for _ in range(self.config.template_pair_stack.num_block):

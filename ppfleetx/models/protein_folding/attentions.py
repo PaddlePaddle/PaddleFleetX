@@ -569,22 +569,24 @@ class TriangleMultiplication(nn.Layer):
         self.config = config
         self.global_config = global_config
 
+        Linear = paddle.incubate.nn.FusedLinear if self.global_config.fuse_linear else paddle.nn.Linear
+
         self.layer_norm_input = nn.LayerNorm(
             self.channel_num['pair_channel'], name='layer_norm_input')
-        self.left_projection = nn.Linear(
+        self.left_projection = Linear(
             self.channel_num['pair_channel'],
             self.config.num_intermediate_channel,
             name='left_projection')
-        self.right_projection = nn.Linear(
+        self.right_projection = Linear(
             self.channel_num['pair_channel'],
             self.config.num_intermediate_channel,
             name='right_projection')
-        self.left_gate = nn.Linear(
+        self.left_gate = Linear(
             self.channel_num['pair_channel'],
             self.config.num_intermediate_channel,
             name='left_gate')
         init_gate_linear(self.left_gate)
-        self.right_gate = nn.Linear(
+        self.right_gate = Linear(
             self.channel_num['pair_channel'],
             self.config.num_intermediate_channel,
             name='right_gate')
@@ -593,13 +595,13 @@ class TriangleMultiplication(nn.Layer):
         # line 4
         self.center_layer_norm = nn.LayerNorm(
             self.config.num_intermediate_channel, name='center_layer_norm')
-        self.output_projection = nn.Linear(
+        self.output_projection = Linear(
             self.config.num_intermediate_channel,
             self.channel_num['pair_channel'],
             name='output_projection')
         init_final_linear(self.output_projection)
         # line 3
-        self.gating_linear = nn.Linear(
+        self.gating_linear = Linear(
             self.channel_num['pair_channel'],
             self.channel_num['pair_channel'],
             name='output_projection')

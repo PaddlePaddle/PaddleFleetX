@@ -203,6 +203,8 @@ class Transition(nn.Layer):
         self.is_extra_msa = is_extra_msa
         self.transition_type = transition_type
 
+        Linear = paddle.incubate.nn.FusedLinear if self.global_config.fuse_linear else paddle.nn.Linear
+
         if transition_type == 'msa_transition' and is_extra_msa:
             in_dim = channel_num['extra_msa_channel']
         elif transition_type == 'msa_transition' and not is_extra_msa:
@@ -211,7 +213,7 @@ class Transition(nn.Layer):
             in_dim = channel_num['pair_channel']
 
         self.input_layer_norm = nn.LayerNorm(in_dim)
-        self.transition1 = nn.Linear(
+        self.transition1 = Linear(
             in_dim,
             int(in_dim * self.config.num_intermediate_factor),
             weight_attr=paddle.ParamAttr(
@@ -222,7 +224,7 @@ class Transition(nn.Layer):
         else:
             last_init = nn.initializer.TruncatedNormal()
 
-        self.transition2 = nn.Linear(
+        self.transition2 = Linear(
             int(in_dim * self.config.num_intermediate_factor),
             in_dim,
             weight_attr=paddle.ParamAttr(initializer=last_init))

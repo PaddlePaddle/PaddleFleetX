@@ -542,22 +542,24 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
         self.config = config
         self.global_config = global_config
 
+        Linear = paddle.incubate.nn.FusedLinear if self.global_config.fuse_linear else paddle.nn.Linear
+
         # InputEmbedder
         # Jumper et al. (2021) Suppl. Alg. 2 "Inference" line 5
         # Jumper et al. (2021) Suppl. Alg. 3 "InputEmbedder"
-        self.preprocess_1d = nn.Linear(
+        self.preprocess_1d = Linear(
             channel_num['target_feat'],
             self.config.msa_channel,
             name='preprocess_1d')
-        self.preprocess_msa = nn.Linear(
+        self.preprocess_msa = Linear(
             channel_num['msa_feat'],
             self.config.msa_channel,
             name='preprocess_msa')
-        self.left_single = nn.Linear(
+        self.left_single = Linear(
             channel_num['target_feat'],
             self.config.pair_channel,
             name='left_single')
-        self.right_single = nn.Linear(
+        self.right_single = Linear(
             channel_num['target_feat'],
             self.config.pair_channel,
             name='right_single')
@@ -566,14 +568,14 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
         # Jumper et al. (2021) Suppl. Alg. 2 "Inference" line 6
         # Jumper et al. (2021) Suppl. Alg. 32 "RecyclingEmbedder"
         if self.config.recycle_pos:
-            self.prev_pos_linear = nn.Linear(self.config.prev_pos.num_bins,
-                                             self.config.pair_channel)
+            self.prev_pos_linear = Linear(self.config.prev_pos.num_bins,
+                                          self.config.pair_channel)
 
         # RelPosEmbedder
         # Jumper et al. (2021) Suppl. Alg. 4 "relpos"
         # Jumper et al. (2021) Suppl. Alg. 5 "one_hot"
         if self.config.max_relative_feature:
-            self.pair_activiations = nn.Linear(
+            self.pair_activiations = Linear(
                 2 * self.config.max_relative_feature + 1,
                 self.config.pair_channel)
 
@@ -592,7 +594,7 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
 
         # ExtraMSAEmbedder
         # Jumper et al. (2021) Suppl. Alg. 2 "Inference" lines 14-16
-        self.extra_msa_activations = nn.Linear(
+        self.extra_msa_activations = Linear(
             25,  # 23 (20aa+unknown+gap+mask) + 1 (has_del) + 1 (del_val)
             self.config.extra_msa_channel)
 
@@ -610,9 +612,9 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
         # Embed templates torsion angles
         if self.config.template.enabled and self.config.template.embed_torsion_angles:
             c = self.config.msa_channel
-            self.template_single_embedding = nn.Linear(
+            self.template_single_embedding = Linear(
                 self.channel_num['template_angle'], c)
-            self.template_projection = nn.Linear(c, c)
+            self.template_projection = Linear(c, c)
 
         # Main trunk of the network
         # Jumper et al. (2021) Suppl. Alg. 2 "Inference" lines 17-18
@@ -625,8 +627,8 @@ class DistEmbeddingsAndEvoformer(nn.Layer):
                     self.global_config,
                     is_extra_msa=False))
 
-        self.single_activations = nn.Linear(self.config.msa_channel,
-                                            self.config.seq_channel)
+        self.single_activations = Linear(self.config.msa_channel,
+                                         self.config.seq_channel)
 
     def _pseudo_beta_fn(self, aatype, all_atom_positions, all_atom_masks):
         """tbd."""
