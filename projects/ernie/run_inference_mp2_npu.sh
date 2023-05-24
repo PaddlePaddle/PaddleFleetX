@@ -15,4 +15,4 @@
 python -u -m paddle.distributed.launch \
     --devices "0,1" \
     --log_dir "log" \
-    projects/ernie/inference.py --model_dir "./output" --mp_degree 2
+    projects/ernie/inference.py --model_dir "./output" --mp_degree 2 --device npu
