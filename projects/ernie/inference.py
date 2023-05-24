@@ -26,6 +26,7 @@ import paddle.distributed.fleet as fleet
 from ppfleetx.data.tokenizers import GPTTokenizer
 from ppfleetx.core.engine import InferenceEngine
 import argparse
+import time
 
 
 def parse_args():
@@ -52,8 +53,22 @@ def main(args):
         np.array(inputs['token_type_ids']).reshape(1, -1),
         np.array(inputs['input_ids']).reshape(1, -1)
     ]
-    outs = infer_engine.predict(whole_data)
-    print(outs)
+
+    start_time = time.time()
+    tick_time = start_time
+    for i in range(10000):
+        outs = infer_engine.predict(whole_data)
+        tok_time = time.time()
+        loop_duration = tok_time - tick_time
+        tick_time = tok_time
+        avg_time = (tok_time - start_time) / (i + 1)
+        if i % 10 == 0:
+            print(
+                "iter: {}/10000, time consumed: {:3f} (ms), avg time: {:3f} (ms)".
+                format(i, loop_duration * 1000, avg_time * 1000))
+    # outs = infer_engine.predict(whole_data)
+    # print(outs)
+    print("Done")
 
 
 if __name__ == "__main__":
