@@ -137,7 +137,7 @@ def batched_gather(params, indices, axis=0, batch_dims=0):
 
     # indices = [Batch..., Index...]
     # Expand the index values across batch elements
-    strides = paddle.arange(bn).unsqueeze(-1) * stride
+    strides = paddle.arange(bn, dtype="int64").unsqueeze(-1) * stride
     i = i.reshape([bn, -1])
     flat_i = paddle.flatten(i + strides)
 
@@ -203,6 +203,8 @@ class Transition(nn.Layer):
         self.is_extra_msa = is_extra_msa
         self.transition_type = transition_type
 
+        Linear = paddle.incubate.nn.FusedLinear if self.global_config.fuse_linear else paddle.nn.Linear
+
         if transition_type == 'msa_transition' and is_extra_msa:
             in_dim = channel_num['extra_msa_channel']
         elif transition_type == 'msa_transition' and not is_extra_msa:
@@ -211,7 +213,7 @@ class Transition(nn.Layer):
             in_dim = channel_num['pair_channel']
 
         self.input_layer_norm = nn.LayerNorm(in_dim)
-        self.transition1 = nn.Linear(
+        self.transition1 = Linear(
             in_dim,
             int(in_dim * self.config.num_intermediate_factor),
             weight_attr=paddle.ParamAttr(
@@ -222,7 +224,7 @@ class Transition(nn.Layer):
         else:
             last_init = nn.initializer.TruncatedNormal()
 
-        self.transition2 = nn.Linear(
+        self.transition2 = Linear(
             int(in_dim * self.config.num_intermediate_factor),
             in_dim,
             weight_attr=paddle.ParamAttr(initializer=last_init))
@@ -306,9 +308,10 @@ class Dropout(nn.Layer):
 def dgram_from_positions(positions, num_bins, min_bin, max_bin):
     lower_breaks = paddle.linspace(min_bin, max_bin, num_bins)
     lower_breaks = paddle.square(lower_breaks)
-    upper_breaks = paddle.concat(
-        [lower_breaks[1:], paddle.to_tensor(
-            [1e8], dtype='float32')])
+    upper_breaks = paddle.concat([
+        lower_breaks[1:], paddle.full(
+            shape=[1], fill_value=1e8, dtype='float32')
+    ])
 
     def _squared_difference(x, y):
         return paddle.square(x - y)
