@@ -30,6 +30,7 @@ from paddle.profiler import SummaryView
 from paddle.distributed.fleet.meta_parallel import TensorParallel
 from paddle.distributed.sharding import group_sharded_parallel
 
+import paddleslim
 from ppfleetx.distributed.apis import env, amp
 from ppfleetx.optims import build_lr_scheduler, build_optimizer
 from ppfleetx.utils.log import logger, get_timestamp, convert_timestamp_to_data
@@ -40,6 +41,7 @@ from ppfleetx.utils.version import version_check
 from ppfleetx.utils.export import export_inference_model
 from paddle.incubate.distributed.utils.io import save_for_auto_inference
 from ppfleetx.utils.device import synchronize as device_synchronize
+from ppfleetx.utils.compression_helper import prune_model, quant_model
 
 
 class EagerEngine(BasicEngine):
@@ -753,8 +755,6 @@ class EagerEngine(BasicEngine):
             raise TypeError("`save` requires a valid value of `output_dir`.")
 
     def compress_model(self):
-        from ppfleetx.utils.compression_helper import prune_model, quant_model
-
         if self._compress_configs is None: return
         self._distributed = (dist.get_world_size() > 1)
         # Load pretrained model before compression
