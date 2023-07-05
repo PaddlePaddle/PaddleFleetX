@@ -24,8 +24,10 @@ def get_device_and_mapping():
         "gpu": paddle.is_compiled_with_cuda(),
         "xpu": paddle.is_compiled_with_xpu(),
         "rocm": paddle.is_compiled_with_rocm(),
-        "npu": paddle.is_compiled_with_custom_device("npu"),
+        "npu": 'npu' in paddle.device.get_all_custom_device_type(),
         "mlu": 'mlu' in paddle.device.get_all_custom_device_type(),
+        "mps": 'mps' in paddle.device.get_all_custom_device_type(),
+        "intel_gpu": "intel_gpu" in paddle.device.get_all_custom_device_type(),
         "cpu": True
     }
     for d, v in suppoted_device_map.items():
@@ -35,7 +37,7 @@ def get_device_and_mapping():
 
 def get_device():
     """
-        Return the device with which the paddle is compiled, including 'gpu'(for rocm and gpu), 'npu', 'xpu', 'cpu'.
+        Return the device with which the paddle is compiled, including 'gpu'(for rocm and gpu), 'npu', 'xpu', 'mlu', 'mps', 'intel_gpu', 'cpu'.
     """
     d, _ = get_device_and_mapping()
     return d

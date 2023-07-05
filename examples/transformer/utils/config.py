@@ -165,11 +165,11 @@ def check_config(config):
     check.check_version()
     device = global_config.get('device', 'gpu')
     device = device.lower()
-    if device in ['gpu', 'xpu', 'rocm', 'npu', "cpu"]:
+    if device in ['gpu', 'xpu', 'rocm', 'npu', "intel_gpu", "mps", "cpu"]:
         check.check_device(device)
     else:
         raise ValueError(
-            f"device({device}) is not in ['gpu', 'xpu', 'rocm', 'npu', 'cpu'],\n"
+            f"device({device}) is not in ['gpu', 'xpu', 'rocm', 'npu', 'intel_gpu', 'mps', 'cpu'],\n"
             "Please ensure the config option Global.device is one of these devices"
         )
 
