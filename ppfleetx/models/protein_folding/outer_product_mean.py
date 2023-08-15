@@ -37,15 +37,17 @@ class OuterProductMean(nn.Layer):
         self.config = config
         self.global_config = global_config
 
+        Linear = paddle.incubate.nn.FusedLinear if self.global_config.fuse_linear else paddle.nn.Linear
+
         if is_extra_msa:
             c_m = channel_num['extra_msa_channel']
         else:
             c_m = channel_num['msa_channel']
 
         self.layer_norm_input = nn.LayerNorm(c_m, name='layer_norm_input')
-        self.left_projection = nn.Linear(
+        self.left_projection = Linear(
             c_m, self.config.num_outer_channel, name='left_projection')
-        self.right_projection = nn.Linear(
+        self.right_projection = Linear(
             c_m, self.config.num_outer_channel, name='right_projection')
 
         if self.global_config.zero_init:
@@ -94,6 +96,24 @@ class OuterProductMean(nn.Layer):
         epsilon = 1e-3
         norm = paddle.einsum('nabc,nadc->nbdc', mask_col, mask) + epsilon
 
+        def fast_einsum(equation, left_act, right_act):
+            assert equation == "nacb,nade->ndceb"
+            tmp = paddle.matmul(
+                x=paddle.reshape(
+                    right_act,
+                    [right_act.shape[0], right_act.shape[1], -1]),  # na(de)
+                y=paddle.reshape(
+                    left_act,
+                    [left_act.shape[0], left_act.shape[1], -1]),  # na(cb)
+                transpose_x=True,
+                transpose_y=False)  # n(de)(cb)
+            tmp = paddle.reshape(tmp, [
+                left_act.shape[0], right_act.shape[2], right_act.shape[3],
+                left_act.shape[2], left_act.shape[3]
+            ])
+            out = paddle.transpose(tmp, perm=[0, 1, 3, 2, 4])
+            return out
+
         def compute_chunk(left_act, right_act):
             # This is equivalent to
             #
@@ -108,7 +128,8 @@ class OuterProductMean(nn.Layer):
             right_act_after = dap.all_gather_opp(right_act, axis=2)
             # [B, N_seq, num_outer_channel, N_res//dap_size], [B, N_seq, N_res, num_outer_channel]
             # => [B, N_res, num_outer_channel, num_outer_channel, N_res//dap_size]
-            act = paddle.einsum('nacb,nade->ndceb', left_act, right_act_after)
+            act = fast_einsum('nacb,nade->ndceb', left_act, right_act_after)
+
             # [B, N_res, num_outer_channel, num_outer_channel, N_res//dap_size], [num_outer_channel, num_outer_channel, c_z]
             # => [B, N_res, N_res//dap_size, c_z]
             act = paddle.einsum('ndceb,cef->ndbf', act,
