@@ -23,7 +23,7 @@ import paddle.nn as nn
 import paddle.distributed.auto_parallel as auto
 
 from paddle.nn import functional as F
-from paddle.fluid.lazy_init import _lazy_init_helper
+from paddle.nn.initializer.lazy_init import _lazy_init_helper
 from dataclasses import dataclass, field
 
 from ..layers.model_outputs import (
