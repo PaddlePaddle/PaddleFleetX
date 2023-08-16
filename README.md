@@ -29,8 +29,8 @@
 
 
 <p align="center">
-  <img src="https://github.com/PaddlePaddle/PaddleFleetX/assets/16698950/1d8658f3-449f-4fac-927d-5a5210c39ce5" alt="4D并行" width="350" height="250">
-  <img src="https://github.com/PaddlePaddle/PaddleFleetX/assets/16698950/b6ff6ff1-42cb-433f-87b0-b8bd1d06d9aa" alt="Trainer配置" width="300" height="250">
+  <img src="https://github.com/PaddlePaddle/PaddleFleetX/assets/16698950/1d8658f3-449f-4fac-927d-5a5210c39ce5" alt="4D并行" width="40%" height="40%">
+  <img src="https://github.com/PaddlePaddle/PaddleFleetX/assets/16698950/b6ff6ff1-42cb-433f-87b0-b8bd1d06d9aa" alt="Trainer配置" width="29.5%" height="29.5%">
 </p>
 
 同时4D并行策略相对复杂，不同的策略组合对整体训练流程有较大影响，相对数据并行传统的分布式策略而言接入成本高，因此在PaddleFleetX套件中的统一使用PaddleNLP Trainer来灵活配置分布式策略，同时结合Transformer API 和 4D并行策略设计实现，可以在Transformers API上无感使用4D并行策略，快速使用4D分布式策略。
@@ -40,8 +40,8 @@
                
 
 <p align="center">
-  <img src="https://github.com/PaddlePaddle/PaddleFleetX/assets/16698950/3d25e8e7-77fe-49d7-b4df-ed51e61f56b0" alt="PEFT配置" width="350" height="250">
-  <img src="https://github.com/PaddlePaddle/PaddleFleetX/assets/16698950/07135425-5e30-4fec-80da-c005d9133df7" alt="性能对比" width="300" height="250">
+  <img src="https://github.com/PaddlePaddle/PaddleFleetX/assets/16698950/3d25e8e7-77fe-49d7-b4df-ed51e61f56b0" alt="PEFT配置" width="35%" height="35%">
+  <img src="https://github.com/PaddlePaddle/PaddleFleetX/assets/16698950/07135425-5e30-4fec-80da-c005d9133df7" alt="性能对比" width="33.5%" height="33.5%">
 </p>
 
                 
@@ -49,8 +49,8 @@
 由于大模型预测成本高，对算力、显存要求高，同时在NLU模型相关上通过模型压缩量化可以做到无损量化，因此在NLG的生成模型做压缩量化有益于大模型的预测部署；PaddleFleetX 通过自研的Shift-SmoothQuant算法有效提升量化的精度和稳定性，通过 Shift 算法可以参数分布缩放到对称分布，同时通过 SmoothQuant 将异常参数值进行缩放合理范围内，因此通过 Shift-SmoothQuant 算法可以提升压缩的算法精度和稳定性；在 C-Eval 和 NL2SQL 两个benchmark数据集上在主流开源模型可以做到无损量化。
 
 <p align="center">
-  <img src="https://github.com/PaddlePaddle/PaddleFleetX/assets/16698950/2214d4eb-efe9-45b4-b540-32d9b9e10985" alt="PEFT配置" width="450" height="300">
-   <img src="https://github.com/wawltor/PaddleFleetX/assets/16698950/ccbfafe4-0a5d-472b-ad88-e844a1b44468" alt="PEFT配置" width="450" height="300">
+  <img src="https://github.com/PaddlePaddle/PaddleFleetX/assets/16698950/2214d4eb-efe9-45b4-b540-32d9b9e10985" alt="PEFT配置" width="50%" height="50%">
+   <img src="https://github.com/wawltor/PaddleFleetX/assets/16698950/ccbfafe4-0a5d-472b-ad88-e844a1b44468" alt="PEFT配置" width="50%" height="50%">
 
 </p>
 
@@ -61,7 +61,7 @@
 大模型推理部署在很多场景下会耗费较多的预测部署的资源，因此在PaddleFleetX在预测推理引擎中做了大量核心算子的fusion的过程，例如MultiHeadAttention、FFN，同时对CacheKV做了显存的预分配工作，减少生成过程中不断显存分配；同时由于LLM生成模型在生成过程中会同个batch会有生成长度不一致的问题，因此飞桨推理引擎支持动态Batch插入，适时替换更新不同的Query到预测的batch中，来提升预测吞吐。通过大量的预测优化，PaddleNLP动态图推理吞吐在主流模型相对HuggingFace提升200%+，静态图推理吞吐在主流推理产品中排名第一，下图是具体的对比细节。
 
 <p align="center">
-  <img src="https://github.com/PaddlePaddle/PaddleFleetX/assets/16698950/10872ada-a629-473c-bf17-e01192165e4d" alt="PEFT配置" width="500" height="300">
+  <img src="https://github.com/PaddlePaddle/PaddleFleetX/assets/16698950/10872ada-a629-473c-bf17-e01192165e4d" alt="PEFT配置" width="70%" height="70%">
 </p>
 
 
