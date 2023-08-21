@@ -152,6 +152,7 @@ class EagerEngine(BasicEngine):
 
         self._output_dir = self._configs['save_load']['output_dir']
         self._ckpt_dir = self._configs['save_load']['ckpt_dir']
+        self._load_meta_state = self._configs['save_load'].get("load_meta_state", True)
 
         self._compress_configs = None
         self.prune_configs = None
@@ -438,8 +439,12 @@ class EagerEngine(BasicEngine):
 
         start_epoch = self._load_recovery['epoch']
         if self._load_recovery['rng_state'] != -1:
-            paddle.set_cuda_rng_state(self._load_recovery['rng_state'])
-
+            try:
+                paddle.set_cuda_rng_state(self._load_recovery['rng_state'])
+            except:
+                raise ValueError("Set rng state failed. This may be caused by that the current device resources are different with the"
+                " model's you are loading now. Please Check the cuda device count and specify same CUDA_VISIBLE_DEVICES with the model to load the rng states correctly. ")
+                
         for epoch_index in range(start_epoch, epoch):
             train_epoch_start = get_timestamp()
             self._train_one_epoch(epoch_index, train_data_loader,
@@ -813,7 +818,7 @@ class EagerEngine(BasicEngine):
                     raise ValueError(
                         "No optimizer checkpoint file found in %s." % opt_path)
 
-                if os.path.exists(meta_path):
+                if os.path.exists(meta_path) and self._load_meta_state:
                     meta_dict = paddle.load(meta_path)
                     self._load_recovery = {
                         'step': meta_dict['step'],
@@ -821,8 +826,9 @@ class EagerEngine(BasicEngine):
                         'rng_state': meta_dict['cuda_rng_state']
                     }
                 else:
-                    raise ValueError("No meta checkpoint file found in %s." %
-                                     meta_path)
+                    if self._load_meta_state:
+                        raise ValueError("No meta checkpoint file found in %s." %
+                                        meta_path)
 
             logger.info("successfully load checkpoints")
         else:
