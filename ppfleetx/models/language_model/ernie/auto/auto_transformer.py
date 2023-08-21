@@ -437,8 +437,8 @@ class MultiHeadAttention(Layer):
         out = paddle.matmul(weights, v)
 
         # combine heads
-        out = tensor.transpose(out, perm=[0, 2, 1, 3])
-        out = tensor.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
+        out = paddle.transpose(out, perm=[0, 2, 1, 3])
+        out = paddle.reshape(x=out, shape=[0, 0, out.shape[2] * out.shape[3]])
 
         auto.shard_tensor(self.out_proj.weight, self.mesh[self.mesh_idx],
                           [self.mesh.mp, None])
