@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 class AutoEngine(BasicEngine):
-    def __init__(self, configs, module=None, mode='train'):
+    def __init__(self, configs, module=None, mode='train', cluster=None):
         super().__init__()
         version_check()
 
@@ -99,7 +99,7 @@ class AutoEngine(BasicEngine):
 
         # init engine
         self._auto_engine = auto.Engine(
-            model, loss_fn, optimizer, strategy=self._strategy)
+            model, loss_fn, optimizer, strategy=self._strategy, cluster=cluster)
 
     def fit(self, epoch=1, train_dataset=None, valid_dataset=None):
 

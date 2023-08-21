@@ -56,7 +56,10 @@ if __name__ == "__main__":
         'step_each_epoch': len(train_data)
     })
 
-    engine = AutoEngine(configs=cfg, module=module)
+    device_count = paddle.distributed.get_world_size()
+    cluster = dist.auto.cluster.Cluster()
+    cluster.gen_default_config_cluster(node_count=device_count//8, device_count=8)
+    engine = AutoEngine(configs=cfg, module=module, cluster=cluster)
 
     if cfg.Engine.save_load.ckpt_dir is not None:
         engine.load()
