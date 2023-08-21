@@ -978,7 +978,7 @@ class GPTPretrainingCriterionHybird(nn.Layer):
             loss_mask = loss_mask.transpose([1, 0])
 
         if mp_size > 1:
-            if paddle.is_compiled_with_cuda() and True:
+            if paddle.is_compiled_with_cuda():
                 masked_lm_loss = self.parallel_loss_func(
                     prediction_scores, masked_lm_labels.unsqueeze(2))
             else:
