@@ -142,6 +142,7 @@ class EagerEngine(BasicEngine):
 
         self._amp_dtype = amp_config.get('dtype', 'float16')
         self._amp_level = amp_config.get('level', 'O2')
+        self._amp_use_promote = amp_config.get('use_promote', False)
         self._use_main_grad = amp_config.get('use_main_grad', False)
         self._scale_loss = amp_config['scale_loss']
         self._custom_black_list = amp_config['custom_black_list']
@@ -510,7 +511,8 @@ class EagerEngine(BasicEngine):
                     custom_black_list=self._custom_black_list,
                     custom_white_list=self._custom_white_list,
                     dtype=self._amp_dtype,
-                    level=self._amp_level):
+                    level=self._amp_level,
+                    use_promote=self._amp_use_promote):
                 batch = self._module.model._prepare_training(
                     batch, self._optimizer, self._lr_scheduler)
                 loss = self._module.model.forward_backward_pipeline(
@@ -537,7 +539,8 @@ class EagerEngine(BasicEngine):
                     custom_black_list=self._custom_black_list,
                     custom_white_list=self._custom_white_list,
                     dtype=self._amp_dtype,
-                    level=self._amp_level):
+                    level=self._amp_level,
+                    use_promote=self._amp_use_promote):
                 loss = self._module.training_step(micro_batch)
 
             if self._amp_enable and self._amp_dtype == "float16":
@@ -648,7 +651,8 @@ class EagerEngine(BasicEngine):
                 custom_black_list=self._custom_black_list,
                 custom_white_list=self._custom_white_list,
                 dtype=self._amp_dtype,
-                level=self._amp_level):
+                level=self._amp_level,
+                use_promote=self._amp_use_promote):
             if self._pp_degree == 1:
                 loss = self._module.validation_step(batch)
             else:
@@ -706,7 +710,8 @@ class EagerEngine(BasicEngine):
                 custom_black_list=self._custom_black_list,
                 custom_white_list=self._custom_white_list,
                 dtype=self._amp_dtype,
-                level=self._amp_level):
+                level=self._amp_level,
+                use_promote=self._amp_use_promote):
             if self._pp_degree == 1:
                 loss = self._module.test_step(batch)
             else:
