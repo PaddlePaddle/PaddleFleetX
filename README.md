@@ -76,7 +76,7 @@ Paddle Inference针对大模型Prompt阶段与Token Generation阶段的计算特
 
 ### 大模型部署：实时感知负载动态插入请求，最大化硬件利用率
 
-由于大模型生成场景解码阶段耗时较长，且不同Query下生成长度不一，为了最大化服务吞吐，我们在FastDeploy服务框架结合推理引擎实现了动态插入技术，科实时感知服务负载，动态插入用户请求最大化推理硬件利用率。
+由于大模型生成场景解码阶段耗时较长，且不同Query下生成长度不一，为了最大化服务吞吐，我们在FastDeploy服务框架结合推理引擎实现了动态插入技术，可实时感知服务负载，动态插入用户请求最大化推理硬件利用率。
 
 <p align="center">
   <img width="350" alt="大模型服务部署" src="https://github.com/PaddlePaddle/PaddleFleetX/assets/1371212/d2e38f78-9088-4b1a-a9bd-1018385b5b86">
